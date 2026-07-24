@@ -3,16 +3,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/axios";
 import { UserSession } from "@/lib/permissions";
-import { setToken, setRefreshToken, removeToken, removeRefreshToken } from "@/lib/auth/token";
+import { setToken, setRefreshToken, removeToken, removeRefreshToken, getToken } from "@/lib/auth/token";
 import { useRouter } from "next/navigation";
 
 // Mock User for development when backend is unplugged
-const MOCK_USER: UserSession = {
+const MOCK_USER = {
   id: "owner-1",
   name: "John Doe",
   email: "owner@parlour.com",
-  role: "Owner",
-  permissions: [],
+  role: "Owner" as const,
+  permissions: [] as import("@/lib/permissions").PermissionType[],
+  organizationId: "org-1",
+  branchAccess: [
+    { branchId: "branch-1", branchName: "Koramangala", isActive: true },
+    { branchId: "branch-2", branchName: "Indiranagar", isActive: true },
+    { branchId: "branch-3", branchName: "Whitefield", isActive: false },
+  ],
 };
 
 export function useAuth() {
@@ -23,11 +29,15 @@ export function useAuth() {
   const { data: user, isLoading, isError } = useQuery<UserSession | null>({
     queryKey: ["auth-user"],
     queryFn: async () => {
+      const token = getToken();
+      if (!token) {
+        return null;
+      }
       try {
         const { data } = await apiClient.get("/auth/me");
         return data.data || data;
       } catch (err) {
-        // Return mock user in development if API is unplugged
+        // Return mock user in development if API is unplugged and token exists
         if (process.env.NODE_ENV === "development") {
           return MOCK_USER;
         }
@@ -41,8 +51,20 @@ export function useAuth() {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: Record<string, string>) => {
-      const { data } = await apiClient.post("/auth/login", credentials);
-      return data.data || data;
+      try {
+        const { data } = await apiClient.post("/auth/login", credentials);
+        return data.data || data;
+      } catch (err) {
+        // Mock login in development if backend is offline
+        if (process.env.NODE_ENV === "development") {
+          return {
+            accessToken: "mock-access-token",
+            refreshToken: "mock-refresh-token",
+            user: MOCK_USER,
+          };
+        }
+        throw err;
+      }
     },
     onSuccess: (data) => {
       const token = data.accessToken || data.token;

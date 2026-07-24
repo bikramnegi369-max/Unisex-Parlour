@@ -5,6 +5,7 @@ import { toggleSidebar, toggleTheme } from "@/store/slices/uiSlice";
 import { Bell, Menu, Search, Sun, Moon } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useState } from "react";
+import BranchSwitcher from "./BranchSwitcher";
 
 export default function Header() {
   const dispatch = useAppDispatch();
@@ -37,6 +38,11 @@ export default function Header() {
           placeholder="Search appointments, customers, services..."
           className="w-full pl-9 pr-4 py-2 text-sm bg-muted/50 hover:bg-muted focus:bg-background border border-border/80 focus:border-primary rounded-lg outline-none transition-all placeholder:text-muted-foreground"
         />
+      </div>
+
+      {/* Branch Switcher */}
+      <div className="hidden md:block">
+        <BranchSwitcher />
       </div>
 
       {/* Actions and Profile */}

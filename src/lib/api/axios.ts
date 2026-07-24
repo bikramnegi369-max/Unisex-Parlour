@@ -12,14 +12,28 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
+    // Inject auth token
     const token = getToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Inject active branch ID so the backend can scope the request.
+    // API CONTRACT: using X-Branch-Id header — change here if backend prefers
+    // a query param (?branchId=) or route segment (/branches/:id/...) instead.
+    // We read directly from localStorage to avoid a circular Redux import.
+    if (typeof window !== "undefined") {
+      const branchId = localStorage.getItem("erp_selected_branch_id");
+      if (branchId && config.headers) {
+        config.headers["X-Branch-Id"] = branchId;
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
 );
+
 
 let isRefreshing = false;
 let failedQueue: Array<{

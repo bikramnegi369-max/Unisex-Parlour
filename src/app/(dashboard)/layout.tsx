@@ -8,7 +8,7 @@ import ProtectedRoute from "@/components/layout/ProtectedRoute";
 import { useAppDispatch, useAppSelector } from "@/hooks/store";
 import { setSidebarOpen, setTheme } from "@/store/slices/uiSlice";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { X } from "lucide-react";
+import { useBranches } from "@/features/branches/hooks/useBranches";
 
 export default function DashboardLayout({
   children,
@@ -20,6 +20,9 @@ export default function DashboardLayout({
   const isCollapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const theme = useAppSelector((state) => state.ui.theme);
   const isMobile = useMediaQuery("(max-width: 767px)");
+
+  // Initialize branch context — fetches user's branches and populates Redux
+  useBranches();
 
   // Sync theme with DOM
   React.useEffect(() => {

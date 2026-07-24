@@ -25,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  GitBranch,
   X,
 } from "lucide-react";
 
@@ -50,6 +51,7 @@ const navItems: SidebarItem[] = [
   { name: "Reports & Analytics", href: "/reports", icon: BarChart3 },
   { name: "Users", href: "/users", icon: Users },
   { name: "Roles & Permissions", href: "/roles", icon: ShieldCheck },
+  { name: "Branches", href: "/branches", icon: GitBranch },
   { name: "Activity Logs", href: "/activity-logs", icon: ClipboardList },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
