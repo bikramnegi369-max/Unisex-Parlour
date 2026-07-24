@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAppDispatch, useAppSelector } from "@/hooks/store";
 import { toggleSidebarCollapse } from "@/store/slices/uiSlice";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import {
   LayoutDashboard,
   Users,
@@ -24,6 +25,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
+  X,
 } from "lucide-react";
 
 interface SidebarItem {
@@ -52,10 +54,18 @@ const navItems: SidebarItem[] = [
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
-export default function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export default function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const dispatch = useAppDispatch();
-  const isCollapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  const isCollapsedSelector = useAppSelector((state) => state.ui.sidebarCollapsed);
+  
+  // Mobile drawer sidebar should never render in collapsed icon-only mode
+  const isCollapsed = isMobile ? false : isCollapsedSelector;
 
   return (
     <aside
@@ -65,19 +75,31 @@ export default function Sidebar() {
       )}
     >
       {/* Sidebar Header / Branding */}
-      <div className="flex items-center h-16 border-b border-sidebar-border shrink-0">
+      <div className="flex items-center justify-between h-16 border-b border-sidebar-border shrink-0 px-6">
         {isCollapsed ? (
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
             <Scissors className="h-[18px] w-[18px]" />
           </div>
         ) : (
-          <div className="flex items-center gap-2.5 px-6">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-              <Scissors className="h-5 w-5" />
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+                <Scissors className="h-5 w-5" />
+              </div>
+              <span className="text-base font-bold tracking-tight text-foreground">
+                Unisex Parlour
+              </span>
             </div>
-            <span className="text-base font-bold tracking-tight text-foreground">
-              Unisex Parlour
-            </span>
+            
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer md:hidden"
+                aria-label="Close menu"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
         )}
       </div>

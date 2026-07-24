@@ -59,19 +59,9 @@ export default function DashboardLayout({
 
             {/* Drawer Menu */}
             <div className="relative flex flex-col w-64 max-w-xs bg-sidebar border-r border-sidebar-border shadow-xl z-50">
-              {/* Close Button */}
-              <div className="absolute top-4 right-4 z-50">
-                <button
-                  onClick={() => dispatch(setSidebarOpen(false))}
-                  className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
               {/* Sidebar content */}
               <div className="h-full overflow-y-auto">
-                <Sidebar />
+                <Sidebar onClose={() => dispatch(setSidebarOpen(false))} />
               </div>
             </div>
           </div>
