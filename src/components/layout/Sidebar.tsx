@@ -60,30 +60,30 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex flex-col h-full bg-slate-900 text-slate-300 border-r border-slate-800 transition-all duration-300 ease-in-out z-20 shrink-0",
-        isCollapsed ? "w-16" : "w-64"
+        "flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out z-20 shrink-0 overflow-x-hidden",
+        isCollapsed ? "w-20" : "w-64"
       )}
     >
-      {/* Sidebar Header */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800">
-        {!isCollapsed && (
-          <span className="text-lg font-bold bg-gradient-to-r from-violet-400 to-indigo-400 bg-clip-text text-transparent">
-            Unisex Parlour ERP
-          </span>
+      {/* Sidebar Header / Branding */}
+      <div className="flex items-center h-16 border-b border-sidebar-border shrink-0">
+        {isCollapsed ? (
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
+            <Scissors className="h-[18px] w-[18px]" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5 px-6">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+              <Scissors className="h-5 w-5" />
+            </div>
+            <span className="text-base font-bold tracking-tight text-foreground">
+              Unisex Parlour
+            </span>
+          </div>
         )}
-        <button
-          onClick={() => dispatch(toggleSidebarCollapse())}
-          className={cn(
-            "p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer",
-            isCollapsed && "mx-auto"
-          )}
-        >
-          {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
       </div>
 
       {/* Navigation Items */}
-      <nav className="flex-1 px-2 py-4 overflow-y-auto space-y-1">
+      <nav className={cn("flex-1 py-4 overflow-y-auto overflow-x-hidden space-y-1 scrollbar-thin", isCollapsed ? "px-1" : "px-3")}>
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
@@ -93,18 +93,25 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group relative",
+                "flex items-center rounded-lg text-sm font-medium transition-all group relative h-10",
+                isCollapsed ? "justify-center w-12 mx-auto" : "px-3.5 w-full",
                 isActive
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
-                  : "hover:bg-slate-800/60 hover:text-slate-100 text-slate-400"
+                  ? "bg-primary/5 text-primary before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-primary before:rounded-r"
+                  : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground/75"
               )}
             >
-              <Icon className={cn("h-5 w-5 shrink-0", isActive ? "text-white" : "text-slate-400 group-hover:text-slate-200")} />
+              <Icon
+                className={cn(
+                  "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
+                  isCollapsed ? "" : "mr-3",
+                  isActive ? "text-primary" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"
+                )}
+              />
               {!isCollapsed && <span className="truncate">{item.name}</span>}
 
-              {/* Tooltip on Collapsed */}
+              {/* Styled Tooltip on Collapsed */}
               {isCollapsed && (
-                <div className="absolute left-14 invisible opacity-0 group-hover:visible group-hover:opacity-100 bg-slate-950 text-slate-100 text-xs rounded px-2 py-1.5 transition-all whitespace-nowrap z-50 shadow-md">
+                <div className="absolute left-16 invisible opacity-0 group-hover:visible group-hover:opacity-100 bg-popover text-popover-foreground text-xs font-semibold rounded-lg px-2.5 py-1.5 transition-all duration-150 whitespace-nowrap z-50 shadow-lg border border-border ml-2">
                   {item.name}
                 </div>
               )}
@@ -112,6 +119,26 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Sidebar Footer - Collapse Toggle */}
+      <div className="p-3 border-t border-sidebar-border shrink-0 bg-sidebar-accent/10">
+        <button
+          onClick={() => dispatch(toggleSidebarCollapse())}
+          className={cn(
+            "flex items-center justify-center w-full h-10 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground/75 hover:text-sidebar-foreground transition-all cursor-pointer",
+            isCollapsed ? "w-12 mx-auto px-0" : "px-3 gap-2"
+          )}
+        >
+          {isCollapsed ? (
+            <ChevronRight size={18} />
+          ) : (
+            <>
+              <ChevronLeft size={18} />
+              <span className="text-xs font-semibold">Collapse Sidebar</span>
+            </>
+          )}
+        </button>
+      </div>
     </aside>
   );
 }
