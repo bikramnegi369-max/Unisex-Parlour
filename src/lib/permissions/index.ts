@@ -58,20 +58,16 @@ export interface UserSession {
 
 export function hasPermission(user: UserSession | null, permission: PermissionType): boolean {
   if (!user) return false;
-  // Owners bypass all permission checks
-  if (user.role === "Owner") return true;
   return user.permissions.includes(permission);
 }
 
 export function hasAnyPermission(user: UserSession | null, permissions: PermissionType[]): boolean {
   if (!user) return false;
-  if (user.role === "Owner") return true;
   return permissions.some((p) => user.permissions.includes(p));
 }
 
 export function hasAllPermissions(user: UserSession | null, permissions: PermissionType[]): boolean {
   if (!user) return false;
-  if (user.role === "Owner") return true;
   return permissions.every((p) => user.permissions.includes(p));
 }
 
@@ -104,6 +100,6 @@ export function getAccessibleBranches(user: UserSession | null): BranchAccess[] 
  */
 export function hasOrgWideAccess(user: UserSession | null): boolean {
   if (!user) return false;
-  return !!user.hasOrgWideAccess || user.role === "Owner";
+  return !!user.hasOrgWideAccess;
 }
 

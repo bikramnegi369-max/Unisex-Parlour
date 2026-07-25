@@ -6,6 +6,7 @@ import { setCurrentBranch } from "@/store/slices/branchSlice";
 import { setStoredBranchId } from "@/lib/branch/storage";
 import { ALL_BRANCHES_KEY } from "@/types/branch";
 import type { Branch, Organization } from "@/types/branch";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * useBranchContext
@@ -16,6 +17,7 @@ import type { Branch, Organization } from "@/types/branch";
  */
 export function useBranchContext() {
   const dispatch = useAppDispatch();
+  const queryClient = useQueryClient();
 
   const currentBranchId = useAppSelector((state) => state.branch.currentBranchId);
   const availableBranches = useAppSelector((state) => state.branch.availableBranches);
@@ -51,8 +53,19 @@ export function useBranchContext() {
       } else {
         setStoredBranchId("all");
       }
+
+      // Invalidate all branch-scoped queries, preserving global auth and branch lists
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey;
+          if (key[0] === "auth-user" || key[0] === "branches") {
+            return false;
+          }
+          return true;
+        },
+      });
     },
-    [dispatch]
+    [dispatch, queryClient]
   );
 
   return {
