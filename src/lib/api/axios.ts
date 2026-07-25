@@ -8,6 +8,7 @@ export const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true,
 });
 
 apiClient.interceptors.request.use(
@@ -56,7 +57,14 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    
+    // Do not attempt to refresh if the request itself was an authentication endpoint
+    const isAuthRequest = 
+      originalRequest.url?.includes("/auth/login") || 
+      originalRequest.url?.includes("/auth/refresh") ||
+      originalRequest.url?.includes("/auth/logout");
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -71,21 +79,14 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) {
-        // If no refresh token, force logout
-        removeToken();
-        removeRefreshToken();
-        if (typeof window !== 'undefined') {
-            window.location.href = "/login";
-        }
-        return Promise.reject(error);
-      }
-
       try {
-        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken,
-        });
+        // The backend expects the HttpOnly refresh token cookie.
+        // withCredentials: true ensures the cookie is transmitted automatically.
+        const { data } = await axios.post(
+          `${API_BASE_URL}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        );
         const newToken = data.data?.accessToken || data.accessToken;
         
         if (newToken) {
@@ -100,7 +101,7 @@ apiClient.interceptors.response.use(
         processQueue(refreshError, null);
         removeToken();
         removeRefreshToken();
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && window.location.pathname !== "/login") {
             window.location.href = "/login";
         }
         return Promise.reject(refreshError);
@@ -111,3 +112,4 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+

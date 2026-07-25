@@ -9,25 +9,6 @@ import { getStoredBranchId } from "@/lib/branch/storage";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import type { Branch, Organization } from "@/types/branch";
 
-// ---------------------------------------------------------------------------
-// Development mock — removed when backend is connected
-// ---------------------------------------------------------------------------
-
-const MOCK_BRANCHES: Branch[] = [
-  { id: "branch-1", name: "Koramangala", organizationId: "org-1", address: "5th Block, Koramangala, Bengaluru", isActive: true },
-  { id: "branch-2", name: "Indiranagar", organizationId: "org-1", address: "12th Main, Indiranagar, Bengaluru", isActive: true },
-  { id: "branch-3", name: "Whitefield", organizationId: "org-1", address: "ITPL Road, Whitefield, Bengaluru", isActive: false },
-];
-
-const MOCK_ORGANIZATION: Organization = {
-  id: "org-1",
-  name: "Unisex Parlour",
-};
-
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
-
 export function useBranches() {
   const dispatch = useAppDispatch();
   const { isAuthenticated } = useAuth();
@@ -38,12 +19,9 @@ export function useBranches() {
     queryFn: async () => {
       try {
         return await getBranches();
-      } catch {
-        // Fallback to mock data in development when backend is offline
-        if (process.env.NODE_ENV === "development") {
-          return { organization: MOCK_ORGANIZATION, branches: MOCK_BRANCHES };
-        }
-        throw new Error("Failed to load branches");
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || "Failed to load branches";
+        throw new Error(errorMessage);
       }
     },
     enabled: isAuthenticated,

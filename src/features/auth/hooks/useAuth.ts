@@ -3,23 +3,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/axios";
 import { UserSession } from "@/lib/permissions";
-import { setToken, setRefreshToken, removeToken, removeRefreshToken, getToken } from "@/lib/auth/token";
+import { setToken, removeToken, getToken } from "@/lib/auth/token";
 import { useRouter } from "next/navigation";
-
-// Mock User for development when backend is unplugged
-const MOCK_USER = {
-  id: "owner-1",
-  name: "John Doe",
-  email: "owner@parlour.com",
-  role: "Owner" as const,
-  permissions: [] as import("@/lib/permissions").PermissionType[],
-  organizationId: "org-1",
-  branchAccess: [
-    { branchId: "branch-1", branchName: "Koramangala", isActive: true },
-    { branchId: "branch-2", branchName: "Indiranagar", isActive: true },
-    { branchId: "branch-3", branchName: "Whitefield", isActive: false },
-  ],
-};
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -36,12 +21,9 @@ export function useAuth() {
       try {
         const { data } = await apiClient.get("/auth/me");
         return data.data || data;
-      } catch (err) {
-        // Return mock user in development if API is unplugged and token exists
-        if (process.env.NODE_ENV === "development") {
-          return MOCK_USER;
-        }
-        throw err;
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || "Failed to fetch user session";
+        throw new Error(errorMessage);
       }
     },
     retry: false,
@@ -54,24 +36,17 @@ export function useAuth() {
       try {
         const { data } = await apiClient.post("/auth/login", credentials);
         return data.data || data;
-      } catch (err) {
-        // Mock login in development if backend is offline
-        if (process.env.NODE_ENV === "development") {
-          return {
-            accessToken: "mock-access-token",
-            refreshToken: "mock-refresh-token",
-            user: MOCK_USER,
-          };
-        }
-        throw err;
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.message || "Invalid credentials or login failed";
+        throw new Error(errorMessage);
       }
     },
     onSuccess: (data) => {
       const token = data.accessToken || data.token;
-      const refresh = data.refreshToken;
       if (token) setToken(token);
-      if (refresh) setRefreshToken(refresh);
-      queryClient.setQueryData(["auth-user"], data.user || MOCK_USER);
+      
+      // Invalidate the auth-user query so that it is forced to fetch /auth/me on dashboard mount
+      queryClient.invalidateQueries({ queryKey: ["auth-user"] });
       router.push("/dashboard");
     },
   });
@@ -87,7 +62,6 @@ export function useAuth() {
     },
     onSuccess: () => {
       removeToken();
-      removeRefreshToken();
       queryClient.setQueryData(["auth-user"], null);
       router.push("/login");
     },
@@ -104,3 +78,4 @@ export function useAuth() {
     isLoggingOut: logoutMutation.isPending,
   };
 }
+

@@ -36,8 +36,8 @@ export default function BranchSwitcher() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter to only active branches the user can access
-  const accessibleBranches = branches.filter((b) => b.isActive);
+  // Filter: Owners see all branches, other roles only see active ones
+  const accessibleBranches = branches.filter((b) => b.isActive || canViewAllBranches);
 
   const displayLabel = isAllBranchesSelected
     ? "All Branches"
@@ -78,7 +78,7 @@ export default function BranchSwitcher() {
           )}
         />
       </button>
-
+ 
       {isOpen && (
         <div
           role="listbox"
@@ -105,12 +105,12 @@ export default function BranchSwitcher() {
               {isAllBranchesSelected && <Check size={13} className="text-primary" />}
             </button>
           )}
-
+ 
           {/* Divider between "All Branches" and specific branch list */}
           {canViewAllBranches && accessibleBranches.length > 0 && (
             <div className="my-1 border-t border-border/50" />
           )}
-
+ 
           {/* Individual branch options */}
           {accessibleBranches.length === 0 ? (
             <div className="px-3 py-4 text-center text-xs text-muted-foreground">
@@ -119,24 +119,33 @@ export default function BranchSwitcher() {
           ) : (
             accessibleBranches.map((branch) => {
               const isSelected = currentBranch?.id === branch.id;
+              const isActive = branch.isActive;
               return (
                 <button
                   key={branch.id}
                   role="option"
                   aria-selected={isSelected}
+                  disabled={!isActive}
                   onClick={() => {
                     selectBranch(branch.id);
                     setIsOpen(false);
                   }}
                   className={cn(
-                    "flex items-center gap-2.5 w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer",
-                    isSelected
-                      ? "bg-primary/5 text-primary font-medium"
-                      : "text-foreground hover:bg-muted"
+                    "flex items-center gap-2.5 w-full text-left px-3 py-2 text-sm transition-colors",
+                    !isActive
+                      ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                      : isSelected
+                      ? "bg-primary/5 text-primary font-medium cursor-pointer"
+                      : "text-foreground hover:bg-muted cursor-pointer"
                   )}
                 >
                   <Building2 size={14} className="shrink-0" />
                   <span className="flex-1 truncate">{branch.name}</span>
+                  {!isActive && (
+                    <span className="text-[10px] font-semibold bg-destructive/10 text-destructive px-1.5 py-0.5 rounded uppercase tracking-wide">
+                      Inactive
+                    </span>
+                  )}
                   {isSelected && <Check size={13} className="text-primary" />}
                 </button>
               );
