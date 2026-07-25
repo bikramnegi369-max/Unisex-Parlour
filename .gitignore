@@ -64,3 +64,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Development & documentation
+backend_contract.md
+data_scoping_note.md
+
