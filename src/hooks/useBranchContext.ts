@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "./store";
 import { setCurrentBranch } from "@/store/slices/branchSlice";
-import { setStoredBranchId, removeStoredBranchId } from "@/lib/branch/storage";
+import { setStoredBranchId } from "@/lib/branch/storage";
 import { ALL_BRANCHES_KEY } from "@/types/branch";
 import type { Branch, Organization } from "@/types/branch";
 
@@ -49,7 +49,7 @@ export function useBranchContext() {
       if (branchId) {
         setStoredBranchId(branchId);
       } else {
-        removeStoredBranchId();
+        setStoredBranchId("all");
       }
     },
     [dispatch]

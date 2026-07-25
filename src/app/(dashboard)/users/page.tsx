@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Search, Edit2, ShieldAlert, CheckCircle, XCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Plus, Search, Edit2, CheckCircle, XCircle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -89,6 +89,7 @@ export default function UsersPage() {
     } else {
       // Add mode
       const newUser: User = {
+        // eslint-disable-next-line react-hooks/purity
         id: Math.random().toString(),
         ...data,
       };

@@ -5,7 +5,7 @@ import { Building2, ChevronDown, Check, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasOrgWideAccess } from "@/lib/permissions";
+import { hasOrgWideAccess, hasBranchAccess } from "@/lib/permissions";
 import { useBranches } from "@/features/branches/hooks/useBranches";
 
 /**
@@ -36,11 +36,11 @@ export default function BranchSwitcher() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter: Owners see all branches, other roles only see active ones
-  const accessibleBranches = branches.filter((b) => b.isActive || canViewAllBranches);
+  // Filter: Expose only branches the current user is authorized to access
+  const accessibleBranches = branches.filter((b) => hasBranchAccess(user, b.id));
 
   const displayLabel = isAllBranchesSelected
-    ? "All Branches"
+    ? (canViewAllBranches ? "All Branches" : "No accessible branches")
     : currentBranch?.name ?? "Select Branch";
 
   if (isLoading) {
@@ -64,7 +64,7 @@ export default function BranchSwitcher() {
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        {isAllBranchesSelected ? (
+        {isAllBranchesSelected && canViewAllBranches ? (
           <Layers size={14} className="text-primary shrink-0" />
         ) : (
           <Building2 size={14} className="text-primary shrink-0" />

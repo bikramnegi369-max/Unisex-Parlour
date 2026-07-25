@@ -17,7 +17,6 @@ export default function DashboardLayout({
 }>) {
   const dispatch = useAppDispatch();
   const isMobileOpen = useAppSelector((state) => state.ui.sidebarOpen);
-  const isCollapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const theme = useAppSelector((state) => state.ui.theme);
   const isMobile = useMediaQuery("(max-width: 767px)");
 

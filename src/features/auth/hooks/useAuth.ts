@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api/axios";
 import { UserSession } from "@/lib/permissions";
 import { setToken, removeToken, getToken } from "@/lib/auth/token";
 import { useRouter } from "next/navigation";
+import axios from "axios";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -21,8 +22,11 @@ export function useAuth() {
       try {
         const { data } = await apiClient.get("/auth/me");
         return data.data || data;
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.message || "Failed to fetch user session";
+      } catch (err) {
+        const errorMessage =
+          axios.isAxiosError(err) && err.response?.data?.message
+            ? err.response.data.message
+            : "Failed to fetch user session";
         throw new Error(errorMessage);
       }
     },
@@ -36,8 +40,11 @@ export function useAuth() {
       try {
         const { data } = await apiClient.post("/auth/login", credentials);
         return data.data || data;
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.message || "Invalid credentials or login failed";
+      } catch (err) {
+        const errorMessage =
+          axios.isAxiosError(err) && err.response?.data?.message
+            ? err.response.data.message
+            : "Invalid credentials or login failed";
         throw new Error(errorMessage);
       }
     },
@@ -56,7 +63,7 @@ export function useAuth() {
     mutationFn: async () => {
       try {
         await apiClient.post("/auth/logout");
-      } catch (err) {
+      } catch {
         // Silent catch if API is unreachable
       }
     },

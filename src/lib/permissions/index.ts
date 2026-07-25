@@ -38,16 +38,18 @@ export interface UserSession {
   id: string;
   name: string;
   email: string;
-  role: "Owner" | "Manager" | "Receptionist" | "Stylist" | "Accountant";
+  role: string; // Dynamic role representation to support future custom roles
   permissions: PermissionType[];
   /** The organization this user belongs to. */
   organizationId: string;
   /**
    * List of branches the user is authorized to access.
-   * Owners typically receive access to all branches via the backend.
+   * Users with organization-wide access typically receive access to all branches via the backend.
    * An empty array means no branch access has been granted yet.
    */
   branchAccess: BranchAccess[];
+  /** If true, the user has access across all branches in the organization. */
+  hasOrgWideAccess?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,17 +81,17 @@ export function hasAllPermissions(user: UserSession | null, permissions: Permiss
 
 /**
  * Returns true if the user has access to the given branch.
- * Owners always have access to all branches.
+ * Users with organization-wide access always have access to all branches.
  */
 export function hasBranchAccess(user: UserSession | null, branchId: string): boolean {
   if (!user) return false;
-  if (user.role === "Owner") return true;
+  if (hasOrgWideAccess(user)) return true;
   return user.branchAccess.some((b) => b.branchId === branchId && b.isActive);
 }
 
 /**
  * Returns the list of active branches the user is authorized to access.
- * For Owners this returns all provided branches (backend controls actual scope).
+ * For users with org-wide access, this returns all branches.
  */
 export function getAccessibleBranches(user: UserSession | null): BranchAccess[] {
   if (!user) return [];
@@ -102,6 +104,6 @@ export function getAccessibleBranches(user: UserSession | null): BranchAccess[] 
  */
 export function hasOrgWideAccess(user: UserSession | null): boolean {
   if (!user) return false;
-  return user.role === "Owner";
+  return !!user.hasOrgWideAccess || user.role === "Owner";
 }
 

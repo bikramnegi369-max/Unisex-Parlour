@@ -49,10 +49,11 @@ export default function LoginPage() {
         email: data.email,
         password: data.password,
       });
-    } catch (err: any) {
+    } catch (err) {
       setErrorMsg(
-        err?.response?.data?.message || 
-        "Invalid email or password. Please try again."
+        err instanceof Error
+          ? err.message
+          : "Invalid email or password. Please try again."
       );
     }
   };

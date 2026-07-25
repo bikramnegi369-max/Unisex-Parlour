@@ -2,25 +2,28 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useAppDispatch, useAppSelector } from "@/hooks/store";
+import { useAppDispatch } from "@/hooks/store";
 import { setAvailableBranches, setOrganization, setCurrentBranch } from "@/store/slices/branchSlice";
 import { getBranches } from "../api/branches.api";
-import { getStoredBranchId } from "@/lib/branch/storage";
+import { getStoredBranchId, removeStoredBranchId, setStoredBranchId } from "@/lib/branch/storage";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import type { Branch, Organization } from "@/types/branch";
+import { hasOrgWideAccess, hasBranchAccess } from "@/lib/permissions";
+import axios from "axios";
 
 export function useBranches() {
   const dispatch = useAppDispatch();
-  const { isAuthenticated } = useAuth();
-  const currentBranchId = useAppSelector((state) => state.branch.currentBranchId);
+  const { isAuthenticated, user } = useAuth();
 
   const query = useQuery({
     queryKey: ["branches"],
     queryFn: async () => {
       try {
         return await getBranches();
-      } catch (err: any) {
-        const errorMessage = err.response?.data?.message || "Failed to load branches";
+      } catch (err) {
+        const errorMessage =
+          axios.isAxiosError(err) && err.response?.data?.message
+            ? err.response.data.message
+            : "Failed to load branches";
         throw new Error(errorMessage);
       }
     },
@@ -36,22 +39,48 @@ export function useBranches() {
     dispatch(setOrganization(query.data.organization));
     dispatch(setAvailableBranches(query.data.branches));
 
-    // Restore persisted branch selection, validate it is still accessible
     const storedId = getStoredBranchId();
-    const isValid = storedId
-      ? query.data.branches.some((b) => b.id === storedId && b.isActive)
-      : false;
+    const isOrgWide = hasOrgWideAccess(user);
 
-    if (isValid && storedId) {
-      dispatch(setCurrentBranch(storedId));
-    } else if (currentBranchId === null) {
-      // Default: Owner stays on "All Branches"; others default to first active branch
-      const firstActive = query.data.branches.find((b) => b.isActive);
-      if (firstActive) {
-        dispatch(setCurrentBranch(firstActive.id));
+    if (storedId === "all" || storedId === null) {
+      if (isOrgWide) {
+        dispatch(setCurrentBranch(null));
+      } else {
+        // Fallback for non-org-wide users: select first active, authorized branch
+        removeStoredBranchId();
+        const fallback = query.data.branches.find(
+          (b) => b.isActive && hasBranchAccess(user, b.id)
+        );
+        if (fallback) {
+          dispatch(setCurrentBranch(fallback.id));
+          setStoredBranchId(fallback.id);
+        } else {
+          dispatch(setCurrentBranch(null)); // Zero accessible branches fallback
+        }
+      }
+    } else {
+      // Validate specific stored branch selection
+      const exists = query.data.branches.some((b) => b.id === storedId);
+      const isAuthorized = hasBranchAccess(user, storedId);
+      const isActive = query.data.branches.find((b) => b.id === storedId)?.isActive;
+
+      if (exists && isAuthorized && isActive) {
+        dispatch(setCurrentBranch(storedId));
+      } else {
+        // Invalid or unauthorized selection: clear and fallback
+        removeStoredBranchId();
+        const fallback = query.data.branches.find(
+          (b) => b.isActive && hasBranchAccess(user, b.id)
+        );
+        if (fallback) {
+          dispatch(setCurrentBranch(fallback.id));
+          setStoredBranchId(fallback.id);
+        } else {
+          dispatch(setCurrentBranch(null)); // Zero accessible branches fallback
+        }
       }
     }
-  }, [query.data, dispatch, currentBranchId]);
+  }, [query.data, dispatch, user]);
 
   return {
     branches: query.data?.branches ?? [],
