@@ -1,16 +1,20 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
+import { routePermissions } from "@/lib/permissions/routePermissions";
+import Unauthorized from "./Unauthorized";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -33,5 +37,18 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     return null;
   }
 
+  // Evaluate RBAC permissions for the current path
+  const matchingKey = Object.keys(routePermissions).find((path) => {
+    return pathname === path || pathname.startsWith(path + "/");
+  });
+
+  const requiredPermission = matchingKey ? routePermissions[matchingKey] : null;
+  const isAuthorized = !requiredPermission || hasPermission(user, requiredPermission);
+
+  if (!isAuthorized) {
+    return <Unauthorized />;
+  }
+
   return <>{children}</>;
 }
+
