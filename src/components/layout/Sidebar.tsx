@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { routePermissions } from "@/lib/permissions/routePermissions";
+import { routePermissions, RoutePath } from "@/lib/permissions/routePermissions";
 import {
   LayoutDashboard,
   Users,
@@ -113,7 +113,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
       {/* Navigation Items */}
       <nav className={cn("flex-1 py-4 overflow-y-auto overflow-x-hidden space-y-1 scrollbar-thin", isCollapsed ? "px-1" : "px-3")}>
         {navItems.map((item) => {
-          const requiredPermission = routePermissions[item.href];
+          const requiredPermission = item.href in routePermissions
+            ? routePermissions[item.href as RoutePath]
+            : undefined;
           if (requiredPermission && !hasPermission(user, requiredPermission)) {
             return null;
           }

@@ -3,7 +3,8 @@
 import React from "react";
 import Link from "next/link";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function Unauthorized() {
   return (
@@ -18,12 +19,13 @@ export default function Unauthorized() {
         You do not have the required permissions to view this page. Please contact your system administrator if you believe this is an error.
       </p>
       <div className="mt-8">
-        <Button asChild>
-          <Link href="/dashboard" className="inline-flex items-center gap-2">
-            <ArrowLeft size={16} />
-            Back to Dashboard
-          </Link>
-        </Button>
+        <Link
+          href="/dashboard"
+          className={cn(buttonVariants({ variant: "default" }), "inline-flex items-center gap-2")}
+        >
+          <ArrowLeft size={16} />
+          Back to Dashboard
+        </Link>
       </div>
     </div>
   );

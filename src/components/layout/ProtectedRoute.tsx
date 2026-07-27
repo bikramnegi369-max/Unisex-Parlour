@@ -4,7 +4,7 @@ import React, { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { routePermissions } from "@/lib/permissions/routePermissions";
+import { routePermissions, RoutePath } from "@/lib/permissions/routePermissions";
 import Unauthorized from "./Unauthorized";
 
 interface ProtectedRouteProps {
@@ -38,9 +38,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // Evaluate RBAC permissions for the current path
-  const matchingKey = Object.keys(routePermissions).find((path) => {
-    return pathname === path || pathname.startsWith(path + "/");
-  });
+  // Sort keys by descending length to match more specific routes (e.g. /services/create) before parent routes (e.g. /services)
+  const matchingKey = (Object.keys(routePermissions) as RoutePath[])
+    .sort((a, b) => b.length - a.length)
+    .find((path) => {
+      return pathname === path || pathname.startsWith(path + "/");
+    });
 
   const requiredPermission = matchingKey ? routePermissions[matchingKey] : null;
   const isAuthorized = !requiredPermission || hasPermission(user, requiredPermission);

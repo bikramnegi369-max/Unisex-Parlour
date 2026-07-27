@@ -5,7 +5,7 @@ import { PermissionType } from "./index";
  * Keys should be the pathname sub-path or exact path (e.g. "/users", "/roles").
  * The guard will check if the user has the mapped permission to access the route.
  */
-export const routePermissions: Record<string, PermissionType> = {
+export const routePermissions = {
   "/users": "users.manage",
   "/roles": "roles.manage",
   "/branches": "branches.manage",
@@ -20,4 +20,7 @@ export const routePermissions: Record<string, PermissionType> = {
   "/inventory": "inventory.view",
   "/activity-logs": "activity-logs.view",
   "/settings": "settings.view",
-};
+} as const satisfies Record<string, PermissionType>;
+
+export type RoutePath = keyof typeof routePermissions;
+
