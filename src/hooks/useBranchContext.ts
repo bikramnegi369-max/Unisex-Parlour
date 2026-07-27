@@ -7,6 +7,7 @@ import { setStoredBranchId } from "@/lib/branch/storage";
 import { ALL_BRANCHES_KEY } from "@/types/branch";
 import type { Branch, Organization } from "@/types/branch";
 import { useQueryClient } from "@tanstack/react-query";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 
 /**
  * useBranchContext
@@ -40,6 +41,17 @@ export function useBranchContext() {
    *   queryKey: ['customers', organizationId, branchKey, filters]
    */
   const branchKey = currentBranchId ?? ALL_BRANCHES_KEY;
+
+  /**
+   * Centralized helper to get a scope-aware query key.
+   * Isolates caches cleanly between branches and organization-wide scopes.
+   */
+  const getBranchQueryKey = useCallback(
+    (entityName: string, additionalKeys: unknown[] = []) => {
+      return getScopeQueryKey(entityName, currentBranchId, additionalKeys);
+    },
+    [currentBranchId]
+  );
 
   /**
    * Switch to a specific branch, or pass null to select "All Branches".
@@ -76,6 +88,7 @@ export function useBranchContext() {
     isAllBranchesSelected,
     /** Use in TanStack Query keys for branch-scoped cache separation. */
     branchKey,
+    getBranchQueryKey,
     selectBranch,
   };
 }

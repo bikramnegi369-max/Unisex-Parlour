@@ -134,7 +134,7 @@ export default function RolesPage() {
                 </CardTitle>
                 <CardDescription className="text-xs">
                   {selectedRole === "Owner"
-                    ? "Owners bypass all rules and hold full root-level security permissions."
+                    ? "Owners are assigned all canonical permissions explicitly by the backend."
                     : `Customize action flags for the ${selectedRole} profile below.`}
                 </CardDescription>
               </div>
@@ -169,7 +169,7 @@ export default function RolesPage() {
                   <Info size={28} className="text-amber-500 mx-auto" />
                   <p className="text-sm font-semibold text-foreground">Root Ownership Enabled</p>
                   <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    The Owner profile is exempt from database checks. Modifying these flags has no effect since Owners bypass authorization limits by default.
+                    The Owner profile is assigned all root-level permissions explicitly. Modifying these flags on the frontend is disabled since Owner access is managed directly by the backend registry.
                   </p>
                 </div>
               ) : (

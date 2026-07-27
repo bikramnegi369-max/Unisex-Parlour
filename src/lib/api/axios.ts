@@ -39,6 +39,11 @@ apiClient.interceptors.request.use(
           branchId = stored === "all" ? null : stored;
         }
 
+        // Sanitize 'all' value
+        if (branchId === "all") {
+          branchId = null;
+        }
+
         const user = queryClient.getQueryData<UserSession>(["auth-user"]);
         const isOrgWide = user?.hasOrgWideAccess === true;
 
@@ -47,7 +52,7 @@ apiClient.interceptors.request.use(
             config.headers["X-Branch-Id"] = branchId;
           }
         } else {
-          // No branchId active (All Branches scope)
+          // No branchId active (All Branches scope / Consolidated)
           if (!isOrgWide) {
             // branchScope: "current" requires a valid active branch selection for branch-scoped users
             throw new Error("Branch-scoped request failed: No active branch selected.");
@@ -56,8 +61,11 @@ apiClient.interceptors.request.use(
         }
       }
     } else if (config.branchScope && typeof config.branchScope === "object" && config.branchScope.type === "branch") {
-      if (config.headers) {
-        config.headers["X-Branch-Id"] = config.branchScope.branchId;
+      const targetBranchId = config.branchScope.branchId;
+      if (targetBranchId && targetBranchId !== "all") {
+        if (config.headers) {
+          config.headers["X-Branch-Id"] = targetBranchId;
+        }
       }
     }
     // "organization" scope or omitted (default) does not append X-Branch-Id

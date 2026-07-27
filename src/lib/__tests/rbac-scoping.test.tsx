@@ -1,0 +1,216 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { hasPermission, UserSession } from "../permissions";
+import { getScopeQueryKey } from "../api/queryKeys";
+import { apiClient } from "../api/axios";
+import { store } from "@/store";
+import { queryClient } from "../api/queryClient";
+
+// Mocking dependencies for axios interceptor tests
+vi.mock("@/store", () => {
+  return {
+    store: {
+      getState: () => ({
+        branch: {
+          currentBranchId: mockCurrentBranchId,
+        },
+      }),
+    },
+  };
+});
+
+let mockCurrentBranchId: string | null = null;
+let mockUserSession: UserSession | null = null;
+
+vi.mock("../api/queryClient", () => {
+  return {
+    queryClient: {
+      getQueryData: () => mockUserSession,
+    },
+  };
+});
+
+describe("Frontend RBAC Permission Authorization", () => {
+  it("allows user with customers.view to access customer UI", () => {
+    const user: UserSession = {
+      id: "usr_1",
+      name: "Test User",
+      email: "test@parlour.com",
+      role: "Receptionist",
+      permissions: ["customers.view", "appointments.view"],
+      organizationId: "org_1",
+      branchAccess: [],
+    };
+    expect(hasPermission(user, "customers.view")).toBe(true);
+  });
+
+  it("denies user without customers.view from accessing customer UI", () => {
+    const user: UserSession = {
+      id: "usr_2",
+      name: "Test User 2",
+      email: "test2@parlour.com",
+      role: "Stylist",
+      permissions: ["appointments.view"],
+      organizationId: "org_1",
+      branchAccess: [],
+    };
+    expect(hasPermission(user, "customers.view")).toBe(false);
+  });
+
+  it("verifies Owner access works through returned permissions, not role-name bypass", () => {
+    // Under the new architecture, the owner has the permissions in the permissions array
+    const ownerWithPermission: UserSession = {
+      id: "usr_owner",
+      name: "Owner User",
+      email: "owner@parlour.com",
+      role: "Owner",
+      permissions: ["customers.view"],
+      organizationId: "org_1",
+      branchAccess: [],
+    };
+
+    const ownerWithoutPermission: UserSession = {
+      id: "usr_owner_2",
+      name: "Owner User 2",
+      email: "owner2@parlour.com",
+      role: "Owner",
+      permissions: [], // no permissions assigned (theoretically)
+      organizationId: "org_1",
+      branchAccess: [],
+    };
+
+    expect(hasPermission(ownerWithPermission, "customers.view")).toBe(true);
+    expect(hasPermission(ownerWithoutPermission, "customers.view")).toBe(false); // No bypass!
+  });
+});
+
+describe("TanStack Query Cache Isolation & Keys", () => {
+  it("produces different query keys for Branch A and Branch B", () => {
+    const keyA = getScopeQueryKey("customers", "br_A");
+    const keyB = getScopeQueryKey("customers", "br_B");
+    expect(keyA).not.toEqual(keyB);
+    expect(keyA).toEqual(["customers", { scope: "branch", branchId: "br_A" }]);
+    expect(keyB).toEqual(["customers", { scope: "branch", branchId: "br_B" }]);
+  });
+
+  it("produces different query keys for Branch A and organization-wide scope", () => {
+    const keyBranch = getScopeQueryKey("customers", "br_A");
+    const keyOrg = getScopeQueryKey("customers", null);
+    const keyOrgAll = getScopeQueryKey("customers", "all");
+
+    expect(keyBranch).not.toEqual(keyOrg);
+    expect(keyOrg).toEqual(["customers", { scope: "organization" }]);
+    expect(keyOrgAll).toEqual(["customers", { scope: "organization" }]);
+  });
+
+  it("ensures switching branches (A -> B, A -> All, All -> A) cannot reuse cached data due to distinct query keys", () => {
+    const keyA = getScopeQueryKey("customers", "br_A");
+    const keyB = getScopeQueryKey("customers", "br_B");
+    const keyAll = getScopeQueryKey("customers", null);
+
+    // Assert cache isolation via distinct key references
+    expect(JSON.stringify(keyA)).not.toBe(JSON.stringify(keyB));
+    expect(JSON.stringify(keyA)).not.toBe(JSON.stringify(keyAll));
+    expect(JSON.stringify(keyAll)).not.toBe(JSON.stringify(keyB));
+  });
+});
+
+describe("Axios Request Interceptor & Branch Scoping Headers", () => {
+  beforeEach(() => {
+    mockCurrentBranchId = null;
+    mockUserSession = null;
+  });
+
+  it("appends correct X-Branch-Id header for specific branch", async () => {
+    mockCurrentBranchId = "br_123";
+    mockUserSession = {
+      id: "usr_1",
+      name: "Test",
+      email: "test@test.com",
+      role: "Manager",
+      permissions: [],
+      organizationId: "org_1",
+      branchAccess: [],
+      hasOrgWideAccess: false,
+    };
+
+    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
+    const config = {
+      headers: {} as any,
+      branchScope: "current",
+    };
+
+    const result = await interceptor(config);
+    expect(result.headers["X-Branch-Id"]).toBe("br_123");
+  });
+
+  it("omits X-Branch-Id when All Branches is selected for an org-wide user", async () => {
+    mockCurrentBranchId = null; // represents All Branches
+    mockUserSession = {
+      id: "usr_owner",
+      name: "Owner",
+      email: "owner@test.com",
+      role: "Owner",
+      permissions: [],
+      organizationId: "org_1",
+      branchAccess: [],
+      hasOrgWideAccess: true,
+    };
+
+    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
+    const config = {
+      headers: {} as any,
+      branchScope: "current",
+    };
+
+    const result = await interceptor(config);
+    expect(result.headers["X-Branch-Id"]).toBeUndefined();
+  });
+
+  it("throws error for non-org-wide user on branch-scoped request if no branch is selected", async () => {
+    mockCurrentBranchId = null;
+    mockUserSession = {
+      id: "usr_manager",
+      name: "Manager",
+      email: "manager@test.com",
+      role: "Manager",
+      permissions: [],
+      organizationId: "org_1",
+      branchAccess: [],
+      hasOrgWideAccess: false,
+    };
+
+    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
+    const config = {
+      headers: {} as any,
+      branchScope: "current",
+    };
+
+    expect(() => interceptor(config)).toThrow(
+      "Branch-scoped request failed: No active branch selected."
+    );
+  });
+
+  it("never sends the 'all' sentinel as X-Branch-Id header", async () => {
+    mockCurrentBranchId = "all"; // Mocking storage returning 'all'
+    mockUserSession = {
+      id: "usr_owner",
+      name: "Owner",
+      email: "owner@test.com",
+      role: "Owner",
+      permissions: [],
+      organizationId: "org_1",
+      branchAccess: [],
+      hasOrgWideAccess: true,
+    };
+
+    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
+    const config = {
+      headers: {} as any,
+      branchScope: "current",
+    };
+
+    const result = await interceptor(config);
+    expect(result.headers["X-Branch-Id"]).toBeUndefined();
+  });
+});

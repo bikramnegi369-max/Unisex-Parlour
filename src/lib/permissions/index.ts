@@ -38,6 +38,7 @@ export interface UserSession {
   id: string;
   name: string;
   email: string;
+  phone?: string;
   role: string; // Dynamic role representation to support future custom roles
   permissions: PermissionType[];
   /** The organization this user belongs to. */
