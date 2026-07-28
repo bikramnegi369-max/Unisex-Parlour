@@ -24,6 +24,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${poppins.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
         <Script
@@ -44,7 +45,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${poppins.className} min-h-full flex flex-col`}>
+      <body className={`${poppins.className} min-h-full flex flex-col`} suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>
