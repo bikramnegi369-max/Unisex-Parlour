@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { hasPermission, UserSession } from "../permissions";
 import { getScopeQueryKey } from "../api/queryKeys";
 import { apiClient } from "../api/axios";
@@ -19,13 +19,17 @@ vi.mock("@/store", () => {
   };
 });
 
+import axios from "axios";
+
 let mockCurrentBranchId: string | null = null;
 let mockUserSession: UserSession | null = null;
+export const mockInvalidateQueries = vi.fn();
 
 vi.mock("../api/queryClient", () => {
   return {
     queryClient: {
       getQueryData: () => mockUserSession,
+      invalidateQueries: (...args: any[]) => mockInvalidateQueries(...args),
     },
   };
 });
@@ -212,5 +216,111 @@ describe("Axios Request Interceptor & Branch Scoping Headers", () => {
 
     const result = await interceptor(config);
     expect(result.headers["X-Branch-Id"]).toBeUndefined();
+  });
+});
+
+describe("Axios Response Interceptor & Auth Refresh Flow", () => {
+  let mockPost: any;
+  let originalAdapter: any;
+
+  beforeEach(() => {
+    mockInvalidateQueries.mockClear();
+    mockPost = vi.spyOn(axios, "post");
+    originalAdapter = apiClient.defaults.adapter;
+    apiClient.defaults.adapter = vi.fn().mockResolvedValue({
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config: {},
+      data: { success: true, data: {} }
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    apiClient.defaults.adapter = originalAdapter;
+  });
+
+  it("invalidates ['auth-user'] query on successful token refresh", async () => {
+    mockPost.mockResolvedValueOnce({
+      data: {
+        success: true,
+        data: { accessToken: "new_token_123" }
+      }
+    });
+
+    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    
+    const fakeError = {
+      config: { url: "/some-endpoint", headers: {}, _retry: false },
+      response: { status: 401 }
+    };
+
+    // We expect the original request to be retried
+    const retryPromise = errorInterceptor(fakeError);
+    
+    // Allow promises to resolve
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockPost).toHaveBeenCalledWith(
+      expect.stringContaining("/auth/refresh"),
+      {},
+      expect.any(Object)
+    );
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["auth-user"] });
+  });
+
+  it("coalesces concurrent 401 requests into a single refresh request", async () => {
+    mockPost.mockResolvedValue({
+      data: {
+        success: true,
+        data: { accessToken: "new_token_456" }
+      }
+    });
+
+    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    
+    const fakeError1 = {
+      config: { url: "/endpoint1", headers: {}, _retry: false },
+      response: { status: 401 }
+    };
+    const fakeError2 = {
+      config: { url: "/endpoint2", headers: {}, _retry: false },
+      response: { status: 401 }
+    };
+
+    // Trigger both in parallel
+    const p1 = errorInterceptor(fakeError1);
+    const p2 = errorInterceptor(fakeError2);
+
+    await Promise.all([p1, p2]);
+
+    // Check that axios.post was only called once
+    const refreshCalls = mockPost.mock.calls.filter((call: any) => call[0].includes("/auth/refresh"));
+    expect(refreshCalls.length).toBe(1);
+  });
+
+  it("does not enter refresh flow if request is already a retry", async () => {
+    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    
+    const fakeError = {
+      config: { url: "/some-endpoint", headers: {}, _retry: true },
+      response: { status: 401 }
+    };
+
+    await expect(errorInterceptor(fakeError)).rejects.toThrow();
+    expect(mockPost).not.toHaveBeenCalled();
+  });
+
+  it("does not enter refresh flow if url is an auth endpoint", async () => {
+    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    
+    const fakeError = {
+      config: { url: "/auth/refresh", headers: {}, _retry: false },
+      response: { status: 401 }
+    };
+
+    await expect(errorInterceptor(fakeError)).rejects.toThrow();
+    expect(mockPost).not.toHaveBeenCalled();
   });
 });

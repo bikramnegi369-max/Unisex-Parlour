@@ -131,6 +131,7 @@ apiClient.interceptors.response.use(
         
         if (newToken) {
           setToken(newToken);
+          queryClient.invalidateQueries({ queryKey: ["auth-user"] });
           processQueue(null, newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return apiClient(originalRequest);
