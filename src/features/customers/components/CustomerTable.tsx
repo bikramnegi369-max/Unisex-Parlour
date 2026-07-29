@@ -6,8 +6,9 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Eye, Edit, Trash2 } from "lucide-react";
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
+import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 
 interface CustomerTableProps {
@@ -37,11 +38,10 @@ export default function CustomerTable({
     return availableBranches.find((b) => b.id === id)?.name || id;
   }, [availableBranches]);
 
-  const columnHelper = createColumnHelper<Customer>();
-
-  const columns = useMemo(() => {
+  const columns: ColumnDef<Customer>[] = useMemo(() => {
     return [
-      columnHelper.accessor("name", {
+      {
+        accessorKey: "name",
         header: "Customer",
         cell: (info) => {
           const customer = info.row.original;
@@ -61,70 +61,84 @@ export default function CustomerTable({
             </div>
           );
         },
-      }),
-      columnHelper.accessor("phone", {
+      },
+      {
+        accessorKey: "phone",
         header: "Phone",
         cell: (info) => {
           const val = info.getValue();
+          const phoneStr = typeof val === "string" ? val : info.row.original.phone;
           return (
-            <a href={`tel:${val}`} className="font-medium text-foreground hover:underline">
-              {val}
+            <a href={`tel:${phoneStr}`} className="font-medium text-foreground hover:underline">
+              {phoneStr}
             </a>
           );
         },
-      }),
-      columnHelper.accessor("email", {
+      },
+      {
+        accessorKey: "email",
         header: "Email",
         cell: (info) => {
           const val = info.getValue();
-          return val ? (
-            <a href={`mailto:${val}`} className="text-muted-foreground hover:underline">
-              {val}
+          const emailStr = typeof val === "string" ? val : info.row.original.email;
+          return emailStr ? (
+            <a href={`mailto:${emailStr}`} className="text-muted-foreground hover:underline">
+              {emailStr}
             </a>
           ) : (
             <span className="text-muted-foreground">—</span>
           );
         },
-      }),
-      isAllBranches
-        ? columnHelper.accessor("homeBranchId", {
-            header: "Home Branch",
-            cell: (info) => (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10">
-                {getHomeBranchName(info.getValue())}
-              </span>
-            ),
-          })
-        : null,
-      columnHelper.accessor("isActive", {
+      },
+      ...(isAllBranches
+        ? [
+            {
+              accessorKey: "homeBranchId",
+              header: "Home Branch",
+              cell: (info: { getValue: () => unknown; row: { original: Customer } }) => {
+                const val = info.getValue();
+                const branchId = typeof val === "string" ? val : info.row.original.homeBranchId;
+                return (
+                  <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
+                    {getHomeBranchName(branchId)}
+                  </Badge>
+                );
+              },
+            },
+          ]
+        : []),
+      {
+        accessorKey: "isActive",
         header: "Status",
         cell: (info) => {
-          const active = info.getValue();
+          const val = info.getValue();
+          const active = typeof val === "boolean" ? val : info.row.original.isActive;
           return (
-            <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                active
-                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-                  : "bg-muted text-muted-foreground border-border"
-              }`}
-            >
+            <Badge variant={active ? "success" : "muted"}>
               {active ? "Active" : "Inactive"}
+            </Badge>
+          );
+        },
+      },
+      {
+        accessorKey: "loyaltyPoints",
+        header: "Loyalty",
+        cell: (info) => {
+          const val = info.getValue();
+          const points = typeof val === "number" ? val : (info.row.original.loyaltyPoints ?? 0);
+          return (
+            <span className="font-semibold text-foreground">
+              {points} pts
             </span>
           );
         },
-      }),
-      columnHelper.accessor("loyaltyPoints", {
-        header: "Loyalty",
-        cell: (info) => (
-          <span className="font-semibold text-foreground">
-            {info.getValue() ?? 0} pts
-          </span>
-        ),
-      }),
-      columnHelper.accessor("createdAt", {
+      },
+      {
+        accessorKey: "createdAt",
         header: "Registered",
         cell: (info) => {
-          const dateStr = info.getValue();
+          const val = info.getValue();
+          const dateStr = typeof val === "string" ? val : info.row.original.createdAt;
           if (!dateStr) return "—";
           const date = new Date(dateStr);
           return (
@@ -133,8 +147,8 @@ export default function CustomerTable({
             </span>
           );
         },
-      }),
-      columnHelper.display({
+      },
+      {
         id: "actions",
         header: () => <div className="text-right">Actions</div>,
         cell: (info) => {
@@ -178,8 +192,8 @@ export default function CustomerTable({
             </div>
           );
         },
-      }),
-    ].filter((col): col is Exclude<typeof col, null> => col !== null);
+      },
+    ];
   }, [
     isAllBranches,
     canEdit,
@@ -187,7 +201,6 @@ export default function CustomerTable({
     onView,
     onEdit,
     onDelete,
-    columnHelper,
     getHomeBranchName,
   ]);
 
@@ -204,15 +217,9 @@ export default function CustomerTable({
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <h4 className="font-semibold text-foreground text-sm">{customer.name}</h4>
-              <span
-                className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${
-                  customer.isActive
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-                    : "bg-muted text-muted-foreground border-border"
-                }`}
-              >
+              <Badge variant={customer.isActive ? "success" : "muted"}>
                 {customer.isActive ? "Active" : "Inactive"}
-              </span>
+              </Badge>
             </div>
             {customer.gender && (
               <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium mt-1 inline-block">
@@ -290,8 +297,7 @@ export default function CustomerTable({
 
   return (
     <DataTable
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      columns={columns as ColumnDef<Customer, any>[]}
+      columns={columns}
       data={customers}
       isLoading={isLoading}
       renderMobileRow={renderMobileRow}

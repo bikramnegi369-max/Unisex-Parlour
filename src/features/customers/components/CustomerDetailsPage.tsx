@@ -11,6 +11,8 @@ import { hasPermission } from "@/lib/permissions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { ErrorState } from "@/components/ui/error-state";
 import CustomerForm from "./CustomerForm";
 import { type CustomerFormValues } from "../schemas/customer.schema";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
@@ -26,8 +28,6 @@ import {
   Edit,
   Trash2,
   ArrowLeft,
-  AlertCircle,
-  RefreshCw,
   Building,
   Sparkles,
   Clock,
@@ -100,11 +100,58 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse">
-        <div className="h-10 w-36 bg-muted rounded" />
-        <div className="h-28 w-full bg-muted rounded-xl" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="h-64 md:col-span-2 bg-muted rounded-xl" />
-          <div className="h-64 bg-muted rounded-xl" />
+        {/* Header Action Row Skeleton */}
+        <div className="flex items-center justify-between gap-4 border-b border-border pb-4">
+          <div className="h-9 w-36 bg-muted rounded-lg" />
+          <div className="flex items-center gap-2">
+            <div className="h-9 w-28 bg-muted rounded-lg" />
+            <div className="h-9 w-28 bg-muted rounded-lg" />
+          </div>
+        </div>
+
+        {/* Profile Card Identity Summary Skeleton */}
+        <div className="p-6 bg-card border border-border/80 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="h-16 w-16 rounded-full bg-muted shrink-0" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="h-6 w-48 bg-muted rounded" />
+                <div className="h-5 w-16 bg-muted rounded-full" />
+              </div>
+              <div className="h-4 w-40 bg-muted rounded" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <div className="h-9 w-20 bg-muted rounded-lg" />
+            <div className="h-9 w-20 bg-muted rounded-lg" />
+          </div>
+        </div>
+
+        {/* Split Tabs Navigation and Contents Layout Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Tab Sidebar Navigation Skeleton */}
+          <div className="lg:col-span-1 space-y-1">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-10 w-full bg-muted rounded-lg" />
+            ))}
+          </div>
+
+          {/* Tab Contents Card Skeleton */}
+          <div className="lg:col-span-3">
+            <div className="border border-border/80 rounded-xl bg-card shadow-sm h-96 p-6 space-y-6">
+              <div className="border-b border-border/85 pb-4">
+                <div className="h-5 w-32 bg-muted rounded" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3 w-20 bg-muted rounded" />
+                    <div className="h-5 w-full bg-muted rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -119,25 +166,15 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       return <Unauthorized />;
     }
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center bg-card border border-border/80 rounded-2xl p-8 max-w-md mx-auto mt-12 shadow-md">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-4">
-          <AlertCircle size={24} />
-        </div>
-        <h3 className="text-lg font-bold text-foreground">Customer Not Found</h3>
-        <p className="text-sm text-muted-foreground mt-2.5 leading-relaxed">
-          The requested customer profile could not be retrieved. It may have been deactivated or you may not have access.
-        </p>
-        <div className="flex gap-3 mt-6">
-          <Button variant="outline" onClick={() => router.back()} className="flex items-center gap-1.5 cursor-pointer">
-            <ArrowLeft size={14} />
-            Go Back
-          </Button>
-          <Button onClick={() => refetch()} className="flex items-center gap-1.5 cursor-pointer">
-            <RefreshCw size={14} className={isRefetching ? "animate-spin" : ""} />
-            Try Again
-          </Button>
-        </div>
-      </div>
+      <ErrorState
+        title="Customer Not Found"
+        description="The requested customer profile could not be retrieved. It may have been deactivated or you may not have access."
+        retryAction={{
+          label: "Try Again",
+          onClick: () => refetch(),
+          isLoading: isRefetching,
+        }}
+      />
     );
   }
 
@@ -223,15 +260,9 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-bold text-foreground">{customer.name}</h2>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
-                  customer.isActive
-                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-                    : "bg-muted text-muted-foreground border-border"
-                }`}
-              >
+              <Badge variant={customer.isActive ? "success" : "muted"}>
                 {customer.isActive ? "Active" : "Deactivated"}
-              </span>
+              </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
               <Building size={12} />
@@ -310,7 +341,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
         <div className="lg:col-span-3">
           {activeTab === "overview" && (
-            <Card className="border border-border/80 shadow-sm">
+            <Card className="border border-border/80 shadow-sm animate-in fade-in duration-200">
               <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <User size={18} className="text-primary" />
@@ -396,7 +427,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           )}
 
           {activeTab === "preferences" && (
-            <Card className="border border-border/80 shadow-sm">
+            <Card className="border border-border/80 shadow-sm animate-in fade-in duration-200">
               <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Heart size={18} className="text-primary" />
@@ -412,12 +443,13 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {customer.preferences?.preferredStaff && customer.preferences.preferredStaff.length > 0 ? (
                         customer.preferences.preferredStaff.map((staff, idx) => (
-                          <span
+                          <Badge
                             key={idx}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10"
+                            variant="outline"
+                            className="bg-primary/5 text-primary border-primary/10"
                           >
                             {staff}
-                          </span>
+                          </Badge>
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground italic mt-0.5">Not specified</p>
@@ -437,12 +469,13 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
                     <div className="flex flex-wrap gap-1.5 mt-1.5">
                       {customer.preferences?.preferredServices && customer.preferences.preferredServices.length > 0 ? (
                         customer.preferences.preferredServices.map((service, idx) => (
-                          <span
+                          <Badge
                             key={idx}
-                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10"
+                            variant="outline"
+                            className="bg-primary/5 text-primary border-primary/10"
                           >
                             {service}
-                          </span>
+                          </Badge>
                         ))
                       ) : (
                         <p className="text-sm text-muted-foreground italic mt-0.5">None specified</p>
@@ -463,7 +496,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           )}
 
           {activeTab === "notes" && (
-            <Card className="border border-border/80 shadow-sm">
+            <Card className="border border-border/80 shadow-sm animate-in fade-in duration-200">
               <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <FileText size={18} className="text-primary" />
@@ -485,7 +518,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           )}
 
           {activeTab === "activity" && (
-            <Card className="border border-border/80 shadow-sm">
+            <Card className="border border-border/80 shadow-sm animate-in fade-in duration-200">
               <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <Clock size={18} className="text-primary" />
@@ -511,9 +544,9 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
                           </span>
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 tracking-wide uppercase">
+                              <Badge variant="outline" className="text-[10px] uppercase bg-primary/10 text-primary border-primary/20 tracking-wide px-2 py-0.5 rounded">
                                 {item.action}
-                              </span>
+                              </Badge>
                               <span className="text-xs text-muted-foreground font-medium">
                                 {displayDate}
                               </span>

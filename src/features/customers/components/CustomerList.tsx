@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Plus, Search, RefreshCw, AlertCircle, Sparkles, HelpCircle, AlertTriangle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Plus, Search, RefreshCw, Sparkles, HelpCircle, AlertTriangle } from "lucide-react";
 import type { Customer } from "../types/customer.types";
 import type { CustomerFormValues } from "../schemas/customer.schema";
 
@@ -213,19 +215,15 @@ export default function CustomerList() {
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center bg-card border border-border/80 rounded-2xl p-8 max-w-md mx-auto mt-12 shadow-md animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-4">
-          <AlertCircle size={24} />
-        </div>
-        <h3 className="text-lg font-bold text-foreground">Service Unavailable</h3>
-        <p className="text-sm text-muted-foreground mt-2.5 leading-relaxed">
-          {getFriendlyErrorMessage(error)}
-        </p>
-        <Button onClick={() => refetch()} className="mt-6 flex items-center gap-2 cursor-pointer w-full sm:w-auto">
-          <RefreshCw size={14} className={isRefetching ? "animate-spin" : ""} />
-          Try Reconnecting
-        </Button>
-      </div>
+      <ErrorState
+        title="Service Unavailable"
+        description={getFriendlyErrorMessage(error)}
+        retryAction={{
+          label: "Try Reconnecting",
+          onClick: () => refetch(),
+          isLoading: isRefetching,
+        }}
+      />
     );
   }
 
@@ -339,35 +337,34 @@ export default function CustomerList() {
         />
       ) : customers.length === 0 ? (
         searchQueryParam ? (
-          /* Empty Search results state */
-          <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border rounded-2xl bg-card/20 p-8 max-w-sm mx-auto">
-            <HelpCircle className="text-muted-foreground/60 h-10 w-10 mb-3" />
-            <p className="text-sm font-semibold text-foreground">No matches found</p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
-              No active customer matches &ldquo;{searchQueryParam}&rdquo;. Try checking the spelling or query parameters.
-            </p>
-            <Button variant="outline" size="sm" onClick={() => setSearch("")} className="mt-4 cursor-pointer">
-              Clear Search Query
-            </Button>
-          </div>
+          <EmptyState
+            icon={HelpCircle}
+            title="No matches found"
+            description={`No active customer matches "${searchQueryParam}". Try checking the spelling or query parameters.`}
+            action={{
+              label: "Clear Search Query",
+              onClick: () => setSearch(""),
+            }}
+          />
         ) : (
-          /* Empty Database state */
-          <div className="flex flex-col items-center justify-center py-20 text-center border border-dashed border-border rounded-2xl bg-card/30 p-8 max-w-md mx-auto">
-            <Sparkles className="text-primary/75 h-12 w-12 mb-4 animate-pulse" />
-            <h3 className="text-lg font-bold text-foreground">Customer Directory Empty</h3>
-            <p className="text-sm text-muted-foreground mt-2 leading-relaxed max-w-sm">
-              {isAllBranchesSelected 
+          <EmptyState
+            icon={Sparkles}
+            title="Customer Directory Empty"
+            description={
+              isAllBranchesSelected
                 ? "No customer profiles have been created yet in the organization."
                 : `No customer records belong to ${currentBranch?.name} yet.`
-              }
-            </p>
-            {!isAllBranchesSelected && canCreate && (
-              <Button onClick={() => setIsCreateOpen(true)} className="mt-6 flex items-center gap-1.5 cursor-pointer">
-                <Plus size={16} />
-                Register First Customer
-              </Button>
-            )}
-          </div>
+            }
+            action={
+              !isAllBranchesSelected && canCreate
+                ? {
+                    label: "Register First Customer",
+                    onClick: () => setIsCreateOpen(true),
+                    icon: Plus,
+                  }
+                : undefined
+            }
+          />
         )
       ) : (
         /* Data table view */
