@@ -12,6 +12,20 @@ export interface Customer {
   homeBranchId: string;
   visitedBranchIds: string[];
   isActive: boolean;
+  loyaltyPoints?: number;
+  preferences?: {
+    preferredStaff?: string[];
+    preferredServices?: string[];
+    drinkPreference?: string;
+    remarks?: string;
+  };
+  activityTimeline?: {
+    _id: string;
+    action: string;
+    description: string;
+    date: string;
+    performedBy: string;
+  }[];
   createdAt: string;
   updatedAt: string;
 }

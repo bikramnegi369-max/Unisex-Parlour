@@ -96,6 +96,44 @@ export default function CustomerTable({
             ),
           })
         : null,
+      columnHelper.accessor("isActive", {
+        header: "Status",
+        cell: (info) => {
+          const active = info.getValue();
+          return (
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${
+                active
+                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
+                  : "bg-muted text-muted-foreground border-border"
+              }`}
+            >
+              {active ? "Active" : "Inactive"}
+            </span>
+          );
+        },
+      }),
+      columnHelper.accessor("loyaltyPoints", {
+        header: "Loyalty",
+        cell: (info) => (
+          <span className="font-semibold text-foreground">
+            {info.getValue() ?? 0} pts
+          </span>
+        ),
+      }),
+      columnHelper.accessor("createdAt", {
+        header: "Registered",
+        cell: (info) => {
+          const dateStr = info.getValue();
+          if (!dateStr) return "—";
+          const date = new Date(dateStr);
+          return (
+            <span className="text-muted-foreground text-xs font-medium">
+              {isNaN(date.getTime()) ? dateStr : date.toLocaleDateString()}
+            </span>
+          );
+        },
+      }),
       columnHelper.display({
         id: "actions",
         header: () => <div className="text-right">Actions</div>,
@@ -164,7 +202,18 @@ export default function CustomerTable({
             {customer.name.charAt(0).toUpperCase()}
           </div>
           <div>
-            <h4 className="font-semibold text-foreground text-sm">{customer.name}</h4>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="font-semibold text-foreground text-sm">{customer.name}</h4>
+              <span
+                className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${
+                  customer.isActive
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
+                    : "bg-muted text-muted-foreground border-border"
+                }`}
+              >
+                {customer.isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
             {customer.gender && (
               <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-medium mt-1 inline-block">
                 {customer.gender}
@@ -219,6 +268,12 @@ export default function CustomerTable({
             <a href={`mailto:${customer.email}`} className="font-medium text-foreground hover:underline">
               {customer.email}
             </a>
+          </div>
+        )}
+        {customer.loyaltyPoints !== undefined && (
+          <div className="flex justify-between">
+            <span>Loyalty Points:</span>
+            <span className="font-semibold text-foreground">{customer.loyaltyPoints} pts</span>
           </div>
         )}
         {isAllBranches && (

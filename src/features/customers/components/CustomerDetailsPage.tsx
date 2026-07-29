@@ -29,6 +29,8 @@ import {
   AlertCircle,
   RefreshCw,
   Building,
+  Sparkles,
+  Clock,
 } from "lucide-react";
 
 interface CustomerDetailsPageProps {
@@ -42,7 +44,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "notes">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "notes" | "preferences" | "activity">("overview");
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const canEdit = hasPermission(user, "customers.edit");
@@ -274,6 +276,16 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
               Overview
             </button>
             <button
+              onClick={() => setActiveTab("preferences")}
+              className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                activeTab === "preferences"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              Preferences
+            </button>
+            <button
               onClick={() => setActiveTab("notes")}
               className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
                 activeTab === "notes"
@@ -282,6 +294,16 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
               }`}
             >
               Internal Notes
+            </button>
+            <button
+              onClick={() => setActiveTab("activity")}
+              className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                activeTab === "activity"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              Activity Log
             </button>
           </nav>
         </div>
@@ -336,6 +358,16 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
                       <p className="text-sm font-medium mt-1.5">{formatDOB(customer.dateOfBirth)}</p>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-3">
+                    <Sparkles size={16} className="text-muted-foreground" />
+                    <div>
+                      <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
+                        Loyalty Points
+                      </p>
+                      <p className="text-sm font-medium mt-1.5">{customer.loyaltyPoints ?? 0} Points</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="flex items-start gap-3 pt-6 border-t border-border/50">
@@ -356,6 +388,73 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
                     </p>
                     <p className="text-sm font-medium mt-1.5">
                       {visitedBranchNames || "No visits registered under other branches"}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "preferences" && (
+            <Card className="border border-border/80 shadow-sm">
+              <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Heart size={18} className="text-primary" />
+                  Service & Salon Preferences
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
+                      Preferred Staff
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {customer.preferences?.preferredStaff && customer.preferences.preferredStaff.length > 0 ? (
+                        customer.preferences.preferredStaff.map((staff, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10"
+                          >
+                            {staff}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic mt-0.5">Not specified</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
+                      Drink Preference
+                    </p>
+                    <p className="text-sm font-medium mt-1.5">{customer.preferences?.drinkPreference || "Not specified"}</p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
+                      Preferred Services
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {customer.preferences?.preferredServices && customer.preferences.preferredServices.length > 0 ? (
+                        customer.preferences.preferredServices.map((service, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/5 text-primary border border-primary/10"
+                          >
+                            {service}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic mt-0.5">None specified</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
+                      Remarks / Notes
+                    </p>
+                    <p className="text-sm text-foreground bg-muted/25 p-3 rounded-lg border border-border/50 mt-1.5 leading-relaxed">
+                      {customer.preferences?.remarks || "No preferences remarks recorded."}
                     </p>
                   </div>
                 </div>
@@ -384,6 +483,64 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
               </CardContent>
             </Card>
           )}
+
+          {activeTab === "activity" && (
+            <Card className="border border-border/80 shadow-sm">
+              <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Clock size={18} className="text-primary" />
+                  Profile Activity Log
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                {customer.activityTimeline && customer.activityTimeline.length > 0 ? (
+                  <div className="relative border-l border-border pl-6 ml-2 space-y-6">
+                    {customer.activityTimeline.map((item) => {
+                      const dateObj = new Date(item.date);
+                      const displayDate = isNaN(dateObj.getTime())
+                        ? item.date
+                        : dateObj.toLocaleString(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          });
+                      return (
+                        <div key={item._id} className="relative group">
+                          {/* Timeline dot marker */}
+                          <span className="absolute -left-[31px] top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-primary/20 bg-background text-primary-foreground ring-4 ring-background">
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                          </span>
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 tracking-wide uppercase">
+                                {item.action}
+                              </span>
+                              <span className="text-xs text-muted-foreground font-medium">
+                                {displayDate}
+                              </span>
+                            </div>
+                            <p className="text-sm font-medium text-foreground leading-relaxed mt-1">
+                              {item.description}
+                            </p>
+                            {item.performedBy && (
+                              <p className="text-[10px] text-muted-foreground font-medium mt-1">
+                                System ID: <span className="text-foreground/80">{item.performedBy}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic text-center py-6">
+                    No activity records logged for this customer.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+
         </div>
       </div>
 
