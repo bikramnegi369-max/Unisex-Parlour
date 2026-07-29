@@ -14,13 +14,14 @@ import CustomerForm from "./CustomerForm";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { Plus, Search, RefreshCw, Sparkles, HelpCircle, AlertTriangle } from "lucide-react";
+import { Plus, Sparkles, HelpCircle } from "lucide-react";
 import type { Customer } from "../types/customer.types";
 import type { CustomerFormValues } from "../schemas/customer.schema";
+import { CustomerListHeader } from "./CustomerListHeader";
+import { CustomerSearch } from "./CustomerSearch";
+import { CustomerFilters } from "./CustomerFilters";
 
 export default function CustomerList() {
   const router = useRouter();
@@ -246,83 +247,24 @@ export default function CustomerList() {
       )}
 
       {/* Directory Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">Customer Directory</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage profiles, registrations, and visibility scopes across branches.
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5">
-          {isAllBranchesSelected ? (
-            <div className="text-xs font-medium text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
-              <AlertTriangle size={14} />
-              <span>Select branch to register customer</span>
-            </div>
-          ) : (
-            canCreate && (
-              <Button onClick={() => setIsCreateOpen(true)} className="flex items-center gap-1.5 shadow-md shadow-primary/10 cursor-pointer">
-                <Plus size={16} />
-                Add Customer
-              </Button>
-            )
-          )}
-        </div>
-      </div>
+      <CustomerListHeader
+        isAllBranchesSelected={isAllBranchesSelected}
+        canCreate={canCreate}
+        onAddClick={() => setIsCreateOpen(true)}
+      />
 
       {/* Search and Context Display Toolbar */}
       <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search customers by name or phone number..."
-            className="pl-10"
-          />
-        </div>
+        <CustomerSearch value={search} onChange={setSearch} />
         
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          {/* Status Filter */}
-          <div className="min-w-[140px]">
-            <Select
-              value={isActiveParam === "true" ? "active" : isActiveParam === "false" ? "inactive" : "all"}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              aria-label="Filter by Status"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active Only</option>
-              <option value="inactive">Inactive Only</option>
-            </Select>
-          </div>
-
-          {/* Sort Selection */}
-          <div className="min-w-[160px]">
-            <Select
-              value={sort}
-              onChange={(e) => handleSortChange(e.target.value)}
-              aria-label="Sort Customers"
-            >
-              <option value="">Sort by (Default)</option>
-              <option value="name">Name (A-Z)</option>
-              <option value="-name">Name (Z-A)</option>
-              <option value="createdAt">Date (Oldest)</option>
-              <option value="-createdAt">Date (Newest)</option>
-              <option value="updatedAt">Updated (Oldest)</option>
-              <option value="-updatedAt">Updated (Newest)</option>
-              <option value="loyaltyPoints">Loyalty (Lowest)</option>
-              <option value="-loyaltyPoints">Loyalty (Highest)</option>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground shrink-0 bg-muted/30 border border-border/50 px-3 py-2.5 rounded-lg">
-            <span>Active Scope:</span>
-            <span className="font-semibold text-foreground">
-              {isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name}
-            </span>
-            {isRefetching && <RefreshCw size={12} className="animate-spin text-primary ml-1" />}
-          </div>
-        </div>
+        <CustomerFilters
+          status={isActiveParam === "true" ? "active" : isActiveParam === "false" ? "inactive" : "all"}
+          onStatusChange={handleStatusChange}
+          sort={sort}
+          onSortChange={handleSortChange}
+          activeScopeName={isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name || ""}
+          isRefetching={isRefetching}
+        />
       </div>
 
       {/* Loading Skeleton or Data Table */}
