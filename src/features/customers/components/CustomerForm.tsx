@@ -51,10 +51,13 @@ export default function CustomerForm({
           id="name"
           placeholder="e.g. John Doe"
           className={errors.name ? "border-destructive focus-visible:ring-destructive" : ""}
+          aria-invalid={errors.name ? "true" : "false"}
+          aria-describedby={errors.name ? "name-error" : undefined}
+          disabled={isSubmitting}
           {...register("name")}
         />
         {errors.name && (
-          <p className="mt-1 text-xs font-medium text-destructive">{errors.name.message}</p>
+          <p id="name-error" className="mt-1 text-xs font-medium text-destructive">{errors.name.message}</p>
         )}
       </div>
 
@@ -66,10 +69,13 @@ export default function CustomerForm({
           id="phone"
           placeholder="e.g. +1234567890"
           className={errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
+          aria-invalid={errors.phone ? "true" : "false"}
+          aria-describedby={errors.phone ? "phone-error" : undefined}
+          disabled={isSubmitting}
           {...register("phone")}
         />
         {errors.phone && (
-          <p className="mt-1 text-xs font-medium text-destructive">{errors.phone.message}</p>
+          <p id="phone-error" className="mt-1 text-xs font-medium text-destructive">{errors.phone.message}</p>
         )}
       </div>
 
@@ -82,10 +88,13 @@ export default function CustomerForm({
           type="email"
           placeholder="e.g. john@example.com"
           className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+          aria-invalid={errors.email ? "true" : "false"}
+          aria-describedby={errors.email ? "email-error" : undefined}
+          disabled={isSubmitting}
           {...register("email")}
         />
         {errors.email && (
-          <p className="mt-1 text-xs font-medium text-destructive">{errors.email.message}</p>
+          <p id="email-error" className="mt-1 text-xs font-medium text-destructive">{errors.email.message}</p>
         )}
       </div>
 
@@ -94,14 +103,20 @@ export default function CustomerForm({
           <label htmlFor="gender" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
             Gender
           </label>
-          <Select id="gender" {...register("gender")}>
+          <Select
+            id="gender"
+            aria-invalid={errors.gender ? "true" : "false"}
+            aria-describedby={errors.gender ? "gender-error" : undefined}
+            disabled={isSubmitting}
+            {...register("gender")}
+          >
             <option value="">Select Gender</option>
             <option value="Male">Male</option>
             <option value="Female">Female</option>
             <option value="Other">Other</option>
           </Select>
           {errors.gender && (
-            <p className="mt-1 text-xs font-medium text-destructive">{errors.gender.message}</p>
+            <p id="gender-error" className="mt-1 text-xs font-medium text-destructive">{errors.gender.message}</p>
           )}
         </div>
 
@@ -113,10 +128,13 @@ export default function CustomerForm({
             id="dateOfBirth"
             type="date"
             className={errors.dateOfBirth ? "border-destructive focus-visible:ring-destructive" : ""}
+            aria-invalid={errors.dateOfBirth ? "true" : "false"}
+            aria-describedby={errors.dateOfBirth ? "dob-error" : undefined}
+            disabled={isSubmitting}
             {...register("dateOfBirth")}
           />
           {errors.dateOfBirth && (
-            <p className="mt-1 text-xs font-medium text-destructive">{errors.dateOfBirth.message}</p>
+            <p id="dob-error" className="mt-1 text-xs font-medium text-destructive">{errors.dateOfBirth.message}</p>
           )}
         </div>
       </div>
@@ -129,10 +147,13 @@ export default function CustomerForm({
           id="address"
           placeholder="Street address, city, postcode"
           className={errors.address ? "border-destructive focus-visible:ring-destructive" : ""}
+          aria-invalid={errors.address ? "true" : "false"}
+          aria-describedby={errors.address ? "address-error" : undefined}
+          disabled={isSubmitting}
           {...register("address")}
         />
         {errors.address && (
-          <p className="mt-1 text-xs font-medium text-destructive">{errors.address.message}</p>
+          <p id="address-error" className="mt-1 text-xs font-medium text-destructive">{errors.address.message}</p>
         )}
       </div>
 
@@ -145,10 +166,13 @@ export default function CustomerForm({
           rows={3}
           placeholder="Add any relevant customer details, styling history, preferences..."
           className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-invalid={errors.notes ? "true" : "false"}
+          aria-describedby={errors.notes ? "notes-error" : undefined}
+          disabled={isSubmitting}
           {...register("notes")}
         />
         {errors.notes && (
-          <p className="mt-1 text-xs font-medium text-destructive">{errors.notes.message}</p>
+          <p id="notes-error" className="mt-1 text-xs font-medium text-destructive">{errors.notes.message}</p>
         )}
       </div>
 
@@ -156,7 +180,7 @@ export default function CustomerForm({
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting} className="min-w-[100px]">
+        <Button type="submit" disabled={isSubmitting} className="min-w-[100px] cursor-pointer">
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -170,3 +194,4 @@ export default function CustomerForm({
     </form>
   );
 }
+

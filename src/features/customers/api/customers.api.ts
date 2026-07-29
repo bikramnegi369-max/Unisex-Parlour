@@ -11,6 +11,8 @@ export interface GetCustomersParams {
   search?: string;
   page?: number;
   limit?: number;
+  isActive?: boolean;
+  sort?: string;
 }
 
 export interface NormalizedCustomersData {
@@ -23,6 +25,7 @@ export interface NormalizedCustomersData {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mapCustomerKeys = (c: any): Customer => ({
   ...c,
   id: c._id || c.id || "",

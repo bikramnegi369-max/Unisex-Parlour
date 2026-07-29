@@ -5,7 +5,7 @@ import type { Customer } from "../types/customer.types";
 
 export function useCreateCustomer() {
   const queryClient = useQueryClient();
-  const { currentBranchId } = useBranchContext();
+  const { currentBranchId, getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: (payload: Omit<Partial<Customer>, "id" | "organizationId" | "homeBranchId" | "visitedBranchIds" | "isActive">) => {
@@ -15,8 +15,9 @@ export function useCreateCustomer() {
       return createCustomer(payload);
     },
     onSuccess: () => {
-      // Invalidate all query caches starting with "customers"
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Invalidate only directory views in the current branch scope context
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("customers") });
     },
   });
 }
+

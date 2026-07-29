@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateCustomer } from "../api/customers.api";
+import { useBranchContext } from "@/hooks/useBranchContext";
 import type { Customer } from "../types/customer.types";
 
 interface UpdateCustomerParams {
@@ -9,15 +10,17 @@ interface UpdateCustomerParams {
 
 export function useUpdateCustomer() {
   const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, payload }: UpdateCustomerParams) => updateCustomer(id, payload),
     onSuccess: (data) => {
       // Invalidate both directory and detail views for this customer
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("customers") });
       queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === "customer" && query.queryKey.includes(data.id),
+        queryKey: getBranchQueryKey("customer", [data.id]),
       });
     },
   });
 }
+

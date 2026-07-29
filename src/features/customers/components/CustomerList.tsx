@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -10,47 +11,102 @@ import { useUpdateCustomer } from "../hooks/useUpdateCustomer";
 import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
 import CustomerTable from "./CustomerTable";
 import CustomerForm from "./CustomerForm";
-import CustomerDetails from "./CustomerDetails";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, RefreshCw, XCircle, AlertCircle, Sparkles, HelpCircle, AlertTriangle } from "lucide-react";
+import { Select } from "@/components/ui/select";
+import { Plus, Search, RefreshCw, AlertCircle, Sparkles, HelpCircle, AlertTriangle } from "lucide-react";
 import type { Customer } from "../types/customer.types";
 import type { CustomerFormValues } from "../schemas/customer.schema";
 
 export default function CustomerList() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
   const { user } = useAuth();
-  const { currentBranchId, isAllBranchesSelected, currentBranch } = useBranchContext();
+  const { isAllBranchesSelected, currentBranch } = useBranchContext();
 
   const canCreate = hasPermission(user, "customers.create");
 
-  // State Management
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
-  const [viewState, setViewState] = useState<"list" | "details">("list");
-  
+  // Read page parameter from URL
+  const pageParam = searchParams.get("page");
+  const page = pageParam ? parseInt(pageParam, 10) : 1;
+
+  // Read search parameter from URL
+  const searchQueryParam = searchParams.get("search") || "";
+
+  // Read status filter parameter from URL
+  const isActiveParam = searchParams.get("isActive");
+  const isActive = isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined;
+
+  // Read sort parameter from URL
+  const sort = searchParams.get("sort") || "";
+
+  // Local state for immediate typing responsiveness
+  const [search, setSearch] = useState(searchQueryParam);
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
+
+  // Sync state during render when URL query changes (e.g. Back/Forward navigation)
+  if (searchQueryParam !== prevSearchQuery) {
+    setPrevSearchQuery(searchQueryParam);
+    setSearch(searchQueryParam);
+  }
+
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   
   // Notification alert state
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Debounce search input
+  // Debounce search input and sync with URL
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1); // Reset page on new search
+      const currentQuery = searchParams.get("search") || "";
+      if (search !== currentQuery) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (search.trim()) {
+          params.set("search", search.trim());
+        } else {
+          params.delete("search");
+        }
+        params.set("page", "1"); // Reset to page 1 on new search query
+        router.push(`${pathname}?${params.toString()}`);
+      }
     }, 400);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, router, pathname, searchParams]);
 
-  // Fetch paginated active customers
+  const handleStatusChange = (val: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (val === "active") {
+      params.set("isActive", "true");
+    } else if (val === "inactive") {
+      params.set("isActive", "false");
+    } else {
+      params.delete("isActive");
+    }
+    params.set("page", "1"); // Reset to page 1
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleSortChange = (val: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("sort", val);
+    } else {
+      params.delete("sort");
+    }
+    params.set("page", "1"); // Reset to page 1
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  // Fetch paginated customers based on URL query state
   const {
     data: customerData,
     isLoading,
@@ -59,9 +115,11 @@ export default function CustomerList() {
     refetch,
     isRefetching,
   } = useCustomers({
-    search: debouncedSearch || undefined,
+    search: searchQueryParam || undefined,
     page,
     limit: 10,
+    isActive,
+    sort: sort || undefined,
   });
 
   // Mutations
@@ -69,13 +127,14 @@ export default function CustomerList() {
   const updateMutation = useUpdateCustomer();
   const deleteMutation = useDeleteCustomer();
 
+
   const handleCreateSubmit = (values: CustomerFormValues) => {
     createMutation.mutate(values, {
       onSuccess: () => {
         setIsCreateOpen(false);
         triggerAlert("success", "Customer profile created successfully.");
       },
-      onError: (err: any) => {
+      onError: (err: Error) => {
         triggerAlert("error", err.message || "Failed to create customer.");
       },
     });
@@ -86,12 +145,12 @@ export default function CustomerList() {
     updateMutation.mutate(
       { id: activeCustomer.id, payload: values },
       {
-        onSuccess: (updated) => {
+        onSuccess: () => {
           setIsEditOpen(false);
-          setActiveCustomer(updated);
+          setActiveCustomer(null);
           triggerAlert("success", "Customer profile updated successfully.");
         },
-        onError: (err: any) => {
+        onError: (err: Error) => {
           triggerAlert("error", err.message || "Failed to update customer.");
         },
       }
@@ -104,13 +163,9 @@ export default function CustomerList() {
       onSuccess: () => {
         setIsDeleteOpen(false);
         setCustomerToDelete(null);
-        if (activeCustomer?.id === customerToDelete.id) {
-          setViewState("list");
-          setActiveCustomer(null);
-        }
         triggerAlert("success", "Customer profile deactivated successfully.");
       },
-      onError: (err: any) => {
+      onError: (err: Error) => {
         setIsDeleteOpen(false);
         triggerAlert("error", err.message || "Failed to deactivate customer.");
       },
@@ -122,10 +177,21 @@ export default function CustomerList() {
     setTimeout(() => setAlertMessage(null), 4000);
   };
 
-  const getFriendlyErrorMessage = (err: any) => {
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", newPage.toString());
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const getFriendlyErrorMessage = (err: unknown) => {
     if (!err) return "An unexpected error occurred while retrieving customer records.";
-    const status = err.response?.status || err.status;
-    const message = err.response?.data?.message || err.message || "";
+    
+    const errObj = err as Record<string, unknown> | null;
+    const responseObj = errObj?.response as Record<string, unknown> | null;
+    const status = (responseObj?.status as number | undefined) || (errObj?.status as number | undefined);
+    const message = (responseObj?.data as Record<string, unknown> | null)?.message as string | undefined
+      || (errObj?.message as string | undefined) || "";
+
 
     if (status === 401) {
       return "Your session has expired. Please log in again to continue.";
@@ -136,7 +202,7 @@ export default function CustomerList() {
     if (status === 404) {
       return "The requested directory resource could not be found.";
     }
-    if (status >= 500 || message.includes("500") || message.toLowerCase().includes("request failed")) {
+    if ((status !== undefined && status >= 500) || message.includes("500") || message.toLowerCase().includes("request failed")) {
       return "We are experiencing temporary server difficulties. Please try again in a few moments.";
     }
     if (message.toLowerCase().includes("network error") || (typeof navigator !== "undefined" && !navigator.onLine)) {
@@ -159,68 +225,6 @@ export default function CustomerList() {
           <RefreshCw size={14} className={isRefetching ? "animate-spin" : ""} />
           Try Reconnecting
         </Button>
-      </div>
-    );
-  }
-
-  // Handle detailed profile view transition
-  if (viewState === "details" && activeCustomer) {
-    return (
-      <div className="space-y-6">
-        {alertMessage && (
-          <div
-            className={`p-3 rounded-lg border text-sm font-semibold animate-in fade-in duration-200 ${
-              alertMessage.type === "success"
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-                : "bg-destructive/10 border-destructive/20 text-destructive"
-            }`}
-          >
-            {alertMessage.text}
-          </div>
-        )}
-
-        <CustomerDetails
-          customer={activeCustomer}
-          onBack={() => {
-            setViewState("list");
-            setActiveCustomer(null);
-          }}
-          onEdit={() => setIsEditOpen(true)}
-          onDelete={() => {
-            setCustomerToDelete(activeCustomer);
-            setIsDeleteOpen(true);
-          }}
-        />
-
-        {/* Edit Modal (scoped context details are immutable) */}
-        <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Customer Details">
-          <CustomerForm
-            initialData={{
-              name: activeCustomer.name,
-              phone: activeCustomer.phone,
-              email: activeCustomer.email || "",
-              gender: activeCustomer.gender || "",
-              dateOfBirth: activeCustomer.dateOfBirth || "",
-              address: activeCustomer.address || "",
-              notes: activeCustomer.notes || "",
-            }}
-            onSubmit={handleEditSubmit}
-            isSubmitting={updateMutation.isPending}
-            onCancel={() => setIsEditOpen(false)}
-            submitLabel="Update Customer"
-          />
-        </Dialog>
-
-        {/* Delete Dialog */}
-        {customerToDelete && (
-          <CustomerDeleteDialog
-            isOpen={isDeleteOpen}
-            onClose={() => setIsDeleteOpen(false)}
-            onConfirm={handleDeleteConfirm}
-            isDeleting={deleteMutation.isPending}
-            customerName={customerToDelete.name}
-          />
-        )}
       </div>
     );
   }
@@ -269,8 +273,8 @@ export default function CustomerList() {
       </div>
 
       {/* Search and Context Display Toolbar */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:max-w-md">
+      <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+        <div className="relative flex-1 max-w-md">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
@@ -280,12 +284,46 @@ export default function CustomerList() {
           />
         </div>
         
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground shrink-0 bg-muted/30 border border-border/50 px-3 py-2 rounded-lg">
-          <span>Active Scope:</span>
-          <span className="font-semibold text-foreground">
-            {isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name}
-          </span>
-          {isRefetching && <RefreshCw size={12} className="animate-spin text-primary ml-1" />}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Status Filter */}
+          <div className="min-w-[140px]">
+            <Select
+              value={isActiveParam === "true" ? "active" : isActiveParam === "false" ? "inactive" : "all"}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              aria-label="Filter by Status"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active Only</option>
+              <option value="inactive">Inactive Only</option>
+            </Select>
+          </div>
+
+          {/* Sort Selection */}
+          <div className="min-w-[160px]">
+            <Select
+              value={sort}
+              onChange={(e) => handleSortChange(e.target.value)}
+              aria-label="Sort Customers"
+            >
+              <option value="">Sort by (Default)</option>
+              <option value="name">Name (A-Z)</option>
+              <option value="-name">Name (Z-A)</option>
+              <option value="createdAt">Date (Oldest)</option>
+              <option value="-createdAt">Date (Newest)</option>
+              <option value="updatedAt">Updated (Oldest)</option>
+              <option value="-updatedAt">Updated (Newest)</option>
+              <option value="loyaltyPoints">Loyalty (Lowest)</option>
+              <option value="-loyaltyPoints">Loyalty (Highest)</option>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground shrink-0 bg-muted/30 border border-border/50 px-3 py-2.5 rounded-lg">
+            <span>Active Scope:</span>
+            <span className="font-semibold text-foreground">
+              {isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name}
+            </span>
+            {isRefetching && <RefreshCw size={12} className="animate-spin text-primary ml-1" />}
+          </div>
         </div>
       </div>
 
@@ -300,13 +338,13 @@ export default function CustomerList() {
           isAllBranches={isAllBranchesSelected}
         />
       ) : customers.length === 0 ? (
-        debouncedSearch ? (
+        searchQueryParam ? (
           /* Empty Search results state */
           <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border rounded-2xl bg-card/20 p-8 max-w-sm mx-auto">
             <HelpCircle className="text-muted-foreground/60 h-10 w-10 mb-3" />
             <p className="text-sm font-semibold text-foreground">No matches found</p>
             <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
-              No active customer matches &ldquo;{debouncedSearch}&rdquo;. Try checking the spelling or query parameters.
+              No active customer matches &ldquo;{searchQueryParam}&rdquo;. Try checking the spelling or query parameters.
             </p>
             <Button variant="outline" size="sm" onClick={() => setSearch("")} className="mt-4 cursor-pointer">
               Clear Search Query
@@ -337,8 +375,7 @@ export default function CustomerList() {
           <CustomerTable
             customers={customers}
             onView={(c) => {
-              setActiveCustomer(c);
-              setViewState("details");
+              router.push(`/customers/${c.id}`);
             }}
             onEdit={(c) => {
               setActiveCustomer(c);
@@ -362,7 +399,7 @@ export default function CustomerList() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPage((p) => Math.max(p - 1, 1))}
+                  onClick={() => handlePageChange(Math.max(page - 1, 1))}
                   disabled={page === 1}
                   className="cursor-pointer"
                 >
@@ -371,7 +408,7 @@ export default function CustomerList() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setPage((p) => Math.min(p + 1, pagination.pages))}
+                  onClick={() => handlePageChange(Math.min(page + 1, pagination.pages))}
                   disabled={page === pagination.pages}
                   className="cursor-pointer"
                 >
@@ -393,7 +430,7 @@ export default function CustomerList() {
         />
       </Dialog>
 
-      {/* Edit Dialog (Direct from Table click) */}
+      {/* Edit Dialog */}
       {isEditOpen && activeCustomer && (
         <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Customer Details">
           <CustomerForm
@@ -408,7 +445,10 @@ export default function CustomerList() {
             }}
             onSubmit={handleEditSubmit}
             isSubmitting={updateMutation.isPending}
-            onCancel={() => setIsEditOpen(false)}
+            onCancel={() => {
+              setIsEditOpen(false);
+              setActiveCustomer(null);
+            }}
             submitLabel="Update Customer"
           />
         </Dialog>
@@ -427,3 +467,4 @@ export default function CustomerList() {
     </div>
   );
 }
+

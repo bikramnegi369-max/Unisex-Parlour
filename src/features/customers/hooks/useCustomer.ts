@@ -2,13 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { getCustomer } from "../api/customers.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
 
 export function useCustomer(id: string | null) {
   const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
   const isOrgWide = user?.hasOrgWideAccess === true;
-  const isEnabled = isAuthenticated && !!id && (currentBranchId !== null || isOrgWide);
+  const hasViewPermission = hasPermission(user, "customers.view");
+  const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
 
   const queryKey = getBranchQueryKey("customer", [id || ""]);
 
@@ -21,3 +23,4 @@ export function useCustomer(id: string | null) {
 
   return query;
 }
+
