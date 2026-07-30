@@ -24,20 +24,21 @@ export function CustomerFilters({
   return (
     <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
       {/* Status Filter */}
-      <div className="min-w-[140px]">
-        <Select
-          value={status}
-          onChange={(e) => onStatusChange(e.target.value)}
-          aria-label="Filter by Status"
-        >
-          <option value="all">All Statuses</option>
-          <option value="active">Active Only</option>
-          <option value="inactive">Inactive Only</option>
-        </Select>
+      <div className="min-w-35">
+          <Select
+            value={status}
+            onChange={(e) => onStatusChange(e.target.value)}
+            aria-label="Filter by Status"
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+            <option value="blocked">Blocked Only</option>
+          </Select>
       </div>
 
       {/* Sort Selection */}
-      <div className="min-w-[160px]">
+      <div className="min-w-40">
         <Select
           value={sort}
           onChange={(e) => onSortChange(e.target.value)}

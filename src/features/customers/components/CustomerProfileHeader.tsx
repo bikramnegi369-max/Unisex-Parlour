@@ -4,7 +4,7 @@ import React from "react";
 import type { Customer } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Trash2, Building, Phone, Mail } from "lucide-react";
+import { ArrowLeft, Edit, Trash2, Building, Phone, Mail, UserCheck } from "lucide-react";
 
 interface CustomerProfileHeaderProps {
   customer: Customer;
@@ -14,6 +14,7 @@ interface CustomerProfileHeaderProps {
   onBack: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
+  onReactivate: () => void;
 }
 
 export function CustomerProfileHeader({
@@ -24,6 +25,7 @@ export function CustomerProfileHeader({
   onBack,
   onEdit,
   onDeactivate,
+  onReactivate,
 }: CustomerProfileHeaderProps) {
   return (
     <div className="space-y-6">
@@ -48,7 +50,7 @@ export function CustomerProfileHeader({
               Edit Profile
             </Button>
           )}
-          {canDelete && customer.isActive && (
+          {canDelete && customer.status === "active" && (
             <Button
               variant="destructive"
               onClick={onDeactivate}
@@ -58,8 +60,19 @@ export function CustomerProfileHeader({
               Deactivate
             </Button>
           )}
+          {canDelete && customer.status !== "active" && (
+            <Button
+              variant="outline"
+              onClick={onReactivate}
+              className="flex items-center gap-1.5 cursor-pointer border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-500 dark:hover:bg-emerald-500/20"
+            >
+              <UserCheck size={14} />
+              Reactivate
+            </Button>
+          )}
         </div>
       </div>
+
 
       {/* Header Profile Identity summary block */}
       <div className="p-6 bg-card border border-border/80 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
@@ -70,11 +83,20 @@ export function CustomerProfileHeader({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-bold text-foreground">{customer.name}</h2>
-              <Badge variant={customer.isActive ? "success" : "muted"}>
-                {customer.isActive ? "Active" : "Deactivated"}
+              <Badge variant={customer.status === "active" ? "success" : customer.status === "blocked" ? "destructive" : "muted"}>
+                <span className="capitalize">{customer.status}</span>
               </Badge>
             </div>
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+            {customer.tags && customer.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {customer.tags.map((tag, idx) => (
+                  <Badge key={idx} variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] py-0 px-1.5 font-semibold">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
               <Building size={12} />
               Home branch: <span className="font-medium text-foreground">{homeBranchName}</span>
             </p>

@@ -11,7 +11,7 @@ export interface GetCustomersParams {
   search?: string;
   page?: number;
   limit?: number;
-  isActive?: boolean;
+  status?: string;
   sort?: string;
 }
 
@@ -80,3 +80,11 @@ export const deleteCustomer = async (id: string): Promise<void> => {
     branchScope: "current",
   });
 };
+
+export const reactivateCustomer = async (id: string): Promise<Customer> => {
+  const { data } = await apiClient.put<CustomerMutateResponse>(`/customers/${id}/reactivate`, {}, {
+    branchScope: "current",
+  });
+  return mapCustomerKeys(data.data);
+};
+

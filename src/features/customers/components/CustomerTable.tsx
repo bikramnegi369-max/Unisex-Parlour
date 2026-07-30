@@ -5,9 +5,8 @@ import type { Customer } from "../types/customer.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Edit, Trash2 } from "lucide-react";
+import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { CustomerMobileCard } from "./CustomerMobileCard";
@@ -17,6 +16,7 @@ interface CustomerTableProps {
   onView: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
+  onReactivate: (customer: Customer) => void;
   isLoading: boolean;
   isAllBranches: boolean;
 }
@@ -26,6 +26,7 @@ export default function CustomerTable({
   onView,
   onEdit,
   onDelete,
+  onReactivate,
   isLoading,
   isAllBranches,
 }: CustomerTableProps) {
@@ -109,14 +110,13 @@ export default function CustomerTable({
           ]
         : []),
       {
-        accessorKey: "isActive",
+        accessorKey: "status",
         header: "Status",
         cell: (info) => {
-          const val = info.getValue();
-          const active = typeof val === "boolean" ? val : info.row.original.isActive;
+          const status = (info.getValue() as string) || info.row.original.status || "active";
           return (
-            <Badge variant={active ? "success" : "muted"}>
-              {active ? "Active" : "Inactive"}
+            <Badge variant={status === "active" ? "success" : status === "blocked" ? "destructive" : "muted"}>
+              <span className="capitalize">{status}</span>
             </Badge>
           );
         },
@@ -143,7 +143,7 @@ export default function CustomerTable({
           if (!dateStr) return "—";
           const date = new Date(dateStr);
           return (
-            <span className="text-muted-foreground text-xs font-medium">
+            <span suppressHydrationWarning className="text-muted-foreground text-xs font-medium">
               {isNaN(date.getTime()) ? dateStr : date.toLocaleDateString()}
             </span>
           );
@@ -156,39 +156,59 @@ export default function CustomerTable({
           const customer = info.row.original;
           return (
             <div className="flex justify-end gap-2">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => onView(customer)}
-                className="cursor-pointer h-9 w-9"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onView(customer);
+                }}
+                className="cursor-pointer h-9 w-9 rounded-lg hover:bg-muted hover:text-foreground flex items-center justify-center transition-colors text-muted-foreground"
                 title="View Details"
                 aria-label={`View details of ${customer.name}`}
               >
-                <Eye size={15} className="text-muted-foreground hover:text-foreground" />
-              </Button>
+                <Eye size={15} />
+              </button>
               {canEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => onEdit(customer)}
-                  className="cursor-pointer h-9 w-9"
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(customer);
+                  }}
+                  className="cursor-pointer h-9 w-9 rounded-lg hover:bg-muted hover:text-foreground flex items-center justify-center transition-colors text-muted-foreground"
                   title="Edit Profile"
                   aria-label={`Edit profile of ${customer.name}`}
                 >
-                  <Edit size={15} className="text-muted-foreground hover:text-foreground" />
-                </Button>
+                  <Edit size={15} />
+                </button>
               )}
-              {canDelete && customer.isActive && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => onDelete(customer)}
-                  className="cursor-pointer hover:bg-destructive/10 h-9 w-9"
+              {canDelete && customer.status === "active" && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(customer);
+                  }}
+                  className="cursor-pointer hover:bg-destructive/10 h-9 w-9 rounded-lg flex items-center justify-center transition-colors text-destructive"
                   title="Deactivate Customer"
                   aria-label={`Deactivate profile of ${customer.name}`}
                 >
-                  <Trash2 size={15} className="text-destructive" />
-                </Button>
+                  <Trash2 size={15} />
+                </button>
+              )}
+              {canDelete && customer.status !== "active" && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReactivate(customer);
+                  }}
+                  className="cursor-pointer hover:bg-emerald-500/10 h-9 w-9 rounded-lg flex items-center justify-center transition-colors text-emerald-600 dark:text-emerald-500"
+                  title="Reactivate Customer"
+                  aria-label={`Reactivate profile of ${customer.name}`}
+                >
+                  <UserCheck size={15} />
+                </button>
               )}
             </div>
           );
@@ -202,6 +222,7 @@ export default function CustomerTable({
     onView,
     onEdit,
     onDelete,
+    onReactivate,
     getHomeBranchName,
   ]);
 
@@ -215,6 +236,7 @@ export default function CustomerTable({
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}
+      onReactivate={onReactivate}
       getHomeBranchName={getHomeBranchName}
     />
   );

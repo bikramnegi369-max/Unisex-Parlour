@@ -30,6 +30,27 @@ export function CustomerActivityLog({ activityTimeline }: CustomerActivityLogPro
                     dateStyle: "medium",
                     timeStyle: "short",
                   });
+              const getActionLabel = (action: string) => {
+                switch (action) {
+                  case "CUSTOMER_CREATED":
+                  case "CREATED":
+                    return "Created";
+                  case "CUSTOMER_UPDATED":
+                  case "UPDATED":
+                    return "Updated";
+                  case "CUSTOMER_DEACTIVATED":
+                  case "DEACTIVATED":
+                  case "DELETED":
+                    return "Deactivated";
+                  case "CUSTOMER_REACTIVATED":
+                  case "REACTIVATED":
+                    return "Reactivated";
+                  case "NOTE_ADDED":
+                    return "Note Added";
+                  default:
+                    return action.replace(/_/g, " ");
+                }
+              };
               return (
                 <div key={item._id} className="relative group">
                   {/* Timeline dot marker */}
@@ -39,7 +60,7 @@ export function CustomerActivityLog({ activityTimeline }: CustomerActivityLogPro
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="text-[10px] uppercase bg-primary/10 text-primary border-primary/20 tracking-wide px-2 py-0.5 rounded">
-                        {item.action}
+                        {getActionLabel(item.action)}
                       </Badge>
                       <span className="text-xs text-muted-foreground font-medium">
                         {displayDate}
@@ -50,7 +71,9 @@ export function CustomerActivityLog({ activityTimeline }: CustomerActivityLogPro
                     </p>
                     {item.performedBy && (
                       <p className="text-[10px] text-muted-foreground font-medium mt-1">
-                        System ID: <span className="text-foreground/80">{item.performedBy}</span>
+                        System ID: <span className="text-foreground/80">
+                          {typeof item.performedBy === "object" ? item.performedBy.name : item.performedBy}
+                        </span>
                       </p>
                     )}
                   </div>

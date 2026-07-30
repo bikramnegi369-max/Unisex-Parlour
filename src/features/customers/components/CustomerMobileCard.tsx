@@ -4,7 +4,7 @@ import React from "react";
 import type { Customer } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Edit, Trash2 } from "lucide-react";
+import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
 
 interface CustomerMobileCardProps {
   customer: Customer;
@@ -14,6 +14,7 @@ interface CustomerMobileCardProps {
   onView: (customer: Customer) => void;
   onEdit: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
+  onReactivate: (customer: Customer) => void;
   getHomeBranchName: (id: string) => string;
 }
 
@@ -25,6 +26,7 @@ export function CustomerMobileCard({
   onView,
   onEdit,
   onDelete,
+  onReactivate,
   getHomeBranchName,
 }: CustomerMobileCardProps) {
   return (
@@ -37,8 +39,8 @@ export function CustomerMobileCard({
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
               <h4 className="font-semibold text-foreground text-sm">{customer.name}</h4>
-              <Badge variant={customer.isActive ? "success" : "muted"}>
-                {customer.isActive ? "Active" : "Inactive"}
+              <Badge variant={customer.status === "active" ? "success" : customer.status === "blocked" ? "destructive" : "muted"}>
+                <span className="capitalize">{customer.status}</span>
               </Badge>
             </div>
             {customer.gender && (
@@ -54,7 +56,10 @@ export function CustomerMobileCard({
           <Button
             variant="outline"
             className="h-10 w-10 flex items-center justify-center cursor-pointer"
-            onClick={() => onView(customer)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onView(customer);
+            }}
             aria-label={`View details of ${customer.name}`}
           >
             <Eye size={15} />
@@ -63,24 +68,44 @@ export function CustomerMobileCard({
             <Button
               variant="outline"
               className="h-10 w-10 flex items-center justify-center cursor-pointer"
-              onClick={() => onEdit(customer)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit(customer);
+              }}
               aria-label={`Edit profile of ${customer.name}`}
             >
               <Edit size={15} />
             </Button>
           )}
-          {canDelete && customer.isActive && (
+          {canDelete && customer.status === "active" && (
             <Button
               variant="destructive"
               className="h-10 w-10 bg-destructive/10 text-destructive border-transparent flex items-center justify-center cursor-pointer"
-              onClick={() => onDelete(customer)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(customer);
+              }}
               aria-label={`Deactivate profile of ${customer.name}`}
             >
               <Trash2 size={15} />
             </Button>
           )}
+          {canDelete && customer.status !== "active" && (
+            <Button
+              variant="outline"
+              className="h-10 w-10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-500 dark:hover:bg-emerald-500/20 flex items-center justify-center cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onReactivate(customer);
+              }}
+              aria-label={`Reactivate profile of ${customer.name}`}
+            >
+              <UserCheck size={15} />
+            </Button>
+          )}
         </div>
       </div>
+
 
       <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground">
         <div className="flex justify-between">

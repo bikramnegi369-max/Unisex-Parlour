@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -12,13 +12,14 @@ import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
 import CustomerTable from "./CustomerTable";
 import CustomerForm from "./CustomerForm";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
+import CustomerReactivateDialog from "./CustomerReactivateDialog";
+import { useReactivateCustomer } from "../hooks/useReactivateCustomer";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Plus, Sparkles, HelpCircle } from "lucide-react";
 import type { Customer } from "../types/customer.types";
-import type { CustomerFormValues } from "../schemas/customer.schema";
 import { CustomerListHeader } from "./CustomerListHeader";
 import { CustomerSearch } from "./CustomerSearch";
 import { CustomerFilters } from "./CustomerFilters";
@@ -41,8 +42,7 @@ export default function CustomerList() {
   const searchQueryParam = searchParams.get("search") || "";
 
   // Read status filter parameter from URL
-  const isActiveParam = searchParams.get("isActive");
-  const isActive = isActiveParam === "true" ? true : isActiveParam === "false" ? false : undefined;
+  const statusParam = searchParams.get("status") || "all";
 
   // Read sort parameter from URL
   const sort = searchParams.get("sort") || "";
@@ -61,11 +61,45 @@ export default function CustomerList() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isReactivateOpen, setIsReactivateOpen] = useState(false);
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [customerToReactivate, setCustomerToReactivate] = useState<Customer | null>(null);
   
   // Notification alert state
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const createMutation = useCreateCustomer();
+  const updateMutation = useUpdateCustomer();
+  const deleteMutation = useDeleteCustomer();
+  const reactivateMutation = useReactivateCustomer();
+
+  // Memoized callbacks for CustomerTable to prevent re-render loops
+  const handleView = useCallback((c: Customer) => {
+    router.push(`/customers/${c.id}`);
+  }, [router]);
+
+  const handleEdit = useCallback((c: Customer) => {
+    setActiveCustomer(c);
+    setIsEditOpen(true);
+  }, []);
+
+  const handleDelete = useCallback((c: Customer) => {
+    setCustomerToDelete(c);
+    setIsDeleteOpen(true);
+  }, []);
+
+  const handleReactivate = useCallback((c: Customer) => {
+    setCustomerToReactivate(c);
+    setIsReactivateOpen(true);
+  }, []);
+
+  // Reset mutation state when dialog closes
+  useEffect(() => {
+    if (!isReactivateOpen) {
+      reactivateMutation.reset();
+    }
+  }, [isReactivateOpen, reactivateMutation]);
 
   // Debounce search input and sync with URL
   useEffect(() => {
@@ -87,12 +121,10 @@ export default function CustomerList() {
 
   const handleStatusChange = (val: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (val === "active") {
-      params.set("isActive", "true");
-    } else if (val === "inactive") {
-      params.set("isActive", "false");
+    if (val && val !== "all") {
+      params.set("status", val);
     } else {
-      params.delete("isActive");
+      params.delete("status");
     }
     params.set("page", "1"); // Reset to page 1
     router.push(`${pathname}?${params.toString()}`);
@@ -121,17 +153,12 @@ export default function CustomerList() {
     search: searchQueryParam || undefined,
     page,
     limit: 10,
-    isActive,
+    status: statusParam !== "all" ? statusParam : undefined,
     sort: sort || undefined,
   });
 
-  // Mutations
-  const createMutation = useCreateCustomer();
-  const updateMutation = useUpdateCustomer();
-  const deleteMutation = useDeleteCustomer();
-
-
-  const handleCreateSubmit = (values: CustomerFormValues) => {
+  // Removed duplicate hook declarations since they are now at the top
+  const handleCreateSubmit = (values: any) => {
     createMutation.mutate(values, {
       onSuccess: () => {
         setIsCreateOpen(false);
@@ -143,7 +170,7 @@ export default function CustomerList() {
     });
   };
 
-  const handleEditSubmit = (values: CustomerFormValues) => {
+  const handleEditSubmit = (values: any) => {
     if (!activeCustomer) return;
     updateMutation.mutate(
       { id: activeCustomer.id, payload: values },
@@ -171,6 +198,20 @@ export default function CustomerList() {
       onError: (err: Error) => {
         setIsDeleteOpen(false);
         triggerAlert("error", err.message || "Failed to deactivate customer.");
+      },
+    });
+  };
+
+  const handleReactivateConfirm = () => {
+    if (!customerToReactivate) return;
+    reactivateMutation.mutate(customerToReactivate.id, {
+      onSuccess: () => {
+        setIsReactivateOpen(false);
+        setCustomerToReactivate(null);
+        triggerAlert("success", "Customer profile reactivated successfully.");
+      },
+      onError: () => {
+        // Keep the dialog open and show mutation error state internally
       },
     });
   };
@@ -258,7 +299,7 @@ export default function CustomerList() {
         <CustomerSearch value={search} onChange={setSearch} />
         
         <CustomerFilters
-          status={isActiveParam === "true" ? "active" : isActiveParam === "false" ? "inactive" : "all"}
+          status={statusParam}
           onStatusChange={handleStatusChange}
           sort={sort}
           onSortChange={handleSortChange}
@@ -274,6 +315,7 @@ export default function CustomerList() {
           onView={() => {}}
           onEdit={() => {}}
           onDelete={() => {}}
+          onReactivate={() => {}}
           isLoading={true}
           isAllBranches={isAllBranchesSelected}
         />
@@ -313,17 +355,10 @@ export default function CustomerList() {
         <div className="space-y-4">
           <CustomerTable
             customers={customers}
-            onView={(c) => {
-              router.push(`/customers/${c.id}`);
-            }}
-            onEdit={(c) => {
-              setActiveCustomer(c);
-              setIsEditOpen(true);
-            }}
-            onDelete={(c) => {
-              setCustomerToDelete(c);
-              setIsDeleteOpen(true);
-            }}
+            onView={handleView}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onReactivate={handleReactivate}
             isLoading={false}
             isAllBranches={isAllBranchesSelected}
           />
@@ -373,15 +408,7 @@ export default function CustomerList() {
       {isEditOpen && activeCustomer && (
         <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Customer Details">
           <CustomerForm
-            initialData={{
-              name: activeCustomer.name,
-              phone: activeCustomer.phone,
-              email: activeCustomer.email || "",
-              gender: activeCustomer.gender || "",
-              dateOfBirth: activeCustomer.dateOfBirth || "",
-              address: activeCustomer.address || "",
-              notes: activeCustomer.notes || "",
-            }}
+            initialCustomer={activeCustomer}
             onSubmit={handleEditSubmit}
             isSubmitting={updateMutation.isPending}
             onCancel={() => {
@@ -401,6 +428,21 @@ export default function CustomerList() {
           onConfirm={handleDeleteConfirm}
           isDeleting={deleteMutation.isPending}
           customerName={customerToDelete.name}
+        />
+      )}
+
+      {/* Reactivate Dialog */}
+      {customerToReactivate && (
+        <CustomerReactivateDialog
+          isOpen={isReactivateOpen}
+          onClose={() => {
+            setIsReactivateOpen(false);
+            setCustomerToReactivate(null);
+          }}
+          onConfirm={handleReactivateConfirm}
+          isLoading={reactivateMutation.isPending}
+          error={reactivateMutation.error}
+          customerName={customerToReactivate.name}
         />
       )}
     </div>

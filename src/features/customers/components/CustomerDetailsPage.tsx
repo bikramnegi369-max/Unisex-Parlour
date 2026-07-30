@@ -1,18 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCustomer } from "../hooks/useCustomer";
 import { useUpdateCustomer } from "../hooks/useUpdateCustomer";
 import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
+import { useReactivateCustomer } from "../hooks/useReactivateCustomer";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import CustomerForm from "./CustomerForm";
-import { type CustomerFormValues } from "../schemas/customer.schema";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
+import CustomerReactivateDialog from "./CustomerReactivateDialog";
 import Unauthorized from "@/components/layout/Unauthorized";
 import { CustomerProfileHeader } from "./CustomerProfileHeader";
 import { CustomerDetailsTabs, type TabItem } from "./CustomerDetailsTabs";
@@ -32,6 +33,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
+  const [isReactivateOpen, setIsReactivateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "notes" | "preferences" | "activity">("overview");
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -43,13 +45,22 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
   const updateMutation = useUpdateCustomer();
   const deleteMutation = useDeleteCustomer();
+  const reactivateMutation = useReactivateCustomer();
+
+  // Reset mutation state when dialog closes
+  useEffect(() => {
+    if (!isReactivateOpen) {
+      reactivateMutation.reset();
+    }
+  }, [isReactivateOpen, reactivateMutation]);
+
 
   const triggerAlert = (type: "success" | "error", text: string) => {
     setAlertMessage({ type, text });
     setTimeout(() => setAlertMessage(null), 4000);
   };
 
-  const handleEditSubmit = (values: CustomerFormValues) => {
+  const handleEditSubmit = (values: any) => {
     updateMutation.mutate(
       { id: customerId, payload: values },
       {
@@ -80,6 +91,19 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       },
     });
   };
+
+  const handleReactivateConfirm = () => {
+    reactivateMutation.mutate(customerId, {
+      onSuccess: () => {
+        setIsReactivateOpen(false);
+        triggerAlert("success", "Customer profile reactivated successfully.");
+      },
+      onError: () => {
+        // Keep the dialog open and display mutation error state internally
+      },
+    });
+  };
+
 
   if (!canView) {
     return <Unauthorized />;
@@ -171,7 +195,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
     customer.homeBranchId;
 
   const visitedBranchNames = customer.visitedBranchIds
-    .map((id) => availableBranches.find((b) => b.id === id)?.name || id)
+    .map((id : string) => availableBranches.find((b) => b.id === id)?.name || id)
     .join(", ");
 
 
@@ -207,6 +231,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
         onBack={() => router.back()}
         onEdit={() => setIsEditOpen(true)}
         onDeactivate={() => setIsDeactivateOpen(true)}
+        onReactivate={() => setIsReactivateOpen(true)}
       />
 
       {/* Main Tabs Navigation and Contents Layout */}
@@ -225,7 +250,10 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           )}
 
           {activeTab === "preferences" && (
-            <CustomerPreferences preferences={customer.preferences} />
+            <CustomerPreferences
+              preferences={customer.preferences}
+              marketingPreferences={customer.marketingPreferences}
+            />
           )}
 
           {activeTab === "notes" && (
@@ -241,15 +269,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       {/* Edit Form Modal dialog */}
       <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Customer Details">
         <CustomerForm
-          initialData={{
-            name: customer.name,
-            phone: customer.phone,
-            email: customer.email || "",
-            gender: customer.gender || "",
-            dateOfBirth: customer.dateOfBirth || "",
-            address: customer.address || "",
-            notes: customer.notes || "",
-          }}
+          initialCustomer={customer}
           onSubmit={handleEditSubmit}
           isSubmitting={updateMutation.isPending}
           onCancel={() => setIsEditOpen(false)}
@@ -263,6 +283,16 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
         onClose={() => setIsDeactivateOpen(false)}
         onConfirm={handleDeactivateConfirm}
         isDeleting={deleteMutation.isPending}
+        customerName={customer.name}
+      />
+
+      {/* Reactivate confirmation dialog */}
+      <CustomerReactivateDialog
+        isOpen={isReactivateOpen}
+        onClose={() => setIsReactivateOpen(false)}
+        onConfirm={handleReactivateConfirm}
+        isLoading={reactivateMutation.isPending}
+        error={reactivateMutation.error}
         customerName={customer.name}
       />
     </div>
