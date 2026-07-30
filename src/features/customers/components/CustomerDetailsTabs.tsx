@@ -3,7 +3,7 @@
 import React from "react";
 
 export interface TabItem {
-  id: "overview" | "preferences" | "notes" | "activity" | "visits" | "membership" | "loyalty";
+  id: "overview" | "preferences" | "notes" | "activity";
   label: string;
 }
 

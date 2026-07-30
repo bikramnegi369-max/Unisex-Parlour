@@ -202,7 +202,7 @@ export default function CustomerTable({
                   <Trash2 size={15} />
                 </button>
               )}
-              {canDelete && customer.status !== "active" && (
+              {canEdit && customer.status !== "active" && (
                 <button
                   type="button"
                   onClick={(e) => {

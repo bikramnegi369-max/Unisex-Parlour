@@ -183,13 +183,13 @@ describe("Customer Reactivation UI Components", () => {
     expect(screen.queryByText("Reactivate")).toBeNull();
   });
 
-  it("renders Reactivate button but not Deactivate for an inactive customer when canDelete is true", () => {
+  it("renders Reactivate button but not Deactivate for an inactive customer when canEdit is true and canDelete is false", () => {
     render(
       <CustomerProfileHeader
         customer={inactiveCustomer}
         homeBranchName="Main Branch"
         canEdit={true}
-        canDelete={true}
+        canDelete={false}
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
@@ -201,13 +201,13 @@ describe("Customer Reactivation UI Components", () => {
     expect(screen.queryByText("Deactivate")).toBeNull();
   });
 
-  it("hides both Deactivate and Reactivate buttons when canDelete is false", () => {
+  it("hides Reactivate button for an inactive customer when canEdit is false and canDelete is true", () => {
     render(
       <CustomerProfileHeader
-        customer={activeCustomer}
+        customer={inactiveCustomer}
         homeBranchName="Main Branch"
-        canEdit={true}
-        canDelete={false}
+        canEdit={false}
+        canDelete={true}
         onBack={vi.fn()}
         onEdit={vi.fn()}
         onDeactivate={vi.fn()}
@@ -215,8 +215,8 @@ describe("Customer Reactivation UI Components", () => {
       />
     );
 
-    expect(screen.queryByText("Deactivate")).toBeNull();
     expect(screen.queryByText("Reactivate")).toBeNull();
+    expect(screen.queryByText("Deactivate")).toBeNull();
   });
 
   it("opens Reactivate dialog and triggers callback on confirm", () => {

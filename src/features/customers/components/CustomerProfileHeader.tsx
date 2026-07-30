@@ -60,7 +60,7 @@ export function CustomerProfileHeader({
               Deactivate
             </Button>
           )}
-          {canDelete && customer.status !== "active" && (
+          {canEdit && customer.status !== "active" && (
             <Button
               variant="outline"
               onClick={onReactivate}

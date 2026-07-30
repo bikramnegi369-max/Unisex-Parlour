@@ -148,7 +148,6 @@ export default function CustomerForm({
   // Debounced search for referrer dropdown (with race-condition protection and active filter)
   useEffect(() => {
     if (!referrerSearch.trim() || (selectedReferrer && referrerSearch === selectedReferrer.name)) {
-      setReferrerResults([]);
       return;
     }
 
@@ -213,6 +212,7 @@ export default function CustomerForm({
   const handleSelectReferrer = (customer: Customer) => {
     setSelectedReferrer(customer);
     setReferrerSearch(customer.name);
+    setReferrerResults([]);
     setValue("referredByCustomerId", customer.id);
     setShowReferrerDropdown(false);
   };
@@ -220,6 +220,7 @@ export default function CustomerForm({
   const handleClearReferrer = () => {
     setSelectedReferrer(null);
     setReferrerSearch("");
+    setReferrerResults([]);
     setValue("referredByCustomerId", "");
   };
 
@@ -537,7 +538,11 @@ export default function CustomerForm({
                 placeholder="Search referrer by name..."
                 value={referrerSearch}
                 onChange={(e) => {
-                  setReferrerSearch(e.target.value);
+                  const val = e.target.value;
+                  setReferrerSearch(val);
+                  if (!val.trim()) {
+                    setReferrerResults([]);
+                  }
                   setShowReferrerDropdown(true);
                 }}
                 onFocus={() => setShowReferrerDropdown(true)}

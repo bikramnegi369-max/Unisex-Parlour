@@ -205,9 +205,6 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
     { id: "overview", label: "Overview" },
     { id: "preferences", label: "Preferences" },
     { id: "notes", label: "Internal Notes" },
-    { id: "visits", label: "Visit History" },
-    { id: "membership", label: "Membership" },
-    { id: "loyalty", label: "Loyalty Ledger" },
     { id: "activity", label: "Activity Log" },
   ];
 
@@ -262,33 +259,6 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
           {activeTab === "notes" && (
             <CustomerNotes customerId={customerId} />
-          )}
-
-          {activeTab === "visits" && (
-            <div className="p-8 border border-dashed border-border rounded-xl bg-card text-center space-y-3">
-              <h3 className="text-lg font-bold">Visit & Service History</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Integration is pending backend API contract verification. Once appointments and services API schemas are verified, history details will display here.
-              </p>
-            </div>
-          )}
-
-          {activeTab === "membership" && (
-            <div className="p-8 border border-dashed border-border rounded-xl bg-card text-center space-y-3">
-              <h3 className="text-lg font-bold">Membership Subscriptions</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Integration is pending backend API contract verification. Active plans, expiration limits, and usage status will display here.
-              </p>
-            </div>
-          )}
-
-          {activeTab === "loyalty" && (
-            <div className="p-8 border border-dashed border-border rounded-xl bg-card text-center space-y-3">
-              <h3 className="text-lg font-bold">Loyalty Points Transaction Ledger</h3>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Integration is pending backend API contract verification. Historical logs of points earned/redeemed per transaction will display here.
-              </p>
-            </div>
           )}
 
           {activeTab === "activity" && (

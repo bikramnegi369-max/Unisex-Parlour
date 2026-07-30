@@ -90,7 +90,7 @@ export function CustomerMobileCard({
               <Trash2 size={15} />
             </Button>
           )}
-          {canDelete && customer.status !== "active" && (
+          {canEdit && customer.status !== "active" && (
             <Button
               variant="outline"
               className="h-10 w-10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-500 dark:hover:bg-emerald-500/20 flex items-center justify-center cursor-pointer"
