@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useForm, type Path, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { customerSchema, type CustomerFormValues } from "../schemas/customer.schema";
@@ -8,7 +6,8 @@ import { type Customer, type CustomerPayload } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, X, Search, Check } from "lucide-react";
+import { getCustomers } from "../api/customers.api";
 
 interface CustomerFormProps {
   initialCustomer?: Customer;
@@ -25,6 +24,20 @@ export default function CustomerForm({
   onCancel,
   submitLabel,
 }: CustomerFormProps) {
+  // Local state for Tag Chips
+  const [tags, setTags] = useState<string[]>(
+    initialCustomer?.tags || []
+  );
+  const [tagInput, setTagInput] = useState("");
+
+  // Local state for Searchable Referrer Autocomplete
+  const [referrerSearch, setReferrerSearch] = useState("");
+  const [referrerResults, setReferrerResults] = useState<Customer[]>([]);
+  const [selectedReferrer, setSelectedReferrer] = useState<Customer | null>(null);
+  const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
+  const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const defaultValues = useMemo(() => {
     if (!initialCustomer) {
       return {
@@ -108,24 +121,122 @@ export default function CustomerForm({
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema) as unknown as Resolver<CustomerFormValues>,
     defaultValues,
   });
 
+  // Load initial referrer customer info if edit mode
+  useEffect(() => {
+    if (initialCustomer?.referredByCustomerId) {
+      getCustomers({ search: undefined, page: 1, limit: 100 })
+        .then((res) => {
+          const matched = res.customers.find(
+            (c) => c.id === initialCustomer.referredByCustomerId
+          );
+          if (matched) {
+            setSelectedReferrer(matched);
+            setReferrerSearch(matched.name);
+          }
+        })
+        .catch((err) => console.error("Failed to load referrer profile details:", err));
+    }
+  }, [initialCustomer]);
+
+  // Debounced search for referrer dropdown (with race-condition protection and active filter)
+  useEffect(() => {
+    if (!referrerSearch.trim() || (selectedReferrer && referrerSearch === selectedReferrer.name)) {
+      setReferrerResults([]);
+      return;
+    }
+
+    let isCurrent = true;
+
+    const timer = setTimeout(async () => {
+      setIsSearchingReferrer(true);
+      try {
+        const response = await getCustomers({ search: referrerSearch.trim(), page: 1, limit: 5 });
+        if (isCurrent) {
+          // Exclude self and verify referrer status is active
+          const filtered = response.customers.filter(
+            (c) => c.id !== initialCustomer?.id && c.status === "active"
+          );
+          setReferrerResults(filtered);
+        }
+      } catch (err) {
+        console.error("Referrer lookup failed:", err);
+      } finally {
+        if (isCurrent) {
+          setIsSearchingReferrer(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
+  }, [referrerSearch, selectedReferrer, initialCustomer]);
+
+  // Handle outside click to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowReferrerDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const sanitized = tagInput.trim().replace(/,/g, "").toLowerCase();
+      if (sanitized && !tags.includes(sanitized)) {
+        const nextTags = [...tags, sanitized];
+        setTags(nextTags);
+        setValue("tags", nextTags.join(", "));
+      }
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (indexToRemove: number) => {
+    const nextTags = tags.filter((_, idx) => idx !== indexToRemove);
+    setTags(nextTags);
+    setValue("tags", nextTags.join(", "));
+  };
+
+  const handleSelectReferrer = (customer: Customer) => {
+    setSelectedReferrer(customer);
+    setReferrerSearch(customer.name);
+    setValue("referredByCustomerId", customer.id);
+    setShowReferrerDropdown(false);
+  };
+
+  const handleClearReferrer = () => {
+    setSelectedReferrer(null);
+    setReferrerSearch("");
+    setValue("referredByCustomerId", "");
+  };
+
   const handleFormSubmit = (values: CustomerFormValues) => {
+    // Explicitly omit loyaltyPoints from submit payload to secure it server-side
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { loyaltyPoints, ...cleanValues } = values;
+
     const formattedPayload = {
-      ...values,
+      ...cleanValues,
       allergies: values.allergies
         ? values.allergies.split(",").map((s) => s.trim()).filter(Boolean)
         : [],
       sensitivities: values.sensitivities
         ? values.sensitivities.split(",").map((s) => s.trim()).filter(Boolean)
         : [],
-      tags: values.tags
-        ? values.tags.split(",").map((s) => s.trim()).filter(Boolean)
-        : [],
+      tags: tags.map((t) => t.trim()).filter(Boolean),
       // Ensure email is null if empty as per backend schema default
       email: values.email || null,
       alternatePhone: values.alternatePhone || null,
@@ -414,42 +525,118 @@ export default function CustomerForm({
             </Select>
           </div>
 
-          <div>
-            <label htmlFor="referredByCustomerId" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Referred By Customer (ID)
+          {/* Searchable Referrer Autocomplete */}
+          <div className="relative" ref={dropdownRef}>
+            <label htmlFor="referredBySearch" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+              Referred By Customer
             </label>
-            <Input
-              id="referredByCustomerId"
-              placeholder="Referrer Customer ID"
-              disabled={isSubmitting}
-              {...register("referredByCustomerId")}
-            />
+            <div className="relative flex items-center">
+              <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="referredBySearch"
+                placeholder="Search referrer by name..."
+                value={referrerSearch}
+                onChange={(e) => {
+                  setReferrerSearch(e.target.value);
+                  setShowReferrerDropdown(true);
+                }}
+                onFocus={() => setShowReferrerDropdown(true)}
+                disabled={isSubmitting}
+                className="pl-9 pr-8"
+              />
+              {referrerSearch && (
+                <button
+                  type="button"
+                  onClick={handleClearReferrer}
+                  className="absolute right-3 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {/* hidden field to bind form values */}
+            <input type="hidden" {...register("referredByCustomerId")} />
+
+            {showReferrerDropdown && (referrerResults.length > 0 || isSearchingReferrer) && (
+              <div className="absolute z-10 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                {isSearchingReferrer ? (
+                  <div className="p-3 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Searching...
+                  </div>
+                ) : (
+                  <ul className="py-1">
+                    {referrerResults.map((customer) => (
+                      <li key={customer.id}>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectReferrer(customer)}
+                          className="flex items-center justify-between w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                        >
+                          <div>
+                            <p className="font-medium">{customer.name}</p>
+                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                          </div>
+                          {selectedReferrer?.id === customer.id && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
 
           <div>
             <label htmlFor="loyaltyPoints" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Loyalty Points
+              Loyalty Points (Read-only on profile updates)
             </label>
             <Input
               id="loyaltyPoints"
               type="number"
               min="0"
+              readOnly
               placeholder="0"
-              disabled={isSubmitting}
+              className="bg-muted text-muted-foreground cursor-not-allowed"
               {...register("loyaltyPoints")}
             />
           </div>
 
-          <div className="md:col-span-2">
-            <label htmlFor="tags" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Tags (Comma separated)
+          {/* Interactive Tag Chips Component */}
+          <div className="md:col-span-2 space-y-2">
+            <label htmlFor="tagInput" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Tags
             </label>
-            <Input
-              id="tags"
-              placeholder="e.g. VIP, frequent, wedding"
-              disabled={isSubmitting}
-              {...register("tags")}
-            />
+            <div className="flex flex-wrap gap-1.5 p-2 bg-background border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+              {tags.map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTag(idx)}
+                    className="text-primary/70 hover:text-primary hover:bg-primary/20 rounded-full"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+              <input
+                id="tagInput"
+                placeholder={tags.length === 0 ? "Type tag name and press Enter..." : ""}
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleAddTag}
+                disabled={isSubmitting}
+                className="flex-1 bg-transparent text-sm focus:outline-none min-w-[120px]"
+              />
+            </div>
+            {/* hidden field to register Zod schema tags string */}
+            <input type="hidden" {...register("tags")} />
           </div>
         </div>
       </div>
@@ -502,4 +689,5 @@ export default function CustomerForm({
     </form>
   );
 }
+
 
