@@ -258,11 +258,11 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           )}
 
           {activeTab === "notes" && (
-            <CustomerNotes notes={customer.notes} />
+            <CustomerNotes customerId={customerId} />
           )}
 
           {activeTab === "activity" && (
-            <CustomerActivityLog activityTimeline={customer.activityTimeline} />
+            <CustomerActivityLog customerId={customerId} />
           )}
         </div>
       </div>

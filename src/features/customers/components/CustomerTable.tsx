@@ -144,7 +144,13 @@ export default function CustomerTable({
           const date = new Date(dateStr);
           return (
             <span suppressHydrationWarning className="text-muted-foreground text-xs font-medium">
-              {isNaN(date.getTime()) ? dateStr : date.toLocaleDateString()}
+              {isNaN(date.getTime())
+                ? dateStr
+                : date.toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
             </span>
           );
         },

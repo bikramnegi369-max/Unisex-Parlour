@@ -1,4 +1,4 @@
-export interface AddressObject {
+export interface Address {
   addressLine1?: string;
   addressLine2?: string;
   city?: string;
@@ -7,7 +7,9 @@ export interface AddressObject {
   country?: string;
 }
 
-export interface MarketingPreferencesObject {
+export type AddressObject = Address;
+
+export interface MarketingPreferences {
   sms: boolean;
   email: boolean;
   whatsapp: boolean;
@@ -15,13 +17,17 @@ export interface MarketingPreferencesObject {
   appointmentReminders: boolean;
 }
 
-export interface NoteObject {
+export type MarketingPreferencesObject = MarketingPreferences;
+
+export interface CustomerNote {
   _id: string;
   text: string;
   createdBy: string | { _id: string; name: string };
   createdAt: string;
   updatedAt?: string;
 }
+
+export type NoteObject = CustomerNote;
 
 export type CustomerStatus = "active" | "inactive" | "blocked";
 
@@ -35,7 +41,7 @@ export type AcquisitionSource =
   | "referral"
   | "other";
 
-export interface ActivityLogItem {
+export interface AuditLog {
   _id: string;
   action:
     | "CUSTOMER_CREATED"
@@ -49,6 +55,9 @@ export interface ActivityLogItem {
   performedBy: string | { _id: string; name: string };
 }
 
+export type CustomerActivity = AuditLog;
+export type ActivityLogItem = AuditLog;
+
 export interface Customer {
   id: string; // maps to _id from Mongoose
   _id?: string;
@@ -58,7 +67,7 @@ export interface Customer {
   gender?: "male" | "female" | "other" | "prefer_not_to_say";
   dateOfBirth?: string | null;
   alternatePhone?: string | null;
-  address?: AddressObject;
+  address?: Address;
   organizationId: string;
   homeBranchId: string;
   visitedBranchIds: string[];
@@ -72,15 +81,13 @@ export interface Customer {
     language?: string;
     remarks?: string;
   };
-  marketingPreferences?: MarketingPreferencesObject;
+  marketingPreferences?: MarketingPreferences;
   doNotContact?: boolean;
   acquisitionSource?: AcquisitionSource;
   referredByCustomerId?: string | null;
   tags?: string[];
   allergies?: string[];
   sensitivities?: string[];
-  notes?: NoteObject[];
-  activityTimeline?: ActivityLogItem[];
   createdAt: string;
   updatedAt: string;
 }
@@ -118,7 +125,40 @@ export interface CustomerDeleteResponse {
   message?: string;
 }
 
-export function formatAddress(address?: string | AddressObject): string {
+export interface CustomerNotesResponse {
+  success: boolean;
+  status: string;
+  message?: string;
+  data: CustomerNote[];
+  meta?: {
+    total: number;
+    page: string | number;
+    limit: string | number;
+    totalPages: number;
+  };
+}
+
+export interface CustomerNoteMutateResponse {
+  success: boolean;
+  status: string;
+  message?: string;
+  data: CustomerNote;
+}
+
+export interface CustomerActivityResponse {
+  success: boolean;
+  status: string;
+  message?: string;
+  data: AuditLog[];
+  meta?: {
+    total: number;
+    page: string | number;
+    limit: string | number;
+    totalPages: number;
+  };
+}
+
+export function formatAddress(address?: string | Address): string {
   if (!address) return "";
   if (typeof address === "string") return address;
   const parts = [
@@ -133,4 +173,5 @@ export function formatAddress(address?: string | AddressObject): string {
 }
 
 export type CustomerPayload = Omit<Partial<Customer>, "id" | "organizationId" | "homeBranchId" | "visitedBranchIds" | "isActive">;
+
 
