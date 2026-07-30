@@ -6,6 +6,7 @@ import { useCustomer } from "../hooks/useCustomer";
 import { useUpdateCustomer } from "../hooks/useUpdateCustomer";
 import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
 import { useReactivateCustomer } from "../hooks/useReactivateCustomer";
+import { type CustomerPayload } from "../types/customer.types";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
@@ -60,7 +61,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
     setTimeout(() => setAlertMessage(null), 4000);
   };
 
-  const handleEditSubmit = (values: any) => {
+  const handleEditSubmit = (values: CustomerPayload) => {
     updateMutation.mutate(
       { id: customerId, payload: values },
       {

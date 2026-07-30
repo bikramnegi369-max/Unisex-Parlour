@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { hasPermission, UserSession } from "../permissions";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from "vitest";
+import { hasPermission, type UserSession } from "../permissions";
 import { getScopeQueryKey } from "../api/queryKeys";
 import { apiClient } from "../api/axios";
-import { store } from "@/store";
-import { queryClient } from "../api/queryClient";
 
 // Mocking dependencies for axios interceptor tests
 vi.mock("@/store", () => {
@@ -29,10 +27,29 @@ vi.mock("../api/queryClient", () => {
   return {
     queryClient: {
       getQueryData: () => mockUserSession,
-      invalidateQueries: (...args: any[]) => mockInvalidateQueries(...args),
+      invalidateQueries: (...args: unknown[]) => mockInvalidateQueries(...args),
     },
   };
 });
+
+interface RequestConfig {
+  headers: Record<string, string>;
+  branchScope?: string;
+}
+
+interface RequestInterceptor {
+  handlers: {
+    fulfilled: (value: RequestConfig) => Promise<RequestConfig> | RequestConfig;
+    rejected?: (error: unknown) => unknown;
+  }[];
+}
+
+interface ResponseInterceptor {
+  handlers: {
+    fulfilled?: (value: unknown) => unknown;
+    rejected: (error: { config: { url?: string; headers?: Record<string, string>; _retry?: boolean }; response?: { status?: number } }) => Promise<unknown>;
+  }[];
+}
 
 describe("Frontend RBAC Permission Authorization", () => {
   it("allows user with customers.view to access customer UI", () => {
@@ -138,9 +155,9 @@ describe("Axios Request Interceptor & Branch Scoping Headers", () => {
       hasOrgWideAccess: false,
     };
 
-    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
-    const config = {
-      headers: {} as any,
+    const interceptor = (apiClient.interceptors.request as unknown as RequestInterceptor).handlers[0].fulfilled;
+    const config: RequestConfig = {
+      headers: {},
       branchScope: "current",
     };
 
@@ -161,9 +178,9 @@ describe("Axios Request Interceptor & Branch Scoping Headers", () => {
       hasOrgWideAccess: true,
     };
 
-    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
-    const config = {
-      headers: {} as any,
+    const interceptor = (apiClient.interceptors.request as unknown as RequestInterceptor).handlers[0].fulfilled;
+    const config: RequestConfig = {
+      headers: {},
       branchScope: "current",
     };
 
@@ -184,9 +201,9 @@ describe("Axios Request Interceptor & Branch Scoping Headers", () => {
       hasOrgWideAccess: false,
     };
 
-    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
-    const config = {
-      headers: {} as any,
+    const interceptor = (apiClient.interceptors.request as unknown as RequestInterceptor).handlers[0].fulfilled;
+    const config: RequestConfig = {
+      headers: {},
       branchScope: "current",
     };
 
@@ -208,9 +225,9 @@ describe("Axios Request Interceptor & Branch Scoping Headers", () => {
       hasOrgWideAccess: true,
     };
 
-    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled;
-    const config = {
-      headers: {} as any,
+    const interceptor = (apiClient.interceptors.request as unknown as RequestInterceptor).handlers[0].fulfilled;
+    const config: RequestConfig = {
+      headers: {},
       branchScope: "current",
     };
 
@@ -220,8 +237,8 @@ describe("Axios Request Interceptor & Branch Scoping Headers", () => {
 });
 
 describe("Axios Response Interceptor & Auth Refresh Flow", () => {
-  let mockPost: any;
-  let originalAdapter: any;
+  let mockPost: MockInstance<typeof axios.post>;
+  let originalAdapter: typeof apiClient.defaults.adapter;
 
   beforeEach(() => {
     mockInvalidateQueries.mockClear();
@@ -249,7 +266,7 @@ describe("Axios Response Interceptor & Auth Refresh Flow", () => {
       }
     });
 
-    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    const errorInterceptor = (apiClient.interceptors.response as unknown as ResponseInterceptor).handlers[0].rejected;
     
     const fakeError = {
       config: { url: "/some-endpoint", headers: {}, _retry: false },
@@ -257,7 +274,7 @@ describe("Axios Response Interceptor & Auth Refresh Flow", () => {
     };
 
     // We expect the original request to be retried
-    const retryPromise = errorInterceptor(fakeError);
+    void errorInterceptor(fakeError);
     
     // Allow promises to resolve
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -278,7 +295,7 @@ describe("Axios Response Interceptor & Auth Refresh Flow", () => {
       }
     });
 
-    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    const errorInterceptor = (apiClient.interceptors.response as unknown as ResponseInterceptor).handlers[0].rejected;
     
     const fakeError1 = {
       config: { url: "/endpoint1", headers: {}, _retry: false },
@@ -296,12 +313,12 @@ describe("Axios Response Interceptor & Auth Refresh Flow", () => {
     await Promise.all([p1, p2]);
 
     // Check that axios.post was only called once
-    const refreshCalls = mockPost.mock.calls.filter((call: any) => call[0].includes("/auth/refresh"));
+    const refreshCalls = mockPost.mock.calls.filter((call: unknown[]) => typeof call[0] === "string" && call[0].includes("/auth/refresh"));
     expect(refreshCalls.length).toBe(1);
   });
 
   it("does not enter refresh flow if request is already a retry", async () => {
-    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    const errorInterceptor = (apiClient.interceptors.response as unknown as ResponseInterceptor).handlers[0].rejected;
     
     const fakeError = {
       config: { url: "/some-endpoint", headers: {}, _retry: true },
@@ -313,7 +330,7 @@ describe("Axios Response Interceptor & Auth Refresh Flow", () => {
   });
 
   it("does not enter refresh flow if url is an auth endpoint", async () => {
-    const errorInterceptor = (apiClient.interceptors.response as any).handlers[0].rejected;
+    const errorInterceptor = (apiClient.interceptors.response as unknown as ResponseInterceptor).handlers[0].rejected;
     
     const fakeError = {
       config: { url: "/auth/refresh", headers: {}, _retry: false },

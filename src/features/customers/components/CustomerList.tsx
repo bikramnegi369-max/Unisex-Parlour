@@ -19,7 +19,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Plus, Sparkles, HelpCircle } from "lucide-react";
-import type { Customer } from "../types/customer.types";
+import type { Customer, CustomerPayload } from "../types/customer.types";
 import { CustomerListHeader } from "./CustomerListHeader";
 import { CustomerSearch } from "./CustomerSearch";
 import { CustomerFilters } from "./CustomerFilters";
@@ -158,7 +158,7 @@ export default function CustomerList() {
   });
 
   // Removed duplicate hook declarations since they are now at the top
-  const handleCreateSubmit = (values: any) => {
+  const handleCreateSubmit = (values: CustomerPayload) => {
     createMutation.mutate(values, {
       onSuccess: () => {
         setIsCreateOpen(false);
@@ -170,7 +170,7 @@ export default function CustomerList() {
     });
   };
 
-  const handleEditSubmit = (values: any) => {
+  const handleEditSubmit = (values: CustomerPayload) => {
     if (!activeCustomer) return;
     updateMutation.mutate(
       { id: activeCustomer.id, payload: values },

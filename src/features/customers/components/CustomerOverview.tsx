@@ -13,9 +13,7 @@ import {
   Calendar,
   Sparkles,
   MapPin,
-  Building,
   AlertTriangle,
-  Link,
   ShieldAlert,
 } from "lucide-react";
 

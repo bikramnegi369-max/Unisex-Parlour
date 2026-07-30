@@ -1,11 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateCustomer } from "../api/customers.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
-import type { Customer } from "../types/customer.types";
+import type { CustomerPayload } from "../types/customer.types";
 
 interface UpdateCustomerParams {
   id: string;
-  payload: Omit<Partial<Customer>, "id" | "organizationId" | "homeBranchId" | "visitedBranchIds" | "isActive">;
+  payload: CustomerPayload;
 }
 
 export function useUpdateCustomer() {

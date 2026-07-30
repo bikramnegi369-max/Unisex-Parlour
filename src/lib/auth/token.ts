@@ -44,7 +44,7 @@ export const getRefreshToken = (): string | null => {
 /**
  * @deprecated Refresh token is now stored in a secure HttpOnly cookie set by the backend.
  */
-export const setRefreshToken = (_token: string) => {
+export const setRefreshToken = () => {
   // No-op
 };
 

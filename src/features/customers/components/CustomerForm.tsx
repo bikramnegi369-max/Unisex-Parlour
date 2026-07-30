@@ -1,19 +1,18 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type Path, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { customerSchema, type CustomerFormValues } from "../schemas/customer.schema";
-import { type Customer } from "../types/customer.types";
+import { type Customer, type CustomerPayload } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface CustomerFormProps {
   initialCustomer?: Customer;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: CustomerPayload) => void;
   isSubmitting: boolean;
   onCancel: () => void;
   submitLabel: string;
@@ -71,7 +70,7 @@ export default function CustomerForm({
       name: initialCustomer.name || "",
       phone: initialCustomer.phone || "",
       email: initialCustomer.email || "",
-      gender: (initialCustomer.gender || "prefer_not_to_say") as any,
+      gender: (initialCustomer.gender || "prefer_not_to_say") as CustomerFormValues["gender"],
       dateOfBirth: initialCustomer.dateOfBirth || "",
       alternatePhone: initialCustomer.alternatePhone || "",
       address: {
@@ -96,9 +95,9 @@ export default function CustomerForm({
         appointmentReminders: !!initialCustomer.marketingPreferences?.appointmentReminders,
       },
       doNotContact: !!initialCustomer.doNotContact,
-      acquisitionSource: (initialCustomer.acquisitionSource || "walk_in") as any,
+      acquisitionSource: (initialCustomer.acquisitionSource || "walk_in") as CustomerFormValues["acquisitionSource"],
       referredByCustomerId: initialCustomer.referredByCustomerId || "",
-      status: (initialCustomer.status || "active") as any,
+      status: (initialCustomer.status || "active") as CustomerFormValues["status"],
       allergies: initialCustomer.allergies?.join(", ") || "",
       sensitivities: initialCustomer.sensitivities?.join(", ") || "",
       tags: initialCustomer.tags?.join(", ") || "",
@@ -111,7 +110,7 @@ export default function CustomerForm({
     handleSubmit,
     formState: { errors },
   } = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerSchema) as any,
+    resolver: zodResolver(customerSchema) as unknown as Resolver<CustomerFormValues>,
     defaultValues,
   });
 
@@ -373,7 +372,7 @@ export default function CustomerForm({
                   type="checkbox"
                   className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                   disabled={isSubmitting}
-                  {...register(channel.id as any)}
+                  {...register(channel.id as Path<CustomerFormValues>)}
                 />
                 <label htmlFor={channel.id} className="text-sm font-medium text-foreground cursor-pointer">
                   {channel.label}

@@ -2,7 +2,6 @@
 
 import { Provider } from 'react-redux';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { store } from './index';
 import { queryClient } from '@/lib/api/queryClient';
 

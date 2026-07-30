@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import type { Customer } from "../types/customer.types";
+import type { Customer, MarketingPreferencesObject } from "../types/customer.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Heart, Bell, MessageSquare } from "lucide-react";
+import { Heart, Bell } from "lucide-react";
 
 interface CustomerPreferencesProps {
   preferences?: Customer["preferences"];
@@ -12,7 +12,7 @@ interface CustomerPreferencesProps {
 }
 
 export function CustomerPreferences({ preferences, marketingPreferences }: CustomerPreferencesProps) {
-  const marketingChannels = [
+  const marketingChannels: { key: keyof MarketingPreferencesObject; label: string }[] = [
     { key: "sms", label: "SMS Texts" },
     { key: "email", label: "Email Newsletters" },
     { key: "whatsapp", label: "WhatsApp Chat" },
@@ -118,7 +118,7 @@ export function CustomerPreferences({ preferences, marketingPreferences }: Custo
         <CardContent className="p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {marketingChannels.map((channel) => {
-              const isSubscribed = !!(marketingPreferences as any)?.[channel.key];
+              const isSubscribed = !!marketingPreferences?.[channel.key];
               return (
                 <div key={channel.key} className="flex items-center gap-3 p-3 rounded-xl border border-border bg-muted/5">
                   <div className={`h-2 w-2 rounded-full ${isSubscribed ? "bg-emerald-500" : "bg-muted"}`} />

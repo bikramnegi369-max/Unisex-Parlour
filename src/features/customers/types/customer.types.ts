@@ -132,3 +132,5 @@ export function formatAddress(address?: string | AddressObject): string {
   return parts.join(", ");
 }
 
+export type CustomerPayload = Omit<Partial<Customer>, "id" | "organizationId" | "homeBranchId" | "visitedBranchIds" | "isActive">;
+
