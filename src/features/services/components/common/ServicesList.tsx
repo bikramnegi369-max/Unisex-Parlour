@@ -387,7 +387,7 @@ export default function ServicesList() {
       {viewMode === "services" && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col xl:flex-row gap-4 justify-between items-stretch xl:items-center">
-            <ServicesSearch value={search} onChange={setSearch} />
+            <ServicesSearch value={search} onChange={setSearch} isLoading={servicesQuery.isFetching} />
             <ServicesFilters
               status={statusVal}
               onStatusChange={(val) => updateParam("status", val)}
@@ -440,7 +440,7 @@ export default function ServicesList() {
       {viewMode === "categories" && (
         <div className="flex flex-col gap-4">
           <div className="flex flex-col xl:flex-row gap-4 justify-between items-stretch xl:items-center">
-            <ServicesSearch value={search} onChange={setSearch} placeholder="Search categories by name..." />
+            <ServicesSearch value={search} onChange={setSearch} placeholder="Search categories by name..." isLoading={categoriesQuery.isFetching} />
             <div className="flex items-center gap-3">
               <div className="min-w-35">
                 <Select
