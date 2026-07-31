@@ -54,6 +54,7 @@ export default function ServicesList() {
 
   // Read params from URL
   const page = Number(searchParams.get("page") || "1");
+  const limit = Number(searchParams.get("limit") || String(SERVICES_CONFIG.defaults.pageSize));
   const searchVal = searchParams.get("search") || "";
   const statusVal = searchParams.get("status") || "all";
   const categoryIdVal = searchParams.get("categoryId") || "all";
@@ -86,13 +87,13 @@ export default function ServicesList() {
   const categoriesQuery = useServiceCategories({
     search: viewMode === "categories" ? searchVal || undefined : undefined,
     page: viewMode === "categories" ? page : undefined,
-    limit: viewMode === "categories" ? SERVICES_CONFIG.defaults.pageSize : 100,
+    limit: viewMode === "categories" ? limit : 100,
     status: viewMode === "categories" && statusVal !== "all" ? statusVal : undefined,
   });
   const servicesQuery = useServices({
     search: viewMode === "services" ? searchVal || undefined : undefined,
     page: viewMode === "services" ? page : undefined,
-    limit: SERVICES_CONFIG.defaults.pageSize,
+    limit: limit,
     status: viewMode === "services" && statusVal !== "all" ? statusVal : undefined,
     categoryId: categoryIdVal !== "all" ? categoryIdVal : undefined,
     sort: sortVal || undefined,
@@ -109,10 +110,17 @@ export default function ServicesList() {
   const deleteCategoryMutation = useDeleteServiceCategory();
   const reactivateCategoryMutation = useReactivateServiceCategory();
 
-  // Navigation helper for pagination
+  // Navigation helpers for pagination
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", newPage.toString());
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("limit", newPageSize.toString());
+    params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -421,6 +429,8 @@ export default function ServicesList() {
               totalPages={servicesQuery.data.meta.totalPages}
               totalItems={servicesQuery.data.meta.total}
               onPageChange={handlePageChange}
+              pageSize={limit}
+              onPageSizeChange={handlePageSizeChange}
               itemLabel="services"
             />
           )}
@@ -474,6 +484,8 @@ export default function ServicesList() {
               totalPages={categoriesQuery.data.meta.totalPages}
               totalItems={categoriesQuery.data.meta.total}
               onPageChange={handlePageChange}
+              pageSize={limit}
+              onPageSizeChange={handlePageSizeChange}
               itemLabel="categories"
             />
           )}

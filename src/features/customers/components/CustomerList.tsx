@@ -39,6 +39,10 @@ export default function CustomerList() {
   const pageParam = searchParams.get("page");
   const page = pageParam ? parseInt(pageParam, 10) : 1;
 
+  // Read limit parameter from URL
+  const limitParam = searchParams.get("limit");
+  const limit = limitParam ? parseInt(limitParam, 10) : 10;
+
   // Read search parameter from URL
   const searchQueryParam = searchParams.get("search") || "";
 
@@ -153,10 +157,17 @@ export default function CustomerList() {
   } = useCustomers({
     search: searchQueryParam || undefined,
     page,
-    limit: 10,
+    limit,
     status: statusParam !== "all" ? statusParam : undefined,
     sort: sort || undefined,
   });
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("limit", newPageSize.toString());
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   // Removed duplicate hook declarations since they are now at the top
   const handleCreateSubmit = (values: CustomerPayload) => {
@@ -370,6 +381,8 @@ export default function CustomerList() {
               totalPages={pagination.pages}
               totalItems={pagination.total}
               onPageChange={handlePageChange}
+              pageSize={limit}
+              onPageSizeChange={handlePageSizeChange}
               itemLabel="customers"
             />
           )}
