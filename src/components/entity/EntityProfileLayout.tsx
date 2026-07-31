@@ -22,9 +22,9 @@ export function EntityProfileLayout({
   children,
 }: EntityProfileLayoutProps) {
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
       {/* Sidebar Navigation */}
-      <div className="lg:col-span-1">
+      <div className="w-full lg:w-60 shrink-0">
         <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible border-b lg:border-b-0 lg:border-r border-border pb-2 lg:pb-0 lg:pr-4 gap-1 select-none">
           {tabs.map((tab) => {
             const isActive = tab.id === activeTab;
@@ -47,7 +47,7 @@ export function EntityProfileLayout({
       </div>
 
       {/* Content Area */}
-      <div className="lg:col-span-3">
+      <div className="flex-1 min-w-0 w-full">
         <div className="animate-in fade-in duration-200">
           {children}
         </div>
