@@ -309,7 +309,12 @@ export default function CustomerList() {
 
       {/* Search and Context Display Toolbar */}
       <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-        <CustomerSearch value={search} onChange={setSearch} />
+        <CustomerSearch 
+          value={search} 
+          onChange={setSearch} 
+          placeholder={CUSTOMERS_CONFIG.labels.customer.searchPlaceholder}
+          isLoading={isRefetching}
+        />
         
         <CustomerFilters
           status={statusParam}
