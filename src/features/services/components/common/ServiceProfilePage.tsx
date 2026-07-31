@@ -25,6 +25,7 @@ import ServiceForm from "../services/ServiceForm";
 import DeactivateDialog from "@/components/entity/DeactivateDialog";
 import ReactivateDialog from "@/components/entity/ReactivateDialog";
 import type { ServicePayload } from "../../types/service.types";
+import type { ServiceCategory } from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Calendar, Package, Gift } from "lucide-react";
@@ -150,7 +151,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
   }
 
   const catId = typeof service.categoryId === "string" ? service.categoryId : (service.categoryId as { _id: string })?._id || "";
-  const categoryName = categoriesQuery.data?.data?.find((c) => c.id === catId)?.name || catId;
+  const categoryName = categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === catId)?.name || catId;
   const branchName = availableBranches.find((b) => b.id === service.branchId)?.name || service.branchId;
 
   // Declarative Tab Schema Definition

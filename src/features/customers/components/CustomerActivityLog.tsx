@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
+import type { AuditLog } from "../types/customer.types";
 
 interface CustomerActivityLogProps {
   customerId: string;
@@ -87,7 +88,7 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
     return (
       <div className="space-y-6">
         <div className="relative border-l border-border pl-6 ml-2 space-y-6">
-          {activityTimeline.map((item) => {
+          {activityTimeline.map((item: AuditLog) => {
             const displayDate = formatDateTime(item.date);
             return (
               <div key={item._id} className="relative group text-left">

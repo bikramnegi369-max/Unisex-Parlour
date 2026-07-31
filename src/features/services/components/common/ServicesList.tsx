@@ -154,7 +154,7 @@ export default function ServicesList() {
   };
 
   const getCategoryName = useCallback((id: string) => {
-    return categoriesQuery.data?.data?.find((c) => c.id === id)?.name || id;
+    return categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === id)?.name || id;
   }, [categoriesQuery.data]);
 
   // Table Columns Definition

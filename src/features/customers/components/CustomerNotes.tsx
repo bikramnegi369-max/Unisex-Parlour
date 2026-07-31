@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useCustomerNotes } from "../hooks/useCustomerNotes";
 import { useCreateCustomerNote } from "../hooks/useCreateCustomerNote";
+import { CustomerNote } from "../types/customer.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
     return (
       <div className="space-y-4">
         <div className="space-y-4">
-          {notesList.map((note) => {
+          {notesList.map((note: CustomerNote) => {
             const displayDate = formatDateTime(note.createdAt);
             const creatorName =
               typeof note.createdBy === "object"
