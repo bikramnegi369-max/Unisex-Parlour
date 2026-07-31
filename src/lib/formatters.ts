@@ -1,5 +1,5 @@
-const DEFAULT_CURRENCY = "USD";
-const DEFAULT_LOCALE = "en-US";
+const DEFAULT_CURRENCY = "INR";
+const DEFAULT_LOCALE = "en-IN";
 
 /**
  * Formats a number as a currency string.

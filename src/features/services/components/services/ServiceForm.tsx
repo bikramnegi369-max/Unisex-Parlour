@@ -136,7 +136,7 @@ export default function ServiceForm({
 
         <div>
           <label htmlFor="service-price" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-            Base Price ($) <span className="text-destructive">*</span>
+            Base Price (₹) <span className="text-destructive">*</span>
           </label>
           <Input
             id="service-price"
