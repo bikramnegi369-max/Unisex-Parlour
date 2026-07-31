@@ -16,6 +16,7 @@ import CustomerReactivateDialog from "./CustomerReactivateDialog";
 import { useReactivateCustomer } from "../hooks/useReactivateCustomer";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Plus, Sparkles, HelpCircle } from "lucide-react";
@@ -362,34 +363,15 @@ export default function CustomerList() {
             isLoading={false}
             isAllBranches={isAllBranchesSelected}
           />
-          
           {/* Pagination Controls */}
-          {pagination && pagination.pages > 1 && (
-            <div className="flex items-center justify-between pt-4 border-t border-border/60 text-xs">
-              <span className="text-muted-foreground">
-                Showing page <strong className="text-foreground">{page}</strong> of <strong className="text-foreground">{pagination.pages}</strong> ({pagination.total} total customers)
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(Math.max(page - 1, 1))}
-                  disabled={page === 1}
-                  className="cursor-pointer"
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(Math.min(page + 1, pagination.pages))}
-                  disabled={page === pagination.pages}
-                  className="cursor-pointer"
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+          {pagination && (
+            <Pagination
+              currentPage={page}
+              totalPages={pagination.pages}
+              totalItems={pagination.total}
+              onPageChange={handlePageChange}
+              itemLabel="customers"
+            />
           )}
         </div>
       )}
