@@ -18,7 +18,7 @@ export const SERVICES_CONFIG = {
   permissions: {
     view: "services.view",
     create: "services.create",
-    edit: "services.edit",
+    edit: "services.update",
     delete: "services.delete",
   },
   labels: {

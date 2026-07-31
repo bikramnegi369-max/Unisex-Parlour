@@ -14,7 +14,7 @@ export const CUSTOMERS_CONFIG = {
   permissions: {
     view: "customers.view",
     create: "customers.create",
-    edit: "customers.edit",
+    edit: "customers.update",
     delete: "customers.delete",
   },
   labels: {
