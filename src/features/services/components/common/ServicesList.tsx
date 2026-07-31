@@ -28,6 +28,9 @@ import { Dialog } from "@/components/ui/dialog";
 import DeactivateDialog from "@/components/entity/DeactivateDialog";
 import ReactivateDialog from "@/components/entity/ReactivateDialog";
 import { DataTable } from "@/components/ui/data-table/DataTable";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Edit, Trash2, UserCheck } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Service, ServicePayload } from "../../types/service.types";
 import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
@@ -334,6 +337,82 @@ export default function ServicesList() {
     />
   );
 
+  // Mobile list row builder for categories
+  const renderCategoryMobileRow = (category: ServiceCategory) => (
+    <div key={category.id} className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm text-left">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
+            {category.name.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="font-semibold text-foreground text-sm">{category.name}</h4>
+              <Badge variant={category.isActive ? "success" : "muted"}>
+                {category.isActive ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+            {category.description && (
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs line-clamp-2">
+                {category.description}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Action controls */}
+        <div className="flex items-center gap-1.5">
+          {canEdit && (
+            <Button
+              variant="outline"
+              className="h-10 w-10 flex items-center justify-center cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveCategory(category);
+                setIsCategoryEditOpen(true);
+              }}
+              aria-label={`Edit ${category.name}`}
+            >
+              <Edit size={15} />
+            </Button>
+          )}
+          {canDelete && category.isActive && (
+            <Button
+              variant="destructive"
+              className="h-10 w-10 bg-destructive/10 text-destructive border-transparent flex items-center justify-center cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveCategory(category);
+                setIsCategoryDeleteOpen(true);
+              }}
+              aria-label={`Deactivate ${category.name}`}
+            >
+              <Trash2 size={15} />
+            </Button>
+          )}
+          {canEdit && !category.isActive && (
+            <Button
+              variant="outline"
+              className="h-10 w-10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-500 dark:hover:bg-emerald-500/20 flex items-center justify-center cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveCategory(category);
+                setIsCategoryReactivateOpen(true);
+              }}
+              aria-label={`Reactivate ${category.name}`}
+            >
+              <UserCheck size={15} />
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground flex justify-between">
+        <span>Display Order:</span>
+        <span className="font-semibold text-foreground">{category.displayOrder}</span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {alertMessage && (
@@ -402,6 +481,7 @@ export default function ServicesList() {
           columns={categoryColumns}
           data={categoriesQuery.data?.data || []}
           isLoading={categoriesQuery.isLoading}
+          renderMobileRow={renderCategoryMobileRow}
           emptyState={
             <EmptyState
               title={SERVICES_CONFIG.labels.category.emptyStateTitle}
