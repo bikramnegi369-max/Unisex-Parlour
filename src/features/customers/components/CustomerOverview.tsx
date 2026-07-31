@@ -5,6 +5,7 @@ import type { Customer } from "../types/customer.types";
 import { formatAddress } from "../types/customer.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDate } from "@/lib/formatters";
 import {
   User,
   Phone,
@@ -25,18 +26,7 @@ interface CustomerOverviewProps {
 export function CustomerOverview({ customer, visitedBranchNames }: CustomerOverviewProps) {
   const formatDOB = (dob?: string | null) => {
     if (!dob) return "Not provided";
-    try {
-      const date = new Date(dob);
-      return isNaN(date.getTime())
-        ? dob
-        : date.toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          });
-    } catch {
-      return dob;
-    }
+    return formatDate(dob, "dd MMMM yyyy"); // Outputs format like "31 July 2026"
   };
 
   return (

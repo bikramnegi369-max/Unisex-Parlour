@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FileText, User, Plus, Loader2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { formatDateTime } from "@/lib/formatters";
 
 interface CustomerNotesProps {
   customerId: string;
@@ -125,16 +126,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
       <div className="space-y-4">
         <div className="space-y-4">
           {notesList.map((note) => {
-            const dateObj = new Date(note.createdAt);
-            const displayDate = isNaN(dateObj.getTime())
-              ? note.createdAt
-              : dateObj.toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+            const displayDate = formatDateTime(note.createdAt);
             const creatorName =
               typeof note.createdBy === "object"
                 ? note.createdBy.name

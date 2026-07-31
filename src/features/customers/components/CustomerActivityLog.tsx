@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Clock, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { formatDateTime } from "@/lib/formatters";
 
 interface CustomerActivityLogProps {
   customerId: string;
@@ -87,13 +88,7 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
       <div className="space-y-6">
         <div className="relative border-l border-border pl-6 ml-2 space-y-6">
           {activityTimeline.map((item) => {
-            const dateObj = new Date(item.date);
-            const displayDate = isNaN(dateObj.getTime())
-              ? item.date
-              : dateObj.toLocaleString(undefined, {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                });
+            const displayDate = formatDateTime(item.date);
             return (
               <div key={item._id} className="relative group text-left">
                 {/* Timeline dot marker */}

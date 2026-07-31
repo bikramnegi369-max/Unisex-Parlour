@@ -2,6 +2,7 @@
 
 import type { Service } from "../../types/service.types";
 import { Badge } from "@/components/ui/badge";
+import { formatDateTime } from "@/lib/formatters";
 
 interface ServiceAuditCardProps {
   service: Service;
@@ -11,8 +12,7 @@ interface ServiceAuditCardProps {
 export function ServiceAuditCard({ service, branchName }: ServiceAuditCardProps) {
   const getFormattedDate = (dateStr?: string) => {
     if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? dateStr : d.toLocaleString();
+    return formatDateTime(dateStr);
   };
 
   return (

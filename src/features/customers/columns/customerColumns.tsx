@@ -4,6 +4,7 @@ import type { Customer } from "../types/customer.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { CUSTOMERS_CONFIG } from "../config/customers.config";
+import { formatDate } from "@/lib/formatters";
 
 interface CustomerColumnOptions {
   onView: (customer: Customer) => void;
@@ -121,16 +122,9 @@ export const buildCustomerColumns = ({
       const val = info.getValue();
       const dateStr = typeof val === "string" ? val : info.row.original.createdAt;
       if (!dateStr) return "—";
-      const date = new Date(dateStr);
       return (
         <span suppressHydrationWarning className="text-muted-foreground text-xs font-medium">
-          {isNaN(date.getTime())
-            ? dateStr
-            : date.toLocaleDateString(undefined, {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })}
+          {formatDate(dateStr)}
         </span>
       );
     },
