@@ -12,6 +12,13 @@ const mapIdKey = <T>(item: any): T => {
     isActive: typeof item.isActive === "boolean" 
       ? item.isActive 
       : item.status === "active" || item.status === undefined,
+    code: item.serviceCode || item.code || "",
+    taxable: typeof item.taxable === "boolean"
+      ? item.taxable
+      : item.taxConfiguration?.taxable ?? false,
+    taxRate: typeof item.taxRate === "number"
+      ? item.taxRate
+      : item.taxConfiguration?.taxRate ?? 0,
   } as T;
 };
 
