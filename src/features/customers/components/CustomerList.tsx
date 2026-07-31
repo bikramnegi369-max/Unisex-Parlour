@@ -24,6 +24,7 @@ import type { Customer, CustomerPayload } from "../types/customer.types";
 import { CustomerListHeader } from "./CustomerListHeader";
 import { CustomerSearch } from "./CustomerSearch";
 import { CustomerFilters } from "./CustomerFilters";
+import { CUSTOMERS_CONFIG } from "../config/customers.config";
 
 export default function CustomerList() {
   const router = useRouter();
@@ -33,7 +34,7 @@ export default function CustomerList() {
   const { user } = useAuth();
   const { isAllBranchesSelected, currentBranch } = useBranchContext();
 
-  const canCreate = hasPermission(user, "customers.create");
+  const canCreate = hasPermission(user, CUSTOMERS_CONFIG.permissions.create);
 
   // Read page parameter from URL
   const pageParam = searchParams.get("page");
@@ -41,7 +42,7 @@ export default function CustomerList() {
 
   // Read limit parameter from URL
   const limitParam = searchParams.get("limit");
-  const limit = limitParam ? parseInt(limitParam, 10) : 10;
+  const limit = limitParam ? parseInt(limitParam, 10) : CUSTOMERS_CONFIG.defaults.pageSize;
 
   // Read search parameter from URL
   const searchQueryParam = searchParams.get("search") || "";
@@ -81,7 +82,7 @@ export default function CustomerList() {
 
   // Memoized callbacks for CustomerTable to prevent re-render loops
   const handleView = useCallback((c: Customer) => {
-    router.push(`/customers/${c.id}`);
+    router.push(CUSTOMERS_CONFIG.routes.customers.detail(c.id));
   }, [router]);
 
   const handleEdit = useCallback((c: Customer) => {
