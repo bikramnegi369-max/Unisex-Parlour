@@ -596,7 +596,7 @@ export default function CustomerForm({
 
           <div>
             <label htmlFor="loyaltyPoints" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
-              Loyalty Points (Read-only on profile updates)
+              Loyalty Points
             </label>
             <Input
               id="loyaltyPoints"
@@ -607,6 +607,9 @@ export default function CustomerForm({
               className="bg-muted text-muted-foreground cursor-not-allowed"
               {...register("loyaltyPoints")}
             />
+            <p className="mt-1.5 text-[10px] text-muted-foreground font-semibold">
+              Read-only on profile updates
+            </p>
           </div>
 
           {/* Interactive Tag Chips Component */}
