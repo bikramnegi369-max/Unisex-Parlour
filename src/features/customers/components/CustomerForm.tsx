@@ -617,7 +617,7 @@ export default function CustomerForm({
             <div className="flex flex-wrap gap-1.5 p-2 bg-background border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
               {tags.map((tag, idx) => (
                 <span
-                  key={idx}
+                  key={tag}
                   className="inline-flex items-center gap-1 bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded-full"
                 >
                   {tag}

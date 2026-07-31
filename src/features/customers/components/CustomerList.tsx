@@ -100,12 +100,6 @@ export default function CustomerList() {
     setIsReactivateOpen(true);
   }, []);
 
-  // Reset mutation state when dialog closes
-  useEffect(() => {
-    if (!isReactivateOpen) {
-      reactivateMutation.reset();
-    }
-  }, [isReactivateOpen, reactivateMutation]);
 
   // Debounce search input and sync with URL
   useEffect(() => {
@@ -221,6 +215,7 @@ export default function CustomerList() {
       onSuccess: () => {
         setIsReactivateOpen(false);
         setCustomerToReactivate(null);
+        reactivateMutation.reset();
         triggerAlert("success", "Customer profile reactivated successfully.");
       },
       onError: () => {
@@ -439,6 +434,7 @@ export default function CustomerList() {
           onClose={() => {
             setIsReactivateOpen(false);
             setCustomerToReactivate(null);
+            reactivateMutation.reset();
           }}
           onConfirm={handleReactivateConfirm}
           isLoading={reactivateMutation.isPending}

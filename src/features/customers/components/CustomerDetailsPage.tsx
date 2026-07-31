@@ -48,12 +48,6 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
   const deleteMutation = useDeleteCustomer();
   const reactivateMutation = useReactivateCustomer();
 
-  // Reset mutation state when dialog closes
-  useEffect(() => {
-    if (!isReactivateOpen) {
-      reactivateMutation.reset();
-    }
-  }, [isReactivateOpen, reactivateMutation]);
 
 
   const triggerAlert = (type: "success" | "error", text: string) => {
@@ -97,6 +91,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
     reactivateMutation.mutate(customerId, {
       onSuccess: () => {
         setIsReactivateOpen(false);
+        reactivateMutation.reset();
         triggerAlert("success", "Customer profile reactivated successfully.");
       },
       onError: () => {
@@ -284,7 +279,10 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       {/* Reactivate confirmation dialog */}
       <CustomerReactivateDialog
         isOpen={isReactivateOpen}
-        onClose={() => setIsReactivateOpen(false)}
+        onClose={() => {
+          setIsReactivateOpen(false);
+          reactivateMutation.reset();
+        }}
         onConfirm={handleReactivateConfirm}
         isLoading={reactivateMutation.isPending}
         error={reactivateMutation.error}
