@@ -6,10 +6,10 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { CustomerMobileCard } from "./CustomerMobileCard";
+import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -161,70 +161,23 @@ export default function CustomerTable({
         cell: (info) => {
           const customer = info.row.original;
           return (
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onView(customer);
-                }}
-                className="cursor-pointer h-9 w-9 rounded-lg hover:bg-muted hover:text-foreground flex items-center justify-center transition-colors text-muted-foreground"
-                title="View Details"
-                aria-label={`View details of ${customer.name}`}
-              >
-                <Eye size={15} />
-              </button>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(customer);
-                  }}
-                  className="cursor-pointer h-9 w-9 rounded-lg hover:bg-muted hover:text-foreground flex items-center justify-center transition-colors text-muted-foreground"
-                  title="Edit Profile"
-                  aria-label={`Edit profile of ${customer.name}`}
-                >
-                  <Edit size={15} />
-                </button>
-              )}
-              {canDelete && customer.status === "active" && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(customer);
-                  }}
-                  className="cursor-pointer hover:bg-destructive/10 h-9 w-9 rounded-lg flex items-center justify-center transition-colors text-destructive"
-                  title="Deactivate Customer"
-                  aria-label={`Deactivate profile of ${customer.name}`}
-                >
-                  <Trash2 size={15} />
-                </button>
-              )}
-              {canEdit && customer.status !== "active" && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onReactivate(customer);
-                  }}
-                  className="cursor-pointer hover:bg-emerald-500/10 h-9 w-9 rounded-lg flex items-center justify-center transition-colors text-emerald-600 dark:text-emerald-500"
-                  title="Reactivate Customer"
-                  aria-label={`Reactivate profile of ${customer.name}`}
-                >
-                  <UserCheck size={15} />
-                </button>
-              )}
-            </div>
+            <EntityActionMenu
+              onView={() => onView(customer)}
+              onEdit={() => onEdit(customer)}
+              onDelete={() => onDelete(customer)}
+              onReactivate={() => onReactivate(customer)}
+              status={customer.status}
+              permissions={{
+                edit: "customers.edit",
+                delete: "customers.delete",
+              }}
+            />
           );
         },
       },
     ];
   }, [
     isAllBranches,
-    canEdit,
-    canDelete,
     onView,
     onEdit,
     onDelete,

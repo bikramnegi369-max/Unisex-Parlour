@@ -17,11 +17,11 @@ import CustomerDeleteDialog from "./CustomerDeleteDialog";
 import CustomerReactivateDialog from "./CustomerReactivateDialog";
 import Unauthorized from "@/components/layout/Unauthorized";
 import { CustomerProfileHeader } from "./CustomerProfileHeader";
-import { CustomerDetailsTabs, type TabItem } from "./CustomerDetailsTabs";
 import { CustomerOverview } from "./CustomerOverview";
 import { CustomerPreferences } from "./CustomerPreferences";
 import { CustomerNotes } from "./CustomerNotes";
 import { CustomerActivityLog } from "./CustomerActivityLog";
+import { EntityProfileLayout, type ProfileTabItem } from "@/components/entity/EntityProfileLayout";
 
 interface CustomerDetailsPageProps {
   customerId: string;
@@ -35,7 +35,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isReactivateOpen, setIsReactivateOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabItem["id"]>("overview");
+  const [activeTab, setActiveTab] = useState<ProfileTabItem["id"]>("overview");
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const canEdit = hasPermission(user, "customers.edit");
@@ -201,7 +201,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
 
 
-  const tabs: TabItem[] = [
+  const tabs: ProfileTabItem[] = [
     { id: "overview", label: "Overview" },
     { id: "preferences", label: "Preferences" },
     { id: "notes", label: "Internal Notes" },
@@ -236,36 +236,30 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       />
 
       {/* Main Tabs Navigation and Contents Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1">
-          <CustomerDetailsTabs
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            tabs={tabs}
+      <EntityProfileLayout
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      >
+        {activeTab === "overview" && (
+          <CustomerOverview customer={customer} visitedBranchNames={visitedBranchNames} />
+        )}
+
+        {activeTab === "preferences" && (
+          <CustomerPreferences
+            preferences={customer.preferences}
+            marketingPreferences={customer.marketingPreferences}
           />
-        </div>
+        )}
 
-        <div className="lg:col-span-3">
-          {activeTab === "overview" && (
-            <CustomerOverview customer={customer} visitedBranchNames={visitedBranchNames} />
-          )}
+        {activeTab === "notes" && (
+          <CustomerNotes customerId={customerId} />
+        )}
 
-          {activeTab === "preferences" && (
-            <CustomerPreferences
-              preferences={customer.preferences}
-              marketingPreferences={customer.marketingPreferences}
-            />
-          )}
-
-          {activeTab === "notes" && (
-            <CustomerNotes customerId={customerId} />
-          )}
-
-          {activeTab === "activity" && (
-            <CustomerActivityLog customerId={customerId} />
-          )}
-        </div>
-      </div>
+        {activeTab === "activity" && (
+          <CustomerActivityLog customerId={customerId} />
+        )}
+      </EntityProfileLayout>
 
       {/* Edit Form Modal dialog */}
       <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Customer Details">
