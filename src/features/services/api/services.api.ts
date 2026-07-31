@@ -9,6 +9,9 @@ const mapIdKey = <T>(item: any): T => {
   return {
     ...item,
     id: item._id || item.id || "",
+    isActive: typeof item.isActive === "boolean" 
+      ? item.isActive 
+      : item.status === "active" || item.status === undefined,
   } as T;
 };
 

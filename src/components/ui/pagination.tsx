@@ -33,7 +33,7 @@ export function Pagination({
   onPageSizeChange,
 }: PaginationProps) {
   // If we only have 1 page and page size selector is not enabled, hide pagination
-  if (totalPages <= 0 && !onPageSizeChange) return null;
+  if (totalPages <= 1 && !onPageSizeChange) return null;
 
   // Generate page numbers with ellipsis (e.g., [1, 2, 'ellipsis-1', 9, 10])
   const getPageNumbers = () => {
