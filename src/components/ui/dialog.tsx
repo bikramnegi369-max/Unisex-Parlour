@@ -9,17 +9,65 @@ interface DialogProps {
 }
 
 export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
+  const dialogRef = React.useRef<HTMLDivElement>(null);
+  const previousFocusRef = React.useRef<HTMLElement | null>(null);
+  const titleId = React.useId();
+
   React.useEffect(() => {
+    if (!isOpen) return;
+
+    // Store the element that had focus before the dialog opened
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    document.body.style.overflow = "hidden";
+
+    // Focus the dialog container after a microtask so the DOM is ready
+    const rafId = requestAnimationFrame(() => {
+      dialogRef.current?.focus();
+    });
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", handleEscape);
-    }
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusable.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("keydown", handleTab);
+
     return () => {
       document.body.style.overflow = "unset";
       window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("keydown", handleTab);
+      cancelAnimationFrame(rafId);
+
+      // Return focus to the previously focused element
+      previousFocusRef.current?.focus();
     };
   }, [isOpen, onClose]);
 
@@ -31,17 +79,26 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
       <div 
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
         onClick={onClose}
+        aria-hidden="true"
       />
       
       {/* Dialog Content */}
-      <div className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-popover text-popover-foreground p-6 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        tabIndex={-1}
+        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-popover text-popover-foreground p-6 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 outline-none"
+      >
         <button
           onClick={onClose}
+          aria-label="Close dialog"
           className="absolute top-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         >
           <X size={16} />
         </button>
-        {title && <h2 className="text-lg font-semibold tracking-tight mb-4">{title}</h2>}
+        {title && <h2 id={titleId} className="text-lg font-semibold tracking-tight mb-4">{title}</h2>}
         <div>{children}</div>
       </div>
     </div>

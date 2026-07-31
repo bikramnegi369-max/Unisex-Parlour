@@ -10,6 +10,7 @@ export interface ServiceFilters {
 
 export interface ServiceCategoryFilters {
   search?: string;
+  status?: string;
   page?: number;
   limit?: number;
 }

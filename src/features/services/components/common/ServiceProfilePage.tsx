@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useService } from "../../hooks/services/useService";
 import { useServiceCategories } from "../../hooks/categories/useServiceCategories";
 import { useUpdateService } from "../../hooks/services/useUpdateService";
@@ -26,7 +27,7 @@ import ReactivateDialog from "@/components/entity/ReactivateDialog";
 import type { ServicePayload } from "../../types/service.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Scissors } from "lucide-react";
+import { Users, Calendar, Package, Gift } from "lucide-react";
 
 interface ServiceProfilePageProps {
   serviceId: string;
@@ -41,7 +42,6 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isReactivateOpen, setIsReactivateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("overview");
-  const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
   const canDelete = hasPermission(user, SERVICES_CONFIG.permissions.delete);
@@ -56,28 +56,16 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
   const deleteMutation = useDeleteService();
   const reactivateMutation = useReactivateService();
 
-  // Reset mutation when modal closes
-  useEffect(() => {
-    if (!isReactivateOpen) {
-      reactivateMutation.reset();
-    }
-  }, [isReactivateOpen, reactivateMutation]);
-
-  const triggerAlert = (type: "success" | "error", text: string) => {
-    setAlertMessage({ type, text });
-    setTimeout(() => setAlertMessage(null), 4000);
-  };
-
   const handleEditSubmit = (values: ServicePayload) => {
     updateMutation.mutate(
       { id: serviceId, payload: values },
       {
         onSuccess: () => {
           setIsEditOpen(false);
-          triggerAlert("success", "Service details updated successfully.");
+          toast.success("Service details updated successfully.");
         },
         onError: (err) => {
-          triggerAlert("error", getErrorMessage(err) || "Failed to update service.");
+          toast.error(getErrorMessage(err) || "Failed to update service.");
         },
       }
     );
@@ -87,14 +75,14 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
     deleteMutation.mutate(serviceId, {
       onSuccess: () => {
         setIsDeactivateOpen(false);
-        triggerAlert("success", "Service deactivated successfully.");
+        toast.success("Service deactivated successfully.");
         setTimeout(() => {
           router.back();
         }, 1000);
       },
       onError: (err) => {
         setIsDeactivateOpen(false);
-        triggerAlert("error", getErrorMessage(err) || "Failed to deactivate service.");
+        toast.error(getErrorMessage(err) || "Failed to deactivate service.");
       },
     });
   };
@@ -103,9 +91,11 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
     reactivateMutation.mutate(serviceId, {
       onSuccess: () => {
         setIsReactivateOpen(false);
-        triggerAlert("success", "Service reactivated successfully.");
+        toast.success("Service reactivated successfully.");
       },
-      onError: () => {},
+      onError: (err) => {
+        toast.error(getErrorMessage(err) || "Failed to reactivate service.");
+      },
     });
   };
 
@@ -174,22 +164,12 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
   return (
     <div className="space-y-6">
-      {alertMessage && (
-        <div
-          className={`p-3 rounded-lg border text-sm font-semibold animate-in fade-in duration-200 ${
-            alertMessage.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-              : "bg-destructive/10 border-destructive/20 text-destructive"
-          }`}
-        >
-          {alertMessage.text}
-        </div>
-      )}
 
       <ServiceProfileHeader
         service={service}
         canEdit={canEdit}
         canDelete={canDelete}
+        categoryName={categoryName}
         onBack={() => router.back()}
         onEdit={() => setIsEditOpen(true)}
         onDeactivate={() => setIsDeactivateOpen(true)}
@@ -212,7 +192,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
         {activeTab === "employees" && (
           <EmptyState
-            icon={Scissors}
+            icon={Users}
             title="No Certified Staff Linked"
             description="Employees and treatment certifications will be linked here in future updates."
           />
@@ -220,7 +200,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
         {activeTab === "appointments" && (
           <EmptyState
-            icon={Scissors}
+            icon={Calendar}
             title="No Bookings Yet"
             description="Appointment booking statistics for this treatment will appear here."
           />
@@ -228,7 +208,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
         {activeTab === "inventory" && (
           <EmptyState
-            icon={Scissors}
+            icon={Package}
             title="No Material Consumption Linked"
             description="Inventory and treatment consumable deductions will be tracked here in future updates."
           />
@@ -236,7 +216,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
         {activeTab === "packages" && (
           <EmptyState
-            icon={Scissors}
+            icon={Gift}
             title="No Packages Linked"
             description="Active promotion campaigns or bundle discounts for this treatment will be shown here."
           />

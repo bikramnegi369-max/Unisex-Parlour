@@ -3,12 +3,14 @@
 import type { Service } from "../../types/service.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/formatters";
 import { ArrowLeft, Edit, Trash2, UserCheck, Calendar } from "lucide-react";
 
 interface ServiceProfileHeaderProps {
   service: Service;
   canEdit: boolean;
   canDelete: boolean;
+  categoryName: string;
   onBack: () => void;
   onEdit: () => void;
   onDeactivate: () => void;
@@ -19,6 +21,7 @@ export function ServiceProfileHeader({
   service,
   canEdit,
   canDelete,
+  categoryName,
   onBack,
   onEdit,
   onDeactivate,
@@ -83,16 +86,34 @@ export function ServiceProfileHeader({
                 {service.isActive ? "Active" : "Inactive"}
               </Badge>
             </div>
-            {service.code && (
-              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] py-0 px-1.5 font-semibold mt-1 inline-block">
-                {service.code}
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {service.code && (
+                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 text-[9px] py-0 px-1.5 font-semibold">
+                  {service.code}
+                </Badge>
+              )}
+              <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px] py-0 px-1.5 font-medium">
+                {categoryName}
               </Badge>
-            )}
+              {service.taxable && (
+                <Badge variant="outline" className="bg-amber-500/5 text-amber-600 border-amber-500/20 text-[10px] py-0 px-1.5 font-medium dark:text-amber-400">
+                  Taxable
+                </Badge>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
               <Calendar size={12} />
               Duration: <span className="font-medium text-foreground">{service.duration} minutes</span>
             </p>
           </div>
+        </div>
+
+        {/* Price highlight */}
+        <div className="text-right shrink-0">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base Price</span>
+          <p className="text-2xl font-bold text-foreground mt-0.5">
+            {formatCurrency(service.pricing?.basePrice ?? 0)}
+          </p>
         </div>
       </div>
     </div>

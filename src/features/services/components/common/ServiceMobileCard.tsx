@@ -4,6 +4,7 @@ import React from "react";
 import type { Service } from "../../types/service.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/formatters";
 import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
 
 interface ServiceMobileCardProps {
@@ -116,7 +117,7 @@ export function ServiceMobileCard({
         </div>
         <div className="flex justify-between">
           <span>Base Price:</span>
-          <span className="font-semibold text-foreground">${(service.pricing?.basePrice ?? 0).toFixed(2)}</span>
+          <span className="font-semibold text-foreground">{formatCurrency(service.pricing?.basePrice ?? 0)}</span>
         </div>
       </div>
     </div>

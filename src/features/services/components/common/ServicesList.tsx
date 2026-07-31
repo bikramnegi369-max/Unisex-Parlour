@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { toast } from "sonner";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -22,15 +23,15 @@ import { ServicesListHeader } from "./ServicesListHeader";
 import { ServicesSearch } from "./ServicesSearch";
 import { ServicesFilters } from "./ServicesFilters";
 import { ServiceMobileCard } from "./ServiceMobileCard";
+import { ServiceCategoryMobileCard } from "./ServiceCategoryMobileCard";
 import ServiceForm from "../services/ServiceForm";
 import ServiceCategoryForm from "../service-categories/ServiceCategoryForm";
 import { Dialog } from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import DeactivateDialog from "@/components/entity/DeactivateDialog";
 import ReactivateDialog from "@/components/entity/ReactivateDialog";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Edit, Trash2, UserCheck } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Service, ServicePayload } from "../../types/service.types";
 import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
@@ -81,15 +82,18 @@ export default function ServicesList() {
   const [activeService, setActiveService] = useState<Service | null>(null);
   const [activeCategory, setActiveCategory] = useState<ServiceCategory | null>(null);
 
-  const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
   // Queries
-  const categoriesQuery = useServiceCategories({ limit: 100 });
+  const categoriesQuery = useServiceCategories({
+    search: viewMode === "categories" ? searchVal || undefined : undefined,
+    page: viewMode === "categories" ? page : undefined,
+    limit: viewMode === "categories" ? SERVICES_CONFIG.defaults.pageSize : 100,
+    status: viewMode === "categories" && statusVal !== "all" ? statusVal : undefined,
+  });
   const servicesQuery = useServices({
-    search: searchVal || undefined,
-    page,
+    search: viewMode === "services" ? searchVal || undefined : undefined,
+    page: viewMode === "services" ? page : undefined,
     limit: SERVICES_CONFIG.defaults.pageSize,
-    status: statusVal !== "all" ? statusVal : undefined,
+    status: viewMode === "services" && statusVal !== "all" ? statusVal : undefined,
     categoryId: categoryIdVal !== "all" ? categoryIdVal : undefined,
     sort: sortVal || undefined,
   });
@@ -105,10 +109,11 @@ export default function ServicesList() {
   const deleteCategoryMutation = useDeleteServiceCategory();
   const reactivateCategoryMutation = useReactivateServiceCategory();
 
-  // Helper
-  const triggerAlert = (type: "success" | "error", text: string) => {
-    setAlertMessage({ type, text });
-    setTimeout(() => setAlertMessage(null), 4000);
+  // Navigation helper for pagination
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", newPage.toString());
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   // Sync search query parameter debounced
@@ -190,10 +195,10 @@ export default function ServicesList() {
     createServiceMutation.mutate(values, {
       onSuccess: () => {
         setIsServiceCreateOpen(false);
-        triggerAlert("success", "New service added to catalog successfully.");
+        toast.success("New service added to catalog successfully.");
       },
       onError: (err) => {
-        triggerAlert("error", getErrorMessage(err) || "Failed to create service.");
+        toast.error(getErrorMessage(err) || "Failed to create service.");
       },
     });
   };
@@ -206,10 +211,10 @@ export default function ServicesList() {
         onSuccess: () => {
           setIsServiceEditOpen(false);
           setActiveService(null);
-          triggerAlert("success", "Service details updated successfully.");
+          toast.success("Service details updated successfully.");
         },
         onError: (err) => {
-          triggerAlert("error", getErrorMessage(err) || "Failed to update service.");
+          toast.error(getErrorMessage(err) || "Failed to update service.");
         },
       }
     );
@@ -221,12 +226,12 @@ export default function ServicesList() {
       onSuccess: () => {
         setIsServiceDeleteOpen(false);
         setActiveService(null);
-        triggerAlert("success", "Service deactivated successfully.");
+        toast.success("Service deactivated successfully.");
       },
       onError: (err) => {
         setIsServiceDeleteOpen(false);
         setActiveService(null);
-        triggerAlert("error", getErrorMessage(err) || "Failed to deactivate service.");
+        toast.error(getErrorMessage(err) || "Failed to deactivate service.");
       },
     });
   };
@@ -237,12 +242,12 @@ export default function ServicesList() {
       onSuccess: () => {
         setIsServiceReactivateOpen(false);
         setActiveService(null);
-        triggerAlert("success", "Service reactivated successfully.");
+        toast.success("Service reactivated successfully.");
       },
       onError: (err) => {
         setIsServiceReactivateOpen(false);
         setActiveService(null);
-        triggerAlert("error", getErrorMessage(err) || "Failed to reactivate service.");
+        toast.error(getErrorMessage(err) || "Failed to reactivate service.");
       },
     });
   };
@@ -252,10 +257,10 @@ export default function ServicesList() {
     createCategoryMutation.mutate(values, {
       onSuccess: () => {
         setIsCategoryCreateOpen(false);
-        triggerAlert("success", "Category created successfully.");
+        toast.success("Category created successfully.");
       },
       onError: (err) => {
-        triggerAlert("error", getErrorMessage(err) || "Failed to create category.");
+        toast.error(getErrorMessage(err) || "Failed to create category.");
       },
     });
   };
@@ -268,10 +273,10 @@ export default function ServicesList() {
         onSuccess: () => {
           setIsCategoryEditOpen(false);
           setActiveCategory(null);
-          triggerAlert("success", "Category updated successfully.");
+          toast.success("Category updated successfully.");
         },
         onError: (err) => {
-          triggerAlert("error", getErrorMessage(err) || "Failed to update category.");
+          toast.error(getErrorMessage(err) || "Failed to update category.");
         },
       }
     );
@@ -283,12 +288,12 @@ export default function ServicesList() {
       onSuccess: () => {
         setIsCategoryDeleteOpen(false);
         setActiveCategory(null);
-        triggerAlert("success", "Category deactivated successfully.");
+        toast.success("Category deactivated successfully.");
       },
       onError: (err) => {
         setIsCategoryDeleteOpen(false);
         setActiveCategory(null);
-        triggerAlert("error", getErrorMessage(err) || "Failed to deactivate category.");
+        toast.error(getErrorMessage(err) || "Failed to deactivate category.");
       },
     });
   };
@@ -299,12 +304,12 @@ export default function ServicesList() {
       onSuccess: () => {
         setIsCategoryReactivateOpen(false);
         setActiveCategory(null);
-        triggerAlert("success", "Category reactivated successfully.");
+        toast.success("Category reactivated successfully.");
       },
       onError: (err) => {
         setIsCategoryReactivateOpen(false);
         setActiveCategory(null);
-        triggerAlert("error", getErrorMessage(err) || "Failed to reactivate category.");
+        toast.error(getErrorMessage(err) || "Failed to reactivate category.");
       },
     });
   };
@@ -339,93 +344,28 @@ export default function ServicesList() {
 
   // Mobile list row builder for categories
   const renderCategoryMobileRow = (category: ServiceCategory) => (
-    <div key={category.id} className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm text-left">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {category.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-semibold text-foreground text-sm">{category.name}</h4>
-              <Badge variant={category.isActive ? "success" : "muted"}>
-                {category.isActive ? "Active" : "Inactive"}
-              </Badge>
-            </div>
-            {category.description && (
-              <p className="text-xs text-muted-foreground mt-1 max-w-xs line-clamp-2">
-                {category.description}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Action controls */}
-        <div className="flex items-center gap-1.5">
-          {canEdit && (
-            <Button
-              variant="outline"
-              className="h-10 w-10 flex items-center justify-center cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveCategory(category);
-                setIsCategoryEditOpen(true);
-              }}
-              aria-label={`Edit ${category.name}`}
-            >
-              <Edit size={15} />
-            </Button>
-          )}
-          {canDelete && category.isActive && (
-            <Button
-              variant="destructive"
-              className="h-10 w-10 bg-destructive/10 text-destructive border-transparent flex items-center justify-center cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveCategory(category);
-                setIsCategoryDeleteOpen(true);
-              }}
-              aria-label={`Deactivate ${category.name}`}
-            >
-              <Trash2 size={15} />
-            </Button>
-          )}
-          {canEdit && !category.isActive && (
-            <Button
-              variant="outline"
-              className="h-10 w-10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-500 dark:hover:bg-emerald-500/20 flex items-center justify-center cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveCategory(category);
-                setIsCategoryReactivateOpen(true);
-              }}
-              aria-label={`Reactivate ${category.name}`}
-            >
-              <UserCheck size={15} />
-            </Button>
-          )}
-        </div>
-      </div>
-      <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground flex justify-between">
-        <span>Display Order:</span>
-        <span className="font-semibold text-foreground">{category.displayOrder}</span>
-      </div>
-    </div>
+    <ServiceCategoryMobileCard
+      key={category.id}
+      category={category}
+      canEdit={canEdit}
+      canDelete={canDelete}
+      onEdit={(cat) => {
+        setActiveCategory(cat);
+        setIsCategoryEditOpen(true);
+      }}
+      onDelete={(cat) => {
+        setActiveCategory(cat);
+        setIsCategoryDeleteOpen(true);
+      }}
+      onReactivate={(cat) => {
+        setActiveCategory(cat);
+        setIsCategoryReactivateOpen(true);
+      }}
+    />
   );
 
   return (
     <div className="space-y-6">
-      {alertMessage && (
-        <div
-          className={`p-3 rounded-lg border text-sm font-semibold animate-in fade-in duration-200 ${
-            alertMessage.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-              : "bg-destructive/10 border-destructive/20 text-destructive"
-          }`}
-        >
-          {alertMessage.text}
-        </div>
-      )}
 
       <ServicesListHeader
         viewMode={viewMode}
@@ -458,6 +398,7 @@ export default function ServicesList() {
             data={servicesQuery.data?.data || []}
             isLoading={servicesQuery.isLoading}
             renderMobileRow={renderMobileRow}
+            getRowClassName={(row) => (!row.isActive ? "opacity-60 bg-muted/50" : "")}
             emptyState={
               <EmptyState
                 title={SERVICES_CONFIG.labels.service.emptyStateTitle}
@@ -473,30 +414,70 @@ export default function ServicesList() {
               />
             }
           />
+
+          {servicesQuery.data?.meta && (
+            <Pagination
+              currentPage={page}
+              totalPages={servicesQuery.data.meta.totalPages}
+              totalItems={servicesQuery.data.meta.total}
+              onPageChange={handlePageChange}
+              itemLabel="services"
+            />
+          )}
         </div>
       )}
 
       {viewMode === "categories" && (
-        <DataTable
-          columns={categoryColumns}
-          data={categoriesQuery.data?.data || []}
-          isLoading={categoriesQuery.isLoading}
-          renderMobileRow={renderCategoryMobileRow}
-          emptyState={
-            <EmptyState
-              title={SERVICES_CONFIG.labels.category.emptyStateTitle}
-              description={SERVICES_CONFIG.labels.category.emptyStateDescription}
-              action={
-                canCreate && !isAllBranchesSelected
-                  ? {
-                      label: "Create Category",
-                      onClick: () => setIsCategoryCreateOpen(true),
-                    }
-                  : undefined
-              }
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col xl:flex-row gap-4 justify-between items-stretch xl:items-center">
+            <ServicesSearch value={search} onChange={setSearch} placeholder="Search categories by name..." />
+            <div className="flex items-center gap-3">
+              <div className="min-w-35">
+                <Select
+                  value={statusVal}
+                  onChange={(e) => updateParam("status", e.target.value)}
+                  aria-label="Filter Categories by Status"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="active">Active Only</option>
+                  <option value="inactive">Inactive Only</option>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          <DataTable
+            columns={categoryColumns}
+            data={categoriesQuery.data?.data || []}
+            isLoading={categoriesQuery.isLoading}
+            renderMobileRow={renderCategoryMobileRow}
+            getRowClassName={(row) => (!row.isActive ? "opacity-60 bg-muted/50" : "")}
+            emptyState={
+              <EmptyState
+                title={SERVICES_CONFIG.labels.category.emptyStateTitle}
+                description={SERVICES_CONFIG.labels.category.emptyStateDescription}
+                action={
+                  canCreate && !isAllBranchesSelected
+                    ? {
+                        label: "Create Category",
+                        onClick: () => setIsCategoryCreateOpen(true),
+                      }
+                    : undefined
+                }
+              />
+            }
+          />
+
+          {categoriesQuery.data?.meta && (
+            <Pagination
+              currentPage={Number(categoriesQuery.data.meta.page) || 1}
+              totalPages={categoriesQuery.data.meta.totalPages}
+              totalItems={categoriesQuery.data.meta.total}
+              onPageChange={handlePageChange}
+              itemLabel="categories"
             />
-          }
-        />
+          )}
+        </div>
       )}
 
       {/* Service Create Modal */}

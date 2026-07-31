@@ -5,6 +5,7 @@ import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { serviceCategorySchema, type ServiceCategoryFormValues } from "../../schemas/serviceCategory.schema";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
@@ -68,9 +69,10 @@ export default function ServiceCategoryForm({
         <label htmlFor="category-desc" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
           Description
         </label>
-        <Input
+        <Textarea
           id="category-desc"
           placeholder="Brief description of the category..."
+          rows={3}
           disabled={isSubmitting}
           {...register("description")}
         />

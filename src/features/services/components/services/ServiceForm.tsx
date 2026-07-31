@@ -2,11 +2,13 @@
 "use no memo";
 
 import React from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm, Controller, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { serviceSchema, type ServiceFormValues } from "../../schemas/service.schema";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
 import { Loader2 } from "lucide-react";
@@ -36,6 +38,7 @@ export default function ServiceForm({
     handleSubmit,
     setError,
     watch,
+    control,
     formState: { errors },
   } = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceSchema) as unknown as Resolver<ServiceFormValues>,
@@ -81,9 +84,10 @@ export default function ServiceForm({
         <label htmlFor="service-desc" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
           Description
         </label>
-        <Input
+        <Textarea
           id="service-desc"
           placeholder="Brief details about the service treatment..."
+          rows={3}
           disabled={isSubmitting}
           {...register("description")}
         />
@@ -149,12 +153,18 @@ export default function ServiceForm({
       </div>
 
       <div className="flex items-center gap-3 py-2">
-        <input
-          id="service-taxable"
-          type="checkbox"
-          disabled={isSubmitting}
-          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-          {...register("taxable")}
+        <Controller
+          name="taxable"
+          control={control}
+          render={({ field }) => (
+            <Switch
+              id="service-taxable"
+              checked={field.value}
+              onCheckedChange={field.onChange}
+              disabled={isSubmitting}
+              aria-label="Toggle taxable status"
+            />
+          )}
         />
         <label htmlFor="service-taxable" className="text-sm font-medium text-foreground select-none cursor-pointer">
           This service is taxable

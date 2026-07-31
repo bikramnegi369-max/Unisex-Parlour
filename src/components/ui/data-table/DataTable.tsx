@@ -1,4 +1,5 @@
 "use client";
+import { cn } from "@/lib/utils";
 
 import React from "react";
 import {
@@ -14,6 +15,8 @@ interface DataTableProps<TData> {
   isLoading?: boolean;
   emptyState?: React.ReactNode;
   renderMobileRow?: (row: TData) => React.ReactNode;
+  /** Optional callback to add custom CSS classes to table rows */
+  getRowClassName?: (row: TData) => string;
 }
 
 export function DataTable<TData>({
@@ -22,6 +25,7 @@ export function DataTable<TData>({
   isLoading,
   emptyState,
   renderMobileRow,
+  getRowClassName,
 }: DataTableProps<TData>) {
   "use no memo";
   // useReactTable returns mutable table instances with methods that cannot be safely memoized by the React Compiler.
@@ -122,7 +126,13 @@ export function DataTable<TData>({
           </thead>
           <tbody className="divide-y divide-border/60 text-sm">
             {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="hover:bg-muted/10 transition-colors">
+              <tr
+                key={row.id}
+                className={cn(
+                  "hover:bg-muted/10 transition-colors",
+                  getRowClassName?.(row.original)
+                )}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <td key={cell.id} className="px-6 py-4 align-middle">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

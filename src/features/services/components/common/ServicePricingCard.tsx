@@ -1,6 +1,7 @@
 "use client";
 
 import type { Service } from "../../types/service.types";
+import { formatCurrency } from "@/lib/formatters";
 
 interface ServicePricingCardProps {
   service: Service;
@@ -18,12 +19,12 @@ export function ServicePricingCard({ service }: ServicePricingCardProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-1">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base Price</span>
-          <p className="text-lg font-bold text-foreground">${basePrice.toFixed(2)}</p>
+          <p className="text-lg font-bold text-foreground">{formatCurrency(basePrice)}</p>
         </div>
         <div className="space-y-1">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Special Discount Price</span>
           <p className="text-sm font-semibold text-foreground">
-            {specialPrice !== undefined ? `$${specialPrice.toFixed(2)}` : "None configured"}
+            {specialPrice !== undefined ? formatCurrency(specialPrice) : "None configured"}
           </p>
         </div>
       </div>

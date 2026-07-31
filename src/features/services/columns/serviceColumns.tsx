@@ -4,6 +4,7 @@ import type { Service } from "../types/service.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { SERVICES_CONFIG } from "../config/services.config";
+import { formatCurrency } from "@/lib/formatters";
 
 interface ServiceColumnOptions {
   onView: (service: Service) => void;
@@ -69,7 +70,7 @@ export const buildServiceColumns = ({
     cell: (info) => {
       const service = info.row.original;
       const price = service.pricing?.basePrice ?? 0;
-      return <span className="font-semibold text-foreground">${price.toFixed(2)}</span>;
+      return <span className="font-semibold text-foreground">{formatCurrency(price)}</span>;
     },
   },
   {
