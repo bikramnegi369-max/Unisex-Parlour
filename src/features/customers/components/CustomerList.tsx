@@ -359,7 +359,7 @@ export default function CustomerList() {
             onEdit={handleEdit}
             onDelete={handleDelete}
             onReactivate={handleReactivate}
-            isLoading={false}
+            isLoading={isRefetching}
             isAllBranches={isAllBranchesSelected}
           />
           {/* Pagination Controls */}

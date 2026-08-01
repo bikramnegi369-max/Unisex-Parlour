@@ -288,7 +288,7 @@ export default function ServicesList() {
         <DataTable
           columns={serviceColumns}
           data={servicesQuery.data?.data || []}
-          isLoading={servicesQuery.isLoading}
+          isLoading={servicesQuery.isLoading || servicesQuery.isRefetching}
           renderMobileRow={renderMobileRow}
           getRowClassName={(row) => (!row.isActive ? "opacity-60 bg-muted/50" : "")}
           emptyState={

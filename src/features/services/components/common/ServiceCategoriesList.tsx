@@ -273,7 +273,7 @@ export default function ServiceCategoriesList() {
         <DataTable
           columns={categoryColumns}
           data={categoriesQuery.data?.data || []}
-          isLoading={categoriesQuery.isLoading}
+          isLoading={categoriesQuery.isLoading || categoriesQuery.isRefetching}
           renderMobileRow={renderCategoryMobileRow}
           getRowClassName={(row) => (!row.isActive ? "opacity-60 bg-muted/50" : "")}
           emptyState={
