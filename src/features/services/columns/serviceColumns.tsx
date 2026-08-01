@@ -12,6 +12,8 @@ interface ServiceColumnOptions {
   onDelete: (service: Service) => void;
   onReactivate: (service: Service) => void;
   getCategoryName: (categoryId: string) => string;
+  getBranchName: (branchId: string) => string;
+  isAllBranches: boolean;
 }
 
 export const buildServiceColumns = ({
@@ -20,6 +22,8 @@ export const buildServiceColumns = ({
   onDelete,
   onReactivate,
   getCategoryName,
+  getBranchName,
+  isAllBranches,
 }: ServiceColumnOptions): ColumnDef<Service>[] => [
   {
     accessorKey: "name",
@@ -74,6 +78,23 @@ export const buildServiceColumns = ({
       return <span className="font-semibold text-foreground">{formatCurrency(price)}</span>;
     },
   },
+  ...(isAllBranches
+    ? [
+        {
+          accessorKey: "branchId",
+          header: "Branch",
+          cell: (info: { getValue: () => unknown; row: { original: Service } }) => {
+            const val = info.getValue();
+            const branchId = typeof val === "string" ? val : info.row.original.branchId;
+            return (
+              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
+                {getBranchName(branchId)}
+              </Badge>
+            );
+          },
+        },
+      ]
+    : []),
   {
     accessorKey: "isActive",
     header: "Status",

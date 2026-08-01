@@ -80,6 +80,13 @@ export function useBranchContext() {
     [dispatch, queryClient]
   );
 
+  const getBranchName = useCallback(
+    (branchId: string) => {
+      return availableBranches.find((b) => b.id === branchId)?.name || branchId;
+    },
+    [availableBranches]
+  );
+
   return {
     currentBranch,
     currentBranchId,
@@ -90,5 +97,7 @@ export function useBranchContext() {
     branchKey,
     getBranchQueryKey,
     selectBranch,
+    getBranchName,
   };
 }
+

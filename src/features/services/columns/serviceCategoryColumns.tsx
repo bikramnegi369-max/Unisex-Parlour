@@ -11,12 +11,16 @@ interface ServiceCategoryColumnOptions {
   onEdit: (category: ServiceCategory) => void;
   onDelete: (category: ServiceCategory) => void;
   onReactivate: (category: ServiceCategory) => void;
+  getBranchName: (branchId: string) => string;
+  isAllBranches: boolean;
 }
 
 export const buildServiceCategoryColumns = ({
   onEdit,
   onDelete,
   onReactivate,
+  getBranchName,
+  isAllBranches,
 }: ServiceCategoryColumnOptions): ColumnDef<ServiceCategory>[] => [
   {
     accessorKey: "name",
@@ -49,6 +53,23 @@ export const buildServiceCategoryColumns = ({
       return <span className="font-medium text-foreground">{val}</span>;
     },
   },
+  ...(isAllBranches
+    ? [
+        {
+          accessorKey: "branchId",
+          header: "Branch",
+          cell: (info: { getValue: () => unknown; row: { original: ServiceCategory } }) => {
+            const val = info.getValue();
+            const branchId = typeof val === "string" ? val : info.row.original.branchId;
+            return (
+              <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
+                {getBranchName(branchId)}
+              </Badge>
+            );
+          },
+        },
+      ]
+    : []),
   {
     accessorKey: "isActive",
     header: "Status",

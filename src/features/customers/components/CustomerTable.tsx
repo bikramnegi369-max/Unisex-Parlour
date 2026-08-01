@@ -29,14 +29,10 @@ export default function CustomerTable({
   isAllBranches,
 }: CustomerTableProps) {
   const { user } = useAuth();
-  const { availableBranches } = useBranchContext();
+  const { getBranchName } = useBranchContext();
 
   const canEdit = hasPermission(user, "customers.edit");
   const canDelete = hasPermission(user, "customers.delete");
-
-  const getHomeBranchName = useCallback((id: string) => {
-    return availableBranches.find((b) => b.id === id)?.name || id;
-  }, [availableBranches]);
 
   const columns = useMemo(
     () =>
@@ -45,10 +41,10 @@ export default function CustomerTable({
         onEdit,
         onDelete,
         onReactivate,
-        getHomeBranchName,
+        getHomeBranchName: getBranchName,
         isAllBranches,
       }),
-    [onView, onEdit, onDelete, onReactivate, getHomeBranchName, isAllBranches]
+    [onView, onEdit, onDelete, onReactivate, getBranchName, isAllBranches]
   );
 
   const renderMobileRow = (customer: Customer) => (
@@ -62,7 +58,7 @@ export default function CustomerTable({
       onEdit={onEdit}
       onDelete={onDelete}
       onReactivate={onReactivate}
-      getHomeBranchName={getHomeBranchName}
+      getHomeBranchName={getBranchName}
     />
   );
 

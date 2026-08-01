@@ -36,7 +36,7 @@ export default function ServicesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { currentBranch, isAllBranchesSelected } = useBranchContext();
+  const { currentBranch, isAllBranchesSelected, getBranchName } = useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -151,8 +151,10 @@ export default function ServicesList() {
           setIsServiceReactivateOpen(true);
         },
         getCategoryName,
+        getBranchName,
+        isAllBranches: isAllBranchesSelected,
       }),
-    [router, getCategoryName]
+    [router, getCategoryName, getBranchName, isAllBranchesSelected]
   );
 
   // Form submit handlers
@@ -242,6 +244,8 @@ export default function ServicesList() {
       }}
       canEdit={canEdit}
       canDelete={canDelete}
+      isAllBranches={isAllBranchesSelected}
+      getBranchName={getBranchName}
     />
   );
 

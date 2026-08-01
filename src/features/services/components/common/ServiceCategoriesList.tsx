@@ -34,7 +34,7 @@ export default function ServiceCategoriesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { isAllBranchesSelected } = useBranchContext();
+  const { isAllBranchesSelected, getBranchName } = useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -135,8 +135,10 @@ export default function ServiceCategoriesList() {
           setActiveCategory(cat);
           setIsCategoryReactivateOpen(true);
         },
+        getBranchName,
+        isAllBranches: isAllBranchesSelected,
       }),
-    []
+    [getBranchName, isAllBranchesSelected]
   );
 
   // Service Category CRUD Handlers
@@ -220,6 +222,8 @@ export default function ServiceCategoriesList() {
         setActiveCategory(cat);
         setIsCategoryReactivateOpen(true);
       }}
+      isAllBranches={isAllBranchesSelected}
+      getBranchName={getBranchName}
     />
   );
 
