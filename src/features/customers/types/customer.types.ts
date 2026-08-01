@@ -149,7 +149,7 @@ export interface CustomerActivityResponse {
   success: boolean;
   status: string;
   message?: string;
-  data: any[];
+  data: CustomerActivity[];
   meta?: {
     total: number;
     page: string | number;
