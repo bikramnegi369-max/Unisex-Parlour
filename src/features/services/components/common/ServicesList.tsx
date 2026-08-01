@@ -80,6 +80,15 @@ export default function ServicesList() {
     sort: sortVal || undefined,
   });
 
+  const handleSync = async () => {
+    try {
+      await servicesQuery.refetch();
+      toast.success("Services catalog synchronized successfully.");
+    } catch {
+      toast.error("Failed to synchronize services catalog.");
+    }
+  };
+
   // Mutation hooks
   const createServiceMutation = useCreateService();
   const updateServiceMutation = useUpdateService();
@@ -256,6 +265,8 @@ export default function ServicesList() {
         onAddClick={() => setIsServiceCreateOpen(true)}
         canCreate={canCreate}
         isAllBranchesSelected={isAllBranchesSelected}
+        isSyncing={servicesQuery.isRefetching}
+        onSync={handleSync}
       />
 
       <div className="flex flex-col gap-4">

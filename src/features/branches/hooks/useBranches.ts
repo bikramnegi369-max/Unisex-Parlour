@@ -9,6 +9,8 @@ import { getStoredBranchId, removeStoredBranchId, setStoredBranchId } from "@/li
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasOrgWideAccess, hasBranchAccess } from "@/lib/permissions";
 import axios from "axios";
+import type { Branch } from "@/types/branch";
+
 
 export function useBranches() {
   const dispatch = useAppDispatch();
@@ -49,7 +51,7 @@ export function useBranches() {
         // Fallback for non-org-wide users: select first active, authorized branch
         removeStoredBranchId();
         const fallback = query.data.branches.find(
-          (b) => b.isActive && hasBranchAccess(user, b.id)
+          (b: Branch) => b.isActive && hasBranchAccess(user, b.id)
         );
         if (fallback) {
           dispatch(setCurrentBranch(fallback.id));
@@ -60,9 +62,9 @@ export function useBranches() {
       }
     } else {
       // Validate specific stored branch selection
-      const exists = query.data.branches.some((b) => b.id === storedId);
+      const exists = query.data.branches.some((b: Branch) => b.id === storedId);
       const isAuthorized = hasBranchAccess(user, storedId);
-      const isActive = query.data.branches.find((b) => b.id === storedId)?.isActive;
+      const isActive = query.data.branches.find((b: Branch) => b.id === storedId)?.isActive;
 
       if (exists && isAuthorized && isActive) {
         dispatch(setCurrentBranch(storedId));
@@ -70,7 +72,7 @@ export function useBranches() {
         // Invalid or unauthorized selection: clear and fallback
         removeStoredBranchId();
         const fallback = query.data.branches.find(
-          (b) => b.isActive && hasBranchAccess(user, b.id)
+          (b: Branch) => b.isActive && hasBranchAccess(user, b.id)
         );
         if (fallback) {
           dispatch(setCurrentBranch(fallback.id));

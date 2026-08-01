@@ -153,6 +153,15 @@ export default function CustomerList() {
     sort: sort || undefined,
   });
 
+  const handleSync = async () => {
+    try {
+      await refetch();
+      toast.success("Customer list synchronized successfully.");
+    } catch {
+      toast.error("Failed to synchronize customer list.");
+    }
+  };
+
   const handlePageSizeChange = (newPageSize: number) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("limit", newPageSize.toString());
@@ -276,6 +285,8 @@ export default function CustomerList() {
         isAllBranchesSelected={isAllBranchesSelected}
         canCreate={canCreate}
         onAddClick={() => setIsCreateOpen(true)}
+        isSyncing={isRefetching}
+        onSync={handleSync}
       />
 
       {/* Search and Context Display Toolbar */}

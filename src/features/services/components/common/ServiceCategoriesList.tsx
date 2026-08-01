@@ -71,6 +71,15 @@ export default function ServiceCategoriesList() {
     status: statusVal !== "all" ? statusVal : undefined,
   });
 
+  const handleSync = async () => {
+    try {
+      await categoriesQuery.refetch();
+      toast.success("Service categories synchronized successfully.");
+    } catch {
+      toast.error("Failed to synchronize service categories.");
+    }
+  };
+
   // Mutation hooks
   const createCategoryMutation = useCreateServiceCategory();
   const updateCategoryMutation = useUpdateServiceCategory();
@@ -234,6 +243,8 @@ export default function ServiceCategoriesList() {
         onAddClick={() => setIsCategoryCreateOpen(true)}
         canCreate={canCreate}
         isAllBranchesSelected={isAllBranchesSelected}
+        isSyncing={categoriesQuery.isRefetching}
+        onSync={handleSync}
       />
 
       <div className="flex flex-col gap-4">
