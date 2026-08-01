@@ -21,7 +21,7 @@ export default function Header() {
   };
 
   return (
-    <header className="flex items-center justify-between h-16 px-6 bg-card border-b border-border z-10 shrink-0">
+    <header className="relative flex items-center justify-between h-16 px-6 bg-card border-b border-border z-20 shrink-0">
       {/* Mobile Sidebar Hamburger Toggle */}
       <button
         onClick={() => dispatch(toggleSidebar())}
