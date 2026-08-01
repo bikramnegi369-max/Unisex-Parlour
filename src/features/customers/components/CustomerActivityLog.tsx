@@ -89,7 +89,7 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
       <div className="space-y-6">
         <div className="relative border-l border-border pl-6 ml-2 space-y-6">
           {activityTimeline.map((item: AuditLog) => {
-            const displayDate = formatDateTime(item.date);
+            const displayDate = item.date ? formatDateTime(item.date) : "N/A";
             return (
               <div key={item._id} className="relative group text-left">
                 {/* Timeline dot marker */}
@@ -112,7 +112,9 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
                     <p className="text-[10px] text-muted-foreground font-medium mt-1">
                       Performed by:{" "}
                       <span className="text-foreground/80">
-                        {typeof item.performedBy === "object" ? item.performedBy.name : item.performedBy}
+                        {typeof item.performedBy === "object"
+                          ? item.performedBy.name || item.performedBy._id || "System User"
+                          : item.performedBy || "System User"}
                       </span>
                     </p>
                   )}

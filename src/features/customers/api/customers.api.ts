@@ -172,7 +172,13 @@ export const getCustomerActivity = async (
     branchScope: "current",
   });
 
-  const activities = data.data || [];
+  const activities = (data.data || []).map((item: any): AuditLog => ({
+    _id: item._id,
+    action: item.action,
+    description: item.description,
+    date: item.createdAt || item.date || "",
+    performedBy: item.actorId || item.performedBy || "",
+  }));
   const total = data.meta?.total ?? activities.length;
   const pageVal = Number(data.meta?.page ?? 1);
   const limitVal = Number(data.meta?.limit ?? 10);
