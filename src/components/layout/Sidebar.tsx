@@ -31,6 +31,7 @@ import {
   GitBranch,
   X,
 } from "lucide-react";
+import BranchSwitcher from "./BranchSwitcher";
 
 interface SidebarItem {
   name: string;
@@ -109,6 +110,18 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </div>
         )}
       </div>
+      
+      {/* Mobile Branch Switcher */}
+      {isMobile && (
+        <div className="px-5 py-3 border-b border-sidebar-border bg-sidebar-accent/5">
+          <p className="text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-2">
+            Active Branch
+          </p>
+          <div className="w-full flex justify-start">
+            <BranchSwitcher />
+          </div>
+        </div>
+      )}
 
       {/* Navigation Items */}
       <nav className={cn("flex-1 py-4 overflow-y-auto overflow-x-hidden space-y-1 scrollbar-thin", isCollapsed ? "px-1" : "px-3")}>
