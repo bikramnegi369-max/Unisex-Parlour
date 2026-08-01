@@ -74,8 +74,8 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
       );
     }
 
-    const activityTimeline = data?.activities || [];
-    const pagination = data?.pagination;
+    const activityTimeline = data?.data || [];
+    const pagination = data?.meta;
 
     if (activityTimeline.length === 0) {
       return (
@@ -124,17 +124,17 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
           })}
         </div>
 
-        {pagination && pagination.pages > 1 && (
+        {pagination && pagination.totalPages > 1 && (
           <div className="flex items-center justify-between pt-4 border-t border-border/80">
             <p className="text-xs text-muted-foreground font-medium">
-              Page {pagination.page} of {pagination.pages}
+              Page {pagination.page} of {pagination.totalPages}
             </p>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handlePageChange(pagination.page - 1)}
-                disabled={pagination.page <= 1}
+                onClick={() => handlePageChange(Number(pagination.page) - 1)}
+                disabled={Number(pagination.page) <= 1}
                 className="h-9 min-w-[44px]"
               >
                 <ChevronLeft size={16} />
@@ -142,8 +142,8 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => handlePageChange(pagination.page + 1)}
-                disabled={pagination.page >= pagination.pages}
+                onClick={() => handlePageChange(Number(pagination.page) + 1)}
+                disabled={Number(pagination.page) >= pagination.totalPages}
                 className="h-9 min-w-[44px]"
               >
                 <ChevronRight size={16} />

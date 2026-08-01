@@ -3,18 +3,17 @@ import { getServiceCategories } from "../../api/serviceCategories.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { serviceCategoryKeys } from "../../api/serviceCategoryKeys";
 import type { ServiceCategoryFilters } from "../../types/filters.types";
 
 export function useServiceCategories(filters: ServiceCategoryFilters = {}) {
-  const { currentBranchId } = useBranchContext();
+  const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "services.view");
   const isEnabled = isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
 
-  const queryKey = serviceCategoryKeys.list(currentBranchId, filters);
+  const queryKey = getBranchQueryKey("service-categories", [filters]);
 
   return useQuery({
     queryKey,

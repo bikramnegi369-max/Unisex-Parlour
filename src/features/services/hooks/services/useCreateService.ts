@@ -1,11 +1,12 @@
 import { useEntityMutation } from "@/lib/api/mutations";
 import { createService } from "../../api/services.api";
-import { serviceKeys } from "../../api/serviceKeys";
+import { useBranchContext } from "@/hooks/useBranchContext";
 import type { Service, ServicePayload } from "../../types/service.types";
 
 export function useCreateService() {
+  const { getBranchQueryKey } = useBranchContext();
   return useEntityMutation<Service, Error, ServicePayload>({
     mutationFn: createService,
-    invalidateKeys: [serviceKeys.all],
+    invalidateKeys: [getBranchQueryKey("services")],
   });
 }

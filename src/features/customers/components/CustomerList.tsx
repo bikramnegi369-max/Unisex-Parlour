@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { toast } from "sonner";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -14,7 +15,6 @@ import CustomerForm from "./CustomerForm";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
 import CustomerReactivateDialog from "./CustomerReactivateDialog";
 import { useReactivateCustomer } from "../hooks/useReactivateCustomer";
-import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -71,9 +71,6 @@ export default function CustomerList() {
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [customerToReactivate, setCustomerToReactivate] = useState<Customer | null>(null);
-  
-  // Notification alert state
-  const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const createMutation = useCreateCustomer();
   const updateMutation = useUpdateCustomer();
@@ -99,7 +96,6 @@ export default function CustomerList() {
     setCustomerToReactivate(c);
     setIsReactivateOpen(true);
   }, []);
-
 
   // Debounce search input and sync with URL
   useEffect(() => {
@@ -164,15 +160,14 @@ export default function CustomerList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Removed duplicate hook declarations since they are now at the top
   const handleCreateSubmit = (values: CustomerPayload) => {
     createMutation.mutate(values, {
       onSuccess: () => {
         setIsCreateOpen(false);
-        triggerAlert("success", "Customer profile created successfully.");
+        toast.success("Customer profile created successfully.");
       },
       onError: (err: Error) => {
-        triggerAlert("error", err.message || "Failed to create customer.");
+        toast.error(err.message || "Failed to create customer.");
       },
     });
   };
@@ -185,10 +180,10 @@ export default function CustomerList() {
         onSuccess: () => {
           setIsEditOpen(false);
           setActiveCustomer(null);
-          triggerAlert("success", "Customer profile updated successfully.");
+          toast.success("Customer profile updated successfully.");
         },
         onError: (err: Error) => {
-          triggerAlert("error", err.message || "Failed to update customer.");
+          toast.error(err.message || "Failed to update customer.");
         },
       }
     );
@@ -200,11 +195,11 @@ export default function CustomerList() {
       onSuccess: () => {
         setIsDeleteOpen(false);
         setCustomerToDelete(null);
-        triggerAlert("success", "Customer profile deactivated successfully.");
+        toast.success("Customer profile deactivated successfully.");
       },
       onError: (err: Error) => {
         setIsDeleteOpen(false);
-        triggerAlert("error", err.message || "Failed to deactivate customer.");
+        toast.error(err.message || "Failed to deactivate customer.");
       },
     });
   };
@@ -216,17 +211,12 @@ export default function CustomerList() {
         setIsReactivateOpen(false);
         setCustomerToReactivate(null);
         reactivateMutation.reset();
-        triggerAlert("success", "Customer profile reactivated successfully.");
+        toast.success("Customer profile reactivated successfully.");
       },
-      onError: () => {
-        // Keep the dialog open and show mutation error state internally
+      onError: (err: Error) => {
+        toast.error(err.message || "Failed to reactivate customer.");
       },
     });
-  };
-
-  const triggerAlert = (type: "success" | "error", text: string) => {
-    setAlertMessage({ type, text });
-    setTimeout(() => setAlertMessage(null), 4000);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -243,7 +233,6 @@ export default function CustomerList() {
     const status = (responseObj?.status as number | undefined) || (errObj?.status as number | undefined);
     const message = (responseObj?.data as Record<string, unknown> | null)?.message as string | undefined
       || (errObj?.message as string | undefined) || "";
-
 
     if (status === 401) {
       return "Your session has expired. Please log in again to continue.";
@@ -277,24 +266,11 @@ export default function CustomerList() {
     );
   }
 
-  const pagination = customerData?.pagination;
-  const customers = customerData?.customers || [];
+  const pagination = customerData?.meta;
+  const customers = customerData?.data || [];
 
   return (
     <div className="space-y-6">
-      {/* Success/Error Banner alerts */}
-      {alertMessage && (
-        <div
-          className={`p-3 rounded-lg border text-sm font-semibold animate-in fade-in duration-200 ${
-            alertMessage.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-              : "bg-destructive/10 border-destructive/20 text-destructive"
-          }`}
-        >
-          {alertMessage.text}
-        </div>
-      )}
-
       {/* Directory Page Header */}
       <CustomerListHeader
         isAllBranchesSelected={isAllBranchesSelected}
@@ -379,7 +355,7 @@ export default function CustomerList() {
           {pagination && (
             <Pagination
               currentPage={page}
-              totalPages={pagination.pages}
+              totalPages={pagination.totalPages}
               totalItems={pagination.total}
               onPageChange={handlePageChange}
               pageSize={limit}
@@ -397,6 +373,7 @@ export default function CustomerList() {
           isSubmitting={createMutation.isPending}
           onCancel={() => setIsCreateOpen(false)}
           submitLabel="Create Customer"
+          error={createMutation.error}
         />
       </Dialog>
 
@@ -412,6 +389,7 @@ export default function CustomerList() {
               setActiveCustomer(null);
             }}
             submitLabel="Update Customer"
+            error={updateMutation.error}
           />
         </Dialog>
       )}
@@ -445,4 +423,3 @@ export default function CustomerList() {
     </div>
   );
 }
-

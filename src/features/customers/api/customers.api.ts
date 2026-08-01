@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/axios";
+import type { PaginatedResponse } from "@/types/api.types";
 import type {
   Customer,
   CustomerListResponse,
@@ -20,44 +21,14 @@ export interface GetCustomersParams {
   sort?: string;
 }
 
-export interface NormalizedCustomersData {
-  customers: Customer[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
-  };
-}
-
 export interface GetCustomerNotesParams {
   page?: number;
   limit?: number;
 }
 
-export interface NormalizedCustomerNotesData {
-  notes: CustomerNote[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
-  };
-}
-
 export interface GetCustomerActivityParams {
   page?: number;
   limit?: number;
-}
-
-export interface NormalizedCustomerActivityData {
-  activities: AuditLog[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    pages: number;
-  };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,26 +37,15 @@ const mapCustomerKeys = (c: any): Customer => ({
   id: c._id || c.id || "",
 });
 
-export const getCustomers = async (params: GetCustomersParams = {}): Promise<NormalizedCustomersData> => {
+export const getCustomers = async (params: GetCustomersParams = {}): Promise<PaginatedResponse<Customer>> => {
   const { data } = await apiClient.get<CustomerListResponse>("/customers", {
     params,
     branchScope: "current",
   });
 
-  const customers = (data.data || []).map(mapCustomerKeys);
-  const total = data.meta?.total ?? 0;
-  const pageVal = Number(data.meta?.page ?? 1);
-  const limitVal = Number(data.meta?.limit ?? 10);
-  const pages = data.meta?.totalPages ?? (Math.ceil(total / limitVal) || 1);
-
   return {
-    customers,
-    pagination: {
-      total,
-      page: pageVal,
-      limit: limitVal,
-      pages,
-    },
+    ...data,
+    data: (data.data || []).map(mapCustomerKeys),
   };
 };
 
@@ -126,26 +86,15 @@ export const reactivateCustomer = async (id: string): Promise<Customer> => {
 export const getCustomerNotes = async (
   customerId: string,
   params: GetCustomerNotesParams = {}
-): Promise<NormalizedCustomerNotesData> => {
+): Promise<PaginatedResponse<CustomerNote>> => {
   const { data } = await apiClient.get<CustomerNotesResponse>(`/customers/${customerId}/notes`, {
     params,
     branchScope: "current",
   });
 
-  const notes = data.data || [];
-  const total = data.meta?.total ?? notes.length;
-  const pageVal = Number(data.meta?.page ?? 1);
-  const limitVal = Number(data.meta?.limit ?? 10);
-  const pages = data.meta?.totalPages ?? 1;
-
   return {
-    notes,
-    pagination: {
-      total,
-      page: pageVal,
-      limit: limitVal,
-      pages,
-    },
+    ...data,
+    data: data.data || [],
   };
 };
 
@@ -163,35 +112,34 @@ export const createCustomerNote = async (
   return data.data;
 };
 
+interface BackendActivityItem {
+  _id: string;
+  action: string;
+  description: string;
+  createdAt?: string;
+  date?: string;
+  actorId?: string | { _id: string; name: string };
+  performedBy?: string | { _id: string; name: string };
+}
+
 export const getCustomerActivity = async (
   customerId: string,
   params: GetCustomerActivityParams = {}
-): Promise<NormalizedCustomerActivityData> => {
+): Promise<PaginatedResponse<AuditLog>> => {
   const { data } = await apiClient.get<CustomerActivityResponse>(`/customers/${customerId}/activity`, {
     params,
     branchScope: "current",
   });
 
-  const activities = (data.data || []).map((item: any): AuditLog => ({
-    _id: item._id,
-    action: item.action,
-    description: item.description,
-    date: item.createdAt || item.date || "",
-    performedBy: item.actorId || item.performedBy || "",
-  }));
-  const total = data.meta?.total ?? activities.length;
-  const pageVal = Number(data.meta?.page ?? 1);
-  const limitVal = Number(data.meta?.limit ?? 10);
-  const pages = data.meta?.totalPages ?? 1;
-
   return {
-    activities,
-    pagination: {
-      total,
-      page: pageVal,
-      limit: limitVal,
-      pages,
-    },
+    ...data,
+    data: (data.data || []).map((item: BackendActivityItem): AuditLog => ({
+      _id: item._id,
+      action: item.action,
+      description: item.description,
+      date: item.createdAt || item.date || "",
+      performedBy: item.actorId || item.performedBy || "",
+    })),
   };
 };
 

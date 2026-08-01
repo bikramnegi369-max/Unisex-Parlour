@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Loader2, X, Search, Check } from "lucide-react";
 import { getCustomers } from "../api/customers.api";
+import { mapBackendValidationErrors } from "@/lib/api/errors";
 
 interface CustomerFormProps {
   initialCustomer?: Customer;
@@ -15,6 +16,7 @@ interface CustomerFormProps {
   isSubmitting: boolean;
   onCancel: () => void;
   submitLabel: string;
+  error?: unknown;
 }
 
 export default function CustomerForm({
@@ -23,6 +25,7 @@ export default function CustomerForm({
   isSubmitting,
   onCancel,
   submitLabel,
+  error,
 }: CustomerFormProps) {
   // Local state for Tag Chips
   const [tags, setTags] = useState<string[]>(
@@ -122,18 +125,26 @@ export default function CustomerForm({
     register,
     handleSubmit,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema) as unknown as Resolver<CustomerFormValues>,
     defaultValues,
   });
 
+  // Effect to map server validation errors
+  useEffect(() => {
+    if (error) {
+      mapBackendValidationErrors(error, setError);
+    }
+  }, [error, setError]);
+
   // Load initial referrer customer info if edit mode
   useEffect(() => {
     if (initialCustomer?.referredByCustomerId) {
       getCustomers({ search: undefined, page: 1, limit: 100 })
         .then((res) => {
-          const matched = res.customers.find(
+          const matched = res.data.find(
             (c) => c.id === initialCustomer.referredByCustomerId
           );
           if (matched) {
@@ -159,7 +170,7 @@ export default function CustomerForm({
         const response = await getCustomers({ search: referrerSearch.trim(), page: 1, limit: 5 });
         if (isCurrent) {
           // Exclude self and verify referrer status is active
-          const filtered = response.customers.filter(
+          const filtered = response.data.filter(
             (c) => c.id !== initialCustomer?.id && c.status === "active"
           );
           setReferrerResults(filtered);

@@ -5,8 +5,6 @@ import type { Customer } from "../types/customer.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { Badge } from "@/components/ui/badge";
-import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { CustomerMobileCard } from "./CustomerMobileCard";
 import { buildCustomerColumns } from "../columns/customerColumns";

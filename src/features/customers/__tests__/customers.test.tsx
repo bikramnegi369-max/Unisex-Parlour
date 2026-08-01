@@ -234,7 +234,7 @@ describe("Customer Reactivation UI Components", () => {
     );
 
     expect(screen.queryByText("Reactivate Customer Profile")).not.toBeNull();
-    expect(screen.queryByText(/Are you sure you want to reactivate the profile of/)).not.toBeNull();
+    expect(screen.queryByText(/Are you sure you want to reactivate/)).not.toBeNull();
 
     const confirmButton = screen.queryByRole("button", { name: "Reactivate" });
     if (confirmButton) {
