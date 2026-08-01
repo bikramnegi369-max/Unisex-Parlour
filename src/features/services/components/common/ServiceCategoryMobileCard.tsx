@@ -5,6 +5,7 @@ import type { ServiceCategory } from "../../types/category.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, UserCheck } from "lucide-react";
+import { capitalizeWords } from "@/lib/formatters";
 
 interface ServiceCategoryMobileCardProps {
   category: ServiceCategory;
@@ -23,16 +24,17 @@ export function ServiceCategoryMobileCard({
   onDelete,
   onReactivate,
 }: ServiceCategoryMobileCardProps) {
+  const formattedName = capitalizeWords(category.name);
   return (
     <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm text-left">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {category.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-semibold text-foreground text-sm">{category.name}</h4>
+              <h4 className="font-semibold text-foreground text-sm">{formattedName}</h4>
               <Badge variant={category.isActive ? "success" : "muted"}>
                 {category.isActive ? "Active" : "Inactive"}
               </Badge>
@@ -55,7 +57,7 @@ export function ServiceCategoryMobileCard({
                 e.stopPropagation();
                 onEdit(category);
               }}
-              aria-label={`Edit ${category.name}`}
+              aria-label={`Edit ${formattedName}`}
             >
               <Edit size={15} />
             </Button>
@@ -68,7 +70,7 @@ export function ServiceCategoryMobileCard({
                 e.stopPropagation();
                 onDelete(category);
               }}
-              aria-label={`Deactivate ${category.name}`}
+              aria-label={`Deactivate ${formattedName}`}
             >
               <Trash2 size={15} />
             </Button>
@@ -81,7 +83,7 @@ export function ServiceCategoryMobileCard({
                 e.stopPropagation();
                 onReactivate(category);
               }}
-              aria-label={`Reactivate ${category.name}`}
+              aria-label={`Reactivate ${formattedName}`}
             >
               <UserCheck size={15} />
             </Button>

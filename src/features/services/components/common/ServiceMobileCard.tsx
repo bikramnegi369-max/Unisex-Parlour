@@ -4,7 +4,7 @@ import React from "react";
 import type { Service } from "../../types/service.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, capitalizeWords } from "@/lib/formatters";
 import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
 
 interface ServiceMobileCardProps {
@@ -28,17 +28,19 @@ export function ServiceMobileCard({
   onReactivate,
   categoryName,
 }: ServiceMobileCardProps) {
+  const formattedName = capitalizeWords(service.name);
+  const formattedCategoryName = capitalizeWords(categoryName);
   
   return (
     <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {service.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-semibold text-foreground text-sm">{service.name}</h4>
+              <h4 className="font-semibold text-foreground text-sm">{formattedName}</h4>
               <Badge variant={service.isActive ? "success" : "muted"}>
                 {service.isActive ? "Active" : "Inactive"}
               </Badge>
@@ -60,7 +62,7 @@ export function ServiceMobileCard({
               e.stopPropagation();
               onView(service);
             }}
-            aria-label={`View details of ${service.name}`}
+            aria-label={`View details of ${formattedName}`}
           >
             <Eye size={15} />
           </Button>
@@ -72,7 +74,7 @@ export function ServiceMobileCard({
                 e.stopPropagation();
                 onEdit(service);
               }}
-              aria-label={`Edit details of ${service.name}`}
+              aria-label={`Edit details of ${formattedName}`}
             >
               <Edit size={15} />
             </Button>
@@ -85,7 +87,7 @@ export function ServiceMobileCard({
                 e.stopPropagation();
                 onDelete(service);
               }}
-              aria-label={`Deactivate details of ${service.name}`}
+              aria-label={`Deactivate details of ${formattedName}`}
             >
               <Trash2 size={15} />
             </Button>
@@ -98,7 +100,7 @@ export function ServiceMobileCard({
                 e.stopPropagation();
                 onReactivate(service);
               }}
-              aria-label={`Reactivate details of ${service.name}`}
+              aria-label={`Reactivate details of ${formattedName}`}
             >
               <UserCheck size={15} />
             </Button>
@@ -109,7 +111,7 @@ export function ServiceMobileCard({
       <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground">
         <div className="flex justify-between">
           <span>Category:</span>
-          <span className="font-semibold text-foreground">{categoryName}</span>
+          <span className="font-semibold text-foreground">{formattedCategoryName}</span>
         </div>
         <div className="flex justify-between">
           <span>Duration:</span>

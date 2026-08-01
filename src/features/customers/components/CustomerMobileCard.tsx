@@ -5,6 +5,7 @@ import type { Customer } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
+import { capitalizeWords } from "@/lib/formatters";
 
 interface CustomerMobileCardProps {
   customer: Customer;
@@ -29,16 +30,17 @@ export function CustomerMobileCard({
   onReactivate,
   getHomeBranchName,
 }: CustomerMobileCardProps) {
+  const formattedName = capitalizeWords(customer.name);
   return (
     <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {customer.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-semibold text-foreground text-sm">{customer.name}</h4>
+              <h4 className="font-semibold text-foreground text-sm">{formattedName}</h4>
               <Badge variant={customer.status === "active" ? "success" : customer.status === "blocked" ? "destructive" : "muted"}>
                 <span className="capitalize">{customer.status}</span>
               </Badge>
@@ -60,7 +62,7 @@ export function CustomerMobileCard({
               e.stopPropagation();
               onView(customer);
             }}
-            aria-label={`View details of ${customer.name}`}
+            aria-label={`View details of ${formattedName}`}
           >
             <Eye size={15} />
           </Button>
@@ -72,7 +74,7 @@ export function CustomerMobileCard({
                 e.stopPropagation();
                 onEdit(customer);
               }}
-              aria-label={`Edit profile of ${customer.name}`}
+              aria-label={`Edit profile of ${formattedName}`}
             >
               <Edit size={15} />
             </Button>
@@ -85,7 +87,7 @@ export function CustomerMobileCard({
                 e.stopPropagation();
                 onDelete(customer);
               }}
-              aria-label={`Deactivate profile of ${customer.name}`}
+              aria-label={`Deactivate profile of ${formattedName}`}
             >
               <Trash2 size={15} />
             </Button>
@@ -98,7 +100,7 @@ export function CustomerMobileCard({
                 e.stopPropagation();
                 onReactivate(customer);
               }}
-              aria-label={`Reactivate profile of ${customer.name}`}
+              aria-label={`Reactivate profile of ${formattedName}`}
             >
               <UserCheck size={15} />
             </Button>

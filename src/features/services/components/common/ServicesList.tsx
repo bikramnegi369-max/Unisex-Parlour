@@ -36,6 +36,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { Service, ServicePayload } from "../../types/service.types";
 import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
+import { capitalizeWords } from "@/lib/formatters";
+
 
 export default function ServicesList() {
   const router = useRouter();
@@ -559,7 +561,7 @@ export default function ServicesList() {
         onClose={() => setIsServiceDeleteOpen(false)}
         onConfirm={handleServiceDeleteConfirm}
         isDeleting={deleteServiceMutation.isPending}
-        itemName={activeService?.name || ""}
+        itemName={activeService?.name ? capitalizeWords(activeService.name) : ""}
         title="Deactivate Service Record"
       />
 
@@ -570,7 +572,7 @@ export default function ServicesList() {
         onConfirm={handleServiceReactivateConfirm}
         isLoading={reactivateServiceMutation.isPending}
         error={reactivateServiceMutation.error}
-        itemName={activeService?.name || ""}
+        itemName={activeService?.name ? capitalizeWords(activeService.name) : ""}
         title="Reactivate Service Record"
       />
 
@@ -580,7 +582,7 @@ export default function ServicesList() {
         onClose={() => setIsCategoryDeleteOpen(false)}
         onConfirm={handleCategoryDeleteConfirm}
         isDeleting={deleteCategoryMutation.isPending}
-        itemName={activeCategory?.name || ""}
+        itemName={activeCategory?.name ? capitalizeWords(activeCategory.name) : ""}
         title="Deactivate Category"
       />
 
@@ -591,7 +593,7 @@ export default function ServicesList() {
         onConfirm={handleCategoryReactivateConfirm}
         isLoading={reactivateCategoryMutation.isPending}
         error={reactivateCategoryMutation.error}
-        itemName={activeCategory?.name || ""}
+        itemName={activeCategory?.name ? capitalizeWords(activeCategory.name) : ""}
         title="Reactivate Category"
       />
     </div>

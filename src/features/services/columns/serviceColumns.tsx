@@ -4,7 +4,7 @@ import type { Service } from "../types/service.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { SERVICES_CONFIG } from "../config/services.config";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, capitalizeWords } from "@/lib/formatters";
 
 interface ServiceColumnOptions {
   onView: (service: Service) => void;
@@ -26,13 +26,14 @@ export const buildServiceColumns = ({
     header: "Service",
     cell: (info) => {
       const service = info.row.original;
+      const formattedName = capitalizeWords(service.name);
       return (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {service.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="font-semibold text-foreground">{service.name}</p>
+            <p className="font-semibold text-foreground">{formattedName}</p>
             {service.code && (
               <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                 {service.code}
@@ -51,7 +52,7 @@ export const buildServiceColumns = ({
       const id = typeof val === "string" ? val : (val as { _id: string })?._id || "";
       return (
         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
-          {getCategoryName(id)}
+          {capitalizeWords(getCategoryName(id))}
         </Badge>
       );
     },

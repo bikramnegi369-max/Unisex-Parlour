@@ -29,6 +29,8 @@ import type { ServiceCategory } from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Users, Calendar, Package, Gift } from "lucide-react";
+import { capitalizeWords } from "@/lib/formatters";
+
 
 interface ServiceProfilePageProps {
   serviceId: string;
@@ -251,7 +253,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
         onClose={() => setIsDeactivateOpen(false)}
         onConfirm={handleDeactivateConfirm}
         isDeleting={deleteMutation.isPending}
-        itemName={service.name}
+        itemName={capitalizeWords(service.name)}
         title="Deactivate Service Record"
       />
 
@@ -262,7 +264,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
         onConfirm={handleReactivateConfirm}
         isLoading={reactivateMutation.isPending}
         error={reactivateMutation.error}
-        itemName={service.name}
+        itemName={capitalizeWords(service.name)}
         title="Reactivate Service Record"
       />
     </div>

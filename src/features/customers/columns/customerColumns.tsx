@@ -4,7 +4,7 @@ import type { Customer } from "../types/customer.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { CUSTOMERS_CONFIG } from "../config/customers.config";
-import { formatDate } from "@/lib/formatters";
+import { formatDate, capitalizeWords } from "@/lib/formatters";
 
 interface CustomerColumnOptions {
   onView: (customer: Customer) => void;
@@ -28,13 +28,14 @@ export const buildCustomerColumns = ({
     header: "Customer",
     cell: (info) => {
       const customer = info.row.original;
+      const formattedName = capitalizeWords(customer.name);
       return (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {customer.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="font-semibold text-foreground">{customer.name}</p>
+            <p className="font-semibold text-foreground">{formattedName}</p>
             {customer.gender && (
               <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
                 {customer.gender}

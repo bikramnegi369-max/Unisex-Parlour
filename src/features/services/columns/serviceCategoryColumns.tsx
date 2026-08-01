@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { SERVICES_CONFIG } from "../config/services.config";
 
+import { capitalizeWords } from "@/lib/formatters";
+
 interface ServiceCategoryColumnOptions {
   onEdit: (category: ServiceCategory) => void;
   onDelete: (category: ServiceCategory) => void;
@@ -21,13 +23,14 @@ export const buildServiceCategoryColumns = ({
     header: "Category Name",
     cell: (info) => {
       const category = info.row.original;
+      const formattedName = capitalizeWords(category.name);
       return (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {category.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
-            <p className="font-semibold text-foreground">{category.name}</p>
+            <p className="font-semibold text-foreground">{formattedName}</p>
             {category.description && (
               <p className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">
                 {category.description}

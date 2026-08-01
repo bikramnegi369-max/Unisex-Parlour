@@ -22,6 +22,8 @@ import { CustomerPreferences } from "./CustomerPreferences";
 import { CustomerNotes } from "./CustomerNotes";
 import { CustomerActivityLog } from "./CustomerActivityLog";
 import { EntityProfileLayout, type ProfileTabItem } from "@/components/entity/EntityProfileLayout";
+import { capitalizeWords } from "@/lib/formatters";
+
 
 interface CustomerDetailsPageProps {
   customerId: string;
@@ -273,7 +275,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
         onClose={() => setIsDeactivateOpen(false)}
         onConfirm={handleDeactivateConfirm}
         isDeleting={deleteMutation.isPending}
-        customerName={customer.name}
+        customerName={capitalizeWords(customer.name)}
       />
 
       {/* Reactivate confirmation dialog */}
@@ -286,7 +288,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
         onConfirm={handleReactivateConfirm}
         isLoading={reactivateMutation.isPending}
         error={reactivateMutation.error}
-        customerName={customer.name}
+        customerName={capitalizeWords(customer.name)}
       />
     </div>
   );

@@ -3,7 +3,7 @@
 import type { Service } from "../../types/service.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency } from "@/lib/formatters";
+import { formatCurrency, capitalizeWords } from "@/lib/formatters";
 import { ArrowLeft, Edit, Trash2, UserCheck, Calendar } from "lucide-react";
 
 interface ServiceProfileHeaderProps {
@@ -27,6 +27,8 @@ export function ServiceProfileHeader({
   onDeactivate,
   onReactivate,
 }: ServiceProfileHeaderProps) {
+  const formattedName = capitalizeWords(service.name);
+  const formattedCategory = capitalizeWords(categoryName);
   return (
     <div className="space-y-6">
       {/* Header actions row */}
@@ -77,11 +79,11 @@ export function ServiceProfileHeader({
       <div className="p-6 bg-card border border-border/80 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold shrink-0">
-            {service.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-foreground">{service.name}</h2>
+              <h2 className="text-xl font-bold text-foreground">{formattedName}</h2>
               <Badge variant={service.isActive ? "success" : "muted"}>
                 {service.isActive ? "Active" : "Inactive"}
               </Badge>
@@ -93,7 +95,7 @@ export function ServiceProfileHeader({
                 </Badge>
               )}
               <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px] py-0 px-1.5 font-medium">
-                {categoryName}
+                {formattedCategory}
               </Badge>
               {service.taxable && (
                 <Badge variant="outline" className="bg-amber-500/5 text-amber-600 border-amber-500/20 text-[10px] py-0 px-1.5 font-medium dark:text-amber-400">

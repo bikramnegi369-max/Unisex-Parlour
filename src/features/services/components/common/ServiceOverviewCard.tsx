@@ -2,6 +2,7 @@
 
 import type { Service } from "../../types/service.types";
 import { Badge } from "@/components/ui/badge";
+import { capitalizeWords } from "@/lib/formatters";
 
 interface ServiceOverviewCardProps {
   service: Service;
@@ -9,6 +10,9 @@ interface ServiceOverviewCardProps {
 }
 
 export function ServiceOverviewCard({ service, categoryName }: ServiceOverviewCardProps) {
+  const formattedName = capitalizeWords(service.name);
+  const formattedCategory = capitalizeWords(categoryName);
+
   return (
     <div className="border border-border/80 rounded-xl bg-card shadow-sm p-6 space-y-6 text-left">
       <div className="border-b border-border/85 pb-4">
@@ -17,7 +21,7 @@ export function ServiceOverviewCard({ service, categoryName }: ServiceOverviewCa
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-1">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Service Name</span>
-          <p className="text-sm font-semibold text-foreground">{service.name}</p>
+          <p className="text-sm font-semibold text-foreground">{formattedName}</p>
         </div>
         <div className="space-y-1">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Service Code</span>
@@ -27,7 +31,7 @@ export function ServiceOverviewCard({ service, categoryName }: ServiceOverviewCa
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Category</span>
           <div>
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
-              {categoryName}
+              {formattedCategory}
             </Badge>
           </div>
         </div>

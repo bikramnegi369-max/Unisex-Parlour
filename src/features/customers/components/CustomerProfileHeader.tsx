@@ -5,6 +5,7 @@ import type { Customer } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Edit, Trash2, Building, Phone, Mail, UserCheck } from "lucide-react";
+import { capitalizeWords } from "@/lib/formatters";
 
 interface CustomerProfileHeaderProps {
   customer: Customer;
@@ -27,6 +28,7 @@ export function CustomerProfileHeader({
   onDeactivate,
   onReactivate,
 }: CustomerProfileHeaderProps) {
+  const formattedName = capitalizeWords(customer.name);
   return (
     <div className="space-y-6">
       {/* Header with back trigger and primary actions */}
@@ -78,11 +80,11 @@ export function CustomerProfileHeader({
       <div className="p-6 bg-card border border-border/80 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold shrink-0">
-            {customer.name.charAt(0).toUpperCase()}
+            {formattedName.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-foreground">{customer.name}</h2>
+              <h2 className="text-xl font-bold text-foreground">{formattedName}</h2>
               <Badge variant={customer.status === "active" ? "success" : customer.status === "blocked" ? "destructive" : "muted"}>
                 <span className="capitalize">{customer.status}</span>
               </Badge>
