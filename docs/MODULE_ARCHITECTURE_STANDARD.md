@@ -459,7 +459,8 @@ Controllers should remain thin, delegating all domain logic to the Service layer
 There is no universal field list that every database document must contain. Entity schemas must be designed based on their structural requirements:
 * **Organization-owned entity:** Must contain `organizationId` for tenant isolation when applicable.
 * **Branch-owned entity:** Must contain `branchId` when data belongs specifically to one branch.
-* **Customer entity:** Uses `homeBranchId` when the Customer domain requires a canonical home branch.
+* **Customer entity (DOMAIN-SPECIFIC / CUSTOMER REFERENCE PATTERN):** Uses `homeBranchId` and `visitedBranchIds` when the Customer domain requires a canonical home branch or branch visit tracking.
+* **Customer preferences (DOMAIN-SPECIFIC / CUSTOMER REFERENCE PATTERN):** Fields such as `preferredStaff` and `preferredServices` are specific to the Customer profile requirements and must not be treated as universal fields for other domains.
 * **Profile-oriented entities:** Must use the branch ownership/association model defined by their verified backend contract.
 * **Lifecycle-managed entity:** Must contain `status` or `isActive` when applicable.
 * **Auditable entity:** Must contain `createdAt` and `updatedAt` timestamps when applicable.
@@ -469,8 +470,8 @@ There is no universal field list that every database document must contain. Enti
 ## 23. Audit / History / Notes Standard
 
 ### [RECOMMENDED PRACTICE] - Audit Isolation
-* Unbounded user-generated notes or comments **SHOULD** live in a separate sub-collection and be queried through paginated routes (as demonstrated by `CustomerNotes`).
-* Automatically generated audit trails or history logs **SHOULD** be stored in an immutable, read-only collection and queried separately.
+* Unbounded user-generated notes or comments **SHOULD** live in a separate sub-collection and be queried through paginated routes (as demonstrated by `CustomerNotes` — DOMAIN-SPECIFIC / CUSTOMER REFERENCE PATTERN).
+* Automatically generated audit trails or history logs **SHOULD** be stored in an immutable, read-only collection and queried separately (as demonstrated by `CustomerActivity` / audit logs — DOMAIN-SPECIFIC / CUSTOMER REFERENCE PATTERN).
 * Small, bounded, static metadata (e.g. preferences, address, settings) should remain inline inside the parent document.
 
 ---
