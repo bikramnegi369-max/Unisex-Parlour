@@ -86,7 +86,7 @@ When resolving conflicts between different specifications, implementations, or d
 ```
 
 ### [ARCHITECTURAL INVARIANT] - Documentation Conflict Handling
-If two sources of truth conflict (e.g., this documentation specifies an endpoint or behavior that the backend API does not actually support, or if two modules show divergent patterns for a shared concern), the developer or AI agent **MUST STOP** and report the discrepancy rather than guessing or silently choosing an interpretation.
+If two sources of truth conflict (e.g., this documentation specifies an endpoint or behavior that the backend API does not actually support, or if two modules show divergent patterns for a shared concern), the developer or AI agent **MUST STOP** and report the discrepancy rather than guessing or silently choosing an interpretation. When documentation conflicts with actual implementation, stop and report rather than guessing.
 
 ---
 
@@ -166,25 +166,33 @@ The API layer acts as the gatekeeper for network request formatting.
 * Feature API functions must accept and return strictly typed payloads and response shapes.
 * Feature API functions must not contain UI interactions, toast notifications, or global state dispatches.
 
-### [ARCHITECTURAL INVARIANT] - Paginated Response Envelope
-All lists returned by the backend must conform to the `PaginatedResponse<T>` interface defined in `@/types/api.types.ts`. Custom pagination shapes are forbidden.
+### [ARCHITECTURAL INVARIANT] - List Response Envelope
+* Standard paginated domain list endpoints **MUST** conform to the `PaginatedResponse<T>` interface defined in `@/types/api.types.ts`.
+* Small lookup/reference responses or domain-specific non-paginated collections **MAY** use another response shape (such as a simple `ApiResponse<T[]>`) when justified by the verified backend contract. Wording must not allow developers to avoid pagination arbitrarily when paginated access is standard for the entity size.
 
-### [CANONICAL PATTERN] - Type-Safe ID Normalization
-The backend database uses Mongoose ObjectIds (`_id`). The frontend codebase expects a clean `id` string. Normalization **MUST** be performed at the API layer, and it **MUST** be done in a type-safe manner without casting objects to `any`.
+### [ARCHITECTURAL INVARIANT] - Type-Safe ID Normalization
+The backend database uses Mongoose ObjectIds (`_id`). The frontend codebase expects a clean `id` string. Normalization **MUST** be performed at the API layer, and it **MUST** preserve the actual source type.
+* Developers **MUST NOT** use `any`, `as any`, or `as unknown as T` to force an incompatible backend object into a frontend type.
+* Use explicit, type-safe mapping functions or constrained interfaces that verify both types at compile-time.
 
 ```typescript
-// [EXAMPLE] Type-safe ID Normalization
-interface DatabaseRecord {
+// [EXAMPLE] Type-Safe ID Mapping
+export interface DbRecord {
   _id: string;
-  [key: string]: unknown;
 }
 
-export function normalizeId<T extends { id: string }>(record: DatabaseRecord): T {
-  const { _id, ...rest } = record;
+export interface ClientRecord {
+  id: string;
+}
+
+export function mapId<D extends DbRecord, C extends ClientRecord>(
+  record: D,
+  mapFields: (dbItem: D) => Omit<C, "id">
+): C {
   return {
-    ...rest,
-    id: _id || (record.id as string) || "",
-  } as unknown as T;
+    ...mapFields(record),
+    id: record._id,
+  } as C;
 }
 ```
 
@@ -223,31 +231,37 @@ Query keys determine the identity of cached server state. To prevent data leakag
 
 The query key **MUST** incorporate:
 1. The domain entity name (e.g., `"customers"`, `"services"`)
-2. The active branch scope segment (using `getBranchQueryKey`)
-3. All query-affecting inputs (filters, search queries, pagination state, sort orders)
+2. The active branch scope segment (using `getBranchQueryKey` or similar helper)
+3. All query-affecting inputs (filters, search queries, pagination state, sort orders, page sizes)
 
 ```typescript
-// [EXAMPLE] Proper scope-aware query key
-const queryKey = getBranchQueryKey("services", [filters]);
+// [EXAMPLE] Query key with pagination and search parameters
+const queryKey = getBranchQueryKey("customers", [filters]);
 ```
 
 ### [ARCHITECTURAL INVARIANT] - Cache Separation
-Developers **MUST NOT** use static query keys (e.g., `["services"]`) for branch-scoped data. All branch-scoped queries must obtain their key via the `getBranchQueryKey` callback to ensure cache separation between branch views.
+Developers **MUST NOT** use static query keys (e.g., `["customers"]`) for branch-scoped data. All branch-scoped queries must obtain their key via the `getBranchQueryKey` callback to ensure cache separation between branch views.
 
-### [CANONICAL PATTERN] - Mutation Cache Invalidation
-After a successful mutation (create, update, status change, deactivation, reactivation), all affected queries **MUST** be invalidated to ensure the UI does not display stale data. This is typically achieved by invalidating the entity list query and the specific entity detail query.
+### [ARCHITECTURAL INVARIANT] - Mutation Cache Invalidation
+After a successful mutation (create, update, status change, deactivation, reactivation), all affected queries **MUST** be invalidated so the UI cannot display stale data.
+* The hook or calling component **MUST** trigger invalidations for the affected list queries (e.g., the key returned by `getBranchQueryKey("customers")`).
+* The hook or calling component **MUST** trigger invalidations for the specific entity-detail query (e.g., `getBranchQueryKey("customer", [id])`).
+* The hook **MUST** invalidate related queries (e.g., notes, audit logs) if the mutation modifies data displayed in those queries.
+* The invalidation keys must be passed explicitly to `useEntityMutation` via the `invalidateKeys` configuration parameter, or executed inside the mutation's `onSuccess` callback.
 
 ```typescript
-// [EXAMPLE] Invalidation in a custom update hook
-export function useUpdateService() {
+// [EXAMPLE] Custom update hook using explicit onSuccess invalidations
+export function useUpdateCustomer() {
   const queryClient = useQueryClient();
   const { getBranchQueryKey } = useBranchContext();
 
-  return useEntityMutation<Service, Error, UpdateServiceParams>({
-    mutationFn: ({ id, payload }) => updateService(id, payload),
-    invalidateKeys: [getBranchQueryKey("services")],
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: CustomerPayload }) => updateCustomer(id, payload),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("service", [data.id]) });
+      // Refresh list queries
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("customers") });
+      // Refresh specific details query
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("customer", [data.id]) });
     },
   });
 }
@@ -257,10 +271,10 @@ export function useUpdateService() {
 
 ## 9. Branch Scoping Standard
 
-### [ARCHITECTURAL INVARIANT] - Centralized Scoping
-The application operates on a multi-branch ERP model. Feature modules **MUST** rely on the centralized branch-scoping mechanism:
-* Branch state is managed globally by `useBranchContext()`.
-* **Branch-scoped operations:** The API request config must include `branchScope: "current"`. The Axios interceptor automatically appends the correct `X-Branch-Id` header based on active state.
+### [ARCHITECTURAL INVARIANT] - Scoping Configuration
+* Before implementing a module, developers **MUST** determine the effective data scope of each operation according to the verified backend contract.
+* **Not every module operation is branch-scoped.**
+* **Branch-scoped operations:** The API request config must include `branchScope: "current"`. The Axios interceptor automatically appends the correct `X-Branch-Id` header based on active state. Only branch-scoped operations use `branchScope: "current"`.
 * **Organization-wide operations:** The request config must omit or configure `branchScope` such that no `X-Branch-Id` header is sent.
 * **Sentinel Rejection:** Modules **MUST NOT** manually read branch ID from arbitrary locations, construct headers manually, or send `X-Branch-Id: "all"`.
 
@@ -269,25 +283,28 @@ The application operates on a multi-branch ERP model. Feature modules **MUST** r
 ## 10. RBAC / Permission Standard
 
 ### [ARCHITECTURAL INVARIANT] - Permission Rules
-* **No Role Bypasses:** Role names (e.g., `"Owner"`) must never be used in frontend code to bypass permission checks. Permission checks must look up specific permission keys.
+* **No Role Bypasses:** Role names (e.g., `"Owner"`, `"Admin"`, `"Superadmin"`) must never be used in frontend code to bypass permission checks. Permission checks must look up specific permission keys.
 * **UX Gating Only:** Frontend checks (`hasPermission`, `PermissionGate`) are for visual styling and UX guidance. They do not substitute for backend authorization, which must independently secure every API endpoint.
 * **Permissions Naming:** Permissions follow the `domain.action` or `domain.resource.action` syntax.
 * **Lifecycle Permissions:**
-  * Deactivation: Requires the `<module>.delete` permission.
-  * Reactivation: Requires the `<module>.update` permission (as reactivation restores the profile state, which is an edit operation).
+  * Lifecycle actions **MUST** use explicit permission checks.
+  * For modules following the canonical CRUD permission model:
+    * Deactivation: Requires the `<module>.delete` permission.
+    * Reactivation: Requires the `<module>.update` permission.
+  * If the verified backend contract defines dedicated lifecycle permissions (e.g. status-specific permissions), the module **MUST** check those backend-defined permissions.
 
 ---
 
 ## 11. Table / List Architecture
 
 ### [CANONICAL PATTERN] - List Rendering
-* List views displaying tabular data **MUST** use the shared `DataTable` component.
+* List views displaying tabular data **MUST** use the shared `DataTable` component when pagination and columns apply.
 * Standard lists **MUST** support paginated queries, search inputs, and filters.
 * All lists **MUST** provide a matching card-based mobile view via the `renderMobileRow` prop of `DataTable`.
 
 ### [RECOMMENDED PRACTICE] - Action Menus
 * **[RECOMMENDED PRACTICE]** - CRUD-oriented entities should use the shared `EntityActionMenu` for list row actions when the standard action model (View, Edit, Deactivate, Reactivate) applies.
-* **[ARCHITECTURAL INVARIANT]** - Existing shared action-menu functionality must not be duplicated locally when it is applicable. Domain-specific transactional or reporting entities may use custom action buttons tailored to their interaction models.
+* **[ARCHITECTURAL INVARIANT]** - Existing shared action-menu functionality must not be duplicated locally when it is applicable. Domain-specific workflows (e.g. analytical reporting, simple settings lists) **MAY** use a different action set when justified.
 
 ---
 
@@ -304,7 +321,7 @@ The application operates on a multi-branch ERP model. Feature modules **MUST** r
 
 ### [RECOMMENDED PRACTICE] - Profile Navigation Layout
 * **[RECOMMENDED PRACTICE]** - Profile-oriented entities (e.g., Customer, Staff, Branch details) should use `EntityProfileLayout` to compose tabbed detail views.
-* **[ARCHITECTURAL INVARIANT]** - Feature modules must reuse existing shared layout primitives when applicable. Transactional documents (e.g. Invoices, Bookings) or reporting pages may use custom detailed layouts if the domain model requires a different interface.
+* **[ARCHITECTURAL INVARIANT]** - Feature modules must reuse existing shared layout primitives when applicable. Domain-specific detail pages (e.g. transactional invoices, reporting widgets, logs) **MAY** use a different layout when the domain interaction model genuinely requires it.
 
 ---
 
@@ -312,7 +329,7 @@ The application operates on a multi-branch ERP model. Feature modules **MUST** r
 
 ### [CANONICAL PATTERN] - Mutation Scoping
 * Every mutation hook must invalidate the related list cache.
-* Creation mutations **MUST** verify that a specific branch is selected (`currentBranchId !== null`) and must throw an error if the user is in "All Branches" scope.
+* Creation mutations **MUST** verify that a specific branch is selected (`currentBranchId !== null`) and must throw an error if the user is in "All Branches" scope, unless the backend contract explicitly permits organization-wide creation.
 * Detail routing page files (`page.tsx`) must resolve param promises asynchronously and hand the identifiers to client feature components.
 
 ---
@@ -438,11 +455,12 @@ Controllers should remain thin, delegating all domain logic to the Service layer
 
 ### [ARCHITECTURAL INVARIANT] - Domain-Dependent Fields
 There is no universal field list that every database document must contain. Entity schemas must be designed based on their structural requirements:
-* **Organization-owned entity:** Must contain `organizationId` for tenant isolation.
+* **Organization-owned entity:** Must contain `organizationId` for tenant isolation when applicable.
 * **Branch-owned entity:** Must contain `branchId` when data belongs specifically to one branch.
-* **Customer/Profile entity:** Must contain `homeBranchId` to define the home site.
-* **Lifecycle-managed entity:** Must contain `status` or `isActive` to represent state.
-* **Auditable entity:** Must contain `createdAt` and `updatedAt` timestamps.
+* **Customer entity:** Uses `homeBranchId` when the Customer domain requires a canonical home branch.
+* **Profile-oriented entities:** Must use the branch ownership/association model defined by their verified backend contract.
+* **Lifecycle-managed entity:** Must contain `status` or `isActive` when applicable.
+* **Auditable entity:** Must contain `createdAt` and `updatedAt` timestamps when applicable.
 
 ---
 
@@ -470,10 +488,28 @@ There is no universal field list that every database document must contain. Enti
 * Frontend permission gating exists only for visual convenience. The backend **MUST** authorize every incoming request independently.
 * Tenant isolation (`organizationId`) must be derived backend-side from the verified session token; backend code must never trust client-provided tenant identifiers.
 * Branch boundary checks must verify that the user's token has active access permissions for the target branch ID.
+* **Organization Scope vs. Branch Scope:**
+  ```text
+  Authentication       → Who is the user?
+  Organization Scope   → Which tenant's data?
+  Branch Scope         → Which branch's data/view?
+  Permission           → What may the user do?
+  ```
+  Organization scope is independent of branch scope. Branch isolation must never be used as a substitute for organization isolation.
 
 ---
 
-## 26. Testing Standard
+## 26. Performance Standard
+
+### [RECOMMENDED PRACTICE] - Performance Expectations
+* **Caching:** Leverage React Query caching to prevent redundant API queries. Default `staleTime` and refetch options should align with global configuration.
+* **Lazy Loading:** Dynamically import heavier dialogs, charts, or tabs that are not required for the initial render.
+* **Avoid unnecessary refetches:** Ensure query key parameters are stable to prevent accidental query trigger loops.
+* **Memoization:** Do not prematurely optimize simple components. Use React's `useMemo` or `useCallback` only when performing expensive computations or preventing redundant renders of complex child components.
+
+---
+
+## 27. Testing Standard
 
 ### Required Verification
 Before submitting a module, developers or AI agents **MUST** verify:
@@ -491,7 +527,7 @@ New modules **SHOULD** implement automated test coverage under `src/features/<mo
 
 ---
 
-## 27. Production Readiness Checklist
+## 28. Production Readiness Checklist
 
 ### Architecture
 - [ ] Code is under `src/features/<module>/`
@@ -513,7 +549,7 @@ New modules **SHOULD** implement automated test coverage under `src/features/<mo
 
 ---
 
-## 28. New Module Implementation Workflow
+## 29. New Module Implementation Workflow
 
 ```
 1. Verify backend API contract and check permissions
@@ -537,7 +573,7 @@ New modules **SHOULD** implement automated test coverage under `src/features/<mo
 
 ---
 
-## 29. Architecture Audit Checklist
+## 30. Architecture Audit Checklist
 
 This audit compares new feature code against approved invariants:
 
@@ -564,7 +600,7 @@ AI coding agents and developers **MUST NOT** commit the following architectural 
 
 ---
 
-## 30. When the Standard Does Not Apply
+## 31. When the Standard Does Not Apply
 
 This standard is designed for standard transactional and master data ERP modules (Customers, Services, Employees, Inventory). The standard **MAY** require controlled deviation for:
 * **Interactive Dashboards:** Where data is consolidated and layout grids replace forms.
@@ -581,7 +617,7 @@ When a developer or AI agent encounters a module that requires deviation:
 
 ---
 
-## 31. AI Coding Agent Instructions
+## 32. AI Coding Agent Instructions
 
 AI coding agents working on future modules **MUST** adhere to these strict instructions:
 
@@ -591,11 +627,11 @@ AI coding agents working on future modules **MUST** adhere to these strict instr
 4. **Never guess:** If a specification is missing or a conflict arises, stop and request clarification.
 5. **No custom scoping:** Always use `branchScope: "current"` and `getBranchQueryKey` for branch-aware entities.
 6. **No code duplication:** Do not copy code from shared components to create local custom versions.
-7. **Perform audit:** Run the Architecture Audit Checklist (Section 29) before concluding a task.
+7. **Perform audit:** Run the Architecture Audit Checklist (Section 30) before concluding a task.
 
 ---
 
-## 32. Decision Log
+## 33. Decision Log
 
 | Concern | Architectural Standard / Decision | Reason |
 |---|---|---|
@@ -612,7 +648,7 @@ AI coding agents working on future modules **MUST** adhere to these strict instr
 
 ---
 
-## 33. Customer + Services Reference Matrix
+## 34. Customer + Services Reference Matrix
 
 | Feature | Customer | Services | Standard |
 |---|---|---|---|
