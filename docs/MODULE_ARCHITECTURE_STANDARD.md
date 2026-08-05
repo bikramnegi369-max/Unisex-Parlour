@@ -172,27 +172,29 @@ The API layer acts as the gatekeeper for network request formatting.
 
 ### [ARCHITECTURAL INVARIANT] - Type-Safe ID Normalization
 The backend database uses Mongoose ObjectIds (`_id`). The frontend codebase expects a clean `id` string. Normalization **MUST** be performed at the API layer, and it **MUST** preserve the actual source type.
-* Developers **MUST NOT** use `any`, `as any`, or `as unknown as T` to force an incompatible backend object into a frontend type.
-* Use explicit, type-safe mapping functions or constrained interfaces that verify both types at compile-time.
+* Developers **MUST NOT** use `any`, `as any`, `as unknown as T`, or arbitrary type assertions merely to force incompatible backend data into a frontend type.
+* Normalization must use explicit, type-safe mapping functions or constrained interfaces that verify both types at compile-time.
 
 ```typescript
 // [EXAMPLE] Type-Safe ID Mapping
-export interface DbRecord {
+export interface MongoCustomer {
   _id: string;
+  name: string;
+  phone: string;
 }
 
-export interface ClientRecord {
+export interface Customer {
   id: string;
+  name: string;
+  phone: string;
 }
 
-export function mapId<D extends DbRecord, C extends ClientRecord>(
-  record: D,
-  mapFields: (dbItem: D) => Omit<C, "id">
-): C {
+export function normalizeCustomer(dbCustomer: MongoCustomer): Customer {
   return {
-    ...mapFields(record),
-    id: record._id,
-  } as C;
+    id: dbCustomer._id,
+    name: dbCustomer.name,
+    phone: dbCustomer.phone,
+  };
 }
 ```
 
@@ -587,7 +589,8 @@ This audit compares new feature code against approved invariants:
 □ Is the use of any completely avoided?
 □ Are HTTP methods and routes aligned with the backend contract?
 □ Is there exactly one lifecycle field (status or isActive)?
-□ Are lifecycle permissions mapped to delete (deactivate) and update (reactivate)?
+□ Are lifecycle actions protected by explicit permissions defined by the verified backend permission contract?
+□ If the module uses the canonical CRUD permission model, are deactivate/reactivate mapped to delete/update respectively?
 ```
 
 ### [ARCHITECTURAL INVARIANT] - Common Architectural Drift
