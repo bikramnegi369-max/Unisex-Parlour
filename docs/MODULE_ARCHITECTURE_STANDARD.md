@@ -4,6 +4,7 @@
 Status: Canonical
 Reference Modules: Customer, Services
 Scope: All future ERP modules
+Module Architecture Standard Version: 1.1
 Last Updated: 2026-08-05
 ```
 
@@ -12,2027 +13,620 @@ Last Updated: 2026-08-05
 ## Table of Contents
 
 1. [Document Purpose](#1-document-purpose)
-2. [Architecture Principles](#2-architecture-principles)
-3. [Canonical Module Structure](#3-canonical-module-structure)
-4. [API Layer Standard](#4-api-layer-standard)
-5. [TypeScript Types Standard](#5-typescript-types-standard)
-6. [Validation Standard](#6-validation-standard)
-7. [React Query / Server State Standard](#7-react-query--server-state-standard)
-8. [Branch Scoping Standard](#8-branch-scoping-standard)
-9. [RBAC / Permission Standard](#9-rbac--permission-standard)
-10. [Table / List Architecture](#10-table--list-architecture)
-11. [Pagination Standard](#11-pagination-standard)
-12. [Entity Profile / Detail Page Standard](#12-entity-profile--detail-page-standard)
-13. [CRUD Standard](#13-crud-standard)
-14. [Lifecycle / Status Standard](#14-lifecycle--status-standard)
-15. [Reusable Shared Components](#15-reusable-shared-components)
-16. [Hooks Standard](#16-hooks-standard)
-17. [Form Architecture](#17-form-architecture)
-18. [UI/UX Standard](#18-uiux-standard)
-19. [Naming Conventions](#19-naming-conventions)
-20. [Backend Architecture Standard](#20-backend-architecture-standard)
-21. [Data Model Standard](#21-data-model-standard)
-22. [Audit / History / Notes Standard](#22-audit--history--notes-standard)
-23. [Error Handling Standard](#23-error-handling-standard)
-24. [Security Standard](#24-security-standard)
-25. [Performance Standard](#25-performance-standard)
-26. [Testing Standard](#26-testing-standard)
-27. [Production Readiness Checklist](#27-production-readiness-checklist)
-28. [New Module Implementation Workflow](#28-new-module-implementation-workflow)
-29. [Architecture Audit Checklist](#29-architecture-audit-checklist)
-30. [AI Coding Agent Instructions](#30-ai-coding-agent-instructions)
-31. [Decision Log](#31-decision-log)
-32. [Customer + Services Reference Matrix](#32-customer--services-reference-matrix)
+2. [Source of Truth Hierarchy](#2-source-of-truth-hierarchy)
+3. [Architecture Principles](#3-architecture-principles)
+4. [Canonical Module Structure](#4-canonical-module-structure)
+5. [API Layer Standard](#5-api-layer-standard)
+6. [TypeScript Types Standard](#6-typescript-types-standard)
+7. [Validation Standard](#7-validation-standard)
+8. [React Query / Server State Standard](#8-react-query--server-state-standard)
+9. [Branch Scoping Standard](#9-branch-scoping-standard)
+10. [RBAC / Permission Standard](#10-rbac--permission-standard)
+11. [Table / List Architecture](#11-table--list-architecture)
+12. [Pagination Standard](#12-pagination-standard)
+13. [Entity Profile / Detail Page Standard](#13-entity-profile--detail-page-standard)
+14. [CRUD Standard](#14-crud-standard)
+15. [Lifecycle / Status Standard](#15-lifecycle--status-standard)
+16. [Reusable Shared Components](#16-reusable-shared-components)
+17. [Hooks Standard](#17-hooks-standard)
+18. [Form Architecture](#18-form-architecture)
+19. [UI/UX Standard](#19-uiux-standard)
+20. [Naming Conventions](#20-naming-conventions)
+21. [Backend Architecture Standard](#21-backend-architecture-standard)
+22. [Data Model Standard](#22-data-model-standard)
+23. [Audit / History / Notes Standard](#23-audit--history--notes-standard)
+24. [Error Handling Standard](#24-error-handling-standard)
+25. [Security Standard](#25-security-standard)
+26. [Performance Standard](#26-performance-standard)
+27. [Testing Standard](#27-testing-standard)
+28. [Production Readiness Checklist](#28-production-readiness-checklist)
+29. [New Module Implementation Workflow](#29-new-module-implementation-workflow)
+30. [Architecture Audit Checklist](#30-architecture-audit-checklist)
+31. [When the Standard Does Not Apply](#31-when-the-standard-does-not-apply)
+32. [AI Coding Agent Instructions](#32-ai-coding-agent-instructions)
+33. [Decision Log](#33-decision-log)
+34. [Customer + Services Reference Matrix](#34-customer--services-reference-matrix)
 
 ---
 
 ## 1. Document Purpose
 
-### Why This Standard Exists
+This standard exists to define, formalize, and enforce the architecture, conventions, patterns, and quality gates that future modules in the Unisex Parlour ERP application must follow. By adhering to this reference, developers and AI coding agents ensure the codebase remains highly consistent, secure, performant, and maintainable.
 
-The Customer and Services modules were the first ERP modules to be fully implemented, audited, and architecturally standardized. During that process, recurring patterns, conventions, and production-readiness requirements emerged that apply universally to all future ERP modules.
+### Standard Classifications
 
-This document formalizes those patterns into a canonical reference so that every future module follows the same architecture. Without this standard, each new module risks introducing inconsistent API contracts, duplicated shared components, divergent query key strategies, ad-hoc validation, and architectural drift that becomes increasingly expensive to correct.
+To ensure clarity, every rule in this standard is categorized into one of four classifications:
 
-### Why Customer and Services Are the Reference Modules
+#### [ARCHITECTURAL INVARIANT]
+A non-negotiable rule that directly affects system security, data isolation, correctness, or fundamental architecture. Breaking an Architectural Invariant requires explicit approval from the lead architect and a documented justification.
 
-- **Customer** is the most complex reference module: it demonstrates entity profiles, notes, activity/audit logs, tabbed detail pages, multi-field validation, branch scoping with `homeBranchId`/`visitedBranchIds`, lifecycle status, and full CRUD with deactivation/reactivation.
-- **Services** demonstrates a multi-entity module (Services + Service Categories), sub-resource organization within hooks and components, the `useEntityMutation` shared abstraction, status toggling via `PATCH`, and domain-specific filter types.
+#### [CANONICAL PATTERN]
+The preferred implementation pattern established in the codebase. Future modules should default to these patterns to maintain structural and code-level consistency across the application.
 
-Together they cover all major architectural patterns future modules will need.
+#### [RECOMMENDED PRACTICE]
+A strong architectural suggestion that represents a clean, maintainable approach. It can be adapted or modified based on domain complexity or specific context.
 
-### Who Should Follow This Standard
-
-- All developers (frontend and backend) building new ERP modules.
-- AI coding agents implementing, auditing, or modifying ERP modules.
-- Code reviewers evaluating PRs against architectural standards.
-
-### When This Standard Applies
-
-This standard applies whenever:
-
-- A new ERP module is being created.
-- An existing module is being audited for architectural compliance.
-- Shared infrastructure is being extended for a new module.
-
-### Severity Levels
-
-Throughout this document, three severity levels are used:
-
-#### MUST
-
-Rules that future modules are **required** to follow. Deviation requires explicit justification and team approval before implementation.
-
-#### SHOULD
-
-Strong recommendations that **should normally** be followed. Deviation is acceptable when a documented technical reason exists, but the default behavior is to comply.
-
-#### MAY
-
-Optional patterns that **can be used** when they fit the module's requirements. Not following them is perfectly acceptable.
+#### [EXAMPLE]
+Illustrative code or conceptual description intended to demonstrate how a rule is applied. Examples must not be interpreted as mandatory API contracts.
 
 ---
 
-## 2. Architecture Principles
+## 2. Source of Truth Hierarchy
+
+When resolving conflicts between different specifications, implementations, or documentation, the following hierarchy of authority **MUST** be enforced:
+
+```
+1. Security/Backend Runtime Contract (Authoritative for endpoints and API parameters)
+2. Approved Architectural Invariants (This document)
+3. Existing Shared Infrastructure (Axios client, global context, shared ui/layout components)
+4. Module Architecture Standard (General documentation rules)
+5. Canonical Reference Modules (Customer and Services implementations)
+6. Implementation Examples (Illustrative code snippets)
+7. Developer or AI Agent Assumptions
+```
+
+### [ARCHITECTURAL INVARIANT] - Documentation Conflict Handling
+If two sources of truth conflict (e.g., this documentation specifies an endpoint or behavior that the backend API does not actually support, or if two modules show divergent patterns for a shared concern), the developer or AI agent **MUST STOP** and report the discrepancy rather than guessing or silently choosing an interpretation.
+
+---
+
+## 3. Architecture Principles
 
 ### Separation of Concerns
-
-**MUST.** Every layer has a single responsibility:
-
-```
-API Layer     → HTTP communication and response normalization
-Hook Layer    → React Query orchestration, permission gating, branch scoping
-Component Layer → UI rendering, form state, user interaction
-Schema Layer  → Validation rules (Zod)
-Type Layer    → TypeScript domain type definitions
-Config Layer  → Routes, permissions, labels, defaults
-Column Layer  → Table column definitions
-```
-
-Business logic does not belong in components. API communication does not belong in hooks beyond calling the API function.
+* **[ARCHITECTURAL INVARIANT]** - Every layer must fulfill a single responsibility. Business logic must not live in UI components. API communication must live in the API service files, and server state synchronization must be managed by custom React Query hooks.
 
 ### Feature-Based Architecture
+* **[ARCHITECTURAL INVARIANT]** - Domain implementation code must live under `src/features/<module>/`. Application-level routing, navigation, global state providers, permission registries, and other established application-wide infrastructure remain in their existing application-level locations (e.g., `src/app/`, `src/components/layout/`, `src/store/`).
 
-**MUST.** All module code lives under `src/features/<module>/` organized by concern (api, hooks, types, schemas, components, columns, config). Shared code lives under `src/components/`, `src/lib/`, `src/hooks/`, and `src/types/`.
-
-**Reasoning:** Feature isolation makes modules self-contained and independently navigable. Shared code is only promoted to shared directories when genuinely used by multiple features.
-
-### Reusability
-
-**MUST.** Before creating any component, hook, utility, or abstraction, check whether a shared version already exists. Shared entity components (`EntityActionMenu`, `DeactivateDialog`, `ReactivateDialog`, `EntityProfileLayout`), shared UI components (`DataTable`, `Pagination`, `EmptyState`, `ErrorState`), and shared API utilities (`useEntityMutation`, `getScopeQueryKey`, `getErrorMessage`, `mapBackendValidationErrors`) exist specifically to prevent duplication.
-
-### Consistency
-
-**MUST.** All modules must follow identical patterns for API contracts, query keys, hooks, validation, RBAC checks, and lifecycle management. Consistency is what makes the codebase predictable.
+### Reusability and Duplication
+* **[ARCHITECTURAL INVARIANT]** - Existing shared infrastructure (utilities, query key builders, mutations, global contexts, form error mapping, formatters) and components (DataTable, Pagination, EntityActionMenu, dialogs) **MUST** be reused. Developers **MUST NOT** duplicate shared logic locally within a module.
 
 ### Type Safety
-
-**MUST.** All API requests, responses, form values, and domain entities must be typed. Avoid `any` unless interacting with an untyped third-party boundary, and document the reason.
-
-### Centralized Validation
-
-**MUST.** Validation schemas (Zod) live in `schemas/` within the feature. Schemas are the single source of truth for form validation. Backend validation is complementary, not a replacement.
-
-### API Contract Consistency
-
-**MUST.** All modules use `ApiResponse<T>` for single-entity responses and `PaginatedResponse<T>` for list responses. Do not invent module-specific response wrappers.
-
-### Branch Awareness
-
-**MUST.** All branch-scoped data queries must use `getBranchQueryKey()` from `useBranchContext()`. All branch-scoped API calls must include `branchScope: "current"`. Static query keys without branch scoping are not permitted for branch-scoped data.
-
-### RBAC
-
-**MUST.** Frontend permission checks are UX protection only. The backend is the final authority. Use `hasPermission()` from `@/lib/permissions` for UI gating. Never use role names as permission proxies.
-
-### Server-State Management
-
-**MUST.** API data is server state managed by TanStack React Query. Redux is reserved for client-only global state (UI state, branch selection). Never store API responses in Redux.
-
-### URL State
-
-**SHOULD.** Pagination page, search terms, and filter values should be reflected in URL search parameters when practical, making lists shareable and bookmarkable.
-
-### Accessibility
-
-**SHOULD.** Use semantic HTML elements (`<button>`, `<a>`, `<form>`, `<nav>`). Provide `aria-label` attributes for icon-only buttons. Ensure keyboard navigation works for interactive elements.
-
-### Production Readiness
-
-**MUST.** Every module must handle loading states, empty states, error states, and destructive action confirmations before being considered complete.
-
-### Avoiding Unnecessary Abstraction
-
-**SHOULD.** Do not create abstractions for single-use logic. Abstractions earn their complexity only when used across multiple consumers or when they meaningfully simplify a complex operation (e.g., `useEntityMutation`).
-
-### Avoiding Duplicated Business Logic
-
-**MUST.** If a pattern already exists in shared infrastructure, use it. Do not re-implement pagination, entity action menus, deactivation/reactivation dialogs, or query key generation locally.
+* **[ARCHITECTURAL INVARIANT]** - All API payloads, responses, forms, and entities must have explicit TypeScript types. The use of `any` for domain or API data is strictly prohibited.
 
 ---
 
-## 3. Canonical Module Structure
+## 4. Canonical Module Structure
 
-Based on inspection of both Customer and Services modules, the approved feature structure is:
+### [CANONICAL PATTERN] - Feature Directory Structure
+A standard ERP domain module is structured as follows:
 
 ```
 src/features/<module>/
-├── api/                    # API service functions (MUST)
+├── api/                    # API service functions
 │   └── <entity>.api.ts
-├── types/                  # TypeScript domain type definitions (MUST)
-│   └── <entity>.types.ts
-├── schemas/                # Zod validation schemas (MUST)
+├── types/                  # TypeScript domain type definitions
+│   ├── <entity>.types.ts
+│   └── filters.types.ts    # [RECOMMENDED PRACTICE] Filter type definitions
+├── schemas/                # Zod validation schemas
 │   └── <entity>.schema.ts
-├── hooks/                  # React Query hooks (MUST)
+├── hooks/                  # React Query query and mutation hooks
 │   ├── use<Entity>.ts
 │   ├── use<Entities>.ts
 │   ├── useCreate<Entity>.ts
 │   ├── useUpdate<Entity>.ts
 │   ├── useDelete<Entity>.ts
 │   └── useReactivate<Entity>.ts
-├── components/             # React components (MUST)
+├── components/             # React components
 │   ├── <Entity>List.tsx
 │   ├── <Entity>Form.tsx
-│   ├── <Entity>DetailsPage.tsx  (or <Entity>ProfilePage.tsx)
-│   ├── <Entity>ProfileHeader.tsx
 │   ├── <Entity>Filters.tsx
 │   ├── <Entity>Search.tsx
 │   ├── <Entity>MobileCard.tsx
-│   ├── <Entity>DeleteDialog.tsx
-│   ├── <Entity>ReactivateDialog.tsx
 │   └── ...
-├── columns/                # TanStack Table column definitions (MUST)
+├── columns/                # TanStack Table column definitions
 │   └── <entity>Columns.tsx
-├── config/                 # Module configuration (MUST)
-│   └── <module>.config.ts
-├── constants/              # Domain constants (MAY)
-│   └── <entity>.constants.ts
-└── __tests__/              # Unit/integration tests (SHOULD)
-    └── <module>.test.tsx
+└── config/                 # Feature configuration (routes, permissions, defaults)
+    └── <module>.config.ts
 ```
 
-### Directory Responsibilities
-
-| Directory | Mandatory | Contains | Must NOT Contain |
-|-----------|-----------|----------|------------------|
-| `api/` | MUST | API service functions, request/response normalization, param interfaces | React components, hooks, UI logic |
-| `types/` | MUST | Domain entity interfaces, API response types, payload types | Zod schemas, React components |
-| `schemas/` | MUST | Zod validation schemas, form value type inference | API calls, business logic |
-| `hooks/` | MUST | React Query `useQuery`/`useMutation` hooks | API implementation, UI rendering |
-| `components/` | MUST | React components (list, form, detail, filters) | API calls (must go through hooks), domain types |
-| `columns/` | MUST | TanStack Table `ColumnDef` arrays | Business logic, API calls |
-| `config/` | MUST | Routes, permissions, labels, defaults | Business logic, component code |
-| `constants/` | MAY | Enums, magic values, domain-specific constants | Business logic |
-| `__tests__/` | SHOULD | Vitest test files | Production application code |
-
-### Multi-Entity Modules
-
-When a module manages multiple related entities (like Services managing both Services and Service Categories), sub-organize hooks and components:
+### [RECOMMENDED PRACTICE] - Multi-Entity Sub-Organization
+When a module implements multiple related sub-entities (e.g., `Services` and `ServiceCategories` inside the `services` module), sub-organize the `components/` and `hooks/` directories:
 
 ```
 src/features/services/
 ├── hooks/
-│   ├── services/           # Service entity hooks
-│   │   ├── useServices.ts
-│   │   ├── useService.ts
-│   │   └── ...
-│   └── categories/         # Category entity hooks
-│       ├── useServiceCategories.ts
-│       └── ...
+│   ├── services/
+│   │   └── useServices.ts
+│   └── categories/
+│       └── useServiceCategories.ts
 ├── components/
-│   ├── common/             # Shared/primary components
-│   │   ├── ServicesList.tsx
-│   │   ├── ServiceProfilePage.tsx
-│   │   └── ...
+│   ├── common/             # Primary pages and cross-entity views
 │   ├── services/           # Service-specific components
-│   │   └── ServiceForm.tsx
 │   └── service-categories/ # Category-specific components
-│       └── ServiceCategoryForm.tsx
-├── api/
-│   ├── services.api.ts
-│   └── serviceCategories.api.ts
-├── schemas/
-│   ├── service.schema.ts
-│   └── serviceCategory.schema.ts
-└── types/
-    ├── service.types.ts
-    ├── category.types.ts
-    └── filters.types.ts
 ```
-
-### Naming Conventions
-
-- **Feature folder:** Lowercase plural — `customers`, `services`, `appointments`
-- **API file:** `<entity>.api.ts` — `customers.api.ts`, `services.api.ts`
-- **Type file:** `<entity>.types.ts` — `customer.types.ts`, `service.types.ts`
-- **Schema file:** `<entity>.schema.ts` — `customer.schema.ts`, `service.schema.ts`
-- **Column file:** `<entity>Columns.tsx` — `customerColumns.tsx`, `serviceColumns.tsx`
-- **Config file:** `<module>.config.ts` — `customers.config.ts`, `services.config.ts`
-- **Hooks:** `use<Action><Entity>.ts` — `useCustomers.ts`, `useCreateCustomer.ts`
-- **Components:** PascalCase — `CustomerList.tsx`, `ServiceForm.tsx`
 
 ---
 
-## 4. API Layer Standard
+## 5. API Layer Standard
 
-### Location
+### [ARCHITECTURAL INVARIANT] - API Layer Boundaries
+The API layer acts as the gatekeeper for network request formatting.
+* Feature API code must use the central `apiClient` imported from `@/lib/api/axios`.
+* Feature API functions must accept and return strictly typed payloads and response shapes.
+* Feature API functions must not contain UI interactions, toast notifications, or global state dispatches.
 
-**MUST** live in `src/features/<module>/api/<entity>.api.ts`.
+### [ARCHITECTURAL INVARIANT] - Paginated Response Envelope
+All lists returned by the backend must conform to the `PaginatedResponse<T>` interface defined in `@/types/api.types.ts`. Custom pagination shapes are forbidden.
 
-### Axios Client
+### [CANONICAL PATTERN] - Type-Safe ID Normalization
+The backend database uses Mongoose ObjectIds (`_id`). The frontend codebase expects a clean `id` string. Normalization **MUST** be performed at the API layer, and it **MUST** be done in a type-safe manner without casting objects to `any`.
 
-**MUST** use the centralized `apiClient` imported from `@/lib/api/axios`.
+```typescript
+// [EXAMPLE] Type-safe ID Normalization
+interface DatabaseRecord {
+  _id: string;
+  [key: string]: unknown;
+}
 
-```ts
-import { apiClient } from "@/lib/api/axios";
-```
-
-Never create a new Axios instance inside a feature module.
-
-### Branch Scoping
-
-**MUST** pass `branchScope: "current"` on all branch-scoped API calls:
-
-```ts
-const { data } = await apiClient.get<PaginatedResponse<Entity>>("/entities", {
-  params,
-  branchScope: "current",
-});
-```
-
-The Axios interceptor automatically reads the current branch from Redux and sets the `X-Branch-Id` header. The API layer does not need to manually inject branch IDs.
-
-### Response Types
-
-**MUST** use the shared response types from `@/types/api.types.ts`:
-
-```ts
-import type { ApiResponse, PaginatedResponse } from "@/types/api.types";
-```
-
-- `ApiResponse<T>` — single entity responses (detail, create, update)
-- `PaginatedResponse<T>` — list responses with pagination metadata
-
-### PaginatedResponse Contract
-
-```ts
-interface PaginatedResponse<T> {
-  success: boolean;
-  status: string;
-  message?: string;
-  data: T[];
-  meta?: {
-    total: number;
-    page: string | number;
-    limit: string | number;
-    totalPages: number;
-  };
+export function normalizeId<T extends { id: string }>(record: DatabaseRecord): T {
+  const { _id, ...rest } = record;
+  return {
+    ...rest,
+    id: _id || (record.id as string) || "",
+  } as unknown as T;
 }
 ```
-
-All list API functions **MUST** return `Promise<PaginatedResponse<T>>`. The frontend consumes `data` for the entity array and `meta` for pagination state.
-
-### ID Normalization
-
-Both canonical modules normalize `_id` to `id` at the API layer using a `mapIdKey` or `mapCustomerKeys` function:
-
-```ts
-const mapIdKey = <T>(item: any): T => ({
-  ...item,
-  id: item._id || item.id || "",
-});
-```
-
-**MUST.** Normalize backend `_id` → frontend `id` at the API layer. This is the only place where backend field mapping should occur.
-
-### Method Naming Convention
-
-| Operation | Function Name | HTTP Method | URL Pattern |
-|-----------|---------------|-------------|-------------|
-| List | `get<Entities>` | GET | `/<entities>` |
-| Detail | `get<Entity>` | GET | `/<entities>/:id` |
-| Create | `create<Entity>` | POST | `/<entities>` |
-| Update | `update<Entity>` | PUT | `/<entities>/:id` |
-| Delete | `delete<Entity>` | DELETE | `/<entities>/:id` |
-| Reactivate | `reactivate<Entity>` | PUT | `/<entities>/:id/reactivate` |
-| Status toggle | `update<Entity>Status` | PATCH | `/<entities>/:id/status` |
-| Sub-resource list | `get<Entity><SubResource>s` | GET | `/<entities>/:id/<subresource>` |
-| Sub-resource create | `create<Entity><SubResource>` | POST | `/<entities>/:id/<subresource>` |
-
-### Request Parameter Types
-
-**MUST** define typed parameter interfaces in the API file:
-
-```ts
-export interface GetEntitiesParams {
-  search?: string;
-  page?: number;
-  limit?: number;
-  status?: string;
-  sort?: string;
-}
-```
-
-### What MUST NOT Be in API Files
-
-- React hooks or components
-- React Query logic
-- Permission checks
-- UI state management
-- Toast notifications
-- Error dialog display
 
 ---
 
-## 5. TypeScript Types Standard
+## 6. TypeScript Types Standard
 
-### Location
+### [CANONICAL PATTERN] - Type Locations
+* Pure domain types and entity models live in `src/features/<module>/types/<entity>.types.ts`.
+* Complex list filters and search param types live in `src/features/<module>/types/filters.types.ts`.
+* Shared API wrappers and application-wide models live in `src/types/`.
 
-**MUST** live in `src/features/<module>/types/<entity>.types.ts`.
-
-### Entity Types
-
-Every domain entity must have a TypeScript interface:
-
-```ts
-export interface Service {
-  id: string;
-  _id?: string;       // Mongoose fallback
-  name: string;
-  // ... domain fields
-  isActive: boolean;
-  branchId: string;
-  organizationId: string;
-  createdAt: string;
-  updatedAt: string;
-}
-```
-
-**Canonical fields** every entity SHOULD include:
-
-| Field | Type | Purpose |
-|-------|------|---------|
-| `id` | `string` | Normalized frontend ID |
-| `_id?` | `string` | Optional Mongoose raw ID |
-| `organizationId` | `string` | Tenant ownership |
-| `branchId` or `homeBranchId` | `string` | Branch association |
-| `isActive` or `status` | `boolean` / union | Lifecycle state |
-| `createdAt` | `string` | Creation timestamp (ISO) |
-| `updatedAt` | `string` | Last update timestamp (ISO) |
-
-### Payload Types
-
-**MUST** define mutation payloads by omitting system-managed fields:
-
-```ts
-export type ServicePayload = Omit<
-  Partial<Service>,
-  "id" | "organizationId" | "branchId" | "isActive"
->;
-```
-
-### API Response Types
-
-For modules that define their own response type aliases (as Customer does), they MUST match the structure of `ApiResponse<T>` / `PaginatedResponse<T>`:
-
-```ts
-export interface CustomerListResponse {
-  success: boolean;
-  status: string;
-  message?: string;
-  data: Customer[];
-  meta?: { total: number; page: string | number; limit: string | number; totalPages: number; };
-}
-```
-
-**SHOULD** prefer using the shared `PaginatedResponse<T>` generic directly rather than defining module-specific aliases. The Services module does this cleanly and it should be the preferred pattern going forward.
-
-### Filter Types
-
-For modules with complex filtering, **SHOULD** define filter interfaces separately:
-
-```ts
-// filters.types.ts
-export interface ServiceFilters {
-  search?: string;
-  status?: string;
-  categoryId?: string;
-  page?: number;
-  limit?: number;
-  sort?: string;
-  order?: "asc" | "desc";
-}
-```
-
-### Rules
-
-- **MUST NOT** duplicate types already defined in `src/types/`
-- **MUST NOT** use `any` for entity types
-- **SHOULD** use union string types for finite-value fields: `type Status = "active" | "inactive" | "blocked"`
-- **MUST** define `optional` vs `required` accurately — do not make everything optional to avoid TypeScript errors
+### [ARCHITECTURAL INVARIANT] - TypeScript Safety
+* **No `any` allowed:** Developers must not use `any` or `as any` to bypass compile-time checks.
+* **Narrow types:** Use exact union types instead of broad types when values are finite (e.g. `type Status = "active" | "inactive" | "blocked"`).
+* **Optional vs. Nullable:** Be explicit about whether a field is optional (`field?: string`) or nullable (`field: string | null`), matching the database model constraints.
 
 ---
 
-## 6. Validation Standard
+## 7. Validation Standard
 
-### Zod Usage
+### [CANONICAL PATTERN] - Schema Validation
+* Every data-entry form **MUST** define a companion Zod validation schema in `src/features/<module>/schemas/<entity>.schema.ts`.
+* Forms must use `@hookform/resolvers/zod` to bind Zod schemas to React Hook Form.
+* Form values types should be derived using `z.infer<typeof schema>`.
 
-**MUST** use Zod for all form validation schemas. The project uses `@hookform/resolvers/zod` to integrate Zod with React Hook Form.
-
-### Schema Location
-
-**MUST** live in `src/features/<module>/schemas/<entity>.schema.ts`.
-
-### Schema Pattern
-
-```ts
-import { z } from "zod";
-
-export const entitySchema = z.object({
-  name: z
-    .string()
-    .min(1, "Name is required")
-    .max(100, "Name must be less than 100 characters")
-    .trim(),
-  description: z.string().trim().optional(),
-  // ... validation rules
-});
-
-export type EntityFormValues = z.infer<typeof entitySchema>;
-```
-
-### Type Inference
-
-**SHOULD** use `z.infer<typeof schema>` to derive form value types directly from the schema, keeping them in sync. The Services module demonstrates this cleanly:
-
-```ts
-export type ServiceFormValues = z.infer<typeof serviceSchema>;
-```
-
-The Customer module defines `CustomerFormValues` manually. Either approach works, but `z.infer` is preferred for simpler schemas.
-
-### Validation Flow
-
-```
-Zod Schema
-    ↓
-zodResolver(schema)
-    ↓
-React Hook Form (useForm)
-    ↓
-Client-side validation on submit
-    ↓
-Mutation hook calls API
-    ↓
-Backend validates independently
-    ↓
-Backend validation errors mapped back via mapBackendValidationErrors()
-```
-
-### Error Message Conventions
-
-- **MUST** provide human-readable error messages: `"Name is required"`, not `"Required"`
-- **MUST** include length limits when applicable: `"Name must be less than 100 characters"`
-- **SHOULD** provide format guidance: `"Please enter a valid phone number (e.g. +1234567890)"`
-
-### Backend Error Mapping
-
-The shared utility `mapBackendValidationErrors` from `@/lib/api/errors` maps backend validation errors to React Hook Form field errors:
-
-```ts
-import { mapBackendValidationErrors, getErrorMessage } from "@/lib/api/errors";
-
-// In form submit error handler:
-const hasMappedErrors = mapBackendValidationErrors(error, setError);
-if (!hasMappedErrors) {
-  toast.error(getErrorMessage(error));
-}
-```
-
-**MUST** use this utility rather than inventing per-module error mapping.
+### [ARCHITECTURAL INVARIANT] - Error Mapping
+Feature code **MUST** use the centralized `mapBackendValidationErrors` and `getErrorMessage` utilities from `@/lib/api/errors` to handle API validation failures. Locally reinventing error mapping is prohibited.
 
 ---
 
-## 7. React Query / Server State Standard
+## 8. React Query / Server State Standard
 
-### Query Keys — Branch-Aware
+### [ARCHITECTURAL INVARIANT] - Cache Identity and Scoping
+Query keys determine the identity of cached server state. To prevent data leakage and incorrect views, every server-state input that affects the returned dataset **MUST** be represented in the query key.
 
-**MUST** use `getBranchQueryKey()` from `useBranchContext()` for all branch-scoped queries:
+The query key **MUST** incorporate:
+1. The domain entity name (e.g., `"customers"`, `"services"`)
+2. The active branch scope segment (using `getBranchQueryKey`)
+3. All query-affecting inputs (filters, search queries, pagination state, sort orders)
 
-```ts
-const { getBranchQueryKey } = useBranchContext();
-const queryKey = getBranchQueryKey("entities", [filters]);
+```typescript
+// [EXAMPLE] Proper scope-aware query key
+const queryKey = getBranchQueryKey("services", [filters]);
 ```
 
-This calls `getScopeQueryKey()` from `@/lib/api/queryKeys.ts` which produces structured, scope-isolated keys:
+### [ARCHITECTURAL INVARIANT] - Cache Separation
+Developers **MUST NOT** use static query keys (e.g., `["services"]`) for branch-scoped data. All branch-scoped queries must obtain their key via the `getBranchQueryKey` callback to ensure cache separation between branch views.
 
-```ts
-// Branch-specific:
-["entities", { scope: "branch", branchId: "br_123" }, filters]
+### [CANONICAL PATTERN] - Mutation Cache Invalidation
+After a successful mutation (create, update, status change, deactivation, reactivation), all affected queries **MUST** be invalidated to ensure the UI does not display stale data. This is typically achieved by invalidating the entity list query and the specific entity detail query.
 
-// Organization-wide:
-["entities", { scope: "organization" }, filters]
-```
-
-**MUST NOT** create static query keys like `["entities", filters]` for branch-scoped data. This causes cache collisions between branches.
-
-### Query Hook Pattern
-
-```ts
-export function useEntities(filters: EntityFilters = {}) {
-  const { currentBranchId, getBranchQueryKey } = useBranchContext();
-  const { isAuthenticated, user } = useAuth();
-
-  const isOrgWide = user?.hasOrgWideAccess === true;
-  const hasViewPermission = hasPermission(user, "entities.view");
-  const isEnabled = isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
-
-  const queryKey = getBranchQueryKey("entities", [filters]);
-
-  return useQuery({
-    queryKey,
-    queryFn: () => getEntities(filters),
-    enabled: isEnabled,
-  });
-}
-```
-
-Key elements:
-- **MUST** gate on authentication AND permission
-- **MUST** gate on branch context (specific branch OR org-wide access)
-- **MUST** use `getBranchQueryKey` for the query key
-- **SHOULD** disable retry for detail queries that may 404: `retry: false`
-
-### Mutation Hook Pattern
-
-Two patterns exist in the codebase:
-
-**Pattern A — Direct `useMutation` (Customer module):**
-
-```ts
-export function useCreateEntity() {
+```typescript
+// [EXAMPLE] Invalidation in a custom update hook
+export function useUpdateService() {
   const queryClient = useQueryClient();
   const { getBranchQueryKey } = useBranchContext();
 
-  return useMutation({
-    mutationFn: (payload: EntityPayload) => createEntity(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("entities") });
-    },
-  });
-}
-```
-
-**Pattern B — `useEntityMutation` shared abstraction (Services module):**
-
-```ts
-export function useCreateService() {
-  const { getBranchQueryKey } = useBranchContext();
-  return useEntityMutation<Service, Error, ServicePayload>({
-    mutationFn: createService,
+  return useEntityMutation<Service, Error, UpdateServiceParams>({
+    mutationFn: ({ id, payload }) => updateService(id, payload),
     invalidateKeys: [getBranchQueryKey("services")],
-  });
-}
-```
-
-**SHOULD** prefer Pattern B (`useEntityMutation`) for new modules. It encapsulates cache invalidation boilerplate and is the more recently standardized approach.
-
-### Cache Invalidation
-
-After mutations, **MUST** invalidate:
-- The **list** query key (e.g., `getBranchQueryKey("entities")`)
-- The **detail** query key for affected entities (e.g., `getBranchQueryKey("entity", [id])`)
-
-```ts
-onSuccess: (data) => {
-  queryClient.invalidateQueries({ queryKey: getBranchQueryKey("entities") });
-  queryClient.invalidateQueries({ queryKey: getBranchQueryKey("entity", [data.id]) });
-},
-```
-
-### Query Client Configuration
-
-The global query client is configured in `@/lib/api/queryClient.ts`:
-
-```ts
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60 * 1000,       // 1 minute
-      refetchOnWindowFocus: false,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("service", [data.id]) });
     },
-  },
-});
-```
-
-**MUST NOT** override these defaults unless a specific module has a documented reason.
-
----
-
-## 8. Branch Scoping Standard
-
-### How Branch Context Is Obtained
-
-All components access branch context via `useBranchContext()` from `@/hooks/useBranchContext.ts`. This hook abstracts Redux state and provides:
-
-| Return Value | Type | Purpose |
-|-------------|------|---------|
-| `currentBranchId` | `string \| null` | Selected branch ID; `null` = "All Branches" |
-| `currentBranch` | `Branch \| null` | Full Branch object for selected branch |
-| `availableBranches` | `Branch[]` | All branches user can access |
-| `isAllBranchesSelected` | `boolean` | True when viewing all branches |
-| `branchKey` | `string` | Query-safe branch key segment |
-| `getBranchQueryKey` | `function` | Generates scope-aware query keys |
-| `selectBranch` | `function` | Switch branch (invalidates queries) |
-| `getBranchName` | `function` | Look up branch name by ID |
-
-### How Branch Scope Reaches API Requests
-
-The Axios request interceptor reads `branchScope: "current"` from the request config, looks up the current branch from Redux/localStorage, and sets the `X-Branch-Id` header. API functions do not manually handle branch IDs.
-
-### Branch vs Organization Scope
-
-| Scope | Query Key | Header | Use Case |
-|-------|-----------|--------|----------|
-| Branch-specific | `{ scope: "branch", branchId: "br_123" }` | `X-Branch-Id: br_123` | Most module data |
-| Organization-wide | `{ scope: "organization" }` | Header omitted | Org-wide user viewing all branches |
-
-### Common Branch Scoping Mistakes
-
-**MUST** avoid:
-
-1. **Hardcoding branch IDs** — Always derive from `useBranchContext()`
-2. **Using `"all"` as a branch ID in API headers** — The backend rejects `X-Branch-Id: all`
-3. **Creating mutations without branch guards** — Create operations MUST require a specific branch:
-   ```ts
-   if (currentBranchId === null || currentBranchId === "all") {
-     throw new Error("Select a specific branch to create an entity.");
-   }
-   ```
-4. **Using static query keys for branch-scoped data** — Always use `getBranchQueryKey()`
-5. **Forgetting to include `branchScope: "current"` on API calls** — Every branch-scoped endpoint needs it
-
----
-
-## 9. RBAC / Permission Standard
-
-### Permission Naming
-
-**MUST** follow the `domain.action` pattern from `@/lib/permissions`:
-
-```ts
-type PermissionType =
-  | "customers.view"
-  | "customers.create"
-  | "customers.update"
-  | "customers.delete"
-  | "services.view"
-  | "services.create"
-  | "services.update"
-  | "services.delete"
-  // ...
-```
-
-### Permission Mapping in Config
-
-**MUST** define permissions in the module config:
-
-```ts
-export const MODULE_CONFIG = {
-  permissions: {
-    view: "entities.view",
-    create: "entities.create",
-    edit: "entities.update",
-    delete: "entities.delete",
-  },
-} as const;
-```
-
-### Permission Checks
-
-Use the shared helpers from `@/lib/permissions`:
-
-```ts
-import { hasPermission } from "@/lib/permissions";
-
-const canEdit = hasPermission(user, "entities.update");
-const canDelete = hasPermission(user, "entities.delete");
-```
-
-### Lifecycle Action Permissions
-
-The canonical permission mapping for lifecycle actions:
-
-| Action | Permission Used | Reasoning |
-|--------|----------------|-----------|
-| View/List | `<module>.view` | Read access |
-| Create | `<module>.create` | Write access |
-| Edit | `<module>.update` | Modify existing entity |
-| Deactivate | `<module>.delete` | Destructive action |
-| Reactivate | `<module>.update` (edit) | Restoring is an edit operation |
-
-This is confirmed by `EntityActionMenu`:
-```tsx
-// Deactivate shows when: isActive && onDelete && canDelete
-{isActive && onDelete && canDelete && ( /* Deactivate button */ )}
-
-// Reactivate shows when: !isActive && onReactivate && canEdit
-{!isActive && onReactivate && canEdit && ( /* Reactivate button */ )}
-```
-
-### UI Permission Gating
-
-Use `PermissionGate` for conditional rendering:
-
-```tsx
-import PermissionGate from "@/components/layout/PermissionGate";
-
-<PermissionGate permission="entities.create">
-  <Button>Create Entity</Button>
-</PermissionGate>
-```
-
-### Critical Rule
-
-> Frontend permission checks are **UX protection**, not security. The backend MUST independently authorize every protected operation. A hidden button does not make an endpoint secure.
-
----
-
-## 10. Table / List Architecture
-
-### DataTable Component
-
-**MUST** use the shared `DataTable` from `@/components/ui/data-table/DataTable.tsx`. Do not create module-specific table implementations.
-
-```tsx
-import { DataTable } from "@/components/ui/data-table/DataTable";
-
-<DataTable
-  columns={columns}
-  data={entities}
-  isLoading={isLoading}
-  emptyState={<EmptyState ... />}
-  renderMobileRow={(entity) => <EntityMobileCard entity={entity} />}
-  getRowClassName={(entity) => entity.isActive ? "" : "opacity-60"}
-/>
-```
-
-### DataTable Capabilities (Provided by Shared Component)
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Column rendering | ✅ Built-in | Via TanStack `ColumnDef` |
-| Loading skeleton | ✅ Built-in | Desktop table + mobile cards |
-| Empty state | ✅ Built-in | Pass via `emptyState` prop |
-| Mobile responsive | ✅ Built-in | Via `renderMobileRow` prop |
-| Row styling | ✅ Built-in | Via `getRowClassName` prop |
-
-### Module-Specific Responsibilities
-
-Each module **MUST** provide:
-
-1. **Column definitions** in `columns/<entity>Columns.tsx`
-2. **Mobile card component** in `components/<Entity>MobileCard.tsx`
-3. **Search component** in `components/<Entity>Search.tsx`
-4. **Filter component** in `components/<Entity>Filters.tsx`
-5. **List header** in `components/<Entity>ListHeader.tsx`
-
-### Column Definition Pattern
-
-**MUST** define columns as a builder function in `columns/<entity>Columns.tsx`:
-
-```tsx
-interface EntityColumnOptions {
-  onView: (entity: Entity) => void;
-  onEdit: (entity: Entity) => void;
-  onDelete: (entity: Entity) => void;
-  onReactivate: (entity: Entity) => void;
-  isAllBranches: boolean;
-}
-
-export const buildEntityColumns = ({
-  onView,
-  onEdit,
-  onDelete,
-  onReactivate,
-  isAllBranches,
-}: EntityColumnOptions): ColumnDef<Entity>[] => [
-  // ... column definitions
-  {
-    id: "actions",
-    header: () => <div className="text-right">Actions</div>,
-    cell: (info) => (
-      <EntityActionMenu
-        onView={() => onView(info.row.original)}
-        onEdit={() => onEdit(info.row.original)}
-        onDelete={() => onDelete(info.row.original)}
-        onReactivate={() => onReactivate(info.row.original)}
-        status={info.row.original.status}
-        permissions={{
-          edit: MODULE_CONFIG.permissions.edit,
-          delete: MODULE_CONFIG.permissions.delete,
-        }}
-      />
-    ),
-  },
-];
-```
-
-**MUST** use `EntityActionMenu` from `@/components/entity/EntityActionMenu` for the actions column.
-
-**SHOULD** conditionally include a Branch column when `isAllBranches` is true.
-
----
-
-## 11. Pagination Standard
-
-### Backend Contract
-
-```ts
-// Request
-GET /entities?page=1&limit=10
-
-// Response
-{
-  "success": true,
-  "status": "success",
-  "data": [...],
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 10
-  }
-}
-```
-
-### Frontend Pagination Component
-
-**MUST** use the shared `Pagination` component from `@/components/ui/pagination.tsx`:
-
-```tsx
-import { Pagination } from "@/components/ui/pagination";
-
-<Pagination
-  currentPage={currentPage}
-  totalPages={meta?.totalPages ?? 1}
-  totalItems={meta?.total ?? 0}
-  onPageChange={setCurrentPage}
-  itemLabel="customers"
-  pageSize={pageSize}
-  pageSizeOptions={[10, 25, 50, 100]}
-  onPageSizeChange={setPageSize}
-/>
-```
-
-### Pagination State
-
-**SHOULD** manage pagination state locally in the list component using `useState`:
-
-```ts
-const [currentPage, setCurrentPage] = useState(1);
-const [pageSize, setPageSize] = useState(MODULE_CONFIG.defaults.pageSize);
-```
-
-These values are passed as params to the query hook, which includes them in the query key for proper cache separation.
-
-### Default Page Size
-
-**MUST** be defined in the module config:
-
-```ts
-defaults: {
-  pageSize: 10,
-}
-```
-
----
-
-## 12. Entity Profile / Detail Page Standard
-
-### Route Structure
-
-```
-src/app/(dashboard)/<entities>/[<entityId>]/page.tsx
-```
-
-**MUST** use Next.js dynamic route with async params:
-
-```tsx
-interface PageProps {
-  params: Promise<{ entityId: string }>;
-}
-
-export default async function Page({ params }: PageProps) {
-  const { entityId } = await params;
-  return <EntityDetailsPage entityId={entityId} />;
-}
-```
-
-### Detail Page Component Architecture
-
-```
-<EntityDetailsPage>
-  ├── Permission check (canView → Unauthorized)
-  ├── Loading state (skeleton)
-  ├── Error state (ErrorState component)
-  │   ├── 403 → Unauthorized
-  │   └── Other → ErrorState with retry
-  ├── <EntityProfileHeader>
-  │   ├── Back navigation
-  │   ├── Entity name, status badge
-  │   ├── Key metadata
-  │   └── Action buttons (Edit, Deactivate/Reactivate)
-  ├── <EntityProfileLayout>
-  │   ├── Tab navigation (sidebar on desktop, horizontal on mobile)
-  │   └── Tab content panels
-  ├── Edit Dialog (Dialog + EntityForm)
-  ├── DeactivateDialog
-  └── ReactivateDialog
-```
-
-### EntityProfileLayout
-
-**MUST** use the shared `EntityProfileLayout` from `@/components/entity/EntityProfileLayout`:
-
-```tsx
-import { EntityProfileLayout, type ProfileTabItem } from "@/components/entity/EntityProfileLayout";
-
-const tabs: ProfileTabItem[] = [
-  { id: "overview", label: "Overview" },
-  { id: "notes", label: "Notes" },
-  { id: "activity", label: "Activity Log" },
-];
-
-<EntityProfileLayout
-  tabs={tabs}
-  activeTab={activeTab}
-  onTabChange={setActiveTab}
->
-  {/* Tab content */}
-</EntityProfileLayout>
-```
-
-### Tab State
-
-Tab state is managed with local `useState`. Both canonical modules use this approach:
-
-```ts
-const [activeTab, setActiveTab] = useState<string>("overview");
-```
-
-### Loading States
-
-**MUST** provide a skeleton loading state that visually matches the page layout structure.
-
-### Error Handling
-
-**MUST** check for HTTP 403 and render `<Unauthorized />`:
-
-```tsx
-if (status === 403) {
-  return <Unauthorized />;
-}
-```
-
-For other errors, use `<ErrorState>` with a retry action.
-
----
-
-## 13. CRUD Standard
-
-### Full Lifecycle
-
-```
-List → Create → Read (Detail) → Update → Deactivate → Reactivate
-```
-
-### Responsibility Matrix
-
-| Concern | List | Create | Read | Update | Deactivate | Reactivate |
-|---------|------|--------|------|--------|------------|------------|
-| **API** | `getEntities()` | `createEntity()` | `getEntity()` | `updateEntity()` | `deleteEntity()` | `reactivateEntity()` |
-| **Hook** | `useEntities()` | `useCreateEntity()` | `useEntity()` | `useUpdateEntity()` | `useDeleteEntity()` | `useReactivateEntity()` |
-| **Permission** | `view` | `create` | `view` | `update` | `delete` | `update` |
-| **Schema** | — | Entity schema | — | Entity schema | — | — |
-| **UI** | DataTable + List | Dialog + Form | Detail page | Dialog + Form | DeactivateDialog | ReactivateDialog |
-| **Cache** | — | Invalidate list | — | Invalidate list + detail | Invalidate list + detail | Invalidate list + detail |
-| **Branch** | Required | Specific branch required | Required | Required | Required | Required |
-
-### Create Restriction
-
-**MUST** prevent creation under "All Branches" scope:
-
-```ts
-if (currentBranchId === null || currentBranchId === "all") {
-  throw new Error("Select a specific branch to create.");
-}
-```
-
-### Delete = Deactivate
-
-In this project, "delete" is a soft delete (deactivation). The delete API sets the entity to inactive rather than permanently removing it. Naming uses `deleteEntity` in the API/hook layer but "Deactivate" in the UI.
-
----
-
-## 14. Lifecycle / Status Standard
-
-### Lifecycle Field
-
-Two patterns exist in the canonical modules:
-
-| Module | Field | Type | Values |
-|--------|-------|------|--------|
-| Customer | `status` | `CustomerStatus` | `"active"` \| `"inactive"` \| `"blocked"` |
-| Services | `isActive` | `boolean` | `true` \| `false` |
-
-### Canonical Guidance
-
-**SHOULD** prefer a `status` string union field when more than two states exist (Customer pattern). **MAY** use `isActive: boolean` for simpler entities with only active/inactive states (Services pattern).
-
-### Deactivation
-
-- API: `DELETE /<entities>/:id` (soft delete) or `PATCH /<entities>/:id/status` with `{ isActive: false }`
-- Permission: `<module>.delete`
-- UI: `DeactivateDialog` from `@/components/entity/DeactivateDialog`
-
-### Reactivation
-
-- API: `PUT /<entities>/:id/reactivate` or `PATCH /<entities>/:id/status` with `{ isActive: true }`
-- Permission: `<module>.update` (edit permission)
-- UI: `ReactivateDialog` from `@/components/entity/ReactivateDialog`
-
-### Critical Warning
-
-**MUST NOT** create duplicate lifecycle fields:
-
-```ts
-// ❌ DO NOT create multiple competing fields
-isActive: boolean;
-status: "active" | "inactive";
-enabled: boolean;
-disabled: boolean;
-```
-
-Choose ONE canonical lifecycle field per entity and use it consistently.
-
----
-
-## 15. Reusable Shared Components
-
-### Entity Components (`src/components/entity/`)
-
-| Component | Purpose | When to Use |
-|-----------|---------|-------------|
-| `EntityActionMenu` | Row-level action buttons (View, Edit, Deactivate, Reactivate) | Every list table's actions column |
-| `EntityProfileLayout` | Tabbed layout with sidebar navigation | Every entity detail/profile page |
-| `DeactivateDialog` | Confirmation dialog for soft deletion | Every deactivate action |
-| `ReactivateDialog` | Confirmation dialog for status restoration | Every reactivate action |
-
-### UI Components (`src/components/ui/`)
-
-| Component | Purpose | When to Use |
-|-----------|---------|-------------|
-| `DataTable` | TanStack-powered table with skeletons and mobile support | Every entity list page |
-| `Pagination` | Page navigation with size selector | Every paginated list |
-| `EmptyState` | Friendly empty state with icon, title, description, optional action | When a list or tab has no data |
-| `ErrorState` | Error display with retry button | When a query fails |
-| `Dialog` | Modal dialog wrapper | Forms, confirmations |
-| `Button` | Styled button with variants and sizes | All interactive actions |
-| `Badge` | Status/category indicators | Status columns, metadata |
-| `Input` | Text input field | All forms |
-| `Select` | Dropdown select field | Filters, forms |
-| `Switch` | Toggle switch | Boolean form fields |
-| `Textarea` | Multi-line text input | Notes, descriptions |
-| `PageHeaderBanner` | Page title banner | List page headers |
-
-### Layout Components (`src/components/layout/`)
-
-| Component | Purpose | When to Use |
-|-----------|---------|-------------|
-| `PermissionGate` | Conditionally render children based on permission | Permission-gated UI sections |
-| `ProtectedRoute` | Route-level permission check | Page-level access control |
-| `Unauthorized` | "Access denied" UI | When user lacks permission |
-| `Breadcrumbs` | Navigation breadcrumbs | Page navigation context |
-| `BranchSwitcher` | Branch selection dropdown | (Already in layout) |
-
-### Shared Utilities (`src/lib/`)
-
-| Utility | Purpose | When to Use |
-|---------|---------|-------------|
-| `apiClient` | Centralized Axios instance | All API calls |
-| `getScopeQueryKey` | Branch-aware query key generator | All query hooks |
-| `useEntityMutation` | Generic mutation with invalidation | All mutation hooks |
-| `getErrorMessage` | Extract user-friendly error text | All error handlers |
-| `mapBackendValidationErrors` | Map backend errors to form fields | All form submissions |
-| `hasPermission` / `hasAnyPermission` | Permission check helpers | All permission gates |
-| `formatDate` / `formatCurrency` / `capitalizeWords` | Display formatters | Columns, detail views |
-
-**MUST NOT** duplicate any of these locally in a feature module.
-
----
-
-## 16. Hooks Standard
-
-### Hook Types
-
-| Type | Naming | Example | Purpose |
-|------|--------|---------|---------|
-| List query | `use<Entities>` | `useCustomers` | Paginated list with filters |
-| Detail query | `use<Entity>` | `useCustomer` | Single entity by ID |
-| Sub-resource query | `use<Entity><Resource>s` | `useCustomerNotes` | Related sub-entity list |
-| Create mutation | `useCreate<Entity>` | `useCreateCustomer` | POST new entity |
-| Update mutation | `useUpdate<Entity>` | `useUpdateCustomer` | PUT/PATCH existing entity |
-| Delete mutation | `useDelete<Entity>` | `useDeleteCustomer` | DELETE (deactivate) entity |
-| Reactivate mutation | `useReactivate<Entity>` | `useReactivateCustomer` | PUT reactivate entity |
-| Status mutation | `useUpdate<Entity>Status` | `useUpdateServiceStatus` | PATCH status toggle |
-
-### Standard Query Hook Template
-
-```ts
-import { useQuery } from "@tanstack/react-query";
-import { getEntities } from "../api/entities.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
-import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasPermission } from "@/lib/permissions";
-
-export function useEntities(filters: EntityFilters = {}) {
-  const { currentBranchId, getBranchQueryKey } = useBranchContext();
-  const { isAuthenticated, user } = useAuth();
-
-  const isOrgWide = user?.hasOrgWideAccess === true;
-  const hasViewPermission = hasPermission(user, "entities.view");
-  const isEnabled = isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
-
-  return useQuery({
-    queryKey: getBranchQueryKey("entities", [filters]),
-    queryFn: () => getEntities(filters),
-    enabled: isEnabled,
   });
 }
 ```
 
-### Standard Mutation Hook Template (Preferred)
+---
 
-```ts
-import { useEntityMutation } from "@/lib/api/mutations";
-import { createEntity } from "../api/entities.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
+## 9. Branch Scoping Standard
 
-export function useCreateEntity() {
-  const { getBranchQueryKey } = useBranchContext();
-  return useEntityMutation<Entity, Error, EntityPayload>({
-    mutationFn: createEntity,
-    invalidateKeys: [getBranchQueryKey("entities")],
-  });
-}
-```
-
-### Responsibility Boundaries
-
-```
-API Layer:     HTTP call → return typed data
-Hook Layer:    Query key + enabled logic + cache invalidation
-Component Layer: Call hook, handle loading/error/data states, user interaction
-```
-
-Hooks **MUST NOT** contain:
-- Toast notifications (handled in components)
-- Router navigation (handled in components)
-- UI state management (handled in components)
+### [ARCHITECTURAL INVARIANT] - Centralized Scoping
+The application operates on a multi-branch ERP model. Feature modules **MUST** rely on the centralized branch-scoping mechanism:
+* Branch state is managed globally by `useBranchContext()`.
+* **Branch-scoped operations:** The API request config must include `branchScope: "current"`. The Axios interceptor automatically appends the correct `X-Branch-Id` header based on active state.
+* **Organization-wide operations:** The request config must omit or configure `branchScope` such that no `X-Branch-Id` header is sent.
+* **Sentinel Rejection:** Modules **MUST NOT** manually read branch ID from arbitrary locations, construct headers manually, or send `X-Branch-Id: "all"`.
 
 ---
 
-## 17. Form Architecture
+## 10. RBAC / Permission Standard
 
-### Flow
-
-```
-UI Form (React Hook Form)
-    ↓
-zodResolver(entitySchema)
-    ↓
-Client-side validation
-    ↓
-onSubmit handler in component
-    ↓
-Mutation hook .mutate()
-    ↓
-API service function
-    ↓
-Backend validation
-    ↓
-Success → toast + close dialog + invalidate cache
-Error → toast or inline error
-```
-
-### Form Component Pattern
-
-```tsx
-"use client";
-
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { entitySchema, type EntityFormValues } from "../schemas/entity.schema";
-
-interface EntityFormProps {
-  initialValues?: Partial<EntityFormValues>;
-  onSubmit: (values: EntityPayload) => void;
-  isSubmitting: boolean;
-  onCancel: () => void;
-  error?: Error | null;
-}
-
-export default function EntityForm({
-  initialValues,
-  onSubmit,
-  isSubmitting,
-  onCancel,
-  error,
-}: EntityFormProps) {
-  const form = useForm<EntityFormValues>({
-    resolver: zodResolver(entitySchema),
-    defaultValues: { /* sensible defaults */ },
-  });
-
-  const handleSubmit = form.handleSubmit((values) => {
-    onSubmit(transformToPayload(values));
-  });
-
-  return (
-    <form onSubmit={handleSubmit}>
-      {/* Form fields */}
-      <Button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Saving..." : "Save"}
-      </Button>
-    </form>
-  );
-}
-```
-
-### Create vs Edit
-
-Both canonical modules use a single form component for both create and edit, distinguished by:
-- Whether `initialValues` is provided
-- The submit handler (create vs update mutation)
-
-The form is rendered inside a `<Dialog>` in the parent component.
-
-### Default Values
-
-**MUST** provide complete default values that match the Zod schema structure. For edit mode, populate from the existing entity data.
+### [ARCHITECTURAL INVARIANT] - Permission Rules
+* **No Role Bypasses:** Role names (e.g., `"Owner"`) must never be used in frontend code to bypass permission checks. Permission checks must look up specific permission keys.
+* **UX Gating Only:** Frontend checks (`hasPermission`, `PermissionGate`) are for visual styling and UX guidance. They do not substitute for backend authorization, which must independently secure every API endpoint.
+* **Permissions Naming:** Permissions follow the `domain.action` or `domain.resource.action` syntax.
+* **Lifecycle Permissions:**
+  * Deactivation: Requires the `<module>.delete` permission.
+  * Reactivation: Requires the `<module>.update` permission (as reactivation restores the profile state, which is an edit operation).
 
 ---
 
-## 18. UI/UX Standard
+## 11. Table / List Architecture
 
-### Loading States
+### [CANONICAL PATTERN] - List Rendering
+* List views displaying tabular data **MUST** use the shared `DataTable` component.
+* Standard lists **MUST** support paginated queries, search inputs, and filters.
+* All lists **MUST** provide a matching card-based mobile view via the `renderMobileRow` prop of `DataTable`.
 
-**MUST** provide:
-- **Table loading:** DataTable's built-in skeleton (automatically rendered when `isLoading=true`)
-- **Page loading:** Skeleton placeholder matching the page layout structure
-- **Button loading:** `Loader2` spinner icon + "Saving..." / "Deleting..." / "Reactivating..." text
-- **Route loading:** Next.js `loading.tsx` files for route-level suspense
-
-### Empty States
-
-**MUST** use the shared `EmptyState` component:
-
-```tsx
-<EmptyState
-  icon={Users}
-  title="No Customers Found"
-  description="Create a new customer profile or switch active branches to get started."
-  action={{
-    label: "Add Customer",
-    onClick: handleCreate,
-    icon: Plus,
-  }}
-/>
-```
-
-### Error States
-
-**MUST** use the shared `ErrorState` component:
-
-```tsx
-<ErrorState
-  title="Something went wrong"
-  description="Unable to load data. Please try again."
-  retryAction={{
-    label: "Try Again",
-    onClick: () => refetch(),
-    isLoading: isRefetching,
-  }}
-/>
-```
-
-### Destructive Actions
-
-**MUST** show confirmation dialogs for deactivation and deletion. Use the shared `DeactivateDialog` and `ReactivateDialog` components.
-
-### Toast Feedback
-
-**SHOULD** use `toast` from `sonner` for mutation feedback:
-
-```ts
-toast.success("Entity created successfully.");
-toast.error(getErrorMessage(error));
-```
-
-### Accessibility
-
-**SHOULD:**
-- Use `aria-label` on icon-only buttons (e.g., `title="View Details"`)
-- Use `role="navigation"` and `aria-label` on pagination
-- Use `aria-current="page"` on active pagination buttons
-- Use semantic elements: `<button>`, `<a>`, `<nav>`, `<form>`
-- Support keyboard navigation for dialogs and interactive elements
-
-### Responsive Design
-
-**MUST** provide:
-- Desktop: Full table view with all columns
-- Mobile: Card-based view via `renderMobileRow` prop on DataTable
-- Tablet: Table view with graceful column hiding
-
-The `useMediaQuery` hook from `@/hooks/useMediaQuery` is available for responsive logic.
-
-### Dark Mode
-
-**MUST** use Tailwind's semantic design tokens (`bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`, etc.). Do not hardcode colors.
+### [RECOMMENDED PRACTICE] - Action Menus
+* **[RECOMMENDED PRACTICE]** - CRUD-oriented entities should use the shared `EntityActionMenu` for list row actions when the standard action model (View, Edit, Deactivate, Reactivate) applies.
+* **[ARCHITECTURAL INVARIANT]** - Existing shared action-menu functionality must not be duplicated locally when it is applicable. Domain-specific transactional or reporting entities may use custom action buttons tailored to their interaction models.
 
 ---
 
-## 19. Naming Conventions
+## 12. Pagination Standard
 
-| Item | Convention | Example |
-|------|-----------|---------|
-| Feature folder | lowercase plural | `customers`, `services` |
-| Component file | PascalCase | `CustomerList.tsx`, `ServiceForm.tsx` |
-| Hook file | `use<Action><Entity>.ts` | `useCustomers.ts`, `useCreateService.ts` |
-| API file | `<entity>.api.ts` | `customers.api.ts`, `services.api.ts` |
-| Schema file | `<entity>.schema.ts` | `customer.schema.ts`, `service.schema.ts` |
-| Type file | `<entity>.types.ts` | `customer.types.ts`, `service.types.ts` |
-| Config file | `<module>.config.ts` | `customers.config.ts`, `services.config.ts` |
-| Constants file | `<entity>.constants.ts` | `service.constants.ts` |
-| Column file | `<entity>Columns.tsx` | `customerColumns.tsx`, `serviceColumns.tsx` |
-| Query key (list) | `"<entities>"` | `"customers"`, `"services"` |
-| Query key (detail) | `"<entity>"` | `"customer"`, `"service"` |
-| Query key (sub-resource) | `"<entity>-<resource>"` | `"customer-notes"`, `"customer-activity"` |
-| Route (list) | `/<entities>` | `/customers`, `/services` |
-| Route (detail) | `/<entities>/[<entityId>]` | `/customers/[customerId]` |
-| Dialog component | `<Entity><Action>Dialog.tsx` | `CustomerDeleteDialog.tsx` |
-| Permission | `<module>.<action>` | `customers.view`, `services.create` |
-| Config constant | `<MODULE>_CONFIG` | `CUSTOMERS_CONFIG`, `SERVICES_CONFIG` |
-| Column builder | `build<Entity>Columns` | `buildCustomerColumns`, `buildServiceColumns` |
+### [ARCHITECTURAL INVARIANT] - Server-Side Pagination
+* All ERP modules displaying potentially large datasets **MUST** implement server-side pagination. Client-side pagination of large datasets is strictly prohibited.
+* Pagination controls must use the shared `Pagination` component from `@/components/ui/pagination.tsx`.
+* Default page sizes and limits must be defined in the feature config file and passed consistently to queries.
 
 ---
 
-## 20. Backend Architecture Standard
+## 13. Entity Profile / Detail Page Standard
 
-The backend follows a layered architecture documented in `docs/BACKEND_ARCHITECTURE.md`:
-
-```
-Route → Authentication Middleware → Authorization Middleware → Scope Validation → Controller → Validation → Service → Model / Database
-```
-
-### Layer Responsibilities
-
-| Layer | Responsibility | Must NOT |
-|-------|---------------|----------|
-| **Route** | HTTP method, URL, middleware chain | Contain business logic |
-| **Auth Middleware** | Verify identity (JWT) | Perform authorization |
-| **Authz Middleware** | Check permission: `authorize("entities.view")` | Use role-name bypasses |
-| **Scope Validation** | Validate org + branch context | Trust client-provided org IDs |
-| **Controller** | Read request context, call service, return response | Contain large business workflows |
-| **Validation** | Validate body, query, params | Allow immutable field overrides |
-| **Service** | Business rules, data access orchestration | Trust client tenant ownership |
-| **Model** | Schema, indexes, persistence | Contain all business logic |
-
-### Backend Endpoint Contract for New Modules
-
-| Endpoint | Method | Permission | Response Type |
-|----------|--------|------------|---------------|
-| `/<entities>` | GET | `<module>.view` | `PaginatedResponse<T>` |
-| `/<entities>/:id` | GET | `<module>.view` | `ApiResponse<T>` |
-| `/<entities>` | POST | `<module>.create` | `ApiResponse<T>` |
-| `/<entities>/:id` | PUT | `<module>.update` | `ApiResponse<T>` |
-| `/<entities>/:id` | DELETE | `<module>.delete` | `ApiResponse<void>` |
-| `/<entities>/:id/reactivate` | PUT | `<module>.update` | `ApiResponse<T>` |
+### [RECOMMENDED PRACTICE] - Profile Navigation Layout
+* **[RECOMMENDED PRACTICE]** - Profile-oriented entities (e.g., Customer, Staff, Branch details) should use `EntityProfileLayout` to compose tabbed detail views.
+* **[ARCHITECTURAL INVARIANT]** - Feature modules must reuse existing shared layout primitives when applicable. Transactional documents (e.g. Invoices, Bookings) or reporting pages may use custom detailed layouts if the domain model requires a different interface.
 
 ---
 
-## 21. Data Model Standard
+## 14. CRUD Standard
 
-### Canonical Entity Fields
-
-| Field | Type | Required | Purpose |
-|-------|------|----------|---------|
-| `_id` | ObjectId | Auto | MongoDB primary key |
-| `organizationId` | ObjectId/String | MUST | Tenant isolation |
-| `branchId` / `homeBranchId` | ObjectId/String | MUST for branch-scoped | Branch ownership |
-| `name` | String | MUST | Primary display field |
-| `status` or `isActive` | String/Boolean | MUST | Lifecycle state |
-| `createdAt` | Date | MUST | Audit: creation time |
-| `updatedAt` | Date | MUST | Audit: last modification |
-
-### Immutable Scoping Fields
-
-**MUST NOT** allow client updates to:
-- `organizationId`
-- `homeBranchId` (unless a dedicated domain operation exists)
-- `visitedBranchIds` (derived field)
-
-### Relationships
-
-- **References:** Store `branchId`, `categoryId` as string IDs. Resolve via separate queries or backend population.
-- **Embedded data:** Small, tightly coupled sub-objects (address, preferences, marketing preferences) may be embedded directly in the entity document.
-
-### Timestamps
-
-**MUST** include `createdAt` and `updatedAt` as ISO string dates. Mongoose `timestamps: true` handles this automatically.
+### [CANONICAL PATTERN] - Mutation Scoping
+* Every mutation hook must invalidate the related list cache.
+* Creation mutations **MUST** verify that a specific branch is selected (`currentBranchId !== null`) and must throw an error if the user is in "All Branches" scope.
+* Detail routing page files (`page.tsx`) must resolve param promises asynchronously and hand the identifiers to client feature components.
 
 ---
 
-## 22. Audit / History / Notes Standard
+## 15. Lifecycle / Status Standard
 
-The Customer module demonstrates three separate data concerns:
+### [ARCHITECTURAL INVARIANT] - Single Lifecycle Field
+A domain entity **MUST NOT** define multiple competing status or state fields. Each module must standardize on exactly one lifecycle representation:
+* Use `status: "active" | "inactive" | "blocked"` for entities with multi-state lifecycles.
+* Use `isActive: boolean` for simpler entities.
+Casually combining `isActive`, `status`, `enabled`, and `disabled` within the same entity schema is forbidden.
 
-### Notes
-
-Managed as a **sub-resource** of the entity with its own API endpoints:
-
-```
-GET    /customers/:id/notes        → PaginatedResponse<CustomerNote>
-POST   /customers/:id/notes        → CustomerNote
-```
-
-Notes have their own type:
-
-```ts
-interface CustomerNote {
-  _id: string;
-  text: string;
-  createdBy: string | { _id: string; name: string };
-  createdAt: string;
-}
-```
-
-### Activity / Audit Logs
-
-Managed as a **separate read-only sub-resource**:
-
-```
-GET    /customers/:id/activity     → PaginatedResponse<AuditLog>
-```
-
-Audit logs record actions (`CUSTOMER_CREATED`, `CUSTOMER_UPDATED`, `NOTE_ADDED`, etc.) and are generated server-side, not client-side.
-
-### When to Separate
-
-| Data Type | Location | Rationale |
-|-----------|----------|-----------|
-| Core entity fields | Primary document | Always needed, small |
-| Embedded sub-objects | Primary document | Tightly coupled, small (address, preferences) |
-| Notes | Separate collection/sub-resource | Unbounded, user-generated, independently paginated |
-| Audit logs | Separate collection/sub-resource | Automatically generated, never modified, independently queried |
-
-**SHOULD** move data to a separate collection/sub-resource when:
-- The data is unbounded (grows over time)
-- The data is independently paginated
-- The data has different access patterns than the primary entity
+### [ARCHITECTURAL INVARIANT] - HTTP Method Authority
+This standard defines *architectural behavior* (Deactivate vs. Reactivate), not arbitrary HTTP verbs. The frontend codebase **MUST** follow the backend API contract. If the backend defines `DELETE /entities/:id` for deactivation, the frontend must call that method; if the backend defines `PATCH /entities/:id/status`, the frontend must call that method. The frontend must never invent endpoints or HTTP verbs that differ from the backend runtime contract.
 
 ---
 
-## 23. Error Handling Standard
+## 16. Reusable Shared Components
 
-### Error Flow
+Future modules **MUST** reuse the following existing shared components rather than reimplementing them locally:
 
-```
-Backend error
-    ↓
-Axios interceptor (401 → refresh token, redirect to login)
-    ↓
-API function (throws AxiosError)
-    ↓
-React Query (sets error state)
-    ↓
-Hook consumer (component checks isError)
-    ↓
-UI rendering (ErrorState, toast, or inline error)
-```
-
-### Shared Error Utilities
-
-```ts
-import { getErrorMessage, mapBackendValidationErrors, isBackendError } from "@/lib/api/errors";
-```
-
-| Utility | Usage |
-|---------|-------|
-| `getErrorMessage(error)` | Extract user-friendly message from any error |
-| `mapBackendValidationErrors(error, setError)` | Map backend field errors to React Hook Form |
-| `isBackendError(error)` | Type guard for Axios errors |
-
-### Error Handling by Context
-
-| Context | Pattern |
-|---------|---------|
-| **List query error** | `ErrorState` component with retry |
-| **Detail query error** | `ErrorState` with retry; 403 → `Unauthorized` |
-| **Mutation error** | `toast.error(getErrorMessage(err))` |
-| **Form validation error** | Inline field errors via Zod |
-| **Backend validation error** | `mapBackendValidationErrors` → inline field errors |
-| **Network error** | `toast.error("Unable to connect...")` |
-| **401 Unauthorized** | Automatic token refresh or redirect to login (handled by Axios interceptor) |
-| **403 Forbidden** | `Unauthorized` component |
-
-### Rules
-
-- **MUST NOT** expose raw error messages, stack traces, or internal details to users
-- **MUST** provide a retry mechanism for query failures
-- **MUST** prevent double-submission by disabling buttons during mutation loading
+| Category | Component Path | Purpose |
+|---|---|---|
+| **Entity Actions** | `@/components/entity/EntityActionMenu.tsx` | View, Edit, Deactivate, Reactivate action buttons |
+| **Entity Actions** | `@/components/entity/DeactivateDialog.tsx` | Soft-delete/deactivate confirmation modal |
+| **Entity Actions** | `@/components/entity/ReactivateDialog.tsx` | Profile restoration confirmation modal |
+| **Entity Layout** | `@/components/entity/EntityProfileLayout.tsx` | Tabbed navigation and content layout |
+| **Common UI** | `@/components/ui/data-table/DataTable.tsx` | Table rendering with skeleton loading and mobile responsive slots |
+| **Common UI** | `@/components/ui/pagination.tsx` | Pagination bar with size select dropdown |
+| **Common UI** | `@/components/ui/empty-state.tsx` | Dashboard/list zero-data message view |
+| **Common UI** | `@/components/ui/error-state.tsx` | Component loading failure warning with retry action |
+| **Global Layout** | `@/components/layout/PermissionGate.tsx` | Role-agnostic permission checking wrapper |
+| **Global Layout** | `@/components/layout/Unauthorized.tsx` | Access denied page view |
 
 ---
 
-## 24. Security Standard
+## 17. Hooks Standard
 
-### RBAC
-
-- **MUST** check permissions via `hasPermission()` before showing/enabling actions
-- **MUST NOT** use role names as permission proxies: `if (user.role === "Owner")` is forbidden
-- **MUST** define all permissions in the backend registry first
-
-### Branch Isolation
-
-- **MUST** use `branchScope: "current"` on branch-scoped API calls
-- **MUST NOT** send `X-Branch-Id: "all"` — omit the header for org-wide queries
-- **MUST NOT** trust client-provided organization or branch IDs
-
-### Authentication
-
-- Access tokens stored in cookies via `@/lib/auth/token.ts`
-- Refresh tokens stored in HttpOnly cookies (backend-managed, not accessible from client)
-- Token refresh handled centrally by the Axios response interceptor
-- **MUST NOT** implement auth logic inside individual components
-
-### Sensitive Fields
-
-- **MUST NOT** expose `NEXT_PUBLIC_*` environment variables for secrets
-- **MUST NOT** store sensitive data in localStorage
-- The `.env` file stores `NEXT_PUBLIC_API_BASE_URL` only
-
-### Input Validation
-
-- Frontend validation (Zod) is for UX only
-- Backend MUST independently validate all inputs
-- Backend MUST reject modification of immutable scoping fields
+### [CANONICAL PATTERN] - Hook Responsibilities
+Custom hooks decouple components from state management:
+* **Query Hooks:** Encapsulate auth checks, permission checks, active branch scoping, and pass parameters to query functions.
+* **Mutation Hooks:** Encapsulate loading state triggers, mutation functions, and query cache invalidations.
+* **Hooks must not:** Access router navigation directly, dispatch toast notifications, or manage local modal overlays.
 
 ---
 
-## 25. Performance Standard
+## 18. Form Architecture
 
-### React Query Caching
+### [CANONICAL PATTERN] - Form Lifecycle
+The standard form lifecycle flows as follows:
+```
+React Hook Form (useForm)
+  ↓
+Zod Validation Resolver
+  ↓
+Component Submit Handler
+  ↓
+Mutation Hook (.mutate)
+  ↓
+API Service Call
+  ↓
+Backend Validation
+  ↓
+Success: Invalidate cache + Close modal + Toast success
+Error: Map backend validation errors (mapBackendValidationErrors) + Toast error
+```
 
-- Default `staleTime: 60_000` (1 minute) is set globally
-- `refetchOnWindowFocus: false` prevents unnecessary refetches
-- **MUST NOT** override these without justification
+---
 
-### Pagination
+## 19. UI/UX Standard
 
-- **MUST** paginate lists server-side (default 10 per page)
-- **MUST NOT** fetch all records and filter/paginate client-side
+### [ARCHITECTURAL INVARIANT] - UI States
+Every data-driven page **MUST** provide:
+1. **Loading State:** Skeletons or loading indicators (e.g., DataTable built-in loading skeletons).
+2. **Empty State:** Clear explanations when no records match (using `EmptyState`).
+3. **Error State:** Human-readable explanations of failures with a retry option (using `ErrorState`).
+4. **Destructive confirmations:** Modals confirming deactivation or cancellation.
 
-### Avoiding Unnecessary Refetches
+---
 
-- Use targeted query invalidation after mutations (not global invalidation)
-- Example: After updating a customer, invalidate `["customers"]` and `["customer", id]`, not all queries
+## 20. Naming Conventions
 
-### Memoization
+### [CANONICAL PATTERN] - File and Folder Naming
+Modules **MUST** follow these exact casing and suffix rules:
 
-- **MUST NOT** add `useMemo`/`useCallback` everywhere by default
-- **SHOULD** memoize only when measurable performance benefit exists
-- Column builder functions are already factory functions, avoiding recreation
+| File Type | Casing | Suffix | Example |
+|---|---|---|---|
+| **Feature Folder** | Lowercase | Plural | `customers`, `services` |
+| **API File** | lowercase | `.api.ts` | `customers.api.ts` |
+| **Type File** | lowercase | `.types.ts` | `customer.types.ts` |
+| **Schema File** | lowercase | `.schema.ts` | `customer.schema.ts` |
+| **Column File** | camelCase | `Columns.tsx` | `customerColumns.tsx` |
+| **Config File** | lowercase | `.config.ts` | `customers.config.ts` |
+| **Component File** | PascalCase | None | `CustomerForm.tsx` |
+| **Hook File** | camelCase | None | `useCustomers.ts` |
 
-### Dynamic Imports
+---
 
-- **MAY** use `next/dynamic` for heavy components that aren't needed on initial render
-- Do not prematurely optimize simple components
+## 21. Backend Architecture Standard
 
-### Image Optimization
+### [RECOMMENDED PRACTICE] - Backend Layers
+For modules requiring new backend endpoints, the backend code should follow the standard layered structure:
+```
+Route (Express)
+  ↓
+Authentication & Authorization Middleware
+  ↓
+Validation Middleware (Zod/Joi)
+  ↓
+Controller (Request/Response mapping)
+  ↓
+Service (Business logic)
+  ↓
+Repository (Database access)
+  ↓
+Model (Mongoose schema)
+```
+Controllers should remain thin, delegating all domain logic to the Service layer.
 
-- **SHOULD** use Next.js `Image` component for images when applicable
+---
+
+## 22. Data Model Standard
+
+### [ARCHITECTURAL INVARIANT] - Domain-Dependent Fields
+There is no universal field list that every database document must contain. Entity schemas must be designed based on their structural requirements:
+* **Organization-owned entity:** Must contain `organizationId` for tenant isolation.
+* **Branch-owned entity:** Must contain `branchId` when data belongs specifically to one branch.
+* **Customer/Profile entity:** Must contain `homeBranchId` to define the home site.
+* **Lifecycle-managed entity:** Must contain `status` or `isActive` to represent state.
+* **Auditable entity:** Must contain `createdAt` and `updatedAt` timestamps.
+
+---
+
+## 23. Audit / History / Notes Standard
+
+### [RECOMMENDED PRACTICE] - Audit Isolation
+* Unbounded user-generated notes or comments **SHOULD** live in a separate sub-collection and be queried through paginated routes (as demonstrated by `CustomerNotes`).
+* Automatically generated audit trails or history logs **SHOULD** be stored in an immutable, read-only collection and queried separately.
+* Small, bounded, static metadata (e.g. preferences, address, settings) should remain inline inside the parent document.
+
+---
+
+## 24. Error Handling Standard
+
+### [ARCHITECTURAL INVARIANT] - Error Normalization
+* Feature API calls and hooks must normalize raw HTTP errors.
+* Internal database schemas, server stack traces, or technical system errors **MUST NOT** be exposed to frontend users.
+* Field-level validation failures must be mapped inline to inputs, while request-level errors should be displayed as toast alerts.
+
+---
+
+## 25. Security Standard
+
+### [ARCHITECTURAL INVARIANT] - Security Boundary Checks
+* Frontend permission gating exists only for visual convenience. The backend **MUST** authorize every incoming request independently.
+* Tenant isolation (`organizationId`) must be derived backend-side from the verified session token; backend code must never trust client-provided tenant identifiers.
+* Branch boundary checks must verify that the user's token has active access permissions for the target branch ID.
 
 ---
 
 ## 26. Testing Standard
 
-### Test Location
+### Required Verification
+Before submitting a module, developers or AI agents **MUST** verify:
+* **Typecheck:** The build environment compile must succeed without type assertions or unsafe casts.
+* **Build:** The production bundle compilation must pass cleanly.
+* **Validation:** Zod schemas must successfully reject invalid formats and empty inputs.
+* **Security:** Organization and branch isolation boundaries must hold under simulated cross-tenant requests.
 
-**SHOULD** place tests in `src/features/<module>/__tests__/<module>.test.tsx`.
-
-The Customer module provides the reference test implementation.
-
-### Test Categories
-
-#### Unit Tests (MUST)
-
-- **Zod schema validation:** Test valid/invalid inputs, boundary conditions
-- **Permission helpers:** Test allow/deny for each permission
-- **Query key generation:** Verify branch-scoped keys are distinct
-
-#### Component Tests (SHOULD)
-
-- **Permission-based rendering:** Verify buttons show/hide based on permissions
-- **Action callbacks:** Verify onView/onEdit/onDelete/onReactivate trigger correctly
-- **Status-conditional UI:** Verify Deactivate shows for active, Reactivate for inactive
-
-#### Integration Tests (MAY)
-
-- **API service functions:** Mock Axios, verify request shape
-- **Mutation hooks:** Verify cache invalidation keys
-
-### Test Patterns from Customer Reference
-
-```ts
-// Permission testing
-it("verifies view permission is checked independently", () => {
-  expect(hasPermission(user, "entities.view")).toBe(true);
-  expect(hasPermission(user, "entities.create")).toBe(false);
-});
-
-// Query key scoping
-it("ensures Branch A and B lists have distinct cache keys", () => {
-  const keyA = getScopeQueryKey("entities", "br_A");
-  const keyB = getScopeQueryKey("entities", "br_B");
-  expect(keyA).not.toEqual(keyB);
-});
-
-// Schema validation
-it("rejects empty required fields", () => {
-  const result = entitySchema.safeParse({ name: "", phone: "" });
-  expect(result.success).toBe(false);
-});
-```
-
-### Testing Framework
-
-- **Runner:** Vitest
-- **Environment:** jsdom
-- **Rendering:** `@testing-library/react`
-- **Mocking:** Vitest `vi.mock()` for auth hooks and branch context
+### Recommended Automated Tests
+New modules **SHOULD** implement automated test coverage under `src/features/<module>/__tests__/` verifying:
+* Zod form validation rules.
+* Branch-aware query key separation.
+* Permission rendering behaviors.
+* Action menu callback triggers.
 
 ---
 
 ## 27. Production Readiness Checklist
 
 ### Architecture
+- [ ] Code is under `src/features/<module>/`
+- [ ] Sub-entities are organized cleanly
+- [ ] No duplicated shared abstractions or utility logic
+- [ ] Typecheck compilation completes with zero errors
 
-- [ ] Feature lives in `src/features/<module>/`
-- [ ] Contains `api/`, `types/`, `schemas/`, `hooks/`, `components/`, `columns/`, `config/` directories
-- [ ] API layer uses `apiClient` from `@/lib/api/axios`
-- [ ] API layer uses `PaginatedResponse<T>` / `ApiResponse<T>`
-- [ ] All API calls include `branchScope: "current"`
-- [ ] Types are defined in `types/` (no inline `any`)
-- [ ] Zod schemas are defined in `schemas/`
-- [ ] Hooks use `getBranchQueryKey()` from `useBranchContext()`
-- [ ] Mutations use `useEntityMutation` or follow the canonical pattern
-- [ ] Column definitions use `EntityActionMenu`
-- [ ] Config defines routes, permissions, labels, defaults
+### Scope & Isolation
+- [ ] Tenant boundaries are validated backend-side
+- [ ] Branch-scoped API calls include `branchScope: "current"`
+- [ ] Query keys represent all query-changing inputs (search, filters, pagination)
+- [ ] All Branches views omit the branch ID header
 
-### Backend Contract
-
-- [ ] Backend endpoints follow `Route → Auth → Authz → Controller → Service → Model`
-- [ ] Response envelope matches `ApiResponse<T>` / `PaginatedResponse<T>`
-- [ ] Immutable scoping fields are protected
-- [ ] Organization isolation is enforced
-- [ ] Branch scoping is enforced
-- [ ] Permissions are registered in the backend
-
-### Frontend CRUD
-
-- [ ] List page works with pagination
-- [ ] Search works
-- [ ] Filters work
-- [ ] Create form validates with Zod and submits
-- [ ] Edit form pre-populates and updates
-- [ ] Detail/profile page loads correctly
-- [ ] Delete (deactivate) works with confirmation dialog
-- [ ] Reactivate works with confirmation dialog
-
-### State Management
-
-- [ ] Loading states render skeletons (not blank pages)
-- [ ] Empty states use `EmptyState` component
-- [ ] Error states use `ErrorState` component with retry
-- [ ] 403 errors render `Unauthorized`
-- [ ] Mutation success shows toast
-- [ ] Mutation error shows toast with user-friendly message
-- [ ] Cache invalidation targets correct query keys
-
-### Permissions
-
-- [ ] `view` permission gates list queries (`enabled`)
-- [ ] `create` permission gates create button visibility
-- [ ] `edit` permission gates edit button visibility
-- [ ] `delete` permission gates deactivate button visibility
-- [ ] `edit` permission gates reactivate button visibility
-- [ ] Permissions are defined in module config
-- [ ] Backend independently authorizes each operation
-
-### UX Quality
-
-- [ ] Responsive: desktop table + mobile cards
-- [ ] Dark mode compatible (semantic tokens only)
-- [ ] Branch column appears in "All Branches" view
-- [ ] Buttons show loading state during mutations
-- [ ] Destructive actions have confirmation dialogs
-- [ ] Toast feedback for success and error
-- [ ] Icon-only buttons have `title` / `aria-label`
-
-### Code Quality
-
-- [ ] TypeScript: no `any` (except documented API normalization)
-- [ ] No `@ts-ignore` or `@ts-expect-error`
-- [ ] No unused imports
-- [ ] No dead code
-- [ ] No `console.log` in production code
-- [ ] No duplicated shared component reimplementations
-- [ ] Lint clean
-- [ ] Build clean
-- [ ] Tests pass
+### UI/UX States
+- [ ] Skeletons display during initial load
+- [ ] Empty state renders when zero records exist
+- [ ] Error boundary provides clear description and a retry button
+- [ ] Deactivation/reactivation triggers standard confirmation modals
 
 ---
 
 ## 28. New Module Implementation Workflow
 
 ```
- 1. Understand business requirements
-         ↓
- 2. Define domain model and entity fields
-         ↓
- 3. Define permissions (add to backend registry)
-         ↓
- 4. Define API contract (endpoints, request/response shapes)
-         ↓
- 5. Implement backend (Model → Service → Controller → Routes)
-         ↓
- 6. Create feature directory structure
-         ↓
- 7. Define TypeScript types (types/<entity>.types.ts)
-         ↓
- 8. Define Zod validation schemas (schemas/<entity>.schema.ts)
-         ↓
- 9. Implement API layer (api/<entity>.api.ts)
-         ↓
-10. Implement React Query hooks (hooks/)
-         ↓
-11. Create module config (config/<module>.config.ts)
-         ↓
-12. Define column definitions (columns/<entity>Columns.tsx)
-         ↓
-13. Implement list page (List, Search, Filters, MobileCard)
-         ↓
-14. Implement create/edit forms
-         ↓
-15. Implement detail/profile page
-         ↓
-16. Implement lifecycle actions (Deactivate/Reactivate)
-         ↓
-17. Add route pages in src/app/(dashboard)/<module>/
-         ↓
-18. Add route permission mapping in routePermissions.ts
-         ↓
-19. Add sidebar navigation entry
-         ↓
-20. Add loading/error/empty states
-         ↓
-21. Write tests
-         ↓
-22. Run production readiness checklist (Section 27)
-         ↓
-23. Run architecture audit (Section 29)
-         ↓
-24. TypeScript check: npx tsc --noEmit
-         ↓
-25. Lint check: npx eslint
-         ↓
-26. Build check: npm run build
-         ↓
-27. Final walkthrough
+1. Verify backend API contract and check permissions
+        ↓
+2. Establish domain configuration (routes, permissions, defaults)
+        ↓
+3. Define TypeScript types and Zod schemas
+        ↓
+4. Implement API service layer using apiClient
+        ↓
+5. Implement React Query hooks with branch-aware keys
+        ↓
+6. Compose table columns and actions
+        ↓
+7. Build list, form, and detail components
+        ↓
+8. Write automated unit and UI tests
+        ↓
+9. Execute production readiness audit
 ```
 
 ---
 
 ## 29. Architecture Audit Checklist
 
-When auditing a module against the canonical standard, verify each item:
+This audit compares new feature code against approved invariants:
 
-### API Contract Compliance
+```text
+□ Is domain code located entirely under its feature folder?
+□ Does it reuse DataTable, Pagination, and EntityActionMenu?
+□ Are query keys branch-scoped via useBranchContext?
+□ Does it avoid manual construction of X-Branch-Id?
+□ Are all server-affecting params included in the query key?
+□ Does it normalize database IDs to id strings type-safely?
+□ Is the use of any completely avoided?
+□ Are HTTP methods and routes aligned with the backend contract?
+□ Is there exactly one lifecycle field (status or isActive)?
+□ Are lifecycle permissions mapped to delete (deactivate) and update (reactivate)?
+```
 
-- [ ] Uses `apiClient` from `@/lib/api/axios`
-- [ ] Uses `PaginatedResponse<T>` for lists
-- [ ] Uses `ApiResponse<T>` for single entities
-- [ ] All calls include `branchScope: "current"`
-- [ ] ID normalization happens at API layer (`_id` → `id`)
-
-### Query Architecture
-
-- [ ] Uses `getBranchQueryKey()` from `useBranchContext()`
-- [ ] No static query keys for branch-scoped data
-- [ ] Query hooks gate on authentication + permission + branch context
-- [ ] Mutations invalidate correct query keys
-
-### Shared Component Usage
-
-- [ ] Uses `DataTable` (not custom table)
-- [ ] Uses `Pagination` (not custom pagination)
-- [ ] Uses `EntityActionMenu` (not custom action buttons)
-- [ ] Uses `EntityProfileLayout` (not custom tab layout)
-- [ ] Uses `DeactivateDialog` (not custom delete confirmation)
-- [ ] Uses `ReactivateDialog` (not custom reactivate confirmation)
-- [ ] Uses `EmptyState` and `ErrorState` (not custom)
-
-### Convention Compliance
-
-- [ ] Feature directory structure matches standard
-- [ ] File naming matches conventions
-- [ ] Permission naming follows `domain.action` pattern
-- [ ] Config object defines routes, permissions, labels, defaults
-- [ ] Lifecycle field is single (not duplicated)
-
-### Common Architectural Drift
-
-**Mistakes future developers/AI agents MUST avoid:**
-
-| Drift | Correct Approach |
-|-------|-----------------|
-| Creating custom API response normalization | Use `PaginatedResponse<T>` and `ApiResponse<T>` |
-| Creating static query keys for branch-scoped data | Use `getBranchQueryKey()` |
-| Duplicating `Pagination` component | Import from `@/components/ui/pagination` |
-| Creating module-specific action menus | Use `EntityActionMenu` from `@/components/entity/` |
-| Creating module-specific deactivate/reactivate dialogs | Use shared `DeactivateDialog` / `ReactivateDialog` |
-| Putting business logic in components | Move to hooks or API layer |
-| Creating inconsistent type definitions | Follow existing type patterns |
-| Mixing API calls directly in components | Call API through hooks only |
-| Creating duplicate `status` + `isActive` fields | Choose one lifecycle field |
-| Bypassing shared `useEntityMutation` | Use the shared abstraction |
-| Hardcoding branch ID in queries | Use `branchScope: "current"` |
-| Checking wrong permission for reactivate | Reactivate uses `edit`/`update` permission, not `delete` |
-| Using role names as permission checks | Always use `hasPermission()` with permission strings |
-| Creating new Axios instances | Use `apiClient` from `@/lib/api/axios` |
-| Storing API data in Redux | Use React Query for server state |
+### [ARCHITECTURAL INVARIANT] - Common Architectural Drift
+AI coding agents and developers **MUST NOT** commit the following architectural violations:
+1. Hardcoding branch ID scoping or inventing custom header injection.
+2. Storing server state in global Redux stores.
+3. Suppressing TypeScript compiler errors using `any` or comments.
+4. Bypassing shared UI primitives (e.g. creating custom pagination or custom table elements).
+5. Checking role names directly for action authorization.
 
 ---
 
-## 30. AI Coding Agent Instructions
+## 30. When the Standard Does Not Apply
 
-When an AI coding agent works on this project, it **MUST**:
+This standard is designed for standard transactional and master data ERP modules (Customers, Services, Employees, Inventory). The standard **MAY** require controlled deviation for:
+* **Interactive Dashboards:** Where data is consolidated and layout grids replace forms.
+* **Transactional workflows:** E.g. appointment booking flows which use multi-step wizard forms.
+* **Real-time interfaces:** Where WebSockets or streaming updates are utilized.
+* **Reporting engines:** Where massive, read-only analytical aggregations occur.
 
-1. **Read this standard** before implementing any new module.
-2. **Inspect the Customer and Services modules** as reference implementations.
-3. **Inspect shared components** (`src/components/entity/`, `src/components/ui/`) before creating new ones.
-4. **Inspect shared utilities** (`src/lib/api/`, `src/lib/permissions/`) before creating new ones.
-5. **Reuse existing architecture** — never create a parallel implementation of existing shared infrastructure.
-6. **Never introduce a new pattern** without documenting the justification.
-7. **Never duplicate** an existing shared component, hook, or utility.
-8. **Never invent API contracts** — verify backend endpoints and response shapes before frontend implementation.
-9. **Preserve branch scoping** — every branch-scoped query must use `getBranchQueryKey()`, every API call must use `branchScope: "current"`.
-10. **Preserve RBAC** — use `hasPermission()` with permission strings, never role names.
-11. **Follow existing naming conventions** — see Section 19.
-12. **Run the architecture audit** (Section 29) after implementation.
-13. **Report deviations explicitly** — if the module differs from the standard, explain why.
-14. **Do not silently introduce architectural changes** — any change to shared infrastructure must be documented and justified.
-
-### Critical Rule
-
-> **When a new module appears to require a different architecture, STOP and explain why before introducing the deviation.**
-
-### Pre-Implementation Checklist for AI Agents
-
-Before writing any code for a new module:
-
-- [ ] Read `docs/MODULE_ARCHITECTURE_STANDARD.md` (this document)
-- [ ] Inspect `src/features/customers/` as the primary reference
-- [ ] Inspect `src/features/services/` as the secondary reference
-- [ ] Inspect `src/components/entity/` for reusable entity components
-- [ ] Inspect `src/components/ui/` for reusable UI components
-- [ ] Inspect `src/lib/api/` for shared API utilities
-- [ ] Inspect `src/lib/permissions/` for permission helpers
-- [ ] Verify backend endpoints exist before building frontend
-- [ ] Verify permissions are registered before using them in the frontend
+### Deviation Protocol
+When a developer or AI agent encounters a module that requires deviation:
+1. Document the specific standard rules that do not fit.
+2. Outline the proposed replacement pattern.
+3. Verify which general standards (Tenant isolation, Type safety, central Axios client) remain applicable.
+4. Obtain architectural approval before writing code.
 
 ---
 
-## 31. Decision Log
+## 31. AI Coding Agent Instructions
 
-| Decision | Standard | Reason |
-|----------|----------|--------|
-| **API response** | `ApiResponse<T>` / `PaginatedResponse<T>` from `@/types/api.types.ts` | Consistent contract prevents per-module response normalization |
-| **Query keys** | `getBranchQueryKey()` → `[entity, { scope, branchId }, ...additionalKeys]` | Branch-aware cache isolation prevents data leaks between branches |
-| **Branch scoping** | `branchScope: "current"` on API calls, `X-Branch-Id` header via interceptor | Centralized branch injection prevents forgotten/inconsistent branch headers |
-| **Pagination** | Shared `Pagination` component + `PaginatedResponse.meta` contract | Single pagination implementation reduces bugs and ensures consistency |
-| **Validation** | Zod schemas in `schemas/` + `zodResolver` with React Hook Form | Type-safe validation with automatic form integration |
-| **Lifecycle** | `status` (string union) or `isActive` (boolean) — single field per entity | Prevents duplicate/conflicting lifecycle fields |
-| **RBAC** | Permission-based via `hasPermission()`, never role-name-based | Role-agnostic architecture supports custom roles |
-| **Tables** | Shared `DataTable` + module column builder + `EntityActionMenu` | Prevents per-module table reimplementations |
-| **Detail pages** | `EntityProfileLayout` with tabbed navigation + `ProfileHeader` | Consistent profile page experience across modules |
-| **Notes** | Separate sub-resource API (`/entities/:id/notes`) | Unbounded user-generated data, independently paginated |
-| **Audit logs** | Separate sub-resource API (`/entities/:id/activity`) | Auto-generated, read-only, independently queried |
-| **Mutations** | `useEntityMutation` shared abstraction preferred | Reduces boilerplate, centralizes invalidation pattern |
-| **Deactivation** | Shared `DeactivateDialog` with `delete` permission | Consistent destructive action UX |
-| **Reactivation** | Shared `ReactivateDialog` with `edit` permission | Reactivation is a restoration (edit), not a destructive action |
-| **State management** | React Query for server state, Redux for client state (branch, UI) | Clear separation prevents state duplication |
-| **Error handling** | `getErrorMessage()` + `mapBackendValidationErrors()` from `@/lib/api/errors` | Centralized, consistent error handling |
+AI coding agents working on future modules **MUST** adhere to these strict instructions:
+
+1. **Verify first:** Inspect `MODULE_ARCHITECTURE_STANDARD.md` before coding.
+2. **Review references:** Inspect Customer and Services feature folders to understand the visual and layout style of the application.
+3. **Verify API contract:** Check the backend router code before writing frontend network requests.
+4. **Never guess:** If a specification is missing or a conflict arises, stop and request clarification.
+5. **No custom scoping:** Always use `branchScope: "current"` and `getBranchQueryKey` for branch-aware entities.
+6. **No code duplication:** Do not copy code from shared components to create local custom versions.
+7. **Perform audit:** Run the Architecture Audit Checklist (Section 29) before concluding a task.
 
 ---
 
-## 32. Customer + Services Reference Matrix
+## 32. Decision Log
 
-| Architecture Area | Customer Implementation | Services Implementation | Standard Going Forward |
-|-------------------|------------------------|------------------------|----------------------|
-| **API file** | `customers.api.ts` | `services.api.ts` + `serviceCategories.api.ts` | One file per entity, `<entity>.api.ts` |
-| **Response types** | Module-specific aliases (`CustomerListResponse`) | Uses shared `PaginatedResponse<T>` directly | **Prefer shared `PaginatedResponse<T>` directly** (Services pattern) |
-| **ID normalization** | `mapCustomerKeys()` | Generic `mapIdKey<T>()` | Generic `mapIdKey<T>()` preferred |
-| **Query keys** | `getBranchQueryKey("customers", [params])` | `getBranchQueryKey("services", [filters])` | `getBranchQueryKey("<entity>", [params])` |
-| **Branch scoping** | `branchScope: "current"` on all calls | `branchScope: "current"` on all calls | ✅ Consistent |
-| **Mutation hooks** | Direct `useMutation` + `useQueryClient` | `useEntityMutation` shared abstraction | **Prefer `useEntityMutation`** (Services pattern) |
-| **Form values type** | Manual `CustomerFormValues` type | `z.infer<typeof serviceSchema>` | **Prefer `z.infer`** (Services pattern) |
-| **Lifecycle field** | `status: "active" \| "inactive" \| "blocked"` | `isActive: boolean` | Choose based on complexity; document choice |
-| **Permission config** | `CUSTOMERS_CONFIG.permissions` | `SERVICES_CONFIG.permissions` | ✅ Consistent pattern |
-| **Detail page** | `CustomerDetailsPage` with `EntityProfileLayout` + tabs | `ServiceProfilePage` with `EntityProfileLayout` + tabs | ✅ Consistent pattern |
-| **Columns** | `buildCustomerColumns()` with `EntityActionMenu` | `buildServiceColumns()` with `EntityActionMenu` | ✅ Consistent pattern |
-| **Delete dialog** | Module-specific `CustomerDeleteDialog` wrapping shared `DeactivateDialog` | Shared `DeactivateDialog` directly | **Use shared `DeactivateDialog` directly** (Services pattern) |
-| **Reactivate dialog** | Module-specific `CustomerReactivateDialog` wrapping shared `ReactivateDialog` | Shared `ReactivateDialog` directly | **Use shared `ReactivateDialog` directly** (Services pattern) |
-| **Notes** | `CustomerNotes` + `useCustomerNotes` + `useCreateCustomerNote` | Not applicable (no notes) | Follow Customer pattern when notes are needed |
-| **Activity log** | `CustomerActivityLog` + `useCustomerActivity` | Not applicable (no activity log) | Follow Customer pattern when audit logs are needed |
-| **Tests** | `__tests__/customers.test.tsx` | Not present | **SHOULD** add tests (Customer is the reference) |
-| **Sub-entity hooks** | Flat `hooks/` directory | Sub-organized: `hooks/services/`, `hooks/categories/` | Sub-organize when multiple entities exist |
-| **Components** | Flat `components/` directory | Sub-organized: `components/common/`, `components/services/`, `components/service-categories/` | Sub-organize when multiple entities exist |
-| **Config** | `CUSTOMERS_CONFIG` | `SERVICES_CONFIG` | `<MODULE>_CONFIG` |
-| **Constants** | Not present | `service.constants.ts` | **MAY** use when domain constants exist |
-| **Filter types** | Inline `GetCustomersParams` in API file | Separate `filters.types.ts` | **Prefer separate filter type file** (Services pattern) for reusability |
-| **Route pages** | `loading.tsx`, `error.tsx`, `not-found.tsx` absent | Present | **SHOULD** include route boundary files (Services pattern) |
+| Concern | Architectural Standard / Decision | Reason |
+|---|---|---|
+| **Branch Scope** | Centralized Axios interceptor; `branchScope: "current"` config | Prevents manual header building and leaks |
+| **Org Scope** | Completely isolated from branch scoping; backend-derived | Prevents tenant cross-contamination |
+| **Query Keys** | must include all query parameters (filters, pagination, branch) | Prevents caching overlap and wrong views |
+| **Lifecycle Field** | Standardize on one field: `status` OR `isActive` | Eliminates conflicting state data models |
+| **HTTP Methods** | Derived from actual backend API contract | Prevents routing mismatches and build breakage |
+| **API Normalization** | Type-safe; no `any` mapping | Preserves type-safety guarantees |
+| **Entity Fields** | Domain-dependent (no universal schema list) | Supports flexible data modeling |
+| **Cache Refresh** | Invalidate list and detail keys on success | Keeps user interface synchronized |
+| **Components** | Reuse DataTable, Pagination, EntityActionMenu, Dialogs | Reduces UI bugs and codebase bloat |
+| **AI deviations** | Stop and report before implementing exceptions | Prevents silent architectural drift |
 
-### Key Takeaways
+---
 
-Where Customer and Services differ, the **Services module's patterns are generally preferred** for new modules because they:
-- Use shared abstractions (`useEntityMutation`, shared dialogs directly)
-- Use type inference (`z.infer`) over manual type definitions
-- Use separate filter type files for reusability
-- Organize sub-entities with sub-directories
-- Include route boundary files (`loading.tsx`, `error.tsx`, `not-found.tsx`)
+## 33. Customer + Services Reference Matrix
 
-The Customer module's patterns remain the reference for:
-- Notes sub-resource architecture
-- Activity/audit log sub-resource architecture
-- Tests (Customer is the only module with tests)
-- Complex validation schemas (phone number regex, date validation)
+| Feature | Customer | Services | Standard |
+|---|---|---|---|
+| **API file** | `customers.api.ts` | `services.api.ts` + `serviceCategories.api.ts` | One file per entity |
+| **Response generic** | Alias wrappers | Shared generic | **Shared generic preferred** |
+| **Mutation hooks** | Direct `useMutation` | `useEntityMutation` | **useEntityMutation preferred** |
+| **Type definition** | Manual interface | `z.infer` | **z.infer preferred** |
+| **Delete dialog** | Local wrapper | Direct shared usage | **Shared dialogs directly** |
+| **Filters** | Inline parameters | `filters.types.ts` | **Separate filters file** |
+| **Tests** | Present | Absent | **Automated tests recommended** |
 
 ---
 
 ```
-Module Architecture Standard Version: 1.0
+Module Architecture Standard Version: 1.1
 Reference Modules: Customer + Services
 ```
