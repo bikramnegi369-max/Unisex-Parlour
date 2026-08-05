@@ -3,28 +3,23 @@
 import React from "react";
 import type { Employee } from "../types/employee.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/formatters";
 import {
   User,
   Phone,
   Mail,
   Calendar,
-  Building,
-  Scissors,
   CheckCircle,
 } from "lucide-react";
 
 interface EmployeeOverviewProps {
   employee: Employee;
-  resolvedBranchNames: string[];
-  resolvedSpecialties: string[];
+  resolvedBranchNames?: string[];
+  resolvedSpecialties?: string[];
 }
 
 export function EmployeeOverview({
   employee,
-  resolvedBranchNames,
-  resolvedSpecialties,
 }: EmployeeOverviewProps) {
   const formatJoinedDate = (dateStr?: string) => {
     if (!dateStr) return "—";
@@ -75,10 +70,10 @@ export function EmployeeOverview({
               <CheckCircle size={16} className="text-muted-foreground shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
-                  Business Role
+                  Designation
                 </p>
                 <p className="text-sm font-medium mt-1.5 text-foreground">
-                  {employee.role}
+                  {employee.designation}
                 </p>
               </div>
             </div>
@@ -90,7 +85,7 @@ export function EmployeeOverview({
                   Joined Date
                 </p>
                 <p className="text-sm font-medium mt-1.5 text-foreground">
-                  {formatJoinedDate(employee.createdAt)}
+                  {formatJoinedDate(employee.joiningDate)}
                 </p>
               </div>
             </div>
@@ -107,52 +102,6 @@ export function EmployeeOverview({
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Branch Assignments Card */}
-      <Card className="border border-border/80 shadow-sm">
-        <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Building size={16} className="text-primary" />
-            Branch Assignments
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          {resolvedBranchNames.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No branch assignments found.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {resolvedBranchNames.map((name) => (
-                <Badge key={name} variant="outline" className="text-xs py-1 px-3">
-                  {name}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Specialties Card */}
-      <Card className="border border-border/80 shadow-sm">
-        <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Scissors size={16} className="text-primary" />
-            Certified Service Specialties
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
-          {resolvedSpecialties.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No specialties assigned.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {resolvedSpecialties.map((name) => (
-                <Badge key={name} variant="outline" className="text-xs py-1 px-3 bg-muted text-muted-foreground border-border/50">
-                  {name}
-                </Badge>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

@@ -8,7 +8,7 @@ import { ArrowLeft, Edit, Trash2, Phone, Mail, UserCheck } from "lucide-react";
 
 interface EmployeeProfileHeaderProps {
   employee: Employee;
-  branchNames: string;
+  branchNames?: string;
   canEdit: boolean;
   canDelete: boolean;
   onBack: () => void;
@@ -19,7 +19,6 @@ interface EmployeeProfileHeaderProps {
 
 export function EmployeeProfileHeader({
   employee,
-  branchNames,
   canEdit,
   canDelete,
   onBack,
@@ -27,8 +26,10 @@ export function EmployeeProfileHeader({
   onDeactivate,
   onReactivate,
 }: EmployeeProfileHeaderProps) {
-  const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+  const fullName = employee.name || "";
   const isActive = employee.status === "active";
+  const nameParts = fullName.trim().split(/\s+/);
+  const initials = nameParts.map(part => part.charAt(0).toUpperCase()).slice(0, 2).join("");
 
   return (
     <div className="space-y-6">
@@ -81,8 +82,7 @@ export function EmployeeProfileHeader({
       <div className="p-6 bg-card border border-border/80 rounded-xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold shrink-0">
-            {employee.firstName.charAt(0).toUpperCase()}
-            {employee.lastName.charAt(0).toUpperCase()}
+            {initials || "ST"}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -93,10 +93,7 @@ export function EmployeeProfileHeader({
             </div>
             
             <p className="text-xs text-muted-foreground mt-1.5">
-              Role: <span className="font-semibold text-primary">{employee.role}</span>
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Branches: <span className="font-medium text-foreground">{branchNames || "—"}</span>
+              Designation: <span className="font-semibold text-primary">{employee.designation}</span>
             </p>
           </div>
         </div>

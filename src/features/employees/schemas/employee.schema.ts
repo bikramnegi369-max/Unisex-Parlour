@@ -2,44 +2,37 @@ import { z } from "zod";
 
 const phoneRegex = /^\+?[1-9]\d{1,14}$/;
 
-const phoneSchema = z
-  .string()
-  .trim()
-  .refine((val) => !val || phoneRegex.test(val.replace(/[\s()-]/g, "")), {
-    message: "Please enter a valid phone number (e.g. +1234567890)",
-  })
-  .optional()
-  .or(z.literal(""));
-
 export const employeeSchema = z.object({
-  firstName: z
+  name: z
     .string()
     .trim()
-    .min(2, "First name must be at least 2 characters")
-    .max(50, "First name must be less than 50 characters"),
-  lastName: z
-    .string()
-    .trim()
-    .min(2, "Last name must be at least 2 characters")
-    .max(50, "Last name must be less than 50 characters"),
+    .min(2, "Name must be at least 2 characters")
+    .max(100, "Name must be less than 100 characters"),
   email: z
     .string()
     .trim()
     .toLowerCase()
     .email("Please enter a valid email address"),
-  phone: phoneSchema,
-  role: z.enum(["Owner", "Manager", "Receptionist", "Stylist", "Accountant"], {
-    error: "Please select a valid role",
-  }),
-  branchIds: z
-    .array(z.string().min(1, "Branch ID cannot be empty"))
-    .min(1, "At least one branch assignment is required"),
-  specialties: z
-    .array(z.string())
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Phone number is required")
+    .regex(phoneRegex, "Please enter a valid E.164 phone number (e.g. +919876543210)"),
+  designation: z
+    .string()
+    .trim()
+    .min(1, "Designation is required"),
+  joiningDate: z
+    .string()
+    .min(1, "Joining date is required"),
+  avatarUrl: z
+    .string()
+    .url("Please enter a valid URL")
     .optional()
-    .default([]),
+    .or(z.literal(""))
+    .nullable(),
   status: z
-    .enum(["active", "inactive"])
+    .enum(["active", "inactive", "suspended"])
     .default("active"),
 });
 

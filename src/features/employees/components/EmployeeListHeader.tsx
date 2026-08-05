@@ -40,7 +40,7 @@ export function EmployeeListHeader({
   return (
     <PageHeaderBanner
       title="Employees & Staff Directory"
-      description="Manage employee profiles, roles, and branch assignments."
+      description="Manage employee profiles, designations, and permissions."
       icon={UserCheck}
       actions={actions}
     />

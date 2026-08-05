@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { useEmployees, useDeleteEmployee, useUpdateEmployeeStatus, useCreateEmployee, useUpdateEmployee } from "../hooks/useEmployees";
+import { useEmployees, useDeleteEmployee, useRestoreEmployee, useCreateEmployee, useUpdateEmployee } from "../hooks/useEmployees";
 import EmployeeTable from "./EmployeeTable";
 import EmployeeDeleteDialog from "./EmployeeDeleteDialog";
 import EmployeeReactivateDialog from "./EmployeeReactivateDialog";
@@ -27,7 +27,7 @@ export default function EmployeeList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { isAllBranchesSelected, currentBranch } = useBranchContext();
+  const { isAllBranchesSelected, currentBranch, currentBranchId } = useBranchContext();
 
   const canCreate = hasPermission(user, "employees.create");
 
@@ -44,9 +44,6 @@ export default function EmployeeList() {
 
   // Read status filter parameter from URL
   const statusParam = searchParams.get("status") || "all";
-
-  // Read role filter parameter from URL
-  const roleParam = searchParams.get("role") || "all";
 
   // Read sort parameter from URL
   const sort = searchParams.get("sort") || "";
@@ -73,12 +70,12 @@ export default function EmployeeList() {
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
-  const reactivateMutation = useUpdateEmployeeStatus();
+  const reactivateMutation = useRestoreEmployee();
 
   // Memoized callbacks for EmployeeTable to prevent re-render loops
   const handleView = useCallback((emp: Employee) => {
-    toast.info(`Viewing details for ${emp.firstName} ${emp.lastName}. Profile pages will be implemented in a future update.`);
-  }, []);
+    router.push(`/employees/${emp.id}`);
+  }, [router]);
 
   const handleEdit = useCallback((emp: Employee) => {
     setActiveEmployee(emp);
@@ -124,17 +121,6 @@ export default function EmployeeList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const handleRoleChange = (val: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (val && val !== "all") {
-      params.set("role", val);
-    } else {
-      params.delete("role");
-    }
-    params.set("page", "1");
-    router.push(`${pathname}?${params.toString()}`);
-  };
-
   const handleSortChange = (val: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (val) {
@@ -168,8 +154,8 @@ export default function EmployeeList() {
     page,
     limit,
     status: statusParam !== "all" ? statusParam : undefined,
-    role: roleParam !== "all" ? roleParam : undefined,
-    sortBy: sort || undefined,
+    sort: sort || undefined,
+    branchId: isAllBranchesSelected ? undefined : currentBranchId || undefined,
   });
 
   const handleSync = async () => {
@@ -234,20 +220,17 @@ export default function EmployeeList() {
 
   const handleReactivateConfirm = () => {
     if (!employeeToReactivate) return;
-    reactivateMutation.mutate(
-      { id: employeeToReactivate.id, status: "active" },
-      {
-        onSuccess: () => {
-          setIsReactivateOpen(false);
-          setEmployeeToReactivate(null);
-          reactivateMutation.reset();
-          toast.success("Employee profile reactivated successfully.");
-        },
-        onError: (err: Error) => {
-          toast.error(err.message || "Failed to reactivate employee.");
-        },
-      }
-    );
+    reactivateMutation.mutate(employeeToReactivate.id, {
+      onSuccess: () => {
+        setIsReactivateOpen(false);
+        setEmployeeToReactivate(null);
+        reactivateMutation.reset();
+        toast.success("Employee profile reactivated successfully.");
+      },
+      onError: (err: Error) => {
+        toast.error(err.message || "Failed to reactivate employee.");
+      },
+    });
   };
 
   const handlePageChange = (newPage: number) => {
@@ -321,8 +304,6 @@ export default function EmployeeList() {
         <EmployeeFilters
           status={statusParam}
           onStatusChange={handleStatusChange}
-          role={roleParam}
-          onRoleChange={handleRoleChange}
           sort={sort}
           onSortChange={handleSortChange}
           onClearFilters={handleClearFilters}
@@ -342,7 +323,7 @@ export default function EmployeeList() {
           isLoading={true}
         />
       ) : employees.length === 0 ? (
-        searchQueryParam || statusParam !== "all" || roleParam !== "all" ? (
+        searchQueryParam || statusParam !== "all" ? (
           <EmptyState
             icon={HelpCircle}
             title="No matches found"
@@ -368,7 +349,7 @@ export default function EmployeeList() {
               canCreate
                 ? {
                     label: "Register First Employee",
-                    onClick: () => toast.info("Employee registration form will be implemented in a future update."),
+                    onClick: () => setIsCreateOpen(true),
                     icon: Plus,
                   }
                 : undefined
@@ -409,7 +390,7 @@ export default function EmployeeList() {
           onClose={() => setIsDeleteOpen(false)}
           onConfirm={handleDeleteConfirm}
           isDeleting={deleteMutation.isPending}
-          employeeName={`${employeeToDelete.firstName} ${employeeToDelete.lastName}`}
+          employeeName={employeeToDelete.name}
         />
       )}
 
@@ -425,7 +406,7 @@ export default function EmployeeList() {
           onConfirm={handleReactivateConfirm}
           isLoading={reactivateMutation.isPending}
           error={reactivateMutation.error}
-          employeeName={`${employeeToReactivate.firstName} ${employeeToReactivate.lastName}`}
+          employeeName={employeeToReactivate.name}
         />
       )}
 

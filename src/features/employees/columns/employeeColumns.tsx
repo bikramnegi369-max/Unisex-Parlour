@@ -9,7 +9,7 @@ interface EmployeeColumnOptions {
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
   onReactivate: (employee: Employee) => void;
-  getBranchName: (id: string) => string;
+  getBranchName?: (id: string) => string;
   getServiceName?: (id: string) => string;
 }
 
@@ -18,20 +18,19 @@ export const buildEmployeeColumns = ({
   onEdit,
   onDelete,
   onReactivate,
-  getBranchName,
-  getServiceName,
 }: EmployeeColumnOptions): ColumnDef<Employee>[] => [
   {
     accessorKey: "name",
     header: "Employee",
     cell: (info) => {
       const employee = info.row.original;
-      const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+      const fullName = employee.name || "";
+      const nameParts = fullName.trim().split(/\s+/);
+      const initials = nameParts.map(part => part.charAt(0).toUpperCase()).slice(0, 2).join("");
       return (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {employee.firstName.charAt(0).toUpperCase()}
-            {employee.lastName.charAt(0).toUpperCase()}
+            {initials || "ST"}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-foreground truncate">{fullName}</p>
@@ -56,82 +55,14 @@ export const buildEmployeeColumns = ({
     },
   },
   {
-    accessorKey: "role",
-    header: "Role",
+    accessorKey: "designation",
+    header: "Designation",
     cell: (info) => {
-      const roleStr = (info.getValue() as string) || info.row.original.role;
+      const designationStr = (info.getValue() as string) || info.row.original.designation;
       return (
         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 font-semibold">
-          {roleStr}
+          {designationStr}
         </Badge>
-      );
-    },
-  },
-  {
-    accessorKey: "branchIds",
-    header: "Branches",
-    cell: (info) => {
-      const branchIds = (info.getValue() as string[]) || info.row.original.branchIds || [];
-      if (branchIds.length === 0) return <span className="text-muted-foreground">—</span>;
-      
-      const names = branchIds.map((id) => getBranchName(id)).filter(Boolean);
-      
-      if (names.length <= 2) {
-        return (
-          <div className="flex flex-wrap gap-1">
-            {names.map((name) => (
-              <Badge key={name} variant="outline" className="text-xs">
-                {name}
-              </Badge>
-            ))}
-          </div>
-        );
-      }
-      
-      return (
-        <div className="flex items-center gap-1">
-          <Badge variant="outline" className="text-xs">
-            {names[0]}
-          </Badge>
-          <Badge variant="outline" className="text-xs text-muted-foreground">
-            +{names.length - 1} more
-          </Badge>
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "specialties",
-    header: "Specialties",
-    cell: (info) => {
-      const specialties = (info.getValue() as string[]) || info.row.original.specialties || [];
-      if (specialties.length === 0) return <span className="text-muted-foreground">—</span>;
-      
-      const names = getServiceName 
-        ? specialties.map((id) => getServiceName(id)).filter(Boolean)
-        : specialties;
-      
-      if (names.length <= 2) {
-        return (
-          <div className="flex flex-wrap gap-1">
-            {names.map((name) => (
-              <Badge key={name} variant="outline" className="text-xs bg-muted text-muted-foreground">
-                {name}
-              </Badge>
-            ))}
-          </div>
-        );
-      }
-      
-      return (
-        <div className="flex items-center gap-1">
-          <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
-            {names[0]}
-          </Badge>
-          <Badge variant="outline" className="text-xs bg-muted text-muted-foreground">
-            +{names.length - 1} more
-          </Badge>
-        </div>
       );
     },
   },

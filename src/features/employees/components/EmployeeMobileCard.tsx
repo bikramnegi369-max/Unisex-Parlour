@@ -14,7 +14,7 @@ interface EmployeeMobileCardProps {
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
   onReactivate: (employee: Employee) => void;
-  getBranchName: (id: string) => string;
+  getBranchName?: (id: string) => string;
 }
 
 export function EmployeeMobileCard({
@@ -25,17 +25,17 @@ export function EmployeeMobileCard({
   onEdit,
   onDelete,
   onReactivate,
-  getBranchName,
 }: EmployeeMobileCardProps) {
-  const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+  const fullName = employee.name || "";
+  const nameParts = fullName.trim().split(/\s+/);
+  const initials = nameParts.map(part => part.charAt(0).toUpperCase()).slice(0, 2).join("");
   
   return (
     <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {employee.firstName.charAt(0).toUpperCase()}
-            {employee.lastName.charAt(0).toUpperCase()}
+            {initials || "ST"}
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -45,7 +45,7 @@ export function EmployeeMobileCard({
               </Badge>
             </div>
             <span className="text-[10px] bg-primary/5 text-primary border border-primary/10 px-1.5 py-0.5 rounded font-semibold mt-1 inline-block">
-              {employee.role}
+              {employee.designation}
             </span>
           </div>
         </div>
@@ -122,20 +122,6 @@ export function EmployeeMobileCard({
             {employee.email}
           </a>
         </div>
-        <div className="flex justify-between items-start">
-          <span>Branches:</span>
-          <span className="font-semibold text-foreground text-right max-w-[70%] truncate">
-            {employee.branchIds.map((id) => getBranchName(id)).filter(Boolean).join(", ") || "—"}
-          </span>
-        </div>
-        {employee.specialties && employee.specialties.length > 0 && (
-          <div className="flex justify-between items-start">
-            <span>Specialties:</span>
-            <span className="font-semibold text-foreground text-right max-w-[70%] truncate">
-              {employee.specialties.length} service(s)
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
