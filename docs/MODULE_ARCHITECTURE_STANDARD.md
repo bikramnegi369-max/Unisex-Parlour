@@ -231,10 +231,12 @@ Feature code **MUST** use the centralized `mapBackendValidationErrors` and `getE
 ### [ARCHITECTURAL INVARIANT] - Cache Identity and Scoping
 Query keys determine the identity of cached server state. To prevent data leakage and incorrect views, every server-state input that affects the returned dataset **MUST** be represented in the query key.
 
-The query key **MUST** incorporate:
-1. The domain entity name (e.g., `"customers"`, `"services"`)
-2. The active branch scope segment (using `getBranchQueryKey` or similar helper)
-3. All query-affecting inputs (filters, search queries, pagination state, sort orders, page sizes)
+Query keys MUST include:
+1. Domain entity identity
+2. Applicable scope identity:
+   - branch scope for branch-scoped data
+   - organization scope for organization-wide data
+3. All query-affecting inputs such as filters, search, pagination, sorting, and page size.
 
 ```typescript
 // [EXAMPLE] Query key with pagination and search parameters
@@ -242,7 +244,8 @@ const queryKey = getBranchQueryKey("customers", [filters]);
 ```
 
 ### [ARCHITECTURAL INVARIANT] - Cache Separation
-Developers **MUST NOT** use static query keys (e.g., `["customers"]`) for branch-scoped data. All branch-scoped queries must obtain their key via the `getBranchQueryKey` callback to ensure cache separation between branch views.
+* Branch-scoped queries **MUST** use the centralized branch-aware query-key helper.
+* Organization-wide queries **MUST** use an appropriate organization-scoped key and **MUST NOT** include a branch identity that does not affect the dataset. Developers **MUST NOT** use static query keys (e.g., `["customers"]`) for branch-scoped data. All branch-scoped queries must obtain their key via the `getBranchQueryKey` callback to ensure cache separation between branch views.
 
 ### [ARCHITECTURAL INVARIANT] - Mutation Cache Invalidation
 After a successful mutation (create, update, status change, deactivation, reactivation), all affected queries **MUST** be invalidated so the UI cannot display stale data.
@@ -629,7 +632,7 @@ AI coding agents working on future modules **MUST** adhere to these strict instr
 2. **Review references:** Inspect Customer and Services feature folders to understand the visual and layout style of the application.
 3. **Verify API contract:** Check the backend router code before writing frontend network requests.
 4. **Never guess:** If a specification is missing or a conflict arises, stop and request clarification.
-5. **No custom scoping:** Always use `branchScope: "current"` and `getBranchQueryKey` for branch-aware entities.
+5. **No custom scoping:** Determine operation scope from the verified backend contract. Use `branchScope: "current"` only for branch-scoped operations. Use the centralized branch-aware query-key helper for branch-scoped server state. Organization-wide operations must not send branch scope.
 6. **No code duplication:** Do not copy code from shared components to create local custom versions.
 7. **Perform audit:** Run the Architecture Audit Checklist (Section 30) before concluding a task.
 
