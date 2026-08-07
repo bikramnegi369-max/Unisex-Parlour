@@ -18,7 +18,7 @@ export const getUsers = async (params: GetUsersParams = {}): Promise<PaginatedRe
 };
 
 export const getRoles = async (): Promise<UserRole[]> => {
-  const { data } = await apiClient.get<{ success: boolean; data: UserRole[] }>("/roles");
+  const { data } = await apiClient.get<{ success: boolean; data: UserRole[] }>("/rbac/roles");
   return data.data;
 };
 

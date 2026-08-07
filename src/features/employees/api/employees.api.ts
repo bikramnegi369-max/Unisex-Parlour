@@ -114,11 +114,11 @@ export const removeStaffService = async (id: string, serviceId: string): Promise
 };
 
 export const linkUserAccount = async (id: string, userId: string): Promise<{ id: string }> => {
-  await apiClient.post(`/staff/${id}/link`, { userId });
+  await apiClient.post(`/staff/${id}/user`, { userId });
   return { id };
 };
 
 export const unlinkUserAccount = async (id: string): Promise<{ id: string }> => {
-  await apiClient.post(`/staff/${id}/unlink`);
+  await apiClient.delete(`/staff/${id}/user`);
   return { id };
 };

@@ -17,6 +17,7 @@ vi.mock("@/lib/api/axios", () => {
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    delete: vi.fn(),
   };
   return {
     apiClient: mockClient,
@@ -115,19 +116,19 @@ describe("User Module Cache and Scoping Keys", () => {
 });
 
 describe("Staff-User Linking Endpoint Contract", () => {
-  it("verifies linkUserAccount matches POST /staff/:id/link contract", async () => {
+  it("verifies linkUserAccount matches POST /staff/:id/user contract", async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { success: true } });
 
     await linkUserAccount("emp_1", "usr_1");
 
-    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/link", { userId: "usr_1" });
+    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/user", { userId: "usr_1" });
   });
 
-  it("verifies unlinkUserAccount matches POST /staff/:id/unlink contract", async () => {
-    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { success: true } });
+  it("verifies unlinkUserAccount matches DELETE /staff/:id/user contract", async () => {
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: { success: true } });
 
     await unlinkUserAccount("emp_1");
 
-    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/unlink");
+    expect(apiClient.delete).toHaveBeenCalledWith("/staff/emp_1/user");
   });
 });
