@@ -217,6 +217,24 @@ export function useAssignStaffService() {
   });
 }
 
+export function useAssignMultipleStaffServices() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+
+  return useMutation({
+    mutationFn: async ({ id, serviceIds }: { id: string; serviceIds: string[] }) => {
+      const results = await Promise.all(
+        serviceIds.map((serviceId) => assignStaffService(id, { serviceId }))
+      );
+      return results;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-services", [variables.id]) });
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("employees") });
+    },
+  });
+}
+
 export function useRemoveStaffService() {
   const queryClient = useQueryClient();
   const { getBranchQueryKey } = useBranchContext();

@@ -6,6 +6,9 @@ import type { Employee, EmployeePayload } from "../types/employee.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
+import UserSelector from "./UserSelector";
+import { useUser } from "@/features/users/hooks/useUser";
+import type { UserSummary } from "@/features/users/types/users.types";
 import { Loader2 } from "lucide-react";
 
 interface EmployeeFormProps {
@@ -37,6 +40,7 @@ export default function EmployeeForm({
         joiningDate: new Date().toISOString().split("T")[0],
         avatarUrl: "",
         status: "active" as const,
+        userId: undefined,
       };
     }
 
@@ -53,6 +57,7 @@ export default function EmployeeForm({
       joiningDate: formattedDate,
       avatarUrl: initialEmployee.avatarUrl || "",
       status: initialEmployee.status || "active",
+      userId: initialEmployee.userId || undefined,
     };
   }, [initialEmployee]);
 
@@ -60,11 +65,14 @@ export default function EmployeeForm({
     register,
     handleSubmit,
     setError,
+    setValue,
     formState: { errors },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema) as unknown as Resolver<EmployeeFormValues>,
     defaultValues,
   });
+
+  const { data: linkedUser } = useUser(initialEmployee?.userId ?? null);
 
   // Effect to map server validation errors
   useEffect(() => {
@@ -73,8 +81,42 @@ export default function EmployeeForm({
     }
   }, [error, setError]);
 
+  const linkedUserSummary = useMemo(() => {
+    if (linkedUser) {
+      return {
+        id: linkedUser.id,
+        name: linkedUser.name,
+        username: linkedUser.username,
+        email: linkedUser.email,
+        phone: linkedUser.phone,
+        status: linkedUser.status,
+      } satisfies UserSummary;
+    }
+
+    if (initialEmployee?.userId) {
+      return {
+        id: initialEmployee.userId,
+        name: initialEmployee.name,
+        username: initialEmployee.email,
+        email: initialEmployee.email,
+        phone: initialEmployee.phone,
+        status: initialEmployee.status,
+      } satisfies UserSummary;
+    }
+
+    return null;
+  }, [initialEmployee, linkedUser]);
+
   const handleFormSubmit = (values: EmployeeFormValues) => {
     onSubmit(values);
+  };
+
+  const handleUserSelect = (user: UserSummary) => {
+    setValue("userId", user.id, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleUserClear = () => {
+    setValue("userId", undefined, { shouldDirty: true, shouldValidate: true });
   };
 
   return (
@@ -162,7 +204,26 @@ export default function EmployeeForm({
         </div>
       </div>
 
-      {/* Section 2: Employment Information */}
+      {/* Section 2: Account Linkage */}
+      <div className="space-y-4 pt-4">
+        <div>
+          <h3 className="text-sm font-bold text-foreground">User Account Linkage</h3>
+          <p className="text-xs text-muted-foreground">Link this staff record to an existing system user via a searchable selector.</p>
+        </div>
+        <hr className="border-border/60" />
+
+        <div>
+          <UserSelector
+            initialUser={linkedUserSummary}
+            onSelect={handleUserSelect}
+            onClear={handleUserClear}
+            disabled={isSubmitting}
+          />
+          <input type="hidden" {...register("userId")} />
+        </div>
+      </div>
+
+      {/* Section 3: Employment Information */}
       <div className="space-y-4 pt-4">
         <div>
           <h3 className="text-sm font-bold text-foreground">Employment Details</h3>
@@ -215,7 +276,7 @@ export default function EmployeeForm({
         <Button
           type="submit"
           disabled={isSubmitting}
-          className="h-10 px-6 cursor-pointer font-semibold flex items-center gap-2 min-w-[120px] justify-center"
+          className="h-10 px-6 cursor-pointer font-semibold flex items-center gap-2 min-w-30 justify-center"
         >
           {isSubmitting ? (
             <>

@@ -179,8 +179,8 @@ export default function UserForm({
                 {...register("roleId")}
               >
                 <option value="">Select a role...</option>
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
+                {roles.map((r, index) => (
+                  <option key={r.id || r.name || `role-${index}`} value={r.id}>
                     {r.name}
                   </option>
                 ))}

@@ -34,6 +34,7 @@ export const employeeSchema = z.object({
   status: z
     .enum(["active", "inactive", "suspended"])
     .default("active"),
+  userId: z.string().trim().optional().nullable(),
 });
 
 export type EmployeeFormValues = z.infer<typeof employeeSchema>;

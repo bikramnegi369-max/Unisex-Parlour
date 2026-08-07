@@ -30,6 +30,7 @@ import {
   ClipboardList,
   GitBranch,
   X,
+  Sparkles,
 } from "lucide-react";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -37,27 +38,63 @@ interface SidebarItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
 }
 
-const navItems: SidebarItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Billing / POS", href: "/billing", icon: Receipt },
-  { name: "Appointments", href: "/appointments", icon: Calendar },
-  { name: "Customers", href: "/customers", icon: Users },
-  { name: "Employees", href: "/employees", icon: UserCheck },
-  { name: "Services", href: "/services", icon: Scissors },
-  { name: "Memberships", href: "/memberships", icon: CreditCard },
-  { name: "Coupons", href: "/coupons", icon: Ticket },
-  { name: "Loyalty", href: "/loyalty", icon: Award },
-  { name: "Inventory", href: "/inventory", icon: Package },
-  { name: "Suppliers", href: "/suppliers", icon: Truck },
-  { name: "Finance", href: "/finance", icon: CircleDollarSign },
-  { name: "Reports & Analytics", href: "/reports", icon: BarChart3 },
-  { name: "Users", href: "/users", icon: Users },
-  { name: "Roles & Permissions", href: "/roles", icon: ShieldCheck },
-  { name: "Branches", href: "/branches", icon: GitBranch },
-  { name: "Activity Logs", href: "/activity-logs", icon: ClipboardList },
-  { name: "Settings", href: "/settings", icon: Settings },
+interface SidebarGroup {
+  title: string;
+  items: SidebarItem[];
+}
+
+const navGroups: SidebarGroup[] = [
+  {
+    title: "Main",
+    items: [
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { name: "Billing / POS", href: "/billing", icon: Receipt },
+      { name: "Appointments", href: "/appointments", icon: Calendar },
+    ],
+  },
+  {
+    title: "Operations",
+    items: [
+      { name: "Customers", href: "/customers", icon: Users },
+      { name: "Employees", href: "/employees", icon: UserCheck },
+      { name: "Services", href: "/services", icon: Scissors },
+    ],
+  },
+  {
+    title: "Marketing",
+    items: [
+      { name: "Memberships", href: "/memberships", icon: CreditCard },
+      { name: "Coupons", href: "/coupons", icon: Ticket },
+      { name: "Loyalty", href: "/loyalty", icon: Award },
+    ],
+  },
+  {
+    title: "Supply Chain",
+    items: [
+      { name: "Inventory", href: "/inventory", icon: Package },
+      { name: "Suppliers", href: "/suppliers", icon: Truck },
+    ],
+  },
+  {
+    title: "Finance & Insights",
+    items: [
+      { name: "Finance", href: "/finance", icon: CircleDollarSign },
+      { name: "Reports & Analytics", href: "/reports", icon: BarChart3 },
+    ],
+  },
+  {
+    title: "Administration",
+    items: [
+      { name: "Users", href: "/users", icon: Users },
+      { name: "Roles & Permissions", href: "/roles", icon: ShieldCheck },
+      { name: "Branches", href: "/branches", icon: GitBranch },
+      { name: "Activity Logs", href: "/activity-logs", icon: ClipboardList },
+      { name: "Settings", href: "/settings", icon: Settings },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -70,34 +107,40 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const dispatch = useAppDispatch();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isCollapsedSelector = useAppSelector((state) => state.ui.sidebarCollapsed);
-  
-  // Mobile drawer sidebar should never render in collapsed icon-only mode
+
+  // Mobile drawer sidebar should never render in collapsed mode
   const isCollapsed = isMobile ? false : isCollapsedSelector;
 
   return (
     <aside
       className={cn(
-        "flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out z-20 shrink-0 overflow-x-hidden",
+        "flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out z-20 shrink-0 overflow-x-hidden select-none shadow-sm",
         isCollapsed ? "w-20" : "w-64"
       )}
     >
       {/* Sidebar Header / Branding */}
-      <div className="flex items-center justify-between h-16 border-b border-sidebar-border shrink-0 px-6">
+      <div className="flex items-center justify-between h-16 border-b border-sidebar-border shrink-0 px-4">
         {isCollapsed ? (
-          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-sm">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105">
             <Scissors className="h-[18px] w-[18px]" />
           </div>
         ) : (
           <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            <Link href="/dashboard" className="flex items-center gap-3 group">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform group-hover:scale-105">
                 <Scissors className="h-5 w-5" />
               </div>
-              <span className="text-base font-bold tracking-tight text-foreground">
-                Unisex Parlour
-              </span>
-            </div>
-            
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-bold tracking-tight text-foreground leading-none flex items-center gap-1.5">
+                  Unisex Parlour
+                  <Sparkles className="h-3 w-3 text-amber-500 fill-amber-500" />
+                </span>
+                <span className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase mt-1">
+                  ERP Platform
+                </span>
+              </div>
+            </Link>
+
             {onClose && (
               <button
                 onClick={onClose}
@@ -110,60 +153,75 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </div>
         )}
       </div>
-      
+
       {/* Mobile Branch Switcher */}
       {isMobile && (
-        <div className="px-5 py-3 border-b border-sidebar-border bg-sidebar-accent/5">
-          <p className="text-[10px] font-semibold text-sidebar-foreground/50 uppercase tracking-wider mb-2">
-            Active Branch
+        <div className="px-4 py-3 border-b border-sidebar-border bg-muted/20">
+          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Active Branch Location
           </p>
-          <div className="w-full flex justify-start">
+          <div className="w-full">
             <BranchSwitcher />
           </div>
         </div>
       )}
 
-      {/* Navigation Items */}
-      <nav className={cn("flex-1 py-4 overflow-y-auto overflow-x-hidden space-y-1 scrollbar-thin", isCollapsed ? "px-1" : "px-3")}>
-        {navItems.map((item) => {
-          const requiredPermission = item.href in routePermissions
-            ? routePermissions[item.href as RoutePath]
-            : undefined;
-          if (requiredPermission && !hasPermission(user, requiredPermission)) {
-            return null;
-          }
+      {/* Navigation Items grouped by section */}
+      <nav className={cn("flex-1 py-3 overflow-y-auto overflow-x-hidden space-y-4 scrollbar-thin", isCollapsed ? "px-2" : "px-3")}>
+        {navGroups.map((group) => {
+          // Filter authorized items in group
+          const visibleItems = group.items.filter((item) => {
+            const requiredPermission = item.href in routePermissions
+              ? routePermissions[item.href as RoutePath]
+              : undefined;
+            return !requiredPermission || hasPermission(user, requiredPermission);
+          });
 
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          const Icon = item.icon;
+          if (visibleItems.length === 0) return null;
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center rounded-lg text-sm font-medium transition-all group relative h-10",
-                isCollapsed ? "justify-center w-12 mx-auto" : "px-3.5 w-full",
-                isActive
-                  ? "bg-primary/5 text-primary before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:bg-primary before:rounded-r"
-                  : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground/75"
+            <div key={group.title} className="space-y-1">
+              {!isCollapsed && (
+                <p className="px-3 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground/70 mb-1">
+                  {group.title}
+                </p>
               )}
-            >
-              <Icon
-                className={cn(
-                  "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
-                  isCollapsed ? "" : "mr-3",
-                  isActive ? "text-primary" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"
-                )}
-              />
-              {!isCollapsed && <span className="truncate">{item.name}</span>}
 
-              {/* Styled Tooltip on Collapsed */}
-              {isCollapsed && (
-                <div className="absolute left-16 invisible opacity-0 group-hover:visible group-hover:opacity-100 bg-popover text-popover-foreground text-xs font-semibold rounded-lg px-2.5 py-1.5 transition-all duration-150 whitespace-nowrap z-50 shadow-lg border border-border ml-2">
-                  {item.name}
-                </div>
-              )}
-            </Link>
+              {visibleItems.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center rounded-xl text-xs font-semibold transition-all duration-150 group relative h-9.5",
+                      isCollapsed ? "justify-center w-11 h-11 mx-auto my-1" : "px-3 w-full",
+                      isActive
+                        ? "bg-primary/10 text-primary font-bold shadow-2xs before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:bg-primary before:rounded-r"
+                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
+                        isCollapsed ? "" : "mr-3",
+                        isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
+                      )}
+                    />
+                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+
+                    {/* Tooltip on Collapsed Mode */}
+                    {isCollapsed && (
+                      <div className="absolute left-16 invisible opacity-0 group-hover:visible group-hover:opacity-100 bg-popover text-popover-foreground text-xs font-bold rounded-lg px-3 py-1.5 transition-all duration-150 whitespace-nowrap z-50 shadow-xl border border-border ml-2 pointer-events-none">
+                        {item.name}
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           );
         })}
       </nav>
@@ -173,16 +231,16 @@ export default function Sidebar({ onClose }: SidebarProps) {
         <button
           onClick={() => dispatch(toggleSidebarCollapse())}
           className={cn(
-            "flex items-center justify-center w-full h-10 rounded-lg bg-sidebar-accent hover:bg-sidebar-accent/80 text-sidebar-foreground/75 hover:text-sidebar-foreground transition-all cursor-pointer",
-            isCollapsed ? "w-12 mx-auto px-0" : "px-3 gap-2"
+            "flex items-center justify-center w-full h-9 rounded-xl bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer font-semibold text-xs",
+            isCollapsed ? "w-11 mx-auto px-0" : "px-3 gap-2"
           )}
         >
           {isCollapsed ? (
             <ChevronRight size={18} />
           ) : (
             <>
-              <ChevronLeft size={18} />
-              <span className="text-xs font-semibold">Collapse Sidebar</span>
+              <ChevronLeft size={16} />
+              <span>Collapse Navigation</span>
             </>
           )}
         </button>

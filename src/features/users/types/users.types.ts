@@ -15,6 +15,7 @@ export interface UserRole {
 export interface UserResponseDTO {
   id: string;
   name: string;
+  username?: string;
   email: string;
   phone: string;
   role: string | UserRole;
@@ -26,6 +27,22 @@ export interface UserResponseDTO {
   status: UserStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface UserSummary {
+  id: string;
+  name: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  status?: UserStatus;
+  role?: string | { id: string; name?: string };
+  isVerified?: boolean;
+  isFirstLogin?: boolean;
+  hasOrgWideAccess?: boolean;
+  branchAccess?: UserBranchAccess[] | string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Query parameters for GET /users

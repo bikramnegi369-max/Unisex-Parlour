@@ -12,9 +12,9 @@ export default function Breadcrumbs() {
   const paths = pathname.split("/").filter(Boolean);
 
   return (
-    <nav className="flex items-center space-x-1.5 text-xs text-muted-foreground font-medium mb-4 shrink-0 select-none">
-      <Link href="/dashboard" className="flex items-center gap-1 hover:text-primary transition-colors">
-        <Home size={13} />
+    <nav className="flex items-center space-x-1.5 text-xs text-muted-foreground font-medium mb-4 shrink-0 select-none flex-wrap gap-y-1">
+      <Link href="/dashboard" className="flex items-center gap-1.5 hover:text-primary transition-colors py-0.5 px-1.5 rounded-md hover:bg-muted/50">
+        <Home size={13} className="text-muted-foreground/80" />
         <span>Home</span>
       </Link>
       {paths.map((path, index) => {
@@ -26,11 +26,11 @@ export default function Breadcrumbs() {
 
         return (
           <React.Fragment key={path}>
-            <ChevronRight size={12} className="text-muted-foreground/60" />
+            <ChevronRight size={12} className="text-muted-foreground/40 shrink-0" />
             {isLast ? (
-              <span className="text-foreground font-semibold">{formattedName}</span>
+              <span className="text-foreground font-bold py-0.5 px-1.5 rounded-md bg-muted/40">{formattedName}</span>
             ) : (
-              <Link href={href} className="hover:text-primary transition-colors">
+              <Link href={href} className="hover:text-primary transition-colors py-0.5 px-1.5 rounded-md hover:bg-muted/50">
                 {formattedName}
               </Link>
             )}
