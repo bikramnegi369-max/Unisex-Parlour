@@ -23,9 +23,9 @@ import { UserSession } from "../permissions";
 
 apiClient.interceptors.request.use(
   (config) => {
-    // Inject auth token
+    // Inject auth token if not already explicitly provided
     const token = getToken();
-    if (token && config.headers) {
+    if (token && config.headers && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
@@ -102,7 +102,8 @@ apiClient.interceptors.response.use(
     const isAuthRequest = 
       originalRequest.url?.includes("/auth/login") || 
       originalRequest.url?.includes("/auth/refresh") ||
-      originalRequest.url?.includes("/auth/logout");
+      originalRequest.url?.includes("/auth/logout") ||
+      originalRequest.url?.includes("/auth/activate");
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       if (isRefreshing) {

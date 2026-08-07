@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Scissors, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ export default function LoginPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isActivated = searchParams.get("activated") === "true";
 
   React.useEffect(() => {
     if (isAuthenticated) {
@@ -88,6 +90,12 @@ export default function LoginPage() {
 
           <CardContent className="px-8 pb-8">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+              {isActivated && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-500 text-sm leading-relaxed animate-in fade-in duration-200">
+                  <span>Account activated successfully! Please sign in with your new password.</span>
+                </div>
+              )}
+
               {errorMsg && (
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm leading-relaxed animate-in fade-in duration-200">
                   <AlertCircle className="h-5 w-5 shrink-0" />
