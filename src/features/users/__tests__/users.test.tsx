@@ -1,0 +1,133 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from "vitest";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
+import {
+  getUsers,
+  getUser,
+  createUser,
+  updateUser,
+  updateUserStatus,
+} from "../api/users.api";
+import { linkUserAccount, unlinkUserAccount } from "@/features/employees/api/employees.api";
+import { apiClient } from "@/lib/api/axios";
+
+// Mock the axios client
+vi.mock("@/lib/api/axios", () => {
+  const mockClient = {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+  };
+  return {
+    apiClient: mockClient,
+  };
+});
+
+describe("User Module API Contract & Security Tests", () => {
+  it("verifies GET /users matches contract and uses current branch scope", async () => {
+    const mockResponse = { data: { success: true, data: [] } };
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
+
+    await getUsers({ page: 1, limit: 10 });
+
+    expect(apiClient.get).toHaveBeenCalledWith("/users", {
+      params: { page: 1, limit: 10 },
+      branchScope: "current",
+    });
+  });
+
+  it("verifies GET /users/:id matches contract and uses branch scope", async () => {
+    const mockResponse = { data: { success: true, data: { id: "u1" } } };
+    vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
+
+    const user = await getUser("u1");
+
+    expect(apiClient.get).toHaveBeenCalledWith("/users/u1", {
+      branchScope: "current",
+    });
+    expect(user.id).toBe("u1");
+  });
+
+  it("verifies POST /users matches contract and excludes organizationId/status/password/etc.", async () => {
+    const mockResponse = { data: { success: true, data: { id: "u2" } } };
+    vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
+
+    const payload = {
+      name: "John Doe",
+      email: "john@example.com",
+      phone: "1234567890",
+      roleId: "r1",
+      branchAccess: ["b1"],
+    };
+
+    const user = await createUser(payload);
+
+    expect(apiClient.post).toHaveBeenCalledWith("/users", payload, {
+      branchScope: "current",
+    });
+    expect(user.id).toBe("u2");
+  });
+
+  it("verifies PATCH /users/:id matches contract and excludes status", async () => {
+    const mockResponse = { data: { success: true, data: { id: "u1" } } };
+    vi.mocked(apiClient.patch).mockResolvedValueOnce(mockResponse);
+
+    const payload = {
+      name: "John Updated",
+      phone: "0987654321",
+      branchAccess: ["b2"],
+      hasOrgWideAccess: false,
+    };
+
+    await updateUser("u1", payload);
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/users/u1", payload, {
+      branchScope: "current",
+    });
+  });
+
+  it("verifies PATCH /users/:id/status allows admin status changes", async () => {
+    const mockResponse = { data: { success: true, data: { id: "u1", status: "inactive" } } };
+    vi.mocked(apiClient.patch).mockResolvedValueOnce(mockResponse);
+
+    await updateUserStatus("u1", "inactive");
+
+    expect(apiClient.patch).toHaveBeenCalledWith("/users/u1/status", { status: "inactive" }, {
+      branchScope: "current",
+    });
+  });
+});
+
+describe("User Module Cache and Scoping Keys", () => {
+  it("verifies user list and user details queries use canonical branch-aware keys", () => {
+    const listKeyBranchA = getScopeQueryKey("users", "br_A", [{ page: 1 }]);
+    const listKeyBranchB = getScopeQueryKey("users", "br_B", [{ page: 1 }]);
+    expect(listKeyBranchA).toEqual(["users", { scope: "branch", branchId: "br_A" }, { page: 1 }]);
+    expect(listKeyBranchB).toEqual(["users", { scope: "branch", branchId: "br_B" }, { page: 1 }]);
+    expect(listKeyBranchA).not.toEqual(listKeyBranchB);
+
+    const detailKeyBranchA = getScopeQueryKey("user", "br_A", ["u1"]);
+    const detailKeyBranchB = getScopeQueryKey("user", "br_B", ["u1"]);
+    expect(detailKeyBranchA).toEqual(["user", { scope: "branch", branchId: "br_A" }, "u1"]);
+    expect(detailKeyBranchB).toEqual(["user", { scope: "branch", branchId: "br_B" }, "u1"]);
+    expect(detailKeyBranchA).not.toEqual(detailKeyBranchB);
+  });
+});
+
+describe("Staff-User Linking Endpoint Contract", () => {
+  it("verifies linkUserAccount matches POST /staff/:id/link contract", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { success: true } });
+
+    await linkUserAccount("emp_1", "usr_1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/link", { userId: "usr_1" });
+  });
+
+  it("verifies unlinkUserAccount matches POST /staff/:id/unlink contract", async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: { success: true } });
+
+    await unlinkUserAccount("emp_1");
+
+    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/unlink");
+  });
+});

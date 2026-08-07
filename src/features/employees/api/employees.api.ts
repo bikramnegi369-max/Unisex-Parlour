@@ -113,12 +113,12 @@ export const removeStaffService = async (id: string, serviceId: string): Promise
   await apiClient.delete(`/staff/${id}/services/${serviceId}`);
 };
 
-export const linkUserAccount = async (id: string, userId: string): Promise<Employee> => {
-  const { data } = await apiClient.post<EmployeeMutateResponse>(`/staff/${id}/user`, { userId });
-  return mapEmployeeKeys(data.data);
+export const linkUserAccount = async (id: string, userId: string): Promise<{ id: string }> => {
+  await apiClient.post(`/staff/${id}/link`, { userId });
+  return { id };
 };
 
-export const unlinkUserAccount = async (id: string): Promise<Employee> => {
-  const { data } = await apiClient.delete<EmployeeMutateResponse>(`/staff/${id}/user`);
-  return mapEmployeeKeys(data.data);
+export const unlinkUserAccount = async (id: string): Promise<{ id: string }> => {
+  await apiClient.post(`/staff/${id}/unlink`);
+  return { id };
 };
