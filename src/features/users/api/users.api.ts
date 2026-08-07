@@ -6,6 +6,7 @@ import type {
   CreateUserPayload,
   UpdateUserPayload,
   UpdateUserStatus,
+  UserRole,
 } from "../types/users.types";
 
 export const getUsers = async (params: GetUsersParams = {}): Promise<PaginatedResponse<UserResponseDTO>> => {
@@ -14,6 +15,11 @@ export const getUsers = async (params: GetUsersParams = {}): Promise<PaginatedRe
     branchScope: "current",
   });
   return data;
+};
+
+export const getRoles = async (): Promise<UserRole[]> => {
+  const { data } = await apiClient.get<{ success: boolean; data: UserRole[] }>("/roles");
+  return data.data;
 };
 
 export const getUser = async (id: string): Promise<UserResponseDTO> => {
