@@ -95,11 +95,22 @@ export default function UserForm({
   };
 
   const handleFormSubmit = (values: any) => {
-    // Backend contract expects string[] for branchAccess
+    // Backend Zod schema expects branchAccess to be an array of objects: [{ branchId, branchName, isActive }]
+    const formattedBranchAccess = values.hasOrgWideAccess
+      ? []
+      : (values.branchAccess || []).map((bId: string) => {
+          const matchedBranch = branches.find((b) => b.id === bId);
+          return {
+            branchId: bId,
+            branchName: matchedBranch?.name || "Branch",
+            isActive: true,
+          };
+        });
+
     const submitPayload = {
       name: values.name,
       phone: values.phone,
-      branchAccess: values.hasOrgWideAccess ? [] : values.branchAccess,
+      branchAccess: formattedBranchAccess,
       hasOrgWideAccess: values.hasOrgWideAccess,
       ...(!isEditMode ? { email: values.email, roleId: values.roleId } : {}),
     };

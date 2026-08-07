@@ -16,6 +16,7 @@ describe("ServiceForm Pre-filling", () => {
       name: "hair",
       description: "All hair related services",
       status: "active" as const,
+      isActive: true,
       displayOrder: 0,
       organizationId: "6a674eeb35f4849a26cab307",
       branchId: "6a674eeb35f4849a26cab309",

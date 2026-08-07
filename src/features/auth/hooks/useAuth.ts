@@ -6,8 +6,17 @@ import { UserSession } from "@/lib/permissions";
 import { setToken, removeToken, getToken } from "@/lib/auth/token";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-
-import { LoginResponse } from "@/features/users/types/users.types";
+import {
+  LoginResponseData,
+  ActivationOtpSendData,
+  ActivationOtpVerifyData,
+  ActivationPasswordData,
+} from "@/features/auth/types/auth.types";
+import {
+  setActivationToken,
+  setPasswordChangeToken,
+  clearAllActivationTokens,
+} from "@/features/auth/utils/activation-storage";
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -38,7 +47,7 @@ export function useAuth() {
 
   // Login mutation
   const loginMutation = useMutation({
-    mutationFn: async (credentials: Record<string, string>): Promise<LoginResponse> => {
+    mutationFn: async (credentials: Record<string, string>): Promise<LoginResponseData> => {
       try {
         const { data } = await apiClient.post("/auth/login", credentials);
         return data.data || data;
@@ -46,29 +55,29 @@ export function useAuth() {
         const errorMessage =
           axios.isAxiosError(err) && err.response?.data?.message
             ? err.response.data.message
-            : "Invalid credentials or login failed";
+            : "Invalid email or password. Please try again.";
         throw new Error(errorMessage);
       }
     },
     onSuccess: (data) => {
-      if (data.requireActivation && data.activationToken) {
-        sessionStorage.setItem("erp_activation_token", data.activationToken);
+      if (data.requireActivation) {
+        setActivationToken(data.activationToken);
         router.push("/activate/otp");
         return;
       }
 
-      const token = data.accessToken;
-      if (token) setToken(token);
-      
-      // Invalidate the auth-user query so that it is forced to fetch /auth/me on dashboard mount
-      queryClient.invalidateQueries({ queryKey: ["auth-user"] });
-      router.push("/dashboard");
+      if (data.accessToken) {
+        setToken(data.accessToken);
+        clearAllActivationTokens();
+        queryClient.invalidateQueries({ queryKey: ["auth-user"] });
+        router.push("/dashboard");
+      }
     },
   });
 
   // Send OTP Mutation
   const sendOtpMutation = useMutation({
-    mutationFn: async (activationToken: string) => {
+    mutationFn: async (activationToken: string): Promise<ActivationOtpSendData> => {
       try {
         const { data } = await apiClient.post(
           "/auth/activate/otp/send",
@@ -79,20 +88,33 @@ export function useAuth() {
             },
           }
         );
-        return data;
+        return data.data || data;
       } catch (err) {
-        const errorMessage =
-          axios.isAxiosError(err) && err.response?.data?.message
-            ? err.response.data.message
-            : "Failed to send OTP";
-        throw new Error(errorMessage);
+        if (axios.isAxiosError(err)) {
+          if (err.response?.status === 401) {
+            throw new Error("Your activation session has expired. Please sign in again.");
+          }
+          if (err.response?.status === 429) {
+            throw new Error("Please wait before requesting another code.");
+          }
+          if (err.response?.data?.message) {
+            throw new Error(err.response.data.message);
+          }
+        }
+        throw new Error("Failed to send verification code. Please try again.");
       }
     },
   });
 
   // Verify OTP Mutation
   const verifyOtpMutation = useMutation({
-    mutationFn: async ({ activationToken, otp }: { activationToken: string; otp: string }) => {
+    mutationFn: async ({
+      activationToken,
+      otp,
+    }: {
+      activationToken: string;
+      otp: string;
+    }): Promise<ActivationOtpVerifyData> => {
       try {
         const { data } = await apiClient.post(
           "/auth/activate/otp/verify",
@@ -105,18 +127,34 @@ export function useAuth() {
         );
         return data.data || data;
       } catch (err) {
-        const errorMessage =
-          axios.isAxiosError(err) && err.response?.data?.message
-            ? err.response.data.message
-            : "OTP verification failed";
-        throw new Error(errorMessage);
+        if (axios.isAxiosError(err)) {
+          if (err.response?.status === 400) {
+            throw new Error("That verification code is incorrect or has expired.");
+          }
+          if (err.response?.status === 401) {
+            throw new Error("Your activation session has expired. Please sign in again.");
+          }
+          if (err.response?.status === 429) {
+            throw new Error("Too many incorrect attempts. Please request a new code.");
+          }
+          if (err.response?.data?.message) {
+            throw new Error(err.response.data.message);
+          }
+        }
+        throw new Error("OTP verification failed.");
       }
     },
   });
 
   // Change Password & Activate Mutation
   const activateChangePasswordMutation = useMutation({
-    mutationFn: async ({ passwordChangeToken, password }: { passwordChangeToken: string; password: string }) => {
+    mutationFn: async ({
+      passwordChangeToken,
+      password,
+    }: {
+      passwordChangeToken: string;
+      password: string;
+    }): Promise<ActivationPasswordData> => {
       try {
         const { data } = await apiClient.post(
           "/auth/activate/change-password",
@@ -127,13 +165,25 @@ export function useAuth() {
             },
           }
         );
-        return data;
+        return data.data || data;
       } catch (err) {
-        const errorMessage =
-          axios.isAxiosError(err) && err.response?.data?.message
-            ? err.response.data.message
-            : "Password update failed";
-        throw new Error(errorMessage);
+        if (axios.isAxiosError(err)) {
+          if (err.response?.status === 401) {
+            throw new Error("Your password setup session has expired. Please start again.");
+          }
+          if (err.response?.data?.message) {
+            throw new Error(err.response.data.message);
+          }
+        }
+        throw new Error("Password activation failed.");
+      }
+    },
+    onSuccess: (data) => {
+      const accessToken = data.accessToken;
+      if (accessToken) {
+        setToken(accessToken);
+        clearAllActivationTokens();
+        queryClient.invalidateQueries({ queryKey: ["auth-user"] });
       }
     },
   });
@@ -149,6 +199,7 @@ export function useAuth() {
     },
     onSuccess: () => {
       removeToken();
+      clearAllActivationTokens();
       queryClient.setQueryData(["auth-user"], null);
       router.push("/login");
     },
@@ -171,4 +222,3 @@ export function useAuth() {
     isActivatingChangePassword: activateChangePasswordMutation.isPending,
   };
 }
-

@@ -4,49 +4,62 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Lock, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Lock, AlertCircle, Eye, EyeOff, CheckCircle2, Check, X } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  getPasswordChangeToken,
+  clearAllActivationTokens,
+} from "@/features/auth/utils/activation-storage";
 
-const passwordSchema = z
+export const passwordSchema = z
   .object({
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    confirmPassword: z.string().min(6, "Please confirm your password"),
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(
+        /[^a-zA-Z0-9]/,
+        "Password must contain at least one special character"
+      ),
+    confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
 
-type PasswordFormValues = z.infer<typeof passwordSchema>;
+export type PasswordFormValues = z.infer<typeof passwordSchema>;
 
 export default function PasswordPage() {
   const { activateChangePassword, isActivatingChangePassword } = useAuth();
-  const [passwordChangeToken, setPasswordChangeToken] = useState<string | null>(null);
+  const [passwordChangeToken, setPasswordChangeTokenState] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isCheckingToken, setIsCheckingToken] = useState(true);
+  const [isSuccess, setIsSuccess] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const token = sessionStorage.getItem("erp_password_change_token");
-      if (!token) {
-        router.push("/login");
-      } else {
-        setPasswordChangeToken(token);
-        setIsCheckingToken(false);
-      }
+    const token = getPasswordChangeToken();
+    if (!token) {
+      router.push("/login");
+    } else {
+      setPasswordChangeTokenState(token);
+      setIsCheckingToken(false);
     }
   }, [router]);
 
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordSchema),
@@ -55,6 +68,28 @@ export default function PasswordPage() {
       confirmPassword: "",
     },
   });
+
+  const watchedPassword = watch("password") || "";
+
+  const getRequirementsState = (pwd: string) => [
+    { label: "At least 8 characters", met: pwd.length >= 8 },
+    { label: "One uppercase letter", met: /[A-Z]/.test(pwd) },
+    { label: "One lowercase letter", met: /[a-z]/.test(pwd) },
+    { label: "One number", met: /[0-9]/.test(pwd) },
+    { label: "One special character", met: /[^a-zA-Z0-9]/.test(pwd) },
+  ];
+
+  const requirements = getRequirementsState(watchedPassword);
+  const satisfiedCount = requirements.filter((r) => r.met).length;
+
+  const calculateStrength = () => {
+    if (!watchedPassword) return { score: 0, label: "", color: "bg-border" };
+    if (satisfiedCount <= 2) return { score: 1, label: "Weak", color: "bg-destructive" };
+    if (satisfiedCount <= 4) return { score: 2, label: "Medium", color: "bg-amber-500" };
+    return { score: 3, label: "Strong", color: "bg-emerald-500" };
+  };
+
+  const strength = calculateStrength();
 
   const onSubmit = async (data: PasswordFormValues) => {
     if (!passwordChangeToken) return;
@@ -65,13 +100,18 @@ export default function PasswordPage() {
         passwordChangeToken,
         password: data.password,
       });
-      // Clear password change token upon success
-      sessionStorage.removeItem("erp_password_change_token");
-      
-      // Redirect back to login with verification hints
-      router.push("/login?activated=true");
+
+      setIsSuccess(true);
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Failed to update password.");
+      const msg = err instanceof Error ? err.message : "Failed to update password.";
+      setErrorMsg(msg);
+      if (msg.includes("expired")) {
+        clearAllActivationTokens();
+        setTimeout(() => router.push("/login"), 2000);
+      }
     }
   };
 
@@ -83,6 +123,22 @@ export default function PasswordPage() {
     );
   }
 
+  if (isSuccess) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 overflow-hidden">
+        <div className="w-full max-w-md z-10 text-center space-y-4">
+          <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500 ring-8 ring-emerald-500/5 animate-in zoom-in-50 duration-300">
+            <CheckCircle2 className="h-10 w-10" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground">Account activated successfully</h2>
+          <p className="text-sm text-muted-foreground">
+            Your Salon ERP account is ready. Taking you to your dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-12 sm:px-6 lg:px-8 overflow-hidden">
       {/* Modern dot grid pattern */}
@@ -90,7 +146,7 @@ export default function PasswordPage() {
 
       {/* Ambient glows */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 h-[450px] w-[450px] rounded-full bg-primary/10 dark:bg-primary/5 blur-[100px] pointer-events-none" />
-      
+
       <div className="w-full max-w-md z-10">
         <Card className="relative overflow-hidden border border-border/80 dark:border-white/10 bg-gradient-to-b from-card to-card/95 dark:from-slate-900/90 dark:to-slate-950/95 shadow-2xl transition-all duration-300">
           <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
@@ -101,10 +157,10 @@ export default function PasswordPage() {
             </div>
             <div className="text-center space-y-1.5">
               <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
-                Set Account Password
+                Create your password
               </CardTitle>
               <CardDescription className="text-sm text-muted-foreground">
-                Please set a secure password to complete your account activation
+                Choose a secure password for your Salon ERP account.
               </CardDescription>
             </div>
           </CardHeader>
@@ -112,7 +168,7 @@ export default function PasswordPage() {
           <CardContent className="px-8 pb-8">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               {errorMsg && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm leading-relaxed">
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm leading-relaxed animate-in fade-in duration-200">
                   <AlertCircle className="h-5 w-5 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
@@ -126,7 +182,11 @@ export default function PasswordPage() {
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className={errors.password ? "border-destructive pr-10 focus-visible:ring-destructive" : "bg-background/40 dark:bg-slate-950/40 border-border/80 dark:border-white/5 pr-10"}
+                    className={
+                      errors.password
+                        ? "border-destructive pr-10 focus-visible:ring-destructive"
+                        : "bg-background/40 dark:bg-slate-950/40 border-border/80 dark:border-white/5 pr-10"
+                    }
                     disabled={isActivatingChangePassword}
                     {...register("password")}
                   />
@@ -141,6 +201,58 @@ export default function PasswordPage() {
                 {errors.password && (
                   <p className="text-xs text-destructive font-medium">{errors.password.message}</p>
                 )}
+
+                {/* Password strength indicator and criteria checklist */}
+                {watchedPassword.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between items-center text-xs font-medium">
+                      <span className="text-muted-foreground">Password strength</span>
+                      <span
+                        className={
+                          strength.label === "Weak"
+                            ? "text-destructive font-semibold"
+                            : strength.label === "Medium"
+                            ? "text-amber-500 font-semibold"
+                            : "text-emerald-500 font-semibold"
+                        }
+                      >
+                        {strength.label}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden flex gap-1">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          strength.score >= 1 ? strength.color : "bg-transparent"
+                        } w-1/3`}
+                      />
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          strength.score >= 2 ? strength.color : "bg-transparent"
+                        } w-1/3`}
+                      />
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          strength.score >= 3 ? strength.color : "bg-transparent"
+                        } w-1/3`}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1.5 text-xs text-muted-foreground">
+                      {requirements.map((req, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5">
+                          {req.met ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          ) : (
+                            <X className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                          )}
+                          <span className={req.met ? "text-foreground font-medium" : "text-muted-foreground"}>
+                            {req.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -151,7 +263,11 @@ export default function PasswordPage() {
                   <Input
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className={errors.confirmPassword ? "border-destructive pr-10 focus-visible:ring-destructive" : "bg-background/40 dark:bg-slate-950/40 border-border/80 dark:border-white/5 pr-10"}
+                    className={
+                      errors.confirmPassword
+                        ? "border-destructive pr-10 focus-visible:ring-destructive"
+                        : "bg-background/40 dark:bg-slate-950/40 border-border/80 dark:border-white/5 pr-10"
+                    }
                     disabled={isActivatingChangePassword}
                     {...register("confirmPassword")}
                   />
@@ -164,7 +280,9 @@ export default function PasswordPage() {
                   </button>
                 </div>
                 {errors.confirmPassword && (
-                  <p className="text-xs text-destructive font-medium">{errors.confirmPassword.message}</p>
+                  <p className="text-xs text-destructive font-medium">
+                    {errors.confirmPassword.message}
+                  </p>
                 )}
               </div>
 
@@ -176,7 +294,7 @@ export default function PasswordPage() {
                 {isActivatingChangePassword ? (
                   <span className="flex items-center gap-2 justify-center">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                    Activating...
+                    Activating Account...
                   </span>
                 ) : (
                   "Activate Account"

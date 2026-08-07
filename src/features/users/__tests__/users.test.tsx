@@ -58,7 +58,7 @@ describe("User Module API Contract & Security Tests", () => {
       email: "john@example.com",
       phone: "1234567890",
       roleId: "r1",
-      branchAccess: ["b1"],
+      branchAccess: [{ branchId: "b1", branchName: "Main Branch", isActive: true }],
     };
 
     const user = await createUser(payload);
@@ -76,7 +76,7 @@ describe("User Module API Contract & Security Tests", () => {
     const payload = {
       name: "John Updated",
       phone: "0987654321",
-      branchAccess: ["b2"],
+      branchAccess: [{ branchId: "b2", branchName: "Branch B", isActive: true }],
       hasOrgWideAccess: false,
     };
 
