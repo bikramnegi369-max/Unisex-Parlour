@@ -37,6 +37,9 @@ export type PermissionType =
   | "settings.edit"
   | "settings.update"
   | "users.manage"
+  | "users.view"
+  | "users.create"
+  | "users.update"
   | "roles.manage"
   | "branches.manage"
   | "activity-logs.view";

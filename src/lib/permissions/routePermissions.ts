@@ -6,7 +6,7 @@ import { PermissionType } from "./index";
  * The guard will check if the user has the mapped permission to access the route.
  */
 export const routePermissions = {
-  "/users": "users.manage",
+  "/users": "users.view",
   "/roles": "roles.manage",
   "/branches": "branches.manage",
   "/finance": "finance.view",
