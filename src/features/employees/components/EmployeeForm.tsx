@@ -66,11 +66,17 @@ export default function EmployeeForm({
     handleSubmit,
     setError,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema) as unknown as Resolver<EmployeeFormValues>,
     defaultValues,
   });
+
+  // Re-synchronize form values when initialEmployee or defaultValues changes
+  useEffect(() => {
+    reset(defaultValues);
+  }, [defaultValues, reset]);
 
   const { data: linkedUser } = useUser(initialEmployee?.userId ?? null);
 
@@ -152,12 +158,15 @@ export default function EmployeeForm({
               id="email"
               type="email"
               placeholder="e.g. john.doe@salon.com"
-              className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
-              disabled={isSubmitting || isEditMode}
+              className={`${errors.email ? "border-destructive focus-visible:ring-destructive" : ""} ${
+                isEditMode ? "bg-muted/80 text-foreground opacity-100 font-medium cursor-not-allowed" : ""
+              }`}
+              readOnly={isEditMode}
+              disabled={isSubmitting}
               {...register("email")}
             />
             {isEditMode ? (
-              <p className="mt-1.5 text-[10px] text-muted-foreground">
+              <p className="mt-1.5 text-[10px] text-muted-foreground font-medium">
                 Email address cannot be changed after registration.
               </p>
             ) : (

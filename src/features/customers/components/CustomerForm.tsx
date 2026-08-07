@@ -87,7 +87,7 @@ export default function CustomerForm({
       phone: initialCustomer.phone || "",
       email: initialCustomer.email || "",
       gender: (initialCustomer.gender || "prefer_not_to_say") as CustomerFormValues["gender"],
-      dateOfBirth: initialCustomer.dateOfBirth || "",
+      dateOfBirth: initialCustomer.dateOfBirth ? initialCustomer.dateOfBirth.split("T")[0] : "",
       alternatePhone: initialCustomer.alternatePhone || "",
       address: {
         addressLine1: initialCustomer.address?.addressLine1 || "",
@@ -114,9 +114,9 @@ export default function CustomerForm({
       acquisitionSource: (initialCustomer.acquisitionSource || "walk_in") as CustomerFormValues["acquisitionSource"],
       referredByCustomerId: initialCustomer.referredByCustomerId || "",
       status: (initialCustomer.status || "active") as CustomerFormValues["status"],
-      allergies: initialCustomer.allergies?.join(", ") || "",
-      sensitivities: initialCustomer.sensitivities?.join(", ") || "",
-      tags: initialCustomer.tags?.join(", ") || "",
+      allergies: Array.isArray(initialCustomer.allergies) ? initialCustomer.allergies.join(", ") : initialCustomer.allergies || "",
+      sensitivities: Array.isArray(initialCustomer.sensitivities) ? initialCustomer.sensitivities.join(", ") : initialCustomer.sensitivities || "",
+      tags: Array.isArray(initialCustomer.tags) ? initialCustomer.tags.join(", ") : initialCustomer.tags || "",
       loyaltyPoints: initialCustomer.loyaltyPoints ?? 0,
     };
   }, [initialCustomer]);
@@ -126,11 +126,18 @@ export default function CustomerForm({
     handleSubmit,
     setValue,
     setError,
+    reset,
     formState: { errors },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema) as unknown as Resolver<CustomerFormValues>,
     defaultValues,
   });
+
+  // Re-synchronize form default values and tag chips state when initialCustomer changes
+  useEffect(() => {
+    reset(defaultValues);
+    setTags(initialCustomer?.tags || []);
+  }, [defaultValues, reset, initialCustomer]);
 
   // Effect to map server validation errors
   useEffect(() => {
@@ -145,7 +152,7 @@ export default function CustomerForm({
       getCustomers({ search: undefined, page: 1, limit: 100 })
         .then((res) => {
           const matched = res.data.find(
-            (c) => c.id === initialCustomer.referredByCustomerId
+            (c) => c.id === initialCustomer.referredByCustomerId || c._id === initialCustomer.referredByCustomerId
           );
           if (matched) {
             setSelectedReferrer(matched);
@@ -153,6 +160,9 @@ export default function CustomerForm({
           }
         })
         .catch((err) => console.error("Failed to load referrer profile details:", err));
+    } else {
+      setSelectedReferrer(null);
+      setReferrerSearch("");
     }
   }, [initialCustomer]);
 

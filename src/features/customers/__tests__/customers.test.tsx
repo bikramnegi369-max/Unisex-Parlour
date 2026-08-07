@@ -352,4 +352,78 @@ describe("CustomerTable Actions Click", () => {
   });
 });
 
+import CustomerForm from "../components/CustomerForm";
+
+describe("CustomerForm Pre-filling", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("correctly populates form fields including ISO dateOfBirth and array fields", () => {
+    const rawCustomer = {
+      id: "6a6ae46ff82d8d963de75f3e",
+      _id: "6a6ae46ff82d8d963de75f3e",
+      name: "kush qurilo",
+      phone: "9654165886",
+      email: "kushqurilo@gmail.com",
+      gender: "male" as const,
+      dateOfBirth: "2007-02-06T00:00:00.000Z",
+      address: {
+        addressLine1: "shayam nagar khayala road",
+        addressLine2: "new delhi, delhi inidia",
+        city: "delhi",
+        state: "Nagaland",
+        postalCode: "110018",
+        country: "India",
+      },
+      preferences: {
+        drinkPreference: "black coffee",
+        language: "English , Hindi",
+      },
+      marketingPreferences: {
+        sms: false,
+        email: false,
+        whatsapp: true,
+        promotions: false,
+        appointmentReminders: true,
+      },
+      tags: ["VIP", "WEDDING"],
+      allergies: ["Palm Oil"],
+      sensitivities: ["Heat"],
+      status: "active" as const,
+      loyaltyPoints: 4,
+      organizationId: "6a674eeb35f4849a26cab307",
+      homeBranchId: "6a674eeb35f4849a26cab309",
+      visitedBranchIds: ["6a674eeb35f4849a26cab309"],
+      createdAt: "2026-07-30T05:43:11.018Z",
+      updatedAt: "2026-07-30T13:21:37.000Z",
+    };
+
+    render(
+      <CustomerForm
+        initialCustomer={rawCustomer}
+        onSubmit={vi.fn()}
+        isSubmitting={false}
+        onCancel={vi.fn()}
+        submitLabel="Update Customer"
+      />
+    );
+
+    const nameInput = screen.getByLabelText(/Full Name/i) as HTMLInputElement;
+    const phoneInput = screen.getByLabelText(/Phone Number/i) as HTMLInputElement;
+    const dobInput = screen.getByLabelText(/Date of Birth/i) as HTMLInputElement;
+    const drinkInput = screen.getByLabelText(/Drink Preference/i) as HTMLInputElement;
+    const allergiesInput = screen.getByLabelText(/Allergies/i) as HTMLInputElement;
+
+    expect(nameInput.value).toBe("kush qurilo");
+    expect(phoneInput.value).toBe("9654165886");
+    expect(dobInput.value).toBe("2007-02-06");
+    expect(drinkInput.value).toBe("black coffee");
+    expect(allergiesInput.value).toBe("Palm Oil");
+    expect(screen.getByText("VIP")).not.toBeNull();
+    expect(screen.getByText("WEDDING")).not.toBeNull();
+  });
+});
+
+
 

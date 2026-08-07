@@ -33,28 +33,51 @@ export default function ServiceForm({
   submitLabel = "Save Service",
   error,
 }: ServiceFormProps) {
+  const defaultValues = React.useMemo(() => {
+    const rawCategory = initialService?.categoryId;
+    const catId =
+      typeof rawCategory === "object" && rawCategory !== null
+        ? (rawCategory as { _id?: string; id?: string })._id || (rawCategory as { _id?: string; id?: string }).id || ""
+        : rawCategory || "";
+
+    const rawService = initialService as
+      | (Partial<ServiceFormValues> & {
+          pricing?: { basePrice?: number };
+          taxConfiguration?: { taxable?: boolean; taxRate?: number };
+        })
+      | undefined;
+
+    return {
+      name: initialService?.name || "",
+      description: initialService?.description || "",
+      categoryId: catId,
+      duration: initialService?.duration ?? 30,
+      basePrice: initialService?.basePrice ?? rawService?.pricing?.basePrice ?? 0,
+      taxable: initialService?.taxable ?? rawService?.taxConfiguration?.taxable ?? true,
+      taxRate: initialService?.taxRate ?? rawService?.taxConfiguration?.taxRate ?? 0,
+      displayOrder: initialService?.displayOrder ?? 0,
+    };
+  }, [initialService]);
+
   const {
     register,
     handleSubmit,
     setError,
     watch,
     control,
+    reset,
     formState: { errors },
   } = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceSchema) as unknown as Resolver<ServiceFormValues>,
-    defaultValues: {
-      name: initialService?.name || "",
-      description: initialService?.description || "",
-      categoryId: initialService?.categoryId || "",
-      duration: initialService?.duration ?? 30,
-      basePrice: initialService?.basePrice ?? 0,
-      taxable: initialService?.taxable ?? true,
-      taxRate: initialService?.taxRate ?? 0,
-      displayOrder: initialService?.displayOrder ?? 0,
-    },
+    defaultValues,
   });
 
   const isTaxable = watch("taxable");
+
+  // Re-synchronize form values when initialService or defaultValues changes
+  React.useEffect(() => {
+    reset(defaultValues);
+  }, [defaultValues, reset]);
 
   // Effect to map server validation errors
   React.useEffect(() => {
