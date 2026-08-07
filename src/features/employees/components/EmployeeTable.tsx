@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { EmployeeMobileCard } from "./EmployeeMobileCard";
 import { buildEmployeeColumns } from "../columns/employeeColumns";
+import { EMPLOYEES_CONFIG } from "../config/employees.config";
 
 interface EmployeeTableProps {
   employees: Employee[];
@@ -29,8 +30,8 @@ export default function EmployeeTable({
   const { user } = useAuth();
   const { getBranchName } = useBranchContext();
 
-  const canEdit = hasPermission(user, "employees.edit");
-  const canDelete = hasPermission(user, "employees.delete");
+  const canEdit = hasPermission(user, EMPLOYEES_CONFIG.permissions.edit);
+  const canDelete = hasPermission(user, EMPLOYEES_CONFIG.permissions.delete);
 
   const columns = useMemo(
     () =>

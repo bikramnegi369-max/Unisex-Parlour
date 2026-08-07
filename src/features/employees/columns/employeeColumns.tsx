@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import type { Employee } from "../types/employee.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
+import { EMPLOYEES_CONFIG } from "../config/employees.config";
 
 interface EmployeeColumnOptions {
   onView: (employee: Employee) => void;
@@ -91,8 +92,8 @@ export const buildEmployeeColumns = ({
           onReactivate={() => onReactivate(employee)}
           status={employee.status}
           permissions={{
-            edit: "employees.edit",
-            delete: "employees.delete",
+            edit: EMPLOYEES_CONFIG.permissions.edit,
+            delete: EMPLOYEES_CONFIG.permissions.delete,
           }}
         />
       );

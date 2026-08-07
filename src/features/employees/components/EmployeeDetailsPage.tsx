@@ -20,6 +20,7 @@ import {
 import type { EmployeePayload, StaffBranch, StaffService } from "../types/employee.types";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
+import { EMPLOYEES_CONFIG } from "../config/employees.config";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import { Button } from "@/components/ui/button";
@@ -92,12 +93,12 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
   const [branchToRemove, setBranchToRemove] = useState<StaffBranch | null>(null);
   const [serviceToRemove, setServiceToRemove] = useState<StaffService | null>(null);
 
-  const canEdit = hasPermission(user, "employees.edit");
-  const canDelete = hasPermission(user, "employees.delete");
-  const canView = hasPermission(user, "employees.view");
-  const canAssignBranch = hasPermission(user, "employees.assign_branch");
-  const canAssignService = hasPermission(user, "employees.assign_service");
-  const canLinkUser = hasPermission(user, "employees.update");
+  const canEdit = hasPermission(user, EMPLOYEES_CONFIG.permissions.edit);
+  const canDelete = hasPermission(user, EMPLOYEES_CONFIG.permissions.delete);
+  const canView = hasPermission(user, EMPLOYEES_CONFIG.permissions.view);
+  const canAssignBranch = hasPermission(user, EMPLOYEES_CONFIG.permissions.assignBranch);
+  const canAssignService = hasPermission(user, EMPLOYEES_CONFIG.permissions.assignService);
+  const canLinkUser = hasPermission(user, EMPLOYEES_CONFIG.permissions.edit);
 
   const { data: employee, isLoading, isError, refetch, isRefetching } = useEmployee(employeeId);
   const { data: linkedUser } = useUser(employee?.userId ?? null);

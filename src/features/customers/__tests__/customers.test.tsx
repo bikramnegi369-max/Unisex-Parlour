@@ -16,7 +16,7 @@ vi.mock("@/features/auth/hooks/useAuth", () => ({
       name: "Owner 1",
       email: "owner1@parlour.com",
       role: "Owner",
-      permissions: ["customers.view", "customers.create", "customers.edit", "customers.delete"],
+      permissions: ["customers.view", "customers.create", "customers.update", "customers.delete"],
       organizationId: "org_1",
       branchAccess: [],
     },
@@ -45,7 +45,7 @@ describe("Customer Module Permissions and RBAC", () => {
 
     expect(hasPermission(user, "customers.view")).toBe(true);
     expect(hasPermission(user, "customers.create")).toBe(false);
-    expect(hasPermission(user, "customers.edit")).toBe(false);
+    expect(hasPermission(user, "customers.update")).toBe(false);
     expect(hasPermission(user, "customers.delete")).toBe(false);
   });
 

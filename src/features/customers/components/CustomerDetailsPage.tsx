@@ -10,6 +10,7 @@ import { type CustomerPayload } from "../types/customer.types";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
+import { CUSTOMERS_CONFIG } from "../config/customers.config";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import CustomerForm from "./CustomerForm";
@@ -40,9 +41,9 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
   const [activeTab, setActiveTab] = useState<ProfileTabItem["id"]>("overview");
   const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  const canEdit = hasPermission(user, "customers.edit");
-  const canDelete = hasPermission(user, "customers.delete");
-  const canView = hasPermission(user, "customers.view");
+  const canEdit = hasPermission(user, CUSTOMERS_CONFIG.permissions.edit);
+  const canDelete = hasPermission(user, CUSTOMERS_CONFIG.permissions.delete);
+  const canView = hasPermission(user, CUSTOMERS_CONFIG.permissions.view);
 
   const { data: customer, isLoading, isError, error, refetch, isRefetching } = useCustomer(customerId);
 

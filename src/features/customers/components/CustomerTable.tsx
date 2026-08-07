@@ -8,6 +8,7 @@ import { hasPermission } from "@/lib/permissions";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { CustomerMobileCard } from "./CustomerMobileCard";
 import { buildCustomerColumns } from "../columns/customerColumns";
+import { CUSTOMERS_CONFIG } from "../config/customers.config";
 
 interface CustomerTableProps {
   customers: Customer[];
@@ -31,8 +32,8 @@ export default function CustomerTable({
   const { user } = useAuth();
   const { getBranchName } = useBranchContext();
 
-  const canEdit = hasPermission(user, "customers.edit");
-  const canDelete = hasPermission(user, "customers.delete");
+  const canEdit = hasPermission(user, CUSTOMERS_CONFIG.permissions.edit);
+  const canDelete = hasPermission(user, CUSTOMERS_CONFIG.permissions.delete);
 
   const columns = useMemo(
     () =>

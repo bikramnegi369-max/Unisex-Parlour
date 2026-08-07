@@ -19,10 +19,10 @@ interface ModulePermission {
 }
 
 const MODULES: ModulePermission[] = [
-  { module: "Customers", actions: { view: "customers.view", create: "customers.create", edit: "customers.edit", delete: "customers.delete" } },
+  { module: "Customers", actions: { view: "customers.view", create: "customers.create", edit: "customers.update", delete: "customers.delete" } },
   { module: "Appointments", actions: { view: "appointments.view", create: "appointments.create", edit: "appointments.edit", delete: "appointments.cancel" } },
-  { module: "Employees", actions: { view: "employees.view", create: "employees.create", edit: "employees.edit", delete: "employees.delete" } },
-  { module: "Services", actions: { view: "services.view", create: "services.create", edit: "services.edit", delete: "services.delete" } },
+  { module: "Employees", actions: { view: "employees.view", create: "employees.create", edit: "employees.update", delete: "employees.delete" } },
+  { module: "Services", actions: { view: "services.view", create: "services.create", edit: "services.update", delete: "services.delete" } },
   { module: "Billing & POS", actions: { view: "billing.view", create: "billing.create", delete: "billing.refund" } },
   { module: "Finance", actions: { view: "finance.view", create: "finance.create", edit: "finance.edit" } },
   { module: "Inventory", actions: { view: "inventory.view", create: "inventory.create", edit: "inventory.adjust" } },
@@ -33,12 +33,12 @@ const MODULES: ModulePermission[] = [
 const INITIAL_ROLE_PERMISSIONS: Record<RoleName, string[]> = {
   Owner: [], // Bypasses permission matrix, owns all implicitly
   Manager: [
-    "customers.view", "customers.create", "customers.edit",
+    "customers.view", "customers.create", "customers.update",
     "appointments.view", "appointments.create", "appointments.edit", "appointments.cancel",
-    "employees.view", "services.view", "billing.view", "billing.create"
+    "employees.view", "employees.update", "services.view", "services.update", "billing.view", "billing.create"
   ],
   Receptionist: [
-    "customers.view", "customers.create", "customers.edit",
+    "customers.view", "customers.create", "customers.update",
     "appointments.view", "appointments.create", "appointments.edit", "appointments.cancel",
     "billing.view", "billing.create"
   ],
