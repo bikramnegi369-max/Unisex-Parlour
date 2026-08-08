@@ -22,7 +22,7 @@ export type MarketingPreferencesObject = MarketingPreferences;
 export interface CustomerNote {
   _id: string;
   text: string;
-  createdBy: string | { _id: string; name: string };
+  createdBy?: string | { _id: string; name: string } | null;
   createdAt: string;
   updatedAt?: string;
 }

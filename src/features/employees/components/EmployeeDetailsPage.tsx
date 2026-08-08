@@ -617,7 +617,7 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
                                 </div>
                               </div>
                               <Badge variant="outline" className="text-[9px] capitalize shrink-0 ml-2">
-                                {typeof service.categoryId === "object" ? service.categoryId.name : "General"}
+                                {typeof service.categoryId === "object" && service.categoryId !== null ? service.categoryId.name : "General"}
                               </Badge>
                             </button>
                           );

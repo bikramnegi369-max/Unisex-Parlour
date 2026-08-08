@@ -129,8 +129,8 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
           {notesList.map((note: CustomerNote) => {
             const displayDate = formatDateTime(note.createdAt);
             const creatorName =
-              typeof note.createdBy === "object"
-                ? note.createdBy.name
+              typeof note.createdBy === "object" && note.createdBy !== null
+                ? note.createdBy.name || "System User"
                 : note.createdBy || "System User";
             return (
               <div key={note._id} className="p-4 rounded-xl border border-border/70 bg-card hover:bg-muted/5 transition-colors space-y-2">
