@@ -370,18 +370,18 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
 
         {activeTab === "branches" && (
           <div className="space-y-6">
-            <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm space-y-6">
-              <div className="flex items-center justify-between gap-4 border-b border-border/80 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-primary/10 text-primary">
+            <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm space-y-6 min-w-0">
+              <div className="flex flex-wrap items-start sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                  <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0 mt-0.5 sm:mt-0">
                     <Building2 className="h-5 w-5" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base text-foreground">Branch Assignments</h3>
-                    <p className="text-xs text-muted-foreground">Assign workplace locations where this staff member is authorized to serve.</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base text-foreground break-words">Branch Assignments</h3>
+                    <p className="text-xs text-muted-foreground break-words">Assign workplace locations where this staff member is authorized to serve.</p>
                   </div>
                 </div>
-                <Badge variant="outline" className="font-bold text-xs">
+                <Badge variant="outline" className="font-bold text-xs shrink-0 self-start sm:self-center">
                   {branchCount} {branchCount === 1 ? "Branch" : "Branches"}
                 </Badge>
               </div>
@@ -485,31 +485,31 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
                   <p className="text-xs text-muted-foreground mt-0.5">Assign a branch location to define this staff member&apos;s workplace.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {staffBranches.map((sb) => (
                     <div
                       key={sb._id}
-                      className={`p-4 rounded-2xl border flex items-center justify-between gap-4 transition-all bg-card ${
+                      className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all bg-card ${
                         sb.isPrimary ? "border-primary/50 ring-1 ring-primary/20 shadow-sm" : "border-border/80 shadow-2xs"
                       }`}
                     >
-                      <div className="space-y-1 text-left min-w-0">
+                      <div className="space-y-1 text-left min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-sm text-foreground truncate">{sb.branchId?.name}</h4>
-                          {sb.isPrimary && <Badge variant="success">★ Primary Branch</Badge>}
+                          <h4 className="font-bold text-sm text-foreground break-words">{sb.branchId?.name}</h4>
+                          {sb.isPrimary && <Badge variant="success" className="shrink-0 text-[10px]">★ Primary Branch</Badge>}
                         </div>
-                        {sb.branchId?.phone && <p className="text-xs text-muted-foreground">{sb.branchId.phone}</p>}
-                        {sb.branchId?.address && <p className="text-[10px] text-muted-foreground truncate">{sb.branchId.address}</p>}
+                        {sb.branchId?.phone && <p className="text-xs text-muted-foreground break-all">{sb.branchId.phone}</p>}
+                        {sb.branchId?.address && <p className="text-[11px] text-muted-foreground break-words">{sb.branchId.address}</p>}
                       </div>
 
                       {canAssignBranch && (
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                           <Button
                             variant="destructive"
                             size="sm"
                             onClick={() => setBranchToRemove(sb)}
                             disabled={removeBranchMutation.isPending}
-                            className="h-8 text-xs font-semibold"
+                            className="h-8 text-xs font-semibold cursor-pointer"
                           >
                             Remove
                           </Button>
@@ -526,18 +526,18 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
         {/* Service Capabilities Tab: Multi-Service Assignment Support */}
         {activeTab === "services" && (
           <div className="space-y-6">
-            <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm space-y-6">
-              <div className="flex items-center justify-between gap-4 border-b border-border/80 pb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+            <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm space-y-6 min-w-0">
+              <div className="flex flex-wrap items-start sm:items-center justify-between gap-3 border-b border-border/80 pb-4">
+                <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                  <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5 sm:mt-0">
                     <Scissors className="h-5 w-5" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-base text-foreground">Service Capabilities</h3>
-                    <p className="text-xs text-muted-foreground">Assign multiple services this staff member is trained to perform.</p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-base text-foreground break-words">Service Capabilities</h3>
+                    <p className="text-xs text-muted-foreground break-words">Assign multiple services this staff member is trained to perform.</p>
                   </div>
                 </div>
-                <Badge variant="outline" className="font-bold text-xs">
+                <Badge variant="outline" className="font-bold text-xs shrink-0 self-start sm:self-center">
                   {serviceCount} {serviceCount === 1 ? "Capability" : "Capabilities"}
                 </Badge>
               </div>
@@ -681,15 +681,15 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
                   <p className="text-xs text-muted-foreground mt-0.5">Select and assign multiple services this staff member can perform.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                   {staffServices.map((ss) => (
                     <div
                       key={ss._id}
-                      className="p-4 rounded-2xl border border-border/80 flex items-center justify-between gap-4 transition-all bg-card shadow-2xs"
+                      className="p-4 rounded-2xl border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all bg-card shadow-2xs"
                     >
-                      <div className="space-y-1 text-left min-w-0">
-                        <h4 className="font-bold text-sm text-foreground truncate">{ss.serviceId?.name}</h4>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="space-y-1 text-left min-w-0 flex-1">
+                        <h4 className="font-bold text-sm text-foreground break-words">{ss.serviceId?.name}</h4>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
                           <span className="font-medium">{ss.serviceId?.duration} mins</span>
                           <span>•</span>
                           <span className="font-semibold text-foreground">₹{ss.serviceId?.pricing?.basePrice}</span>
@@ -702,7 +702,7 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
                           size="sm"
                           onClick={() => setServiceToRemove(ss)}
                           disabled={removeServiceMutation.isPending}
-                          className="h-8 text-xs font-semibold shrink-0"
+                          className="h-8 text-xs font-semibold shrink-0 self-end sm:self-center cursor-pointer"
                         >
                           Remove
                         </Button>

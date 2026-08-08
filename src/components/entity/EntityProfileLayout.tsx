@@ -25,13 +25,13 @@ export function EntityProfileLayout({
   children,
 }: EntityProfileLayoutProps) {
   return (
-    <div className="flex flex-col lg:flex-row gap-6 items-start w-full">
+    <div className="flex flex-col md:flex-row gap-6 items-start w-full min-w-0">
       {/* Sidebar Navigation Card */}
-      <div className="w-full lg:w-64 shrink-0">
+      <div className="w-full md:w-64 shrink-0 min-w-0">
         <div className="bg-card border border-border/80 rounded-2xl p-2 shadow-2xs">
           <nav
             role="tablist"
-            className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible pb-1 lg:pb-0 gap-1.5 select-none scrollbar-thin"
+            className="flex flex-row md:flex-col overflow-x-auto md:overflow-x-visible pb-1 md:pb-0 gap-1.5 select-none scrollbar-thin"
           >
             {tabs.map((tab) => {
               const isActive = tab.id === activeTab;
@@ -78,8 +78,8 @@ export function EntityProfileLayout({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 min-w-0 w-full">
-        <div className="animate-in fade-in duration-200">{children}</div>
+      <div className="flex-1 min-w-0 w-full overflow-hidden">
+        <div className="animate-in fade-in duration-200 min-w-0">{children}</div>
       </div>
     </div>
   );
