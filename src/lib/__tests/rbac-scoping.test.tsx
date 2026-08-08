@@ -103,6 +103,99 @@ describe("Frontend RBAC Permission Authorization", () => {
     expect(hasPermission(ownerWithPermission, "customers.view")).toBe(true);
     expect(hasPermission(ownerWithoutPermission, "customers.view")).toBe(false); // No bypass!
   });
+
+  it("denies Manager with empty permissions array from accessing any protected modules", () => {
+    const managerSession: UserSession = {
+      id: "6a76b96ba43245a0393653d8",
+      name: "kush bhardwaj",
+      email: "kushbhardwaj8800@gmail.com",
+      role: "Manager",
+      permissions: [],
+      organizationId: "6a674eeb35f4849a26cab307",
+      branchAccess: [
+        {
+          branchId: "6a674eeb35f4849a26cab309",
+          branchName: "Indiranagar",
+          isActive: true,
+        },
+      ],
+      hasOrgWideAccess: false,
+    };
+
+    expect(hasPermission(managerSession, "billing.view")).toBe(false);
+    expect(hasPermission(managerSession, "inventory.view")).toBe(false);
+    expect(hasPermission(managerSession, "customers.view")).toBe(false);
+    expect(hasPermission(managerSession, "employees.view")).toBe(false);
+    expect(hasPermission(managerSession, "services.view")).toBe(false);
+    expect(hasPermission(managerSession, "reports.view")).toBe(false);
+    expect(hasPermission(managerSession, "finance.view")).toBe(false);
+  });
+
+  it("verifies view-only permission does not grant mutation permissions (Action-Level RBAC)", () => {
+    const viewOnlyUser: UserSession = {
+      id: "usr_view_only",
+      name: "View Only Staff",
+      email: "viewonly@parlour.com",
+      role: "Receptionist",
+      permissions: ["customers.view", "employees.view"],
+      organizationId: "org_1",
+      branchAccess: [],
+    };
+
+    // View is granted
+    expect(hasPermission(viewOnlyUser, "customers.view")).toBe(true);
+    expect(hasPermission(viewOnlyUser, "employees.view")).toBe(true);
+
+    // Mutations/privileges are strictly denied
+    expect(hasPermission(viewOnlyUser, "customers.create")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "customers.update")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "customers.delete")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "employees.create")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "employees.update")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "employees.delete")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "employees.assign_branch")).toBe(false);
+    expect(hasPermission(viewOnlyUser, "employees.assign_service")).toBe(false);
+  });
+
+  it("verifies staff assignment permissions operate independently from employee view/update permissions", () => {
+    const staffEditorSession: UserSession = {
+      id: "usr_staff_editor",
+      name: "Staff Editor",
+      email: "staffeditor@parlour.com",
+      role: "Manager",
+      permissions: ["employees.view", "employees.update"],
+      organizationId: "org_1",
+      branchAccess: [],
+    };
+
+    expect(hasPermission(staffEditorSession, "employees.view")).toBe(true);
+    expect(hasPermission(staffEditorSession, "employees.update")).toBe(true);
+    // Explicitly denied dedicated assignment permissions
+    expect(hasPermission(staffEditorSession, "employees.assign_branch")).toBe(false);
+    expect(hasPermission(staffEditorSession, "employees.assign_service")).toBe(false);
+  });
+
+  it("verifies role name (e.g. Manager) and hasOrgWideAccess do NOT grant action permissions", () => {
+    const managerWithOrgWide: UserSession = {
+      id: "usr_mgr_orgwide",
+      name: "Manager OrgWide",
+      email: "mgr@parlour.com",
+      role: "Manager",
+      permissions: ["billing.view"],
+      organizationId: "org_1",
+      branchAccess: [],
+      hasOrgWideAccess: true,
+    };
+
+    // View is granted because it's explicitly in permissions
+    expect(hasPermission(managerWithOrgWide, "billing.view")).toBe(true);
+
+    // Mutations are strictly denied even though role is Manager and hasOrgWideAccess is true
+    expect(hasPermission(managerWithOrgWide, "billing.create")).toBe(false);
+    expect(hasPermission(managerWithOrgWide, "billing.refund")).toBe(false);
+    expect(hasPermission(managerWithOrgWide, "customers.create")).toBe(false);
+    expect(hasPermission(managerWithOrgWide, "employees.update")).toBe(false);
+  });
 });
 
 describe("TanStack Query Cache Isolation & Keys", () => {

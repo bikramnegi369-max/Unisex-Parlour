@@ -38,15 +38,20 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   // Evaluate RBAC permissions for the current path
-  // Sort keys by descending length to match more specific routes (e.g. /services/create) before parent routes (e.g. /services)
+  // Sort keys by descending length to match more specific routes (e.g. /services/categories) before parent routes (e.g. /services)
   const matchingKey = (Object.keys(routePermissions) as RoutePath[])
     .sort((a, b) => b.length - a.length)
     .find((path) => {
       return pathname === path || pathname.startsWith(path + "/");
     });
 
-  const requiredPermission = matchingKey ? routePermissions[matchingKey] : null;
-  const isAuthorized = !requiredPermission || hasPermission(user, requiredPermission);
+  if (!matchingKey) {
+    // Fail-closed for unmapped routes
+    return <Unauthorized />;
+  }
+
+  const requiredPermission = routePermissions[matchingKey];
+  const isAuthorized = requiredPermission === null || hasPermission(user, requiredPermission);
 
   if (!isAuthorized) {
     return <Unauthorized />;

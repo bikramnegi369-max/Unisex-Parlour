@@ -3,6 +3,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import type { UserResponseDTO } from "../types/users.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
+import PermissionGate from "@/components/layout/PermissionGate";
 import { capitalizeWords } from "@/lib/formatters";
 
 interface UserColumnOptions {
@@ -144,13 +145,15 @@ export const buildUserColumns = ({
             }}
           />
           {isActive && (
-            <button
-              onClick={() => onSuspend(u)}
-              className="px-2 py-1 text-[11px] font-semibold text-destructive hover:bg-destructive/10 rounded border border-transparent transition-all cursor-pointer"
-              title="Suspend User"
-            >
-              Suspend
-            </button>
+            <PermissionGate permission="users.update">
+              <button
+                onClick={() => onSuspend(u)}
+                className="px-2 py-1 text-[11px] font-semibold text-destructive hover:bg-destructive/10 rounded border border-transparent transition-all cursor-pointer"
+                title="Suspend User"
+              >
+                Suspend
+              </button>
+            </PermissionGate>
           )}
         </div>
       );

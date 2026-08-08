@@ -171,10 +171,17 @@ export default function Sidebar({ onClose }: SidebarProps) {
         {navGroups.map((group) => {
           // Filter authorized items in group
           const visibleItems = group.items.filter((item) => {
-            const requiredPermission = item.href in routePermissions
-              ? routePermissions[item.href as RoutePath]
-              : undefined;
-            return !requiredPermission || hasPermission(user, requiredPermission);
+            const hasMapping = item.href in routePermissions;
+            if (!hasMapping) {
+              // Fail closed: if a route is not declared in routePermissions, deny access
+              return false;
+            }
+            const requiredPermission = routePermissions[item.href as RoutePath];
+            // If requiredPermission is null, it is common authenticated navigation (e.g. /dashboard)
+            if (requiredPermission === null) {
+              return true;
+            }
+            return hasPermission(user, requiredPermission);
           });
 
           if (visibleItems.length === 0) return null;
