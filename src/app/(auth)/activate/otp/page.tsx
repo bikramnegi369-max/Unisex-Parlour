@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { KeyRound, AlertCircle, RefreshCw, ArrowLeft, Clock } from "lucide-react";
-import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useAuth, AuthApiError } from "@/features/auth/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,11 +16,11 @@ import {
 
 export default function OtpPage() {
   const { sendOtp, isSendingOtp, verifyOtp, isVerifyingOtp } = useAuth();
-  const [activationToken, setActivationTokenState] = useState<string | null>(null);
+  const [activationToken, setActivationTokenState] = useState<string | null>(() => getActivationToken());
   const [otp, setOtp] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [infoMsg, setInfoMsg] = useState<string | null>(null);
-  const [isCheckingToken, setIsCheckingToken] = useState(true);
+  const [isCheckingToken, setIsCheckingToken] = useState(() => !getActivationToken());
 
   // Timers dynamically initialized from backend response
   const [resendCooldown, setResendCooldown] = useState<number>(0);
@@ -29,45 +29,7 @@ export default function OtpPage() {
   const router = useRouter();
   const hasAutoSentRef = useRef(false);
 
-  // Check token existence
-  useEffect(() => {
-    const token = getActivationToken();
-    if (!token) {
-      router.push("/login");
-    } else {
-      setActivationTokenState(token);
-      setIsCheckingToken(false);
-    }
-  }, [router]);
-
-  // One-time auto-send guard for initial load
-  useEffect(() => {
-    if (activationToken && !hasAutoSentRef.current) {
-      hasAutoSentRef.current = true;
-      handleSendOtp(activationToken);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activationToken]);
-
-  // Resend cooldown timer decrement
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const interval = setInterval(() => {
-      setResendCooldown((prev) => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [resendCooldown]);
-
-  // OTP Expiry timer decrement
-  useEffect(() => {
-    if (expiryTime <= 0) return;
-    const interval = setInterval(() => {
-      setExpiryTime((prev) => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [expiryTime]);
-
-  const handleSendOtp = async (tokenOverride?: string) => {
+  const handleSendOtp = useCallback(async (tokenOverride?: string) => {
     const activeToken = tokenOverride || activationToken;
     if (!activeToken) return;
 
@@ -93,12 +55,28 @@ export default function OtpPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to send verification code.";
       setErrorMsg(msg);
-      if (msg.includes("expired")) {
+      if (err instanceof AuthApiError && err.status === 401) {
         clearAllActivationTokens();
-        setTimeout(() => router.push("/login"), 2000);
+        router.replace("/login");
       }
     }
-  };
+  }, [activationToken, sendOtp, router]);
+
+  // Check token existence
+  useEffect(() => {
+    const token = getActivationToken();
+    if (!token) {
+      router.replace("/login");
+    }
+  }, [router]);
+
+  // One-time auto-send guard for initial load
+  useEffect(() => {
+    if (activationToken && !hasAutoSentRef.current) {
+      hasAutoSentRef.current = true;
+      handleSendOtp(activationToken);
+    }
+  }, [activationToken, handleSendOtp]);
 
   const handleVerify = async (codeToVerify?: string) => {
     const targetOtp = codeToVerify || otp;
@@ -123,9 +101,9 @@ export default function OtpPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Verification failed.";
       setErrorMsg(msg);
-      if (msg.includes("expired")) {
+      if (err instanceof AuthApiError && err.status === 401) {
         clearAllActivationTokens();
-        setTimeout(() => router.push("/login"), 2000);
+        router.replace("/login");
       }
     }
   };

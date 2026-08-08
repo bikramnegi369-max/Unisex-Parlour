@@ -4,6 +4,7 @@ import { getToken, removeToken, setToken, removeRefreshToken } from "../auth/tok
 declare module "axios" {
   export interface AxiosRequestConfig {
     branchScope?: "current" | "organization" | { type: "branch"; branchId: string };
+    authContext?: "normal" | "activation" | "password-change";
   }
 }
 
@@ -99,11 +100,14 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
     
     // Do not attempt to refresh if the request itself was an authentication endpoint
+    // or if the request was made in activation / password-change context
     const isAuthRequest = 
-      originalRequest.url?.includes("/auth/login") || 
-      originalRequest.url?.includes("/auth/refresh") ||
-      originalRequest.url?.includes("/auth/logout") ||
-      originalRequest.url?.includes("/auth/activate");
+      originalRequest?.authContext === "activation" ||
+      originalRequest?.authContext === "password-change" ||
+      originalRequest?.url?.includes("/auth/login") || 
+      originalRequest?.url?.includes("/auth/refresh") ||
+      originalRequest?.url?.includes("/auth/logout") ||
+      originalRequest?.url?.includes("/auth/activate");
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       if (isRefreshing) {

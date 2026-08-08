@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Lock, AlertCircle, Eye, EyeOff, CheckCircle2, Check, X } from "lucide-react";
-import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useAuth, AuthApiError } from "@/features/auth/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -49,7 +49,7 @@ export default function PasswordPage() {
   useEffect(() => {
     const token = getPasswordChangeToken();
     if (!token) {
-      router.push("/login");
+      router.replace("/login");
     } else {
       setPasswordChangeTokenState(token);
       setIsCheckingToken(false);
@@ -108,9 +108,9 @@ export default function PasswordPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to update password.";
       setErrorMsg(msg);
-      if (msg.includes("expired")) {
+      if (err instanceof AuthApiError && err.status === 401) {
         clearAllActivationTokens();
-        setTimeout(() => router.push("/login"), 2000);
+        router.replace("/login");
       }
     }
   };

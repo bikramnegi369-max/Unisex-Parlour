@@ -174,6 +174,7 @@ describe("Authentication First-Login Activation Flow", () => {
         "/auth/activate/otp/send",
         {},
         {
+          authContext: "activation",
           headers: {
             Authorization: "Bearer activation_token_123",
           },
@@ -207,6 +208,7 @@ describe("Authentication First-Login Activation Flow", () => {
         "/auth/activate/otp/verify",
         { otp: "123456" },
         {
+          authContext: "activation",
           headers: {
             Authorization: "Bearer activation_token_123",
           },
@@ -239,6 +241,7 @@ describe("Authentication First-Login Activation Flow", () => {
         "/auth/activate/change-password",
         { password: "NewSecurePassword123!" },
         {
+          authContext: "password-change",
           headers: {
             Authorization: "Bearer pwd_change_token_123",
           },
@@ -273,6 +276,111 @@ describe("Authentication First-Login Activation Flow", () => {
       expect(sessionStorage.getItem("refreshToken")).toBeNull();
       expect(localStorage.getItem("erp_refresh_token")).toBeNull();
       expect(sessionStorage.getItem("erp_refresh_token")).toBeNull();
+    });
+  });
+
+  describe("Activation Error Handling & Status Preservation", () => {
+    it("Wrong OTP (HTTP 400): Throws AuthApiError with status 400", async () => {
+      const axiosError: any = new Error("Request failed with status code 400");
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 400,
+        data: { message: "That verification code is incorrect or has expired." },
+      };
+      vi.mocked(apiClient.post).mockRejectedValueOnce(axiosError);
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+      await expect(
+        result.current.verifyOtp({ activationToken: "valid_token", otp: "000000" })
+      ).rejects.toMatchObject({
+        name: "AuthApiError",
+        status: 400,
+        message: "That verification code is incorrect or has expired.",
+      });
+    });
+
+    it("Expired Activation Session (HTTP 401): Throws AuthApiError with status 401", async () => {
+      const axiosError: any = new Error("Request failed with status code 401");
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 401,
+        data: { message: "Unauthorized" },
+      };
+      vi.mocked(apiClient.post).mockRejectedValueOnce(axiosError);
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+      await expect(
+        result.current.verifyOtp({ activationToken: "expired_token", otp: "123456" })
+      ).rejects.toMatchObject({
+        name: "AuthApiError",
+        status: 401,
+        message: "Your activation session has expired. Please sign in again.",
+      });
+    });
+
+    it("OTP Rate Limit (HTTP 429): Throws AuthApiError with status 429", async () => {
+      const axiosError: any = new Error("Request failed with status code 429");
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 429,
+        data: { message: "Too many incorrect attempts. Please request a new code." },
+      };
+      vi.mocked(apiClient.post).mockRejectedValueOnce(axiosError);
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+      await expect(
+        result.current.verifyOtp({ activationToken: "valid_token", otp: "123456" })
+      ).rejects.toMatchObject({
+        name: "AuthApiError",
+        status: 429,
+        message: "Too many incorrect attempts. Please request a new code.",
+      });
+    });
+
+    it("Send OTP Rate Limit (HTTP 429): Throws AuthApiError with status 429", async () => {
+      const axiosError: any = new Error("Request failed with status code 429");
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 429,
+        data: { message: "Please wait before requesting another code." },
+      };
+      vi.mocked(apiClient.post).mockRejectedValueOnce(axiosError);
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+      await expect(
+        result.current.sendOtp("valid_token")
+      ).rejects.toMatchObject({
+        name: "AuthApiError",
+        status: 429,
+        message: "Please wait before requesting another code.",
+      });
+    });
+
+    it("Password Activation Expiry (HTTP 401): Throws AuthApiError with status 401", async () => {
+      const axiosError: any = new Error("Request failed with status code 401");
+      axiosError.isAxiosError = true;
+      axiosError.response = {
+        status: 401,
+        data: { message: "Invalid session" },
+      };
+      vi.mocked(apiClient.post).mockRejectedValueOnce(axiosError);
+
+      const { result } = renderHook(() => useAuth(), { wrapper: createWrapper() });
+
+      await expect(
+        result.current.activateChangePassword({
+          passwordChangeToken: "expired_pwd_token",
+          password: "NewPassword123!",
+        })
+      ).rejects.toMatchObject({
+        name: "AuthApiError",
+        status: 401,
+        message: "Your password setup session has expired. Please start again.",
+      });
     });
   });
 });

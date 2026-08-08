@@ -14,9 +14,20 @@ import {
 } from "@/features/auth/types/auth.types";
 import {
   setActivationToken,
-  setPasswordChangeToken,
   clearAllActivationTokens,
 } from "@/features/auth/utils/activation-storage";
+
+export class AuthApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "AuthApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -83,6 +94,7 @@ export function useAuth() {
           "/auth/activate/otp/send",
           {},
           {
+            authContext: "activation",
             headers: {
               Authorization: `Bearer ${activationToken}`,
             },
@@ -91,17 +103,25 @@ export function useAuth() {
         return data.data || data;
       } catch (err) {
         if (axios.isAxiosError(err)) {
-          if (err.response?.status === 401) {
-            throw new Error("Your activation session has expired. Please sign in again.");
+          const status = err.response?.status || 500;
+          if (status === 401) {
+            throw new AuthApiError(
+              "Your activation session has expired. Please sign in again.",
+              401
+            );
           }
-          if (err.response?.status === 429) {
-            throw new Error("Please wait before requesting another code.");
+          if (status === 429) {
+            throw new AuthApiError(
+              err.response?.data?.message || "Please wait before requesting another code.",
+              429
+            );
           }
           if (err.response?.data?.message) {
-            throw new Error(err.response.data.message);
+            throw new AuthApiError(err.response.data.message, status);
           }
+          throw new AuthApiError("Failed to send verification code. Please try again.", status);
         }
-        throw new Error("Failed to send verification code. Please try again.");
+        throw new AuthApiError("Failed to send verification code. Please try again.", 500);
       }
     },
   });
@@ -120,6 +140,7 @@ export function useAuth() {
           "/auth/activate/otp/verify",
           { otp },
           {
+            authContext: "activation",
             headers: {
               Authorization: `Bearer ${activationToken}`,
             },
@@ -128,20 +149,31 @@ export function useAuth() {
         return data.data || data;
       } catch (err) {
         if (axios.isAxiosError(err)) {
-          if (err.response?.status === 400) {
-            throw new Error("That verification code is incorrect or has expired.");
+          const status = err.response?.status || 500;
+          if (status === 400) {
+            throw new AuthApiError(
+              err.response?.data?.message || "That verification code is incorrect or has expired.",
+              400
+            );
           }
-          if (err.response?.status === 401) {
-            throw new Error("Your activation session has expired. Please sign in again.");
+          if (status === 401) {
+            throw new AuthApiError(
+              "Your activation session has expired. Please sign in again.",
+              401
+            );
           }
-          if (err.response?.status === 429) {
-            throw new Error("Too many incorrect attempts. Please request a new code.");
+          if (status === 429) {
+            throw new AuthApiError(
+              err.response?.data?.message || "Too many incorrect attempts. Please request a new code.",
+              429
+            );
           }
           if (err.response?.data?.message) {
-            throw new Error(err.response.data.message);
+            throw new AuthApiError(err.response.data.message, status);
           }
+          throw new AuthApiError("OTP verification failed.", status);
         }
-        throw new Error("OTP verification failed.");
+        throw new AuthApiError("OTP verification failed.", 500);
       }
     },
   });
@@ -160,6 +192,7 @@ export function useAuth() {
           "/auth/activate/change-password",
           { password },
           {
+            authContext: "password-change",
             headers: {
               Authorization: `Bearer ${passwordChangeToken}`,
             },
@@ -168,14 +201,19 @@ export function useAuth() {
         return data.data || data;
       } catch (err) {
         if (axios.isAxiosError(err)) {
-          if (err.response?.status === 401) {
-            throw new Error("Your password setup session has expired. Please start again.");
+          const status = err.response?.status || 500;
+          if (status === 401) {
+            throw new AuthApiError(
+              "Your password setup session has expired. Please start again.",
+              401
+            );
           }
           if (err.response?.data?.message) {
-            throw new Error(err.response.data.message);
+            throw new AuthApiError(err.response.data.message, status);
           }
+          throw new AuthApiError("Password activation failed.", status);
         }
-        throw new Error("Password activation failed.");
+        throw new AuthApiError("Password activation failed.", 500);
       }
     },
     onSuccess: (data) => {
