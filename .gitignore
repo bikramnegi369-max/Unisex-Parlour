@@ -16,6 +16,10 @@ node_modules
 /.next/
 /out/
 build/
+dist/
+.turbo/
+.eslintcache
+
 
 # misc
 .DS_Store
