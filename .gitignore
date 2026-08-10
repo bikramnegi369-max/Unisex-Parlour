@@ -73,8 +73,10 @@ data_scoping_note.md
 .cline/
 .clinerules/
 .agents/
+.gemini/
 AGENTS.md
 CLAUDE.md
+
 
 # Playwright / Testing outputs
 /test-results/
