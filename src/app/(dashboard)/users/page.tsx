@@ -45,10 +45,16 @@ export default function UsersPage() {
 
   // Debounce search input
   React.useEffect(() => {
+    if (search === "") {
+      setDebouncedSearch("");
+      setPage(1);
+      return;
+    }
+
     const handler = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1); // Reset to first page on search
-    }, 400000); // We will manually handle input or let it search on submit/debounce
+    }, 600); // Debounce for 600ms
     return () => clearTimeout(handler);
   }, [search]);
 
@@ -62,7 +68,7 @@ export default function UsersPage() {
   } = useUsers({
     page,
     limit,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
   });
 
   // Mutations

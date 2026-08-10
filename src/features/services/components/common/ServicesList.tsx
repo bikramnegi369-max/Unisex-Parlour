@@ -52,11 +52,13 @@ export default function ServicesList() {
 
   // Local state for search responsiveness
   const [search, setSearch] = useState(searchVal);
+  const [debouncedSearch, setDebouncedSearch] = useState(searchVal);
   const [prevSearchVal, setPrevSearchVal] = useState(searchVal);
 
   if (searchVal !== prevSearchVal) {
     setPrevSearchVal(searchVal);
     setSearch(searchVal);
+    setDebouncedSearch(searchVal);
   }
 
   // Modals and dialog states
@@ -109,23 +111,33 @@ export default function ServicesList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Sync search query parameter debounced
+  // Debounce search input
   useEffect(() => {
+    if (search === "") {
+      setDebouncedSearch("");
+      return;
+    }
+
     const timer = setTimeout(() => {
-      const currentQuery = searchParams.get("search") || "";
-      if (search !== currentQuery) {
-        const params = new URLSearchParams(searchParams.toString());
-        if (search.trim()) {
-          params.set("search", search.trim());
-        } else {
-          params.delete("search");
-        }
-        params.set("page", "1");
-        router.push(`${pathname}?${params.toString()}`);
-      }
-    }, 400);
+      setDebouncedSearch(search);
+    }, 600);
     return () => clearTimeout(timer);
-  }, [search, router, pathname, searchParams]);
+  }, [search]);
+
+  // Sync debounced search with URL
+  useEffect(() => {
+    const currentQuery = searchParams.get("search") || "";
+    if (debouncedSearch !== currentQuery) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
+      } else {
+        params.delete("search");
+      }
+      params.set("page", "1");
+      router.push(`${pathname}?${params.toString()}`);
+    }
+  }, [debouncedSearch, router, pathname, searchParams]);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());

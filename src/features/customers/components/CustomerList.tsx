@@ -55,12 +55,14 @@ export default function CustomerList() {
 
   // Local state for immediate typing responsiveness
   const [search, setSearch] = useState(searchQueryParam);
+  const [debouncedSearch, setDebouncedSearch] = useState(searchQueryParam);
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
 
   // Sync state during render when URL query changes (e.g. Back/Forward navigation)
   if (searchQueryParam !== prevSearchQuery) {
     setPrevSearchQuery(searchQueryParam);
     setSearch(searchQueryParam);
+    setDebouncedSearch(searchQueryParam);
   }
 
   // Modal states
@@ -97,23 +99,33 @@ export default function CustomerList() {
     setIsReactivateOpen(true);
   }, []);
 
-  // Debounce search input and sync with URL
+  // Debounce search input
   useEffect(() => {
+    if (search === "") {
+      setDebouncedSearch("");
+      return;
+    }
+
     const timer = setTimeout(() => {
-      const currentQuery = searchParams.get("search") || "";
-      if (search !== currentQuery) {
-        const params = new URLSearchParams(searchParams.toString());
-        if (search.trim()) {
-          params.set("search", search.trim());
-        } else {
-          params.delete("search");
-        }
-        params.set("page", "1"); // Reset to page 1 on new search query
-        router.push(`${pathname}?${params.toString()}`);
-      }
-    }, 400);
+      setDebouncedSearch(search);
+    }, 600);
     return () => clearTimeout(timer);
-  }, [search, router, pathname, searchParams]);
+  }, [search]);
+
+  // Sync debounced search with URL
+  useEffect(() => {
+    const currentQuery = searchParams.get("search") || "";
+    if (debouncedSearch !== currentQuery) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
+      } else {
+        params.delete("search");
+      }
+      params.set("page", "1"); // Reset to page 1 on new search query
+      router.push(`${pathname}?${params.toString()}`);
+    }
+  }, [debouncedSearch, router, pathname, searchParams]);
 
   const handleStatusChange = (val: string) => {
     const params = new URLSearchParams(searchParams.toString());
