@@ -265,7 +265,7 @@ npm run lint
 | 3 | Auth & RBAC Views — Login, Staff Directory, Roles Matrix | ✅ Complete |
 | 3.5 | Multi-Branch Foundation — branch types, Redux, switcher, Axios | ✅ Complete |
 | 4 | Dashboard Panel — KPI cards, revenue chart, today's bookings | 🔲 Planned |
-| 5 | Customers, Employees, Services — CRUD modules + DataTable | 🔲 Planned |
+| 5 | Customers, Employees, Services — CRUD modules + DataTable | ✅ Complete |
 | 6 | Appointments & Calendar — day/week/month views | 🔲 Planned |
 | 7 | Memberships, Coupons, Loyalty | 🔲 Planned |
 | 8 | Billing / POS | 🔲 Planned |
