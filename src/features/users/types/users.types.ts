@@ -51,6 +51,7 @@ export interface GetUsersParams {
   limit?: number;
   search?: string;
   sort?: string;
+  status?: UserStatus;
 }
 
 // Payload for POST /users

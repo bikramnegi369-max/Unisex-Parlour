@@ -1,32 +1,37 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { useCustomers } from "../hooks/useCustomers";
-import { useCreateCustomer } from "../hooks/useCreateCustomer";
-import { useUpdateCustomer } from "../hooks/useUpdateCustomer";
-import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
-import CustomerTable from "./CustomerTable";
-import CustomerForm from "./CustomerForm";
-import CustomerDeleteDialog from "./CustomerDeleteDialog";
-import CustomerReactivateDialog from "./CustomerReactivateDialog";
-import { useReactivateCustomer } from "../hooks/useReactivateCustomer";
+import { useUsers } from "../hooks/useUsers";
+import { useCreateUser } from "../hooks/useCreateUser";
+import { useUpdateUser } from "../hooks/useUpdateUser";
+import { useUpdateUserStatus } from "../hooks/useUpdateUserStatus";
 import { Dialog } from "@/components/ui/dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
-import { Plus, Sparkles, HelpCircle } from "lucide-react";
-import type { Customer, CustomerPayload } from "../types/customer.types";
-import { CustomerListHeader } from "./CustomerListHeader";
-import { CustomerSearch } from "./CustomerSearch";
-import { CustomerFilters } from "./CustomerFilters";
-import { CUSTOMERS_CONFIG } from "../config/customers.config";
+import { Plus, Sparkles, HelpCircle, AlertCircle } from "lucide-react";
+import UserTable from "./UserTable";
+import UserForm from "./UserForm";
+import UserDetailsModal from "./UserDetailsModal";
+import UserStatusDialog from "./UserStatusDialog";
+import { UserListHeader } from "./UserListHeader";
+import { UserSearch } from "./UserSearch";
+import { UserFilters } from "./UserFilters";
+import { USERS_CONFIG } from "../config/users.config";
+import type {
+  UserResponseDTO,
+  UpdateUserStatus,
+  UpdateUserPayload,
+  CreateUserPayload,
+  UserStatus,
+} from "../types/users.types";
 
-export default function CustomerList() {
+export default function UserList() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -34,7 +39,8 @@ export default function CustomerList() {
   const { user } = useAuth();
   const { isAllBranchesSelected, currentBranch } = useBranchContext();
 
-  const canCreate = hasPermission(user, CUSTOMERS_CONFIG.permissions.create);
+  const canView = hasPermission(user, USERS_CONFIG.permissions.view);
+  const canCreate = hasPermission(user, USERS_CONFIG.permissions.create);
 
   // Read page parameter from URL
   const pageParam = searchParams.get("page");
@@ -44,7 +50,7 @@ export default function CustomerList() {
   const limitParam = searchParams.get("limit");
   const limit = limitParam
     ? parseInt(limitParam, 10)
-    : CUSTOMERS_CONFIG.defaults.pageSize;
+    : USERS_CONFIG.defaults.pageSize;
 
   // Read search parameter from URL
   const searchQueryParam = searchParams.get("search") || "";
@@ -70,42 +76,16 @@ export default function CustomerList() {
   // Modal states
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [isReactivateOpen, setIsReactivateOpen] = useState(false);
-  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(null);
-  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isStatusOpen, setIsStatusOpen] = useState(false);
+  const [activeUser, setActiveUser] = useState<UserResponseDTO | null>(null);
+  const [targetStatus, setTargetStatus] = useState<UpdateUserStatus | null>(
     null,
   );
-  const [customerToReactivate, setCustomerToReactivate] =
-    useState<Customer | null>(null);
 
-  const createMutation = useCreateCustomer();
-  const updateMutation = useUpdateCustomer();
-  const deleteMutation = useDeleteCustomer();
-  const reactivateMutation = useReactivateCustomer();
-
-  // Memoized callbacks for CustomerTable to prevent re-render loops
-  const handleView = useCallback(
-    (c: Customer) => {
-      router.push(CUSTOMERS_CONFIG.routes.customers.detail(c.id));
-    },
-    [router],
-  );
-
-  const handleEdit = useCallback((c: Customer) => {
-    setActiveCustomer(c);
-    setIsEditOpen(true);
-  }, []);
-
-  const handleDelete = useCallback((c: Customer) => {
-    setCustomerToDelete(c);
-    setIsDeleteOpen(true);
-  }, []);
-
-  const handleReactivate = useCallback((c: Customer) => {
-    setCustomerToReactivate(c);
-    setIsReactivateOpen(true);
-  }, []);
+  const createMutation = useCreateUser();
+  const updateMutation = useUpdateUser();
+  const updateStatusMutation = useUpdateUserStatus();
 
   // Debounce search input
   useEffect(() => {
@@ -166,29 +146,35 @@ export default function CustomerList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  // Fetch paginated customers based on URL query state
+  // Fetch paginated users based on URL query state
   const {
-    data: customerData,
+    data: userData,
     isLoading,
     isError,
     error,
     refetch,
     isRefetching,
-  } = useCustomers({
+  } = useUsers({
     search: searchQueryParam || undefined,
     page,
     limit,
-    status: statusParam !== "all" ? statusParam : undefined,
+    status: statusParam !== "all" ? (statusParam as UserStatus) : undefined,
     sort: sort || undefined,
   });
 
   const handleSync = async () => {
     try {
       await refetch();
-      toast.success("Customer list synchronized successfully.");
+      toast.success("Staff directory synchronized successfully.");
     } catch {
-      toast.error("Failed to synchronize customer list.");
+      toast.error("Failed to synchronize staff directory.");
     }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", newPage.toString());
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
@@ -198,74 +184,63 @@ export default function CustomerList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const handleCreateSubmit = (values: CustomerPayload) => {
+  const handleCreateSubmit = (values: CreateUserPayload) => {
     createMutation.mutate(values, {
       onSuccess: () => {
         setIsCreateOpen(false);
-        toast.success("Customer profile created successfully.");
+        toast.success("Staff account created successfully.");
       },
       onError: (err: Error) => {
-        toast.error(err.message || "Failed to create customer.");
+        toast.error(err.message || "Failed to create staff account.");
       },
     });
   };
 
-  const handleEditSubmit = (values: CustomerPayload) => {
-    if (!activeCustomer) return;
+  const handleEditSubmit = (values: UpdateUserPayload) => {
+    if (!activeUser) return;
     updateMutation.mutate(
-      { id: activeCustomer.id, payload: values },
+      { id: activeUser.id, payload: values },
       {
         onSuccess: () => {
           setIsEditOpen(false);
-          setActiveCustomer(null);
-          toast.success("Customer profile updated successfully.");
+          setActiveUser(null);
+          toast.success("Staff details updated successfully.");
         },
         onError: (err: Error) => {
-          toast.error(err.message || "Failed to update customer.");
+          toast.error(err.message || "Failed to update staff details.");
         },
       },
     );
   };
 
-  const handleDeleteConfirm = () => {
-    if (!customerToDelete) return;
-    deleteMutation.mutate(customerToDelete.id, {
-      onSuccess: () => {
-        setIsDeleteOpen(false);
-        setCustomerToDelete(null);
-        toast.success("Customer profile deactivated successfully.");
+  const handleStatusConfirm = () => {
+    if (!activeUser || !targetStatus) return;
+    updateStatusMutation.mutate(
+      { id: activeUser.id, status: targetStatus },
+      {
+        onSuccess: () => {
+          setIsStatusOpen(false);
+          setActiveUser(null);
+          setTargetStatus(null);
+          toast.success(
+            targetStatus === "active"
+              ? "Staff account activated successfully."
+              : targetStatus === "suspended"
+                ? "Staff account suspended successfully."
+                : "Staff account deactivated successfully.",
+          );
+        },
+        onError: (err: Error) => {
+          toast.error(err.message || "Failed to update staff account status.");
+        },
       },
-      onError: (err: Error) => {
-        setIsDeleteOpen(false);
-        toast.error(err.message || "Failed to deactivate customer.");
-      },
-    });
-  };
-
-  const handleReactivateConfirm = () => {
-    if (!customerToReactivate) return;
-    reactivateMutation.mutate(customerToReactivate.id, {
-      onSuccess: () => {
-        setIsReactivateOpen(false);
-        setCustomerToReactivate(null);
-        reactivateMutation.reset();
-        toast.success("Customer profile reactivated successfully.");
-      },
-      onError: (err: Error) => {
-        toast.error(err.message || "Failed to reactivate customer.");
-      },
-    });
-  };
-
-  const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("page", newPage.toString());
-    router.push(`${pathname}?${params.toString()}`);
+    );
   };
 
   const getFriendlyErrorMessage = (err: unknown) => {
-    if (!err)
-      return "An unexpected error occurred while retrieving customer records.";
+    if (!err) {
+      return "An unexpected error occurred while retrieving staff records.";
+    }
 
     const errObj = err as Record<string, unknown> | null;
     const responseObj = errObj?.response as Record<string, unknown> | null;
@@ -283,7 +258,7 @@ export default function CustomerList() {
       return "Your session has expired. Please log in again to continue.";
     }
     if (status === 403) {
-      return "You do not have the required permissions to view customer profiles in this scope.";
+      return "You do not have the required permissions to view staff records in this scope.";
     }
     if (status === 404) {
       return "The requested directory resource could not be found.";
@@ -302,10 +277,22 @@ export default function CustomerList() {
       return "Connection failed. Please check your network connection and try again.";
     }
     return (
-      message ||
-      "An unexpected error occurred while retrieving customer records."
+      message || "An unexpected error occurred while retrieving staff records."
     );
   };
+
+  if (!canView) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3">
+        <AlertCircle className="h-10 w-10 text-destructive" />
+        <h3 className="text-lg font-bold text-foreground">Access Denied</h3>
+        <p className="text-sm text-muted-foreground text-center max-w-sm">
+          You do not have the required `users.view` permission to view the staff
+          directory.
+        </p>
+      </div>
+    );
+  }
 
   if (isError) {
     return (
@@ -321,30 +308,28 @@ export default function CustomerList() {
     );
   }
 
-  const pagination = customerData?.meta;
-  const customers = customerData?.data || [];
+  const pagination = userData?.meta;
+  const users = userData?.data || [];
 
   return (
     <div className="space-y-6">
       {/* Directory Page Header */}
-      <CustomerListHeader
-        isAllBranchesSelected={isAllBranchesSelected}
+      <UserListHeader
         canCreate={canCreate}
         onAddClick={() => setIsCreateOpen(true)}
         isSyncing={isRefetching}
         onSync={handleSync}
       />
 
-      {/* Search and Context Display Toolbar */}
+      {/* Search and Filters Toolbar */}
       <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-        <CustomerSearch
+        <UserSearch
           value={search}
           onChange={setSearch}
-          placeholder={CUSTOMERS_CONFIG.labels.customer.searchPlaceholder}
           isLoading={isRefetching}
         />
 
-        <CustomerFilters
+        <UserFilters
           status={statusParam}
           onStatusChange={handleStatusChange}
           sort={sort}
@@ -361,39 +346,42 @@ export default function CustomerList() {
 
       {/* Loading Skeleton or Data Table */}
       {isLoading ? (
-        <CustomerTable
-          customers={[]}
+        <UserTable
+          users={[]}
           onView={() => {}}
           onEdit={() => {}}
-          onDelete={() => {}}
+          onDeactivate={() => {}}
           onReactivate={() => {}}
+          onSuspend={() => {}}
           isLoading={true}
-          isAllBranches={isAllBranchesSelected}
         />
-      ) : customers.length === 0 ? (
-        searchQueryParam ? (
+      ) : users.length === 0 ? (
+        searchQueryParam || statusParam !== "all" ? (
           <EmptyState
             icon={HelpCircle}
             title="No matches found"
-            description={`No active customer matches "${searchQueryParam}". Try checking the spelling or query parameters.`}
+            description="No staff member matches your search criteria. Try expanding your query or resetting filters."
             action={{
-              label: "Clear Search Query",
-              onClick: () => setSearch(""),
+              label: "Reset Search & Filters",
+              onClick: () => {
+                setSearch("");
+                handleClearFilters();
+              },
             }}
           />
         ) : (
           <EmptyState
             icon={Sparkles}
-            title="Customer Directory Empty"
+            title="Staff Directory Empty"
             description={
               isAllBranchesSelected
-                ? "No customer profiles have been created yet in the organization."
-                : `No customer records belong to ${currentBranch?.name} yet.`
+                ? "No staff accounts have been created yet in the organization."
+                : `No staff records belong to ${currentBranch?.name} yet.`
             }
             action={
-              !isAllBranchesSelected && canCreate
+              canCreate
                 ? {
-                    label: "Register First Customer",
+                    label: "Register First Staff Member",
                     onClick: () => setIsCreateOpen(true),
                     icon: Plus,
                   }
@@ -404,15 +392,34 @@ export default function CustomerList() {
       ) : (
         /* Data table view */
         <div className="space-y-4">
-          <CustomerTable
-            customers={customers}
-            onView={handleView}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onReactivate={handleReactivate}
+          <UserTable
+            users={users}
+            onView={(u) => {
+              setActiveUser(u);
+              setIsDetailsOpen(true);
+            }}
+            onEdit={(u) => {
+              setActiveUser(u);
+              setIsEditOpen(true);
+            }}
+            onDeactivate={(u) => {
+              setActiveUser(u);
+              setTargetStatus("inactive");
+              setIsStatusOpen(true);
+            }}
+            onReactivate={(u) => {
+              setActiveUser(u);
+              setTargetStatus("active");
+              setIsStatusOpen(true);
+            }}
+            onSuspend={(u) => {
+              setActiveUser(u);
+              setTargetStatus("suspended");
+              setIsStatusOpen(true);
+            }}
             isLoading={isRefetching}
-            isAllBranches={isAllBranchesSelected}
           />
+
           {/* Pagination Controls */}
           {pagination && (
             <Pagination
@@ -422,7 +429,7 @@ export default function CustomerList() {
               onPageChange={handlePageChange}
               pageSize={limit}
               onPageSizeChange={handlePageSizeChange}
-              itemLabel="customers"
+              itemLabel="staff members"
             />
           )}
         </div>
@@ -432,62 +439,57 @@ export default function CustomerList() {
       <Dialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        title="Register New Customer"
+        title="Register New Staff Member"
       >
-        <CustomerForm
+        <UserForm
           onSubmit={handleCreateSubmit}
           isSubmitting={createMutation.isPending}
           onCancel={() => setIsCreateOpen(false)}
-          submitLabel="Create Customer"
-          error={createMutation.error}
         />
       </Dialog>
 
       {/* Edit Dialog */}
-      {isEditOpen && activeCustomer && (
+      {isEditOpen && activeUser && (
         <Dialog
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}
-          title="Update Customer Details"
+          title="Edit Staff Details"
         >
-          <CustomerForm
-            initialCustomer={activeCustomer}
+          <UserForm
+            initialUser={activeUser}
             onSubmit={handleEditSubmit}
             isSubmitting={updateMutation.isPending}
             onCancel={() => {
               setIsEditOpen(false);
-              setActiveCustomer(null);
+              setActiveUser(null);
             }}
-            submitLabel="Update Customer"
-            error={updateMutation.error}
           />
         </Dialog>
       )}
 
-      {/* Delete Dialog */}
-      {customerToDelete && (
-        <CustomerDeleteDialog
-          isOpen={isDeleteOpen}
-          onClose={() => setIsDeleteOpen(false)}
-          onConfirm={handleDeleteConfirm}
-          isDeleting={deleteMutation.isPending}
-          customerName={customerToDelete.name}
-        />
-      )}
+      {/* Details Dialog */}
+      <UserDetailsModal
+        user={activeUser}
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setActiveUser(null);
+        }}
+      />
 
-      {/* Reactivate Dialog */}
-      {customerToReactivate && (
-        <CustomerReactivateDialog
-          isOpen={isReactivateOpen}
+      {/* Status Transition Confirmation Dialog */}
+      {activeUser && targetStatus && (
+        <UserStatusDialog
+          user={activeUser}
+          targetStatus={targetStatus}
+          isOpen={isStatusOpen}
           onClose={() => {
-            setIsReactivateOpen(false);
-            setCustomerToReactivate(null);
-            reactivateMutation.reset();
+            setIsStatusOpen(false);
+            setActiveUser(null);
+            setTargetStatus(null);
           }}
-          onConfirm={handleReactivateConfirm}
-          isLoading={reactivateMutation.isPending}
-          error={reactivateMutation.error}
-          customerName={customerToReactivate.name}
+          onConfirm={handleStatusConfirm}
+          isSubmitting={updateStatusMutation.isPending}
         />
       )}
     </div>

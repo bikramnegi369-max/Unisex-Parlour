@@ -5,7 +5,7 @@ import { RefreshCw, X } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
-interface CustomerFiltersProps {
+interface UserFiltersProps {
   status: string;
   onStatusChange: (status: string) => void;
   sort: string;
@@ -15,7 +15,7 @@ interface CustomerFiltersProps {
   isRefetching: boolean;
 }
 
-export function CustomerFilters({
+export function UserFilters({
   status,
   onStatusChange,
   sort,
@@ -23,7 +23,7 @@ export function CustomerFilters({
   onClearFilters,
   activeScopeName,
   isRefetching,
-}: CustomerFiltersProps) {
+}: UserFiltersProps) {
   const hasActiveFilters = status !== "all" || sort !== "";
 
   return (
@@ -39,7 +39,8 @@ export function CustomerFilters({
             <option value="all">All Statuses</option>
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
-            <option value="blocked">Blocked Only</option>
+            <option value="suspended">Suspended Only</option>
+            <option value="locked">Locked Only</option>
           </Select>
         </div>
 
@@ -48,7 +49,7 @@ export function CustomerFilters({
           <Select
             value={sort}
             onChange={(e) => onSortChange(e.target.value)}
-            aria-label="Sort Customers"
+            aria-label="Sort Staff Members"
           >
             <option value="">Sort by (Default)</option>
             <option value="name">Name (A-Z)</option>
@@ -57,8 +58,6 @@ export function CustomerFilters({
             <option value="-createdAt">Date (Newest)</option>
             <option value="updatedAt">Updated (Oldest)</option>
             <option value="-updatedAt">Updated (Newest)</option>
-            <option value="loyaltyPoints">Loyalty (Lowest)</option>
-            <option value="-loyaltyPoints">Loyalty (Highest)</option>
           </Select>
         </div>
       </div>

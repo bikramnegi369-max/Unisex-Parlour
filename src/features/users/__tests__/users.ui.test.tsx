@@ -26,7 +26,10 @@ vi.mock("../hooks/useUpdateUser", () => ({
 }));
 
 vi.mock("../hooks/useUpdateUserStatus", () => ({
-  useUpdateUserStatus: vi.fn(() => ({ isPending: false, mutateAsync: vi.fn() })),
+  useUpdateUserStatus: vi.fn(() => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  })),
 }));
 
 vi.mock("../hooks/useRoles", () => ({
@@ -37,11 +40,26 @@ vi.mock("@/features/branches/hooks/useBranches", () => ({
   useBranches: vi.fn(() => ({ branches: [], isLoading: false })),
 }));
 
-// Mock branch context
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+  }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/users",
+}));
+
+// Mock branch context with isAllBranchesSelected and currentBranch
 vi.mock("@/hooks/useBranchContext", () => ({
   useBranchContext: () => ({
     currentBranchId: "br_1",
-    getBranchQueryKey: (name: string, keys: any[] = []) => [name, "br_1", ...keys],
+    currentBranch: { id: "br_1", name: "Main Branch" },
+    isAllBranchesSelected: false,
+    getBranchQueryKey: (name: string, keys: any[] = []) => [
+      name,
+      "br_1",
+      ...keys,
+    ],
   }),
 }));
 
@@ -123,7 +141,7 @@ describe("User Management Directory UI Tests", () => {
     render(<UsersPage />, { wrapper: createWrapper() });
 
     expect(screen.getByText("Access Denied")).toBeDefined();
-    expect(screen.queryByText("All Staff Members")).toBeNull();
+    expect(screen.queryByText("Staff Directory")).toBeNull();
   });
 
   it("displays loading skeletons when directory is loading", () => {
@@ -137,9 +155,11 @@ describe("User Management Directory UI Tests", () => {
 
     render(<UsersPage />, { wrapper: createWrapper() });
 
-    expect(screen.getByText("All Staff Members")).toBeDefined();
+    expect(screen.getByText("Staff Directory")).toBeDefined();
     // Tables display animated skeleton lines during loading (1 header + 5 body rows)
     const pulseLines = screen.queryAllByRole("row");
+
+    // The DataTable renders header + 5 skeleton rows = 6 rows
     expect(pulseLines.length).toBe(6);
   });
 
@@ -154,7 +174,9 @@ describe("User Management Directory UI Tests", () => {
           role: "Manager",
           organizationId: "org_1",
           hasOrgWideAccess: false,
-          branchAccess: [{ branchId: "br_1", branchName: "Main Branch", isActive: true }],
+          branchAccess: [
+            { branchId: "br_1", branchName: "Main Branch", isActive: true },
+          ],
           isVerified: true,
           isFirstLogin: false,
           status: "active",
@@ -180,7 +202,8 @@ describe("User Management Directory UI Tests", () => {
 
     render(<UsersPage />, { wrapper: createWrapper() });
 
-    expect(screen.getByText("Alice Cooper")).toBeDefined();
-    expect(screen.getByText("alice@parlour.com")).toBeDefined();
+    // Desktop table + mobile card both render the name (responsive views)
+    expect(screen.getAllByText("Alice Cooper").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("alice@parlour.com").length).toBeGreaterThan(0);
   });
 });

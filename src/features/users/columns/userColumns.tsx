@@ -50,7 +50,10 @@ export const buildUserColumns = ({
     cell: (info) => {
       const val = info.getValue() as string;
       return (
-        <a href={`mailto:${val}`} className="font-medium text-muted-foreground hover:underline">
+        <a
+          href={`mailto:${val}`}
+          className="font-medium text-muted-foreground hover:underline"
+        >
           {val}
         </a>
       );
@@ -62,7 +65,10 @@ export const buildUserColumns = ({
     cell: (info) => {
       const val = info.getValue() as string;
       return val ? (
-        <a href={`tel:${val}`} className="font-medium text-muted-foreground hover:underline">
+        <a
+          href={`tel:${val}`}
+          className="font-medium text-muted-foreground hover:underline"
+        >
           {val}
         </a>
       ) : (
@@ -75,9 +81,13 @@ export const buildUserColumns = ({
     header: "Role",
     cell: (info) => {
       const role = info.getValue() as any;
-      const roleName = typeof role === "object" && role !== null ? role.name : role;
+      const roleName =
+        typeof role === "object" && role !== null ? role.name : role;
       return (
-        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
+        <Badge
+          variant="outline"
+          className="bg-primary/5 text-primary border-primary/10"
+        >
           {roleName || "Staff"}
         </Badge>
       );
@@ -88,7 +98,8 @@ export const buildUserColumns = ({
     header: "Status",
     cell: (info) => {
       const status = (info.getValue() as string) || "active";
-      let badgeVariant: "success" | "destructive" | "muted" | "warning" = "success";
+      let badgeVariant: "success" | "destructive" | "muted" | "warning" =
+        "success";
       if (status === "inactive") badgeVariant = "muted";
       if (status === "suspended") badgeVariant = "destructive";
       if (status === "locked") badgeVariant = "warning";
@@ -106,7 +117,11 @@ export const buildUserColumns = ({
     cell: (info) => {
       const user = info.row.original;
       if (user.hasOrgWideAccess) {
-        return <span className="text-xs text-muted-foreground font-medium">All Branches</span>;
+        return (
+          <span className="text-xs text-muted-foreground font-medium">
+            All Branches
+          </span>
+        );
       }
       const activeBranches = user.branchAccess.filter((b) => b.isActive);
       if (activeBranches.length === 0) {
@@ -115,7 +130,11 @@ export const buildUserColumns = ({
       return (
         <div className="flex flex-wrap gap-1 max-w-[200px]">
           {activeBranches.map((b) => (
-            <Badge key={b.branchId} variant="outline" className="text-[10px] px-1.5 py-0">
+            <Badge
+              key={b.branchId}
+              variant="outline"
+              className="text-[10px] px-1.5 py-0"
+            >
               {b.branchName}
             </Badge>
           ))}
@@ -137,7 +156,9 @@ export const buildUserColumns = ({
             onView={() => onView(u)}
             onEdit={() => onEdit(u)}
             onDelete={isActive ? () => onDeactivate(u) : undefined}
-            onReactivate={(!isActive || isLocked) ? () => onReactivate(u) : undefined}
+            onReactivate={
+              !isActive || isLocked ? () => onReactivate(u) : undefined
+            }
             status={u.status}
             permissions={{
               edit: "users.update",

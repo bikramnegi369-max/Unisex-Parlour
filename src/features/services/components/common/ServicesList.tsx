@@ -36,7 +36,8 @@ export default function ServicesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { currentBranch, isAllBranchesSelected, getBranchName } = useBranchContext();
+  const { currentBranch, isAllBranchesSelected, getBranchName } =
+    useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -44,7 +45,9 @@ export default function ServicesList() {
 
   // Read params from URL
   const page = Number(searchParams.get("page") || "1");
-  const limit = Number(searchParams.get("limit") || String(SERVICES_CONFIG.defaults.pageSize));
+  const limit = Number(
+    searchParams.get("limit") || String(SERVICES_CONFIG.defaults.pageSize),
+  );
   const searchVal = searchParams.get("search") || "";
   const statusVal = searchParams.get("status") || "all";
   const categoryIdVal = searchParams.get("categoryId") || "all";
@@ -150,15 +153,31 @@ export default function ServicesList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const getCategoryName = useCallback((id: string) => {
-    return categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === id)?.name || id;
-  }, [categoriesQuery.data]);
+  const handleClearFilters = () => {
+    const params = new URLSearchParams();
+    if (searchVal) {
+      params.set("search", searchVal);
+    }
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const getCategoryName = useCallback(
+    (id: string) => {
+      return (
+        categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === id)
+          ?.name || id
+      );
+    },
+    [categoriesQuery.data],
+  );
 
   // Table Columns Definition
   const serviceColumns = useMemo(
     () =>
       buildServiceColumns({
-        onView: (service) => router.push(SERVICES_CONFIG.routes.services.detail(service.id)),
+        onView: (service) =>
+          router.push(SERVICES_CONFIG.routes.services.detail(service.id)),
         onEdit: (service) => {
           setActiveService(service);
           setIsServiceEditOpen(true);
@@ -175,7 +194,7 @@ export default function ServicesList() {
         getBranchName,
         isAllBranches: isAllBranchesSelected,
       }),
-    [router, getCategoryName, getBranchName, isAllBranchesSelected]
+    [router, getCategoryName, getBranchName, isAllBranchesSelected],
   );
 
   // Form submit handlers
@@ -204,7 +223,7 @@ export default function ServicesList() {
         onError: (err) => {
           toast.error(getErrorMessage(err) || "Failed to update service.");
         },
-      }
+      },
     );
   };
 
@@ -248,9 +267,11 @@ export default function ServicesList() {
       categoryName={getCategoryName(
         typeof service.categoryId === "string"
           ? service.categoryId
-          : (service.categoryId as { _id: string })?._id || ""
+          : (service.categoryId as { _id: string })?._id || "",
       )}
-      onView={() => router.push(SERVICES_CONFIG.routes.services.detail(service.id))}
+      onView={() =>
+        router.push(SERVICES_CONFIG.routes.services.detail(service.id))
+      }
       onEdit={() => {
         setActiveService(service);
         setIsServiceEditOpen(true);
@@ -283,7 +304,11 @@ export default function ServicesList() {
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col xl:flex-row gap-4 justify-between items-stretch xl:items-center">
-          <ServicesSearch value={search} onChange={setSearch} isLoading={servicesQuery.isFetching} />
+          <ServicesSearch
+            value={search}
+            onChange={setSearch}
+            isLoading={servicesQuery.isFetching}
+          />
           <ServicesFilters
             status={statusVal}
             onStatusChange={(val) => updateParam("status", val)}
@@ -292,7 +317,10 @@ export default function ServicesList() {
             categories={categoriesQuery.data?.data || []}
             sort={sortVal}
             onSortChange={(val) => updateParam("sort", val)}
-            activeScopeName={currentBranch ? currentBranch.name : "All Branches"}
+            onClearFilters={handleClearFilters}
+            activeScopeName={
+              currentBranch ? currentBranch.name : "All Branches"
+            }
             isRefetching={servicesQuery.isRefetching}
           />
         </div>
@@ -302,7 +330,9 @@ export default function ServicesList() {
           data={servicesQuery.data?.data || []}
           isLoading={servicesQuery.isLoading || servicesQuery.isRefetching}
           renderMobileRow={renderMobileRow}
-          getRowClassName={(row) => (!row.isActive ? "opacity-60 bg-muted/50" : "")}
+          getRowClassName={(row) =>
+            !row.isActive ? "opacity-60 bg-muted/50" : ""
+          }
           emptyState={
             <EmptyState
               title={SERVICES_CONFIG.labels.service.emptyStateTitle}
@@ -333,7 +363,11 @@ export default function ServicesList() {
       </div>
 
       {/* Service Create Modal */}
-      <Dialog isOpen={isServiceCreateOpen} onClose={() => setIsServiceCreateOpen(false)} title="Create New Service">
+      <Dialog
+        isOpen={isServiceCreateOpen}
+        onClose={() => setIsServiceCreateOpen(false)}
+        title="Create New Service"
+      >
         <ServiceForm
           categories={categoriesQuery.data?.data || []}
           onSubmit={handleServiceCreateSubmit}
@@ -344,14 +378,21 @@ export default function ServicesList() {
       </Dialog>
 
       {/* Service Edit Modal */}
-      <Dialog isOpen={isServiceEditOpen && !!activeService} onClose={() => setIsServiceEditOpen(false)} title="Edit Service Details">
+      <Dialog
+        isOpen={isServiceEditOpen && !!activeService}
+        onClose={() => setIsServiceEditOpen(false)}
+        title="Edit Service Details"
+      >
         {activeService && (
           <ServiceForm
             categories={categoriesQuery.data?.data || []}
             initialService={{
               name: activeService.name,
               description: activeService.description || "",
-              categoryId: typeof activeService.categoryId === "string" ? activeService.categoryId : (activeService.categoryId as { _id: string })?._id || "",
+              categoryId:
+                typeof activeService.categoryId === "string"
+                  ? activeService.categoryId
+                  : (activeService.categoryId as { _id: string })?._id || "",
               duration: activeService.duration,
               basePrice: activeService.pricing?.basePrice ?? 0,
               taxable: activeService.taxable,
@@ -372,7 +413,9 @@ export default function ServicesList() {
         onClose={() => setIsServiceDeleteOpen(false)}
         onConfirm={handleServiceDeleteConfirm}
         isDeleting={deleteServiceMutation.isPending}
-        itemName={activeService?.name ? capitalizeWords(activeService.name) : ""}
+        itemName={
+          activeService?.name ? capitalizeWords(activeService.name) : ""
+        }
         title="Deactivate Service Record"
       />
 
@@ -383,7 +426,9 @@ export default function ServicesList() {
         onConfirm={handleServiceReactivateConfirm}
         isLoading={reactivateServiceMutation.isPending}
         error={reactivateServiceMutation.error}
-        itemName={activeService?.name ? capitalizeWords(activeService.name) : ""}
+        itemName={
+          activeService?.name ? capitalizeWords(activeService.name) : ""
+        }
         title="Reactivate Service Record"
       />
     </div>
