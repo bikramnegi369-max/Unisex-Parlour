@@ -100,7 +100,7 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
   const canAssignService = hasPermission(user, EMPLOYEES_CONFIG.permissions.assignService);
   const canLinkUser = hasPermission(user, EMPLOYEES_CONFIG.permissions.edit);
 
-  const { data: employee, isLoading, isError, refetch, isRefetching } = useEmployee(employeeId);
+  const { data: employee, isLoading, isError, error, refetch, isRefetching } = useEmployee(employeeId);
   const { data: linkedUser } = useUser(employee?.userId ?? null);
   const { data: staffBranches, isLoading: isLoadingBranches, isError: isErrorBranches, refetch: refetchBranches } = useStaffBranches(employeeId);
   const { data: staffServices, isLoading: isLoadingServices, isError: isErrorServices, refetch: refetchServices } = useStaffServices(employeeId);
@@ -331,6 +331,13 @@ export default function EmployeeDetailsPage({ employeeId }: EmployeeDetailsPageP
   }
 
   if (isError || !employee) {
+    const errorObj = error as Record<string, unknown> | null;
+    const responseObj = errorObj?.response as Record<string, unknown> | null;
+    const status = (responseObj?.status as number | undefined) || (errorObj?.status as number | undefined);
+
+    if (status === 403) {
+      return <Unauthorized />;
+    }
     return (
       <ErrorState
         title="Failed to Load Profile"
