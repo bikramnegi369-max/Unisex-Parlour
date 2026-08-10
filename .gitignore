@@ -69,3 +69,18 @@ $RECYCLE.BIN/
 backend_contract.md
 data_scoping_note.md
 
+# Editor and Tooling local configs
+.cline/
+.clinerules/
+.agents/
+AGENTS.md
+CLAUDE.md
+
+# Playwright / Testing outputs
+/test-results/
+/playwright-report/
+/blob-report/
+/coverage/
+
+# TypeScript build info
+*.tsbuildinfo
