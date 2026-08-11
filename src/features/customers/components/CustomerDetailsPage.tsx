@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useCustomer } from "../hooks/useCustomer";
 import { useUpdateCustomer } from "../hooks/useUpdateCustomer";
 import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
@@ -22,15 +23,19 @@ import { CustomerOverview } from "./CustomerOverview";
 import { CustomerPreferences } from "./CustomerPreferences";
 import { CustomerNotes } from "./CustomerNotes";
 import { CustomerActivityLog } from "./CustomerActivityLog";
-import { EntityProfileLayout, type ProfileTabItem } from "@/components/entity/EntityProfileLayout";
+import {
+  EntityProfileLayout,
+  type ProfileTabItem,
+} from "@/components/entity/EntityProfileLayout";
 import { capitalizeWords } from "@/lib/formatters";
-
 
 interface CustomerDetailsPageProps {
   customerId: string;
 }
 
-export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageProps) {
+export default function CustomerDetailsPage({
+  customerId,
+}: CustomerDetailsPageProps) {
   const router = useRouter();
   const { user } = useAuth();
   const { availableBranches } = useBranchContext();
@@ -39,37 +44,36 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isReactivateOpen, setIsReactivateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTabItem["id"]>("overview");
-  const [alertMessage, setAlertMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const canEdit = hasPermission(user, CUSTOMERS_CONFIG.permissions.edit);
   const canDelete = hasPermission(user, CUSTOMERS_CONFIG.permissions.delete);
   const canView = hasPermission(user, CUSTOMERS_CONFIG.permissions.view);
 
-  const { data: customer, isLoading, isError, error, refetch, isRefetching } = useCustomer(customerId);
+  const {
+    data: customer,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = useCustomer(customerId);
 
   const updateMutation = useUpdateCustomer();
   const deleteMutation = useDeleteCustomer();
   const reactivateMutation = useReactivateCustomer();
 
-
-
-  const triggerAlert = (type: "success" | "error", text: string) => {
-    setAlertMessage({ type, text });
-    setTimeout(() => setAlertMessage(null), 4000);
-  };
-
   const handleEditSubmit = (values: CustomerPayload) => {
     updateMutation.mutate(
       { id: customerId, payload: values },
       {
-         onSuccess: () => {
+        onSuccess: () => {
           setIsEditOpen(false);
-          triggerAlert("success", "Customer profile updated successfully.");
+          toast.success("Customer profile updated successfully.");
         },
         onError: (err: Error) => {
-          triggerAlert("error", err.message || "Failed to update customer.");
+          toast.error(err.message || "Failed to update customer.");
         },
-      }
+      },
     );
   };
 
@@ -77,7 +81,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
     deleteMutation.mutate(customerId, {
       onSuccess: () => {
         setIsDeactivateOpen(false);
-        triggerAlert("success", "Customer profile deactivated successfully.");
+        toast.success("Customer profile deactivated successfully.");
         // Redirect back to list after short delay so user sees success feedback
         setTimeout(() => {
           router.back();
@@ -85,7 +89,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       },
       onError: (err: Error) => {
         setIsDeactivateOpen(false);
-        triggerAlert("error", err.message || "Failed to deactivate customer.");
+        toast.error(err.message || "Failed to deactivate customer.");
       },
     });
   };
@@ -95,14 +99,13 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       onSuccess: () => {
         setIsReactivateOpen(false);
         reactivateMutation.reset();
-        triggerAlert("success", "Customer profile reactivated successfully.");
+        toast.success("Customer profile reactivated successfully.");
       },
       onError: () => {
         // Keep the dialog open and display mutation error state internally
       },
     });
   };
-
 
   if (!canView) {
     return <Unauthorized />;
@@ -171,8 +174,10 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
   if (isError || !customer) {
     const errorObj = error as Record<string, unknown> | null;
     const responseObj = errorObj?.response as Record<string, unknown> | null;
-    const status = (responseObj?.status as number | undefined) || (errorObj?.status as number | undefined);
-    
+    const status =
+      (responseObj?.status as number | undefined) ||
+      (errorObj?.status as number | undefined);
+
     if (status === 403) {
       return <Unauthorized />;
     }
@@ -194,10 +199,8 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
     customer.homeBranchId;
 
   const visitedBranchNames = customer.visitedBranchIds
-    .map((id : string) => availableBranches.find((b) => b.id === id)?.name || id)
+    .map((id: string) => availableBranches.find((b) => b.id === id)?.name || id)
     .join(", ");
-
-
 
   const tabs: ProfileTabItem[] = [
     { id: "overview", label: "Overview" },
@@ -208,19 +211,6 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
 
   return (
     <div className="space-y-6">
-      {/* Alert message banner */}
-      {alertMessage && (
-        <div
-          className={`p-3 rounded-lg border text-sm font-semibold animate-in fade-in duration-200 ${
-            alertMessage.type === "success"
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-500"
-              : "bg-destructive/10 border-destructive/20 text-destructive"
-          }`}
-        >
-          {alertMessage.text}
-        </div>
-      )}
-
       {/* Header Profile Identity summary block */}
       <CustomerProfileHeader
         customer={customer}
@@ -240,7 +230,10 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
         onTabChange={setActiveTab}
       >
         {activeTab === "overview" && (
-          <CustomerOverview customer={customer} visitedBranchNames={visitedBranchNames} />
+          <CustomerOverview
+            customer={customer}
+            visitedBranchNames={visitedBranchNames}
+          />
         )}
 
         {activeTab === "preferences" && (
@@ -250,9 +243,7 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
           />
         )}
 
-        {activeTab === "notes" && (
-          <CustomerNotes customerId={customerId} />
-        )}
+        {activeTab === "notes" && <CustomerNotes customerId={customerId} />}
 
         {activeTab === "activity" && (
           <CustomerActivityLog customerId={customerId} />
@@ -260,7 +251,11 @@ export default function CustomerDetailsPage({ customerId }: CustomerDetailsPageP
       </EntityProfileLayout>
 
       {/* Edit Form Modal dialog */}
-      <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Customer Details">
+      <Dialog
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Update Customer Details"
+      >
         <CustomerForm
           initialCustomer={customer}
           onSubmit={handleEditSubmit}
