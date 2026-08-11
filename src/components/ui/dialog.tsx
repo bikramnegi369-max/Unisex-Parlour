@@ -1,17 +1,26 @@
-import * as React from "react"
-import { X } from "lucide-react"
+import * as React from "react";
+import { X } from "lucide-react";
 
 interface DialogProps {
-  isOpen: boolean
-  onClose: () => void
-  children: React.ReactNode
-  title?: string
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  title?: string;
 }
 
 export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const previousFocusRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
+  const onCloseRef = React.useRef(onClose);
+
+  // Keep the latest onClose without re-running the focus-management effect.
+  // The effect below intentionally depends only on `isOpen` so that a new
+  // inline onClose (e.g. recreated on every parent render) does not steal
+  // focus from inputs inside the dialog while the user is typing.
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -26,14 +35,14 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
     });
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
 
     const handleTab = (e: KeyboardEvent) => {
       if (e.key !== "Tab" || !dialogRef.current) return;
 
       const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
 
       if (focusable.length === 0) {
@@ -69,19 +78,19 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
       // Return focus to the previously focused element
       previousFocusRef.current?.focus();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
+      <div
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
-      
+
       {/* Dialog Content */}
       <div
         ref={dialogRef}
@@ -98,9 +107,16 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
         >
           <X size={16} />
         </button>
-        {title && <h2 id={titleId} className="text-lg font-semibold tracking-tight mb-4">{title}</h2>}
+        {title && (
+          <h2
+            id={titleId}
+            className="text-lg font-semibold tracking-tight mb-4"
+          >
+            {title}
+          </h2>
+        )}
         <div>{children}</div>
       </div>
     </div>
-  )
+  );
 }
