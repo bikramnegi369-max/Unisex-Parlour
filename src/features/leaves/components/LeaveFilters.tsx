@@ -2,9 +2,11 @@
 import React, { useTransition } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
+import type { Employee } from "@/features/employees/types/employee.types";
 import { X, Search, Loader2 } from "lucide-react";
 
 interface LeaveFiltersProps {
@@ -44,7 +46,8 @@ export default function LeaveFilters({
     limit: 100,
   });
 
-  const hasAnyFilter = search || status !== "all" || staffId || startDate || endDate;
+  const hasAnyFilter =
+    search || status !== "all" || staffId || startDate || endDate;
 
   return (
     <div className="bg-card border border-border/80 rounded-xl p-4 shadow-xs space-y-4 text-left">
@@ -59,7 +62,9 @@ export default function LeaveFilters({
             <Input
               placeholder="Search..."
               value={search}
-              onChange={(e) => startTransition(() => onSearchChange(e.target.value))}
+              onChange={(e) =>
+                startTransition(() => onSearchChange(e.target.value))
+              }
               className="pl-9"
             />
           </div>
@@ -70,17 +75,16 @@ export default function LeaveFilters({
           <label className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1.5">
             Status
           </label>
-          <select
+          <Select
             value={status}
             onChange={(e) => onStatusChange(e.target.value)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="all">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
             <option value="cancelled">Cancelled</option>
-          </select>
+          </Select>
         </div>
 
         {/* Staff selection (Managers only) */}
@@ -94,18 +98,17 @@ export default function LeaveFilters({
                 <Loader2 className="h-3 w-3 animate-spin mr-2" /> Loading...
               </div>
             ) : (
-              <select
+              <Select
                 value={staffId}
                 onChange={(e) => onStaffIdChange(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 <option value="">All Staff</option>
-                {employeesData?.data.map((emp) => (
+                {employeesData?.data.map((emp: Employee) => (
                   <option key={emp.id} value={emp.id}>
                     {emp.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
           </div>
         )}
