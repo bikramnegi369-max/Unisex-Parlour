@@ -8,8 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText, User, Plus, Loader2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { FileText, User, Plus, Loader2, ChevronLeft, ChevronRight, AlertCircle, Building2 } from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
+import { useBranchContext } from "@/hooks/useBranchContext";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasBranchAccess } from "@/lib/permissions";
+import { useCustomer } from "../hooks/useCustomer";
+import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
+import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api/errors";
 
 interface CustomerNotesProps {
   customerId: string;
@@ -23,9 +30,15 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [branchError, setBranchError] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  const { currentBranchId, availableBranches, getBranchName, isAllBranchesSelected } = useBranchContext();
+  const { user } = useAuth();
+  const { data: customer } = useCustomer(customerId);
 
   const { data, isLoading, isError, refetch } = useCustomerNotes(customerId, { page, limit });
   const createNoteMutation = useCreateCustomerNote();
@@ -34,7 +47,16 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
     setNoteText("");
     setValidationError("");
     setSubmitError("");
+    setBranchError("");
     setSubmitSuccess(false);
+
+    if (currentBranchId) {
+      setSelectedBranchId(currentBranchId);
+    } else {
+      const isHomeBranchValid = customer?.homeBranchId &&
+        availableBranches.some((b) => b.id === customer.homeBranchId && b.isActive && hasBranchAccess(user, b.id));
+      setSelectedBranchId(isHomeBranchValid ? customer.homeBranchId : "");
+    }
     setIsAddOpen(true);
   };
 
@@ -53,23 +75,29 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
     e.preventDefault();
     const trimmed = noteText.trim();
     if (!trimmed) {
-      setValidationError("Note content cannot be empty.");
+      setValidationError("Please enter note content before saving.");
+      return;
+    }
+
+    if (!selectedBranchId) {
+      setBranchError("Please select a branch to record this note.");
       return;
     }
 
     createNoteMutation.mutate(
-      { customerId, text: trimmed },
+      { customerId, text: trimmed, branchId: selectedBranchId },
       {
         onSuccess: () => {
           setSubmitSuccess(true);
+          toast.success("Note added successfully.");
           setNoteText("");
           setTimeout(() => {
             setIsAddOpen(false);
             setSubmitSuccess(false);
           }, 1000);
         },
-        onError: (err: Error) => {
-          setSubmitError(err.message || "Failed to create note. Please try again.");
+        onError: (err: unknown) => {
+          setSubmitError(getErrorMessage(err, "We encountered an issue saving your note. Please try again."));
         },
       }
     );
@@ -97,7 +125,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
       return (
         <div className="p-6 text-center text-sm text-destructive flex flex-col items-center gap-3">
           <AlertCircle className="h-8 w-8 text-destructive" />
-          <p>Failed to load customer notes. Please try again.</p>
+          <p>We couldn't retrieve the notes for this customer. Please check your connection and try again.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Retry
           </Button>
@@ -132,14 +160,28 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
               typeof note.createdBy === "object" && note.createdBy !== null
                 ? note.createdBy.name || "System User"
                 : note.createdBy || "System User";
+
+            const originatingBranchName =
+              typeof note.branch === "object" && note.branch !== null
+                ? note.branch.name
+                : note.branchId
+                ? availableBranches.find((b) => b.id === note.branchId)?.name || note.branchId
+                : "";
+
             return (
               <div key={note._id} className="p-4 rounded-xl border border-border/70 bg-card hover:bg-muted/5 transition-colors space-y-2">
                 <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                   {note.text}
                 </p>
                 <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[10px] text-muted-foreground font-semibold">
-                  <span className="flex items-center gap-1">
-                    <User size={10} />
+                  <span className="flex items-center gap-1.5 flex-wrap">
+                    {originatingBranchName && (
+                      <>
+                        <span className="text-foreground/90 font-bold">{originatingBranchName}</span>
+                        <span>·</span>
+                      </>
+                    )}
+                    <User size={10} className="inline shrink-0" />
                     Created by: <span className="text-foreground/80">{creatorName}</span>
                   </span>
                   <span>{displayDate}</span>
@@ -217,6 +259,29 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
             </div>
           )}
 
+          {isAllBranchesSelected ? (
+            <MutationBranchSelector
+              value={selectedBranchId}
+              onChange={(val) => {
+                setSelectedBranchId(val);
+                if (val) setBranchError("");
+              }}
+              branches={availableBranches}
+              disabled={isSubmitPending || submitSuccess}
+              error={branchError}
+            />
+          ) : (
+            <div className="space-y-1.5">
+              <span className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Branch
+              </span>
+              <div className="flex items-center gap-2 text-sm font-semibold bg-muted/30 p-2.5 rounded-lg border border-border/60">
+                <Building2 size={15} className="text-muted-foreground" />
+                <span>{getBranchName(selectedBranchId)}</span>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label htmlFor="noteText" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Note Content
@@ -252,7 +317,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitPending || submitSuccess || !noteText.trim()}
+              disabled={isSubmitPending || submitSuccess || !noteText.trim() || (!selectedBranchId && isAllBranchesSelected)}
               className="flex items-center gap-2 h-9 min-w-[44px]"
             >
               {isSubmitPending ? (

@@ -17,9 +17,34 @@ export function isBackendError(error: unknown): error is AxiosError<BackendError
  */
 export function getErrorMessage(error: unknown, fallbackMessage = "An unexpected error occurred. Please try again."): string {
   if (isBackendError(error)) {
+    const status = error.response?.status;
+    if (status === 403) {
+      return "You do not have permission to perform this action.";
+    }
+    if (status === 401) {
+      return "Your session has expired. Please log in again.";
+    }
+    if (status === 404) {
+      return "The requested resource could not be found.";
+    }
+    if (status && status >= 500) {
+      return "We are experiencing server issues. Please try again later.";
+    }
+    if (error.code === "ERR_NETWORK" || error.message === "Network Error") {
+      return "Network connection issues. Please check your internet connectivity.";
+    }
     return error.response?.data?.message || error.message || fallbackMessage;
   }
   if (error instanceof Error) {
+    if (error.message.includes("status code 403")) {
+      return "You do not have permission to perform this action.";
+    }
+    if (error.message.includes("status code 401")) {
+      return "Your session has expired. Please log in again.";
+    }
+    if (error.message.includes("status code 500")) {
+      return "We are experiencing server issues. Please try again later.";
+    }
     return error.message;
   }
   return fallbackMessage;

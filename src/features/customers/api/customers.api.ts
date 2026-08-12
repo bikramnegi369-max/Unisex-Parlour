@@ -100,13 +100,16 @@ export const getCustomerNotes = async (
 
 export const createCustomerNote = async (
   customerId: string,
-  payload: { text: string }
+  payload: { text: string; branchId: string }
 ): Promise<CustomerNote> => {
   const { data } = await apiClient.post<CustomerNoteMutateResponse>(
     `/customers/${customerId}/notes`,
-    payload,
     {
-      branchScope: "current",
+      text: payload.text,
+      branchId: payload.branchId,
+    },
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
     }
   );
   return data.data;

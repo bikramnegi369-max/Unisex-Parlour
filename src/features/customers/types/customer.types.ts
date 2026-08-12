@@ -22,6 +22,8 @@ export type MarketingPreferencesObject = MarketingPreferences;
 export interface CustomerNote {
   _id: string;
   text: string;
+  branchId?: string;
+  branch?: { _id: string; name: string } | null;
   createdBy?: string | { _id: string; name: string } | null;
   createdAt: string;
   updatedAt?: string;
