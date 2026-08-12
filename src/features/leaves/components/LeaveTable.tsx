@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
+import { formatDate } from "@/lib/formatters";
 import { Eye, Edit, Check, X, Ban } from "lucide-react";
 import type { Leave } from "../types/leaves.types";
 
@@ -75,12 +76,20 @@ export default function LeaveTable({
       {
         accessorKey: "startDate",
         header: "Start Date",
-        cell: (info) => <span className="font-medium text-foreground">{info.getValue() as string}</span>,
+        cell: (info) => (
+          <span suppressHydrationWarning className="font-medium text-foreground">
+            {formatDate(info.getValue() as string)}
+          </span>
+        ),
       },
       {
         accessorKey: "endDate",
         header: "End Date",
-        cell: (info) => <span className="font-medium text-foreground">{info.getValue() as string}</span>,
+        cell: (info) => (
+          <span suppressHydrationWarning className="font-medium text-foreground">
+            {formatDate(info.getValue() as string)}
+          </span>
+        ),
       },
       {
         accessorKey: "status",
@@ -250,8 +259,8 @@ export default function LeaveTable({
         <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground">
           <div className="flex justify-between">
             <span>Duration:</span>
-            <span className="font-medium text-foreground">
-              {leave.startDate} to {leave.endDate}
+            <span suppressHydrationWarning className="font-medium text-foreground">
+              {formatDate(leave.startDate)} to {formatDate(leave.endDate)}
             </span>
           </div>
           <div className="flex justify-between">

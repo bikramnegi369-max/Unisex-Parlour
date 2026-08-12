@@ -11,6 +11,7 @@ import {
   useRejectLeave,
   useCancelLeave,
 } from "../hooks/useLeaves";
+import { formatDate, formatDateTime } from "@/lib/formatters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -240,7 +241,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
                   <span className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Start Date</span>
                   <div className="flex items-center gap-2 text-sm text-foreground font-semibold">
                     <Calendar size={14} className="text-primary/70" />
-                    {leave.startDate}
+                    {formatDate(leave.startDate)}
                   </div>
                 </div>
                 <div className="w-px bg-border/80 hidden sm:block" />
@@ -248,7 +249,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
                   <span className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground">End Date</span>
                   <div className="flex items-center gap-2 text-sm text-foreground font-semibold">
                     <Calendar size={14} className="text-primary/70" />
-                    {leave.endDate}
+                    {formatDate(leave.endDate)}
                   </div>
                 </div>
               </div>
@@ -294,7 +295,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
                           <Clock size={12} />
                           Reviewed at:{" "}
                           <span className="font-medium text-foreground">
-                            {new Date(leave.reviewedAt).toLocaleString()}
+                            {formatDateTime(leave.reviewedAt)}
                           </span>
                         </div>
                       )}
@@ -332,7 +333,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
                           <Clock size={12} />
                           Cancelled at:{" "}
                           <span className="font-medium text-foreground">
-                            {new Date(leave.cancelledAt).toLocaleString()}
+                            {formatDateTime(leave.cancelledAt)}
                           </span>
                         </div>
                       )}
@@ -374,12 +375,12 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
               <hr className="border-border/40" />
               <div className="space-y-1">
                 <span className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Created At</span>
-                <span className="font-medium text-foreground">{new Date(leave.createdAt).toLocaleString()}</span>
+                <span className="font-medium text-foreground">{formatDateTime(leave.createdAt)}</span>
               </div>
               <hr className="border-border/40" />
               <div className="space-y-1">
                 <span className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Last Updated</span>
-                <span className="font-medium text-foreground">{new Date(leave.updatedAt).toLocaleString()}</span>
+                <span className="font-medium text-foreground">{formatDateTime(leave.updatedAt)}</span>
               </div>
             </CardContent>
           </Card>
