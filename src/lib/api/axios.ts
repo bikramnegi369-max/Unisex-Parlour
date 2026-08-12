@@ -1,5 +1,6 @@
 import axios from "axios";
-import { getToken, removeToken, setToken, removeRefreshToken } from "../auth/token";
+import { getToken, removeToken, removeRefreshToken } from "../auth/token";
+import { refreshAccessToken } from "../auth/refresh";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
@@ -125,17 +126,9 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // The backend expects the HttpOnly refresh token cookie.
-        // withCredentials: true ensures the cookie is transmitted automatically.
-        const { data } = await axios.post(
-          `${API_BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-        const newToken = data.data?.accessToken || data.accessToken;
+        const newToken = await refreshAccessToken();
         
         if (newToken) {
-          setToken(newToken);
           queryClient.invalidateQueries({ queryKey: ["auth-user"] });
           processQueue(null, newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -159,4 +152,3 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-

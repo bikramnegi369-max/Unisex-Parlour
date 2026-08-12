@@ -4,8 +4,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/axios";
 import { UserSession } from "@/lib/permissions";
 import { setToken, removeToken, getToken } from "@/lib/auth/token";
+import { refreshAccessToken } from "@/lib/auth/refresh";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { useState, useEffect } from "react";
 import {
   LoginResponseData,
   ActivationOtpSendData,
@@ -32,12 +34,21 @@ export class AuthApiError extends Error {
 export function useAuth() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   // Active User session query
-  const { data: user, isLoading, isError } = useQuery<UserSession | null>({
+  const { data: user, isLoading: isQueryLoading, isError } = useQuery<UserSession | null>({
     queryKey: ["auth-user"],
     queryFn: async () => {
-      const token = getToken();
+      let token = getToken();
+      if (!token) {
+        // Silent bootstrap check via refresh token HTTP-only cookie
+        try {
+          token = await refreshAccessToken();
+        } catch {
+          return null;
+        }
+      }
       if (!token) {
         return null;
       }
@@ -55,6 +66,12 @@ export function useAuth() {
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (!isQueryLoading) {
+      setIsBootstrapping(false);
+    }
+  }, [isQueryLoading]);
 
   // Login mutation
   const loginMutation = useMutation({
@@ -246,7 +263,7 @@ export function useAuth() {
   return {
     user: user || null,
     isAuthenticated: !!user,
-    isLoading,
+    isLoading: isQueryLoading || isBootstrapping,
     isError,
     login: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,

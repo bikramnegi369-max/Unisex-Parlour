@@ -1,36 +1,15 @@
-const ACCESS_TOKEN_KEY = "erp_access_token";
-
-// Helper to set a cookie with security attributes
-const setCookie = (name: string, value: string, days = 7) => {
-  if (typeof window === "undefined") return;
-  const expires = new Date(Date.now() + days * 864e5).toUTCString();
-  const secure = window.location.protocol === "https:" ? "Secure;" : "";
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; ${secure} SameSite=Strict`;
-};
-
-// Helper to get a cookie value
-const getCookie = (name: string): string | null => {
-  if (typeof window === "undefined") return null;
-  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-  return match ? decodeURIComponent(match[2]) : null;
-};
-
-// Helper to delete a cookie
-const deleteCookie = (name: string) => {
-  if (typeof window === "undefined") return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
-};
+let inMemoryAccessToken: string | null = null;
 
 export const getToken = (): string | null => {
-  return getCookie(ACCESS_TOKEN_KEY);
+  return inMemoryAccessToken;
 };
 
-export const setToken = (token: string) => {
-  setCookie(ACCESS_TOKEN_KEY, token, 7); // 7 days expiry
+export const setToken = (token: string): void => {
+  inMemoryAccessToken = token;
 };
 
-export const removeToken = () => {
-  deleteCookie(ACCESS_TOKEN_KEY);
+export const removeToken = (): void => {
+  inMemoryAccessToken = null;
 };
 
 /**
@@ -54,4 +33,3 @@ export const setRefreshToken = () => {
 export const removeRefreshToken = () => {
   // No-op
 };
-
