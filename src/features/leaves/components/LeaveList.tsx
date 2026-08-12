@@ -256,6 +256,7 @@ export default function LeaveList() {
     return (
       <div className="space-y-6">
         <LeaveListHeader
+          isAllBranchesSelected={isAllBranchesSelected}
           canCreate={false}
           onAddClick={() => {}}
           isSyncing={false}
@@ -275,6 +276,7 @@ export default function LeaveList() {
   return (
     <div className="space-y-6">
       <LeaveListHeader
+        isAllBranchesSelected={isAllBranchesSelected}
         canCreate={canCreate}
         onAddClick={() => setIsCreateOpen(true)}
         isSyncing={isLoading}
