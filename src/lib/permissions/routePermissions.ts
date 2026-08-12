@@ -16,6 +16,7 @@ export const routePermissions = {
   "/customers": "customers.view",
   "/appointments": "appointments.view",
   "/employees": "employees.view",
+  "/leaves": "employees.leaves.view",
   "/services": "services.view",
   "/services/categories": "services.view",
   "/memberships": "billing.view",

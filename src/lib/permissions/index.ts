@@ -18,6 +18,8 @@ export type PermissionType =
   | "employees.delete"
   | "employees.assign_branch"
   | "employees.assign_service"
+  | "employees.leaves.view"
+  | "employees.leaves.manage"
   | "services.view"
   | "services.create"
   | "services.edit"

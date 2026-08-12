@@ -121,7 +121,9 @@ describe("Staff-User Linking Endpoint Contract", () => {
 
     await linkUserAccount("emp_1", "usr_1");
 
-    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/user", { userId: "usr_1" });
+    expect(apiClient.post).toHaveBeenCalledWith("/staff/emp_1/user", { userId: "usr_1" }, {
+      branchScope: "current",
+    });
   });
 
   it("verifies unlinkUserAccount matches DELETE /staff/:id/user contract", async () => {
@@ -129,6 +131,8 @@ describe("Staff-User Linking Endpoint Contract", () => {
 
     await unlinkUserAccount("emp_1");
 
-    expect(apiClient.delete).toHaveBeenCalledWith("/staff/emp_1/user");
+    expect(apiClient.delete).toHaveBeenCalledWith("/staff/emp_1/user", {
+      branchScope: "current",
+    });
   });
 });

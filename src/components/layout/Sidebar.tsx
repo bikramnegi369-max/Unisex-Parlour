@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   Users,
   Calendar,
+  CalendarOff,
   UserCheck,
   Scissors,
   CreditCard,
@@ -60,6 +61,7 @@ const navGroups: SidebarGroup[] = [
     items: [
       { name: "Customers", href: "/customers", icon: Users },
       { name: "Employees", href: "/employees", icon: UserCheck },
+      { name: "Leaves", href: "/leaves", icon: CalendarOff },
       { name: "Services", href: "/services", icon: Scissors },
     ],
   },
