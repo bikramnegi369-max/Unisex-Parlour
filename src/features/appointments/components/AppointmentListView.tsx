@@ -38,6 +38,10 @@ function getServiceSummary(appt: Appointment): string {
   return names.length > 0 ? names.join(", ") : "—";
 }
 
+function getAppointmentCodeDisplay(appt: Appointment): string {
+  return appt.appointmentCode || `#${appt.id.slice(-6)}`;
+}
+
 interface AppointmentListViewProps {
   appointments: Appointment[];
   isLoading: boolean;
@@ -67,12 +71,25 @@ export function AppointmentListView({
 }: AppointmentListViewProps) {
   const columns: ColumnDef<Appointment>[] = [
     {
+      accessorKey: "appointmentCode",
+      header: "Appointment ID",
+      cell: ({ row }) => {
+        const appt = row.original;
+        const codeDisplay = getAppointmentCodeDisplay(appt);
+        return (
+          <span className="font-mono text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 whitespace-nowrap">
+            {codeDisplay}
+          </span>
+        );
+      },
+    },
+    {
       accessorKey: "date",
       header: "Date & Time",
       cell: ({ row }) => {
         const appt = row.original;
         return (
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 whitespace-nowrap">
             <div className="text-xs font-semibold text-foreground">
               {formatDate(appt.date)}
             </div>

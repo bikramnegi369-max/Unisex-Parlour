@@ -62,7 +62,8 @@ export function AppointmentDetailsDialog({
     0;
 
   const branchTimezone = appointment.branch?.timezone || "Asia/Kolkata";
-  const dialogTitle = `Appointment #${appointment.id.slice(-6)}`;
+  const appointmentCodeDisplay = appointment.appointmentCode || `#${appointment.id.slice(-6)}`;
+  const dialogTitle = `Appointment ${appointmentCodeDisplay.startsWith("#") ? appointmentCodeDisplay : `#${appointmentCodeDisplay}`}`;
 
   const handleTriggerReminder = async () => {
     if (!appointment.branchId || appointment.branchId === "all") {
@@ -96,7 +97,11 @@ export function AppointmentDetailsDialog({
     <Dialog isOpen={isOpen} onClose={onClose} title={dialogTitle}>
       <div className="space-y-4 text-left">
         <div className="flex items-center justify-between border-b border-border pb-2">
-          <span className="text-xs font-semibold text-muted-foreground">Status & Type</span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+              {appointmentCodeDisplay}
+            </span>
+          </div>
           <div className="flex items-center gap-1.5">
             <BookingTypeBadge bookingType={appointment.bookingType} />
             <AppointmentStatusBadge status={appointment.status} />

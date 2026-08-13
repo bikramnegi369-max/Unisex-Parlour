@@ -9,7 +9,13 @@ import {
   isSameDay,
   parseISO,
 } from "date-fns";
-import { ChevronLeft, ChevronRight, MapPin, AlertTriangle } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  AlertTriangle,
+  Scissors,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   AppointmentStatusBadge,
@@ -18,7 +24,7 @@ import {
 import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useBranchContext } from "@/hooks/useBranchContext";
-import { formatInBranchTimezone } from "@/lib/formatters";
+import { formatInBranchTimezone, formatCurrency } from "@/lib/formatters";
 import type { Appointment } from "../types/appointment.types";
 
 interface AppointmentCalendarViewProps {
@@ -517,12 +523,12 @@ export function AppointmentCalendarView({
           <div className="overflow-x-auto relative">
             <div className="min-w-[800px] flex">
               {/* Sticky Left Time Column Axis */}
-              <div className="w-20 shrink-0 border-r border-border bg-muted/20 z-10 sticky left-0">
-                <div className="h-10 border-b border-border bg-muted/40 p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center">
+              <div className="w-20 shrink-0 border-r border-border bg-card z-30 sticky left-0 shadow-sm">
+                <div className="h-10 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center">
                   Time
                 </div>
                 <div
-                  className="relative"
+                  className="relative bg-card"
                   style={{ height: `${VIEWPORT_HEIGHT_PX}px` }}
                 >
                   {TIME_SLOTS.map((time, idx) => (
@@ -539,18 +545,6 @@ export function AppointmentCalendarView({
 
               {/* Staff Resource Lanes Columns */}
               <div className="flex-1 flex relative">
-                {/* Current Time Red Line (branch timezone) */}
-                {showCurrentTimeLine && (
-                  <div
-                    className="absolute left-0 right-0 border-b-2 border-destructive z-20 pointer-events-none flex items-center"
-                    style={{ top: `${currentTimeTopPx + 40}px` }}
-                  >
-                    <div className="bg-destructive text-destructive-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-r shadow-xs">
-                      NOW
-                    </div>
-                  </div>
-                )}
-
                 {visibleLanes.map((lane) => {
                   const laneAppointments = filteredAppointments.filter((a) =>
                     lane.id === null ? !a.staffId : a.staffId === lane.id,
@@ -585,6 +579,17 @@ export function AppointmentCalendarView({
                         className="relative bg-card/40"
                         style={{ height: `${VIEWPORT_HEIGHT_PX}px` }}
                       >
+                        {/* Current Time Red Line (branch timezone) */}
+                        {showCurrentTimeLine && (
+                          <div
+                            className="absolute left-0 right-0 border-b-2 border-destructive z-20 pointer-events-none flex items-center"
+                            style={{ top: `${currentTimeTopPx}px` }}
+                          >
+                            <div className="bg-destructive text-destructive-foreground text-[9px] font-bold px-1 py-0.2 rounded-r shadow-xs">
+                              NOW
+                            </div>
+                          </div>
+                        )}
                         {/* Horizontal Grid lines */}
                         {TIME_SLOTS.map((_, idx) => (
                           <div
@@ -676,12 +681,33 @@ export function AppointmentCalendarView({
                                   </div>
                                 </div>
 
-                                <div className="font-bold text-foreground truncate text-xs">
-                                  {getCustomerDisplayName(appt)}
+                                <div className="font-bold text-foreground truncate text-xs flex items-center justify-between gap-1">
+                                  <span className="truncate">
+                                    {getCustomerDisplayName(appt)}
+                                  </span>
+                                  <span className="font-mono text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded shrink-0 border border-primary/20">
+                                    {appt.appointmentCode ||
+                                      `#${appt.id.slice(-6)}`}
+                                  </span>
                                 </div>
 
-                                <div className="text-[10px] text-muted-foreground truncate">
+                                <div className="text-[10px] text-muted-foreground truncate font-medium">
+                                  <Scissors className="inline h-2.5 w-2.5 mr-0.5 text-muted-foreground/70" />
                                   {getServiceSummary(appt)}
+                                </div>
+
+                                <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-0.5 border-t border-border/40 gap-1">
+                                  <span className="truncate">
+                                    Staff:{" "}
+                                    <strong className="text-foreground font-semibold">
+                                      {getStaffDisplayName(appt)}
+                                    </strong>
+                                  </span>
+                                  {(appt.pricing?.total ?? 0) > 0 && (
+                                    <span className="font-semibold text-foreground shrink-0">
+                                      {formatCurrency(appt.pricing?.total ?? 0)}
+                                    </span>
+                                  )}
                                 </div>
 
                                 {isAllBranches && appt.branch?.name && (

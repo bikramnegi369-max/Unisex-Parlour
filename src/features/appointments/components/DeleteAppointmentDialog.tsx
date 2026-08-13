@@ -55,7 +55,10 @@ export function DeleteAppointmentDialog({
       <div className="space-y-4 text-left">
         <p className="text-xs text-muted-foreground">
           Are you sure you want to administratively delete appointment{" "}
-          <span className="font-semibold text-foreground">#{appointment.id.slice(-6)}</span> for{" "}
+          <span className="font-mono font-semibold text-foreground">
+            {appointment.appointmentCode || `#${appointment.id.slice(-6)}`}
+          </span>{" "}
+          for{" "}
           <span className="font-semibold text-foreground">{appointment.customer?.name || "Customer"}</span>?
         </p>
 
