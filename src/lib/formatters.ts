@@ -88,6 +88,36 @@ export function formatRelativeTime(
 }
 
 /**
+ * Formats a date/datetime instant according to a specific branch's IANA timeZone (e.g. "Asia/Kolkata", "UTC", "America/New_York").
+ * Does NOT rely on browser system timezone or hardcoded values.
+ */
+export function formatInBranchTimezone(
+  date: string | Date | number | null | undefined,
+  timeZone: string = "Asia/Kolkata",
+  options: Intl.DateTimeFormatOptions = {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  },
+  fallback: string = "—"
+): string {
+  if (!date) return fallback;
+  try {
+    const d = toDate(date);
+    if (isNaN(d.getTime())) return fallback;
+    return new Intl.DateTimeFormat("en-IN", {
+      timeZone: timeZone || "Asia/Kolkata",
+      ...options,
+    }).format(d);
+  } catch (_) {
+    return fallback;
+  }
+}
+
+/**
  * Capitalizes the first letter of each word in a string.
  */
 export function capitalizeWords(str: string): string {
