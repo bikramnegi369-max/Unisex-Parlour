@@ -13,6 +13,7 @@ import {
   useUpdateAppointmentStatus,
   useDeleteAppointment,
 } from "@/features/appointments/hooks/useAppointments";
+import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { AppointmentCalendarView } from "@/features/appointments/components/AppointmentCalendarView";
 import { AppointmentListView } from "@/features/appointments/components/AppointmentListView";
 import { CreateAppointmentDialog } from "@/features/appointments/components/CreateAppointmentDialog";
@@ -23,8 +24,9 @@ import { AppointmentStatusDialog } from "@/features/appointments/components/Appo
 import { DeleteAppointmentDialog } from "@/features/appointments/components/DeleteAppointmentDialog";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/error-state";
-import { Calendar, List, Plus, UserPlus, AlertCircle } from "lucide-react";
+import { Calendar, List, Plus, UserPlus, AlertCircle, RotateCcw, Search } from "lucide-react";
 import type { Appointment, AppointmentStatus, BookingType } from "@/features/appointments/types/appointment.types";
 
 export default function AppointmentsPage() {
@@ -43,6 +45,10 @@ export default function AppointmentsPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
   const [bookingTypeFilter, setBookingTypeFilter] = useState<BookingType | "all">("all");
+  const [staffFilter, setStaffFilter] = useState<string | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // Dialog States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -54,11 +60,19 @@ export default function AppointmentsPage() {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  // Queries & Mutations
+  // Fetch employees for filter dropdown
+  const { data: employeesData } = useEmployees({ limit: 100 });
+  const employees = employeesData?.data || [];
+
+  // Synchronized Query Filters
   const queryFilters = {
+    search: searchQuery.trim() || undefined,
     status: statusFilter === "all" ? undefined : statusFilter,
     bookingType: bookingTypeFilter === "all" ? undefined : bookingTypeFilter,
+    staffId: staffFilter === "all" ? undefined : staffFilter,
     date: viewMode === "calendar" ? format(selectedDate, "yyyy-MM-dd") : undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   };
 
   const { data: appointmentsData, isLoading, isError, error, refetch } = useAppointments(queryFilters);
@@ -69,6 +83,16 @@ export default function AppointmentsPage() {
   const assignStaffMutation = useAssignAppointmentStaff();
   const updateStatusMutation = useUpdateAppointmentStatus();
   const deleteMutation = useDeleteAppointment();
+
+  const handleResetFilters = () => {
+    setStatusFilter("all");
+    setBookingTypeFilter("all");
+    setStaffFilter("all");
+    setSearchQuery("");
+    setStartDate("");
+    setEndDate("");
+    setSelectedDate(new Date());
+  };
 
   if (!canView) {
     return (
@@ -150,9 +174,45 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Filter Controls Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border">
-        <div className="flex flex-wrap items-center gap-2">
+      {/* Multi-Field Filter Controls Bar */}
+      <div className="space-y-3 bg-card p-3 rounded-lg border border-border">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-sm">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search customer, phone, notes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 text-xs pl-8"
+            />
+          </div>
+
+          {/* View Switcher (Calendar vs List) */}
+          <div className="bg-muted p-0.5 rounded-md flex items-center border border-border shrink-0 self-end md:self-auto">
+            <Button
+              variant={viewMode === "calendar" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("calendar")}
+              className="text-xs h-7 gap-1 px-3"
+            >
+              <Calendar className="h-3.5 w-3.5" />
+              Calendar
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="text-xs h-7 gap-1 px-3"
+            >
+              <List className="h-3.5 w-3.5" />
+              List
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60">
           {/* Status Filter */}
           <div className="flex items-center gap-1 text-xs">
             <span className="text-muted-foreground font-semibold">Status:</span>
@@ -183,27 +243,58 @@ export default function AppointmentsPage() {
               <option value="walk_in">Walk-In</option>
             </select>
           </div>
-        </div>
 
-        {/* View Switcher (Calendar vs List) */}
-        <div className="bg-muted p-0.5 rounded-md flex items-center border border-border">
+          {/* Staff Filter */}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground font-semibold">Staff:</span>
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
+            >
+              <option value="all">All Staff</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date Range Inputs in List Mode */}
+          {viewMode === "list" && (
+            <>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground font-semibold">From:</span>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-8 text-xs w-32"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground font-semibold">To:</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-8 text-xs w-32"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Reset Filters Button */}
           <Button
-            variant={viewMode === "calendar" ? "default" : "ghost"}
+            variant="ghost"
             size="sm"
-            onClick={() => setViewMode("calendar")}
-            className="text-xs h-7 gap-1 px-3"
+            onClick={handleResetFilters}
+            className="text-xs h-8 gap-1 ml-auto text-muted-foreground hover:text-foreground"
           >
-            <Calendar className="h-3.5 w-3.5" />
-            Calendar
-          </Button>
-          <Button
-            variant={viewMode === "list" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode("list")}
-            className="text-xs h-7 gap-1 px-3"
-          >
-            <List className="h-3.5 w-3.5" />
-            List
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset
           </Button>
         </div>
       </div>

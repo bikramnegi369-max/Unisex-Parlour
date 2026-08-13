@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
@@ -15,8 +15,9 @@ import { useCustomers } from "@/features/customers/hooks/useCustomers";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useBranchContext } from "@/hooks/useBranchContext";
+import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
-import { Calendar, Bell, AlertTriangle } from "lucide-react";
+import { Calendar, Bell, AlertTriangle, Search, Scissors, User, MapPin } from "lucide-react";
 
 interface CreateAppointmentDialogProps {
   isOpen: boolean;
@@ -33,8 +34,10 @@ export function CreateAppointmentDialog({
   isLoading,
   defaultBookingType = "advance",
 }: CreateAppointmentDialogProps) {
-  const { currentBranchId, isAllBranchesSelected, availableBranches } = useBranchContext();
+  const { currentBranchId, currentBranch, isAllBranchesSelected, availableBranches } = useBranchContext();
   const [conflictError, setConflictError] = useState<string | null>(null);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
 
   const activeBranches = availableBranches.map((b) => ({
     id: b.id,
@@ -68,6 +71,7 @@ export function CreateAppointmentDialog({
   });
 
   const bookingType = watch("bookingType");
+  const selectedServiceIds = watch("serviceIds") || [];
 
   // Fetch dropdown data
   const { data: customersData, isLoading: isLoadingCustomers } = useCustomers({ limit: 100 });
@@ -78,9 +82,38 @@ export function CreateAppointmentDialog({
   const services = servicesData?.data || [];
   const employees = employeesData?.data || [];
 
+  // Filter customers by search term
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers;
+    const lower = customerSearch.toLowerCase();
+    return customers.filter(
+      (c) => c.name.toLowerCase().includes(lower) || c.phone.includes(lower)
+    );
+  }, [customers, customerSearch]);
+
+  // Filter services by search term
+  const filteredServices = useMemo(() => {
+    if (!serviceSearch.trim()) return services;
+    const lower = serviceSearch.toLowerCase();
+    return services.filter((s) => s.name.toLowerCase().includes(lower));
+  }, [services, serviceSearch]);
+
+  // Display-only estimation totals (authoritative pricing is computed by backend!)
+  const selectedServicesSummary = useMemo(() => {
+    const selected = services.filter((s) => selectedServiceIds.includes(s.id));
+    const totalDuration = selected.reduce((sum, s) => sum + (s.duration || 0), 0);
+    const estimatedSubtotal = selected.reduce(
+      (sum, s) => sum + (s.pricing?.basePrice ?? 0),
+      0
+    );
+    return { count: selected.length, totalDuration, estimatedSubtotal };
+  }, [services, selectedServiceIds]);
+
   useEffect(() => {
     if (isOpen) {
       setConflictError(null);
+      setCustomerSearch("");
+      setServiceSearch("");
       reset({
         branchId: currentBranchId || "",
         customerId: "",
@@ -105,7 +138,9 @@ export function CreateAppointmentDialog({
     } catch (err: unknown) {
       const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
       if (axiosError.response?.status === 409) {
-        const msg = axiosError.response.data?.message || "Scheduling conflict: The selected staff or time slot is unavailable.";
+        const msg =
+          axiosError.response.data?.message ||
+          "Scheduling conflict: The selected staff or time slot is unavailable.";
         setConflictError(msg);
         toast.error(msg);
       } else {
@@ -113,8 +148,6 @@ export function CreateAppointmentDialog({
       }
     }
   };
-
-  const selectedServiceIds = watch("serviceIds") || [];
 
   const handleServiceToggle = (serviceId: string) => {
     if (selectedServiceIds.includes(serviceId)) {
@@ -128,7 +161,8 @@ export function CreateAppointmentDialog({
     }
   };
 
-  const dialogTitle = bookingType === "walk_in" ? "New Walk-In Appointment" : "New Advance Appointment";
+  const dialogTitle =
+    bookingType === "walk_in" ? "New Walk-In Appointment" : "New Advance Appointment";
 
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title={dialogTitle}>
@@ -145,27 +179,36 @@ export function CreateAppointmentDialog({
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
           {/* Booking Type Switcher */}
-          <div className="flex items-center gap-4 p-2 bg-muted/40 rounded-lg border border-border">
-            <label className="text-xs font-semibold text-muted-foreground uppercase">Booking Type:</label>
+          <div className="flex items-center justify-between p-2 bg-muted/40 rounded-lg border border-border">
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={bookingType === "advance" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setValue("bookingType", "advance")}
-                className="text-xs h-7"
-              >
-                Advance Booking
-              </Button>
-              <Button
-                type="button"
-                variant={bookingType === "walk_in" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setValue("bookingType", "walk_in")}
-                className="text-xs h-7"
-              >
-                Walk-In
-              </Button>
+              <label className="text-xs font-semibold text-muted-foreground uppercase">
+                Booking Type:
+              </label>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant={bookingType === "advance" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setValue("bookingType", "advance")}
+                  className="text-xs h-7 px-3"
+                >
+                  Advance Booking
+                </Button>
+                <Button
+                  type="button"
+                  variant={bookingType === "walk_in" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setValue("bookingType", "walk_in")}
+                  className="text-xs h-7 px-3"
+                >
+                  Walk-In
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <MapPin className="h-3 w-3 text-primary" />
+              Timezone: {currentBranch?.timezone || "Asia/Kolkata"}
             </div>
           </div>
 
@@ -187,18 +230,30 @@ export function CreateAppointmentDialog({
             <input type="hidden" {...register("branchId")} />
           )}
 
-          {/* Customer Selection */}
+          {/* Customer Selection with Search Filter */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Customer <span className="text-destructive">*</span>
             </label>
+
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search customer by name or phone..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="h-8 text-xs pl-8 mb-1.5"
+              />
+            </div>
+
             <select
               {...register("customerId")}
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               disabled={isLoadingCustomers}
             >
-              <option value="">-- Select Customer --</option>
-              {customers.map((c) => (
+              <option value="">-- Select Customer ({filteredCustomers.length}) --</option>
+              {filteredCustomers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.phone})
                 </option>
@@ -209,22 +264,41 @@ export function CreateAppointmentDialog({
             )}
           </div>
 
-          {/* Services Selection */}
+          {/* Services Selection with Search & Live Summary */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Select Services <span className="text-destructive">*</span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Select Services <span className="text-destructive">*</span>
+              </label>
+              {selectedServicesSummary.count > 0 && (
+                <span className="text-[11px] font-bold text-primary">
+                  {selectedServicesSummary.count} selected (Est. {selectedServicesSummary.totalDuration} mins • {formatCurrency(selectedServicesSummary.estimatedSubtotal)})
+                </span>
+              )}
+            </div>
+
+            <div className="relative">
+              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Search services..."
+                value={serviceSearch}
+                onChange={(e) => setServiceSearch(e.target.value)}
+                className="h-8 text-xs pl-8 mb-1.5"
+              />
+            </div>
+
             {isLoadingServices ? (
               <div className="text-xs text-muted-foreground">Loading services...</div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto p-2 border border-input rounded-md bg-background">
-                {services.map((srv) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-input rounded-md bg-background">
+                {filteredServices.map((srv) => {
                   const isChecked = selectedServiceIds.includes(srv.id);
                   const servicePrice = srv.pricing?.basePrice ?? 0;
                   return (
                     <label
                       key={srv.id}
-                      className={`flex items-center gap-2 p-1.5 rounded-md border cursor-pointer text-xs transition-colors ${
+                      className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer text-xs transition-colors ${
                         isChecked
                           ? "bg-primary/10 border-primary text-foreground font-medium"
                           : "border-border hover:bg-muted text-muted-foreground"
@@ -237,8 +311,10 @@ export function CreateAppointmentDialog({
                         className="rounded border-input text-primary focus:ring-primary"
                       />
                       <div className="flex-1 truncate">
-                        <div>{srv.name}</div>
-                        <div className="text-[10px] opacity-75">{srv.duration} mins • ₹{servicePrice}</div>
+                        <div className="font-semibold">{srv.name}</div>
+                        <div className="text-[10px] opacity-75">
+                          {srv.duration} mins • {formatCurrency(servicePrice)}
+                        </div>
                       </div>
                     </label>
                   );
@@ -250,7 +326,7 @@ export function CreateAppointmentDialog({
             )}
           </div>
 
-          {/* Staff Selection (Optional) */}
+          {/* Staff Selection (Optional / Unassigned) */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Assign Staff <span className="text-muted-foreground font-normal">(Optional / Unassigned)</span>
@@ -261,7 +337,7 @@ export function CreateAppointmentDialog({
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               disabled={isLoadingEmployees}
             >
-              <option value="">-- Unassigned --</option>
+              <option value="">-- Unassigned (Floor Queue) --</option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name} {e.designation ? `(${e.designation})` : ""}

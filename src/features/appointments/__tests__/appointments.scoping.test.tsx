@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { hasPermission, UserSession } from "@/lib/permissions";
 import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import { createAppointmentSchema } from "../schemas/appointment.schema";
@@ -40,20 +40,29 @@ describe("Appointments Branch Scoping & RBAC Verification", () => {
     expect(hasPermission(ownerWithoutPermission, "appointments.delete")).toBe(false);
   });
 
-  it("generates correct branch-scoped and org-wide query keys", () => {
-    const branchKey = getScopeQueryKey("appointments", "br_100", [{ page: 1 }]);
-    expect(branchKey).toEqual(["appointments", { scope: "branch", branchId: "br_100" }, { page: 1 }]);
+  it("generates correct branch-scoped and org-wide query keys with multi-field filters", () => {
+    const filters = {
+      search: "John",
+      status: "scheduled",
+      bookingType: "advance",
+      staffId: "emp_10",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+    };
 
-    const orgKey = getScopeQueryKey("appointments", null, [{ page: 1 }]);
-    expect(orgKey).toEqual(["appointments", { scope: "organization" }, { page: 1 }]);
+    const branchKey = getScopeQueryKey("appointments", "br_100", [filters]);
+    expect(branchKey).toEqual(["appointments", { scope: "branch", branchId: "br_100" }, filters]);
 
-    const allBranchesKey = getScopeQueryKey("appointments", "all", [{ page: 1 }]);
-    expect(allBranchesKey).toEqual(["appointments", { scope: "organization" }, { page: 1 }]);
+    const orgKey = getScopeQueryKey("appointments", null, [filters]);
+    expect(orgKey).toEqual(["appointments", { scope: "organization" }, filters]);
+
+    const allBranchesKey = getScopeQueryKey("appointments", "all", [filters]);
+    expect(allBranchesKey).toEqual(["appointments", { scope: "organization" }, filters]);
   });
 
   it("fails mutation payload validation if branchId is missing or empty", () => {
     const invalidPayload = {
-      branchId: "", // Empty string in All Branches mode
+      branchId: "",
       customerId: "cust_123",
       serviceIds: ["srv_1"],
       date: "2026-08-15",
