@@ -6,7 +6,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
-import { assignStaffSchema, type AssignStaffSchemaType } from "../schemas/appointment.schema";
+import {
+  assignStaffSchema,
+  type AssignStaffSchemaType,
+} from "../schemas/appointment.schema";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { toast } from "sonner";
@@ -37,9 +40,10 @@ export function AssignStaffDialog({
     isActive: b.isActive,
   }));
 
-  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({ limit: 100 });
+  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({
+    limit: 100,
+  });
   const employees = employeesData?.data || [];
-
   const {
     register,
     handleSubmit,
@@ -74,7 +78,9 @@ export function AssignStaffDialog({
       toast.success("Staff allocation updated successfully.");
       onClose();
     } catch (err: unknown) {
-      const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
+      const axiosError = err as {
+        response?: { status?: number; data?: { message?: string } };
+      };
       if (axiosError.response?.status === 409) {
         const msg =
           axiosError.response.data?.message ||
@@ -82,7 +88,10 @@ export function AssignStaffDialog({
         setConflictError(msg);
         toast.error(msg);
       } else {
-        toast.error(axiosError.response?.data?.message || "Failed to update staff allocation.");
+        toast.error(
+          axiosError.response?.data?.message ||
+            "Failed to update staff allocation.",
+        );
       }
     }
   };
@@ -126,7 +135,9 @@ export function AssignStaffDialog({
             </label>
             <select
               value={watch("staffId") || ""}
-              onChange={(e) => setValue("staffId", e.target.value ? e.target.value : null)}
+              onChange={(e) => {
+                setValue("staffId", e.target.value ? e.target.value : null);
+              }}
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               disabled={isLoadingEmployees}
             >
@@ -140,7 +151,13 @@ export function AssignStaffDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isLoading}>
