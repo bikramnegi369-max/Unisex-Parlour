@@ -17,6 +17,8 @@ import {
   Scissors,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import {
   AppointmentStatusBadge,
   BookingTypeBadge,
@@ -405,13 +407,13 @@ export function AppointmentCalendarView({
           </Button>
 
           {/* Jump-to-Date Selector */}
-          <input
+          <Input
             type="date"
             value={format(selectedDate, "yyyy-MM-dd")}
             onChange={(e) =>
               e.target.valueAsDate && onSelectDate(e.target.valueAsDate)
             }
-            className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-8 text-xs w-36"
           />
 
           <span className="text-xs font-bold text-foreground ml-1">
@@ -429,24 +431,26 @@ export function AppointmentCalendarView({
         {/* Staff Filter & View Switcher */}
         <div className="flex items-center gap-2">
           {/* Staff Filter Dropdown */}
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground font-medium">Staff:</span>
-            <select
-              value={selectedStaffFilter}
-              onChange={(e) => setSelectedStaffFilter(e.target.value)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
-            >
-              <option value="all">All Staff Lanes</option>
-              <option value="unassigned">Unassigned Only</option>
-              {resourceLanes
-                .filter((l) => l.id !== null)
-                .map((l) => (
-                  <option key={l.id} value={l.id!}>
-                    {l.name}
-                    {l.branchName ? ` (${l.branchName})` : ""}
-                  </option>
-                ))}
-            </select>
+            <div className="w-40">
+              <Select
+                value={selectedStaffFilter}
+                onChange={(e) => setSelectedStaffFilter(e.target.value)}
+                className="h-8 text-xs py-0"
+              >
+                <option value="all">All Staff Lanes</option>
+                <option value="unassigned">Unassigned Only</option>
+                {resourceLanes
+                  .filter((l) => l.id !== null)
+                  .map((l) => (
+                    <option key={l.id} value={l.id!}>
+                      {l.name}
+                      {l.branchName ? ` (${l.branchName})` : ""}
+                    </option>
+                  ))}
+              </Select>
+            </div>
           </div>
 
           {/* Day / Week View Mode Toggle */}
@@ -641,14 +645,23 @@ export function AppointmentCalendarView({
                             return (
                               <div
                                 key={appt.id}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`Appointment for ${getCustomerDisplayName(appt)} at ${appt.startTime}`}
                                 onClick={() => onSelectAppointment(appt)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    onSelectAppointment(appt);
+                                  }
+                                }}
                                 style={{
                                   top: `${topPx}px`,
                                   height: `${heightPx}px`,
                                   left: `${leftPct}%`,
                                   width: `${widthPct}%`,
                                 }}
-                                className="absolute rounded-lg border p-1.5 text-xs shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 bg-card hover:bg-accent/40 border-primary/40 space-y-0.5"
+                                className="absolute rounded-lg border p-1.5 text-xs shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 bg-card hover:bg-accent/40 border-primary/40 space-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary"
                               >
                                 {/* Clipping indicators */}
                                 {isClippedTop && (

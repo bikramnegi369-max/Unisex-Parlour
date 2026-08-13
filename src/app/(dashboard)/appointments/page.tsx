@@ -35,6 +35,8 @@ import {
   RotateCcw,
   Search,
 } from "lucide-react";
+import { Select } from "@/components/ui/select";
+import { Pagination } from "@/components/ui/pagination";
 import type {
   Appointment,
   AppointmentStatus,
@@ -68,6 +70,8 @@ export default function AppointmentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   // Dialog States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -96,7 +100,7 @@ export default function AppointmentsPage() {
   // Synchronized Query Filters
   // - Calendar Day View: fetch only the selected date
   // - Calendar Week View: fetch the complete Monday–Sunday range
-  // - List View: use explicit date range inputs
+  // - List View: use explicit date range inputs and page/limit pagination
   const queryFilters = useMemo(() => {
     const isCalendarWeek =
       viewMode === "calendar" && calendarViewMode === "week";
@@ -116,10 +120,8 @@ export default function AppointmentsPage() {
       endDate: isCalendarWeek
         ? format(weekEnd, "yyyy-MM-dd")
         : endDate || undefined,
-      // Calendar must never silently truncate to the backend default page size.
-      // Request a large page size for calendar views so all appointments
-      // for the requested day/week are available to the resource board.
-      limit: viewMode === "calendar" ? 500 : undefined,
+      page: viewMode === "list" ? page : undefined,
+      limit: viewMode === "list" ? limit : undefined,
     };
   }, [
     viewMode,
@@ -133,6 +135,8 @@ export default function AppointmentsPage() {
     staffFilter,
     startDate,
     endDate,
+    page,
+    limit,
   ]);
 
   const {
@@ -143,6 +147,7 @@ export default function AppointmentsPage() {
     refetch,
   } = useAppointments(queryFilters);
   const appointments = appointmentsData?.data || [];
+  const meta = appointmentsData?.meta;
 
   const createMutation = useCreateAppointment();
   const rescheduleMutation = useRescheduleAppointment();
@@ -158,6 +163,7 @@ export default function AppointmentsPage() {
     setStartDate("");
     setEndDate("");
     setSelectedDate(new Date());
+    setPage(1);
   };
 
   if (!canView) {
@@ -252,7 +258,10 @@ export default function AppointmentsPage() {
               type="text"
               placeholder="Search customer, phone, notes..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="h-8 text-xs pl-8"
             />
           </div>
@@ -282,55 +291,66 @@ export default function AppointmentsPage() {
 
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60">
           {/* Status Filter */}
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground font-semibold">Status:</span>
-            <select
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as AppointmentStatus | "all")
-              }
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
-            >
-              <option value="all">All Statuses</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="no_show">No Show</option>
-            </select>
+            <div className="w-32">
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as AppointmentStatus | "all");
+                  setPage(1);
+                }}
+                className="h-8 text-xs py-0"
+              >
+                <option value="all">All Statuses</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="no_show">No Show</option>
+              </Select>
+            </div>
           </div>
 
           {/* Booking Type Filter */}
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground font-semibold">Type:</span>
-            <select
-              value={bookingTypeFilter}
-              onChange={(e) =>
-                setBookingTypeFilter(e.target.value as BookingType | "all")
-              }
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
-            >
-              <option value="all">All Types</option>
-              <option value="advance">Advance</option>
-              <option value="walk_in">Walk-In</option>
-            </select>
+            <div className="w-30">
+              <Select
+                value={bookingTypeFilter}
+                onChange={(e) => {
+                  setBookingTypeFilter(e.target.value as BookingType | "all");
+                  setPage(1);
+                }}
+                className="h-8 text-xs py-0"
+              >
+                <option value="all">All Types</option>
+                <option value="advance">Advance</option>
+                <option value="walk_in">Walk-In</option>
+              </Select>
+            </div>
           </div>
 
           {/* Staff Filter */}
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1.5 text-xs">
             <span className="text-muted-foreground font-semibold">Staff:</span>
-            <select
-              value={staffFilter}
-              onChange={(e) => setStaffFilter(e.target.value)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
-            >
-              <option value="all">All Staff</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
+            <div className="w-36">
+              <Select
+                value={staffFilter}
+                onChange={(e) => {
+                  setStaffFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-8 text-xs py-0"
+              >
+                <option value="all">All Staff</option>
+                {employees.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
 
           {/* Date Range Inputs in List Mode */}
@@ -343,7 +363,10 @@ export default function AppointmentsPage() {
                 <Input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setPage(1);
+                  }}
                   className="h-8 text-xs w-32"
                 />
               </div>
@@ -353,7 +376,10 @@ export default function AppointmentsPage() {
                 <Input
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setPage(1);
+                  }}
                   className="h-8 text-xs w-32"
                 />
               </div>
@@ -398,19 +424,36 @@ export default function AppointmentsPage() {
           isAllBranches={isAllBranchesSelected}
         />
       ) : (
-        <AppointmentListView
-          appointments={appointments}
-          isLoading={isLoading}
-          onSelectAppointment={handleOpenDetails}
-          onReschedule={handleOpenReschedule}
-          onAssignStaff={handleOpenAssignStaff}
-          onChangeStatus={handleOpenStatus}
-          onDelete={handleOpenDelete}
-          isAllBranches={isAllBranchesSelected}
-          canEdit={canEdit}
-          canStatus={canStatus}
-          canDelete={canDelete}
-        />
+        <div className="space-y-4">
+          <AppointmentListView
+            appointments={appointments}
+            isLoading={isLoading}
+            onSelectAppointment={handleOpenDetails}
+            onReschedule={handleOpenReschedule}
+            onAssignStaff={handleOpenAssignStaff}
+            onChangeStatus={handleOpenStatus}
+            onDelete={handleOpenDelete}
+            isAllBranches={isAllBranchesSelected}
+            canEdit={canEdit}
+            canStatus={canStatus}
+            canDelete={canDelete}
+          />
+
+          {meta && meta.totalPages > 1 && (
+            <Pagination
+              currentPage={Number(meta.page) || page}
+              totalPages={meta.totalPages}
+              totalItems={meta.total}
+              onPageChange={(p) => setPage(p)}
+              pageSize={Number(meta.limit) || limit}
+              onPageSizeChange={(l) => {
+                setLimit(l);
+                setPage(1);
+              }}
+              itemLabel="appointments"
+            />
+          )}
+        </div>
       )}
 
       {/* Dialog Modals */}

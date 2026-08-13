@@ -5,6 +5,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
 import { updateStatusSchema, type UpdateStatusSchemaType } from "../schemas/appointment.schema";
@@ -98,9 +99,9 @@ export function AppointmentStatusDialog({
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Status <span className="text-destructive">*</span>
             </label>
-            <select
+            <Select
               {...register("status")}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 text-xs"
               disabled={isTerminal}
             >
               <option value="scheduled">Scheduled</option>
@@ -108,7 +109,7 @@ export function AppointmentStatusDialog({
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
               <option value="no_show">No Show</option>
-            </select>
+            </Select>
             {isTerminal && (
               <p className="text-[11px] text-amber-600 font-medium">
                 This appointment is in a terminal state ({appointment.status}) and cannot transition status further.

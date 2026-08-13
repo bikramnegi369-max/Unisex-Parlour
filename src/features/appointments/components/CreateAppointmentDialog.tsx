@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
@@ -299,9 +300,9 @@ export function CreateAppointmentDialog({
               />
             </div>
 
-            <select
+            <Select
               {...register("customerId")}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 text-xs"
               disabled={isLoadingCustomers}
             >
               <option value="">
@@ -312,7 +313,7 @@ export function CreateAppointmentDialog({
                   {c.name} ({c.phone})
                 </option>
               ))}
-            </select>
+            </Select>
             {errors.customerId && (
               <span className="text-[11px] text-destructive">
                 {errors.customerId.message}
@@ -396,12 +397,12 @@ export function CreateAppointmentDialog({
                 (Optional / Unassigned)
               </span>
             </label>
-            <select
+            <Select
               value={watch("staffId") || ""}
               onChange={(e) =>
                 setValue("staffId", e.target.value ? e.target.value : null)
               }
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 text-xs"
               disabled={isLoadingEmployees}
             >
               <option value="">-- Unassigned (Floor Queue) --</option>
@@ -410,7 +411,7 @@ export function CreateAppointmentDialog({
                   {e.name} {e.designation ? `(${e.designation})` : ""}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Date & Start Time */}
@@ -533,17 +534,17 @@ export function CreateAppointmentDialog({
                     name="reminder.offsetMinutes"
                     control={control}
                     render={({ field }) => (
-                      <select
-                        value={field.value ?? 60}
+                      <Select
+                        value={String(field.value ?? 60)}
                         onChange={(e) => field.onChange(Number(e.target.value))}
-                        className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        className="w-full h-8 text-xs py-0"
                       >
-                        <option value={15}>15 minutes before</option>
-                        <option value={30}>30 minutes before</option>
-                        <option value={60}>1 hour before</option>
-                        <option value={120}>2 hours before</option>
-                        <option value={1440}>1 day before</option>
-                      </select>
+                        <option value="15">15 minutes before</option>
+                        <option value="30">30 minutes before</option>
+                        <option value="60">1 hour before</option>
+                        <option value="120">2 hours before</option>
+                        <option value="1440">1 day before</option>
+                      </Select>
                     )}
                   />
                 </div>

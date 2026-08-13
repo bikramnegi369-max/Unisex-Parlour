@@ -35,60 +35,62 @@ import type {
 // in the frontend where backend-shape awareness lives.
 // ---------------------------------------------------------------------------
 
-interface PopulatedRef {
-  _id: string;
-  name: string;
-  [key: string]: unknown;
-}
-
-const isPopulatedRef = (value: unknown): value is PopulatedRef =>
-  typeof value === "object" &&
-  value !== null &&
-  typeof (value as PopulatedRef)._id === "string";
+const toFlatId = (val: unknown): string => {
+  if (!val) return "";
+  if (typeof val === "string") return val;
+  if (typeof val === "object" && val !== null) {
+    const obj = val as Record<string, unknown>;
+    if (typeof obj._id === "string") return obj._id;
+    if (typeof obj.id === "string") return obj.id;
+    return String(obj._id || obj.id || "");
+  }
+  return String(val);
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const normalizeAppointment = (raw: Record<string, any>): Appointment => {
   // 1. ID normalization (_id → id)
-  const id: string = raw._id || raw.id || "";
+  const id: string = toFlatId(raw._id || raw.id);
 
   // 2. Date field normalization (appointmentDate → date)
-  const date: string = raw.appointmentDate || raw.date || "";
+  const date: string = (raw.appointmentDate as string) || (raw.date as string) || "";
 
   // 3. Time field normalization (startTime canonical, timeSlot fallback)
-  const startTime: string = raw.startTime || raw.timeSlot || "";
+  const startTime: string = (raw.startTime as string) || (raw.timeSlot as string) || "";
 
   // 4. Populated customerId → flat string + customer summary
-  let customerId: string;
+  const customerId: string = toFlatId(raw.customerId);
   let customer: CustomerSummary | undefined;
-  if (isPopulatedRef(raw.customerId)) {
-    customerId = raw.customerId._id;
+  if (typeof raw.customerId === "object" && raw.customerId !== null) {
+    const obj = raw.customerId as Record<string, unknown>;
     customer = {
-      id: raw.customerId._id,
-      name: raw.customerId.name,
-      phone: (raw.customerId.phone as string) || "",
-      email: raw.customerId.email as string | undefined,
+      id: customerId,
+      name: typeof obj.name === "string" ? obj.name : "Customer",
+      phone: typeof obj.phone === "string" ? obj.phone : "",
+      email: typeof obj.email === "string" ? obj.email : undefined,
     };
-  } else {
-    customerId = (raw.customerId as string) || "";
-    customer = raw.customer as CustomerSummary | undefined;
+  } else if (typeof raw.customer === "object" && raw.customer !== null) {
+    customer = raw.customer as CustomerSummary;
   }
 
   // 5. Populated staffId → flat string + staff summary
   let staffId: string | null | undefined;
   let staff: StaffSummary | null | undefined;
-  if (isPopulatedRef(raw.staffId)) {
-    staffId = raw.staffId._id;
-    staff = {
-      id: raw.staffId._id,
-      name: raw.staffId.name,
-      role: raw.staffId.role as string | undefined,
-    };
-  } else if (raw.staffId === null || raw.staffId === undefined) {
+  if (raw.staffId === null || raw.staffId === undefined) {
     staffId = null;
     staff = null;
   } else {
-    staffId = raw.staffId as string;
-    staff = (raw.staff as StaffSummary | null) ?? null;
+    staffId = toFlatId(raw.staffId) || null;
+    if (typeof raw.staffId === "object" && raw.staffId !== null) {
+      const obj = raw.staffId as Record<string, unknown>;
+      staff = {
+        id: staffId || "",
+        name: typeof obj.name === "string" ? obj.name : "Staff",
+        role: typeof obj.role === "string" ? obj.role : undefined,
+      };
+    } else {
+      staff = (raw.staff as StaffSummary | null) ?? null;
+    }
   }
 
   // 6. Services normalization (serviceName → name)
@@ -96,7 +98,7 @@ export const normalizeAppointment = (raw: Record<string, any>): Appointment => {
     ? raw.services
     : [];
   const services: AppointmentServiceSnapshot[] = rawServices.map((s) => ({
-    serviceId: (s.serviceId as string) || (s._id as string) || "",
+    serviceId: toFlatId(s.serviceId || s._id || s.id),
     name: (s.name as string) || (s.serviceName as string) || "",
     duration: (s.duration as number) || 0,
     price: (s.price as number) || 0,
@@ -113,18 +115,17 @@ export const normalizeAppointment = (raw: Record<string, any>): Appointment => {
     cancellationObj?.cancelledAt || (raw.cancelledAt as string) || undefined;
 
   // 8. Branch normalization (branchId may be populated or string)
-  let branchId: string;
+  const branchId: string = toFlatId(raw.branchId);
   let branch: BranchSummary | undefined;
-  if (isPopulatedRef(raw.branchId)) {
-    branchId = raw.branchId._id;
+  if (typeof raw.branchId === "object" && raw.branchId !== null) {
+    const obj = raw.branchId as Record<string, unknown>;
     branch = {
-      id: raw.branchId._id,
-      name: raw.branchId.name,
-      timezone: raw.branchId.timezone as string | undefined,
+      id: branchId,
+      name: typeof obj.name === "string" ? obj.name : "Branch",
+      timezone: typeof obj.timezone === "string" ? obj.timezone : undefined,
     };
-  } else {
-    branchId = (raw.branchId as string) || "";
-    branch = raw.branch as BranchSummary | undefined;
+  } else if (typeof raw.branch === "object" && raw.branch !== null) {
+    branch = raw.branch as BranchSummary;
   }
 
   return {

@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
+import { Select } from "@/components/ui/select";
 import {
   assignStaffSchema,
   type AssignStaffSchemaType,
@@ -132,12 +133,12 @@ export function AssignStaffDialog({
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Select Staff Member
             </label>
-            <select
+            <Select
               value={watch("staffId") || ""}
               onChange={(e) => {
                 setValue("staffId", e.target.value ? e.target.value : null);
               }}
-              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="w-full h-9 text-xs"
               disabled={isLoadingEmployees}
             >
               <option value="">-- Unassigned --</option>
@@ -151,7 +152,7 @@ export function AssignStaffDialog({
                   {e.name} {e.designation ? `(${e.designation})` : ""}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">

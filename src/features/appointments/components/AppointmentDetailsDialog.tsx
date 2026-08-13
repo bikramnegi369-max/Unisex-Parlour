@@ -116,7 +116,7 @@ export function AppointmentDetailsDialog({
             </span>
             <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
               <User className="h-3.5 w-3.5 text-primary" />
-              {appointment.customer?.name || "Customer #" + appointment.customerId.slice(-6)}
+              {appointment.customer?.name || (appointment.customerId ? "Customer #" + appointment.customerId.slice(-6) : "Guest Customer")}
             </div>
             {appointment.customer?.phone && (
               <div className="text-[11px] text-muted-foreground pl-5">{appointment.customer.phone}</div>

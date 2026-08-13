@@ -437,12 +437,40 @@ describe("ListView — Runtime Crash Regression", () => {
     expect(displayName).toBe("Customer #id-123");
   });
 
+  it("handles malformed customer objects (without _id or id) without crashing", () => {
+    const malformed = normalizeAppointment({
+      customerId: { name: "John Doe" }, // malformed object!
+    });
+    expect(typeof malformed.customerId).toBe("string");
+    expect(() => malformed.customerId.slice(-6)).not.toThrow();
+    expect(malformed.customer?.name).toBe("John Doe");
+  });
+
+  it("handles null, undefined, and empty string customerId safely", () => {
+    const nullCust = normalizeAppointment({ customerId: null });
+    expect(typeof nullCust.customerId).toBe("string");
+    expect(() => nullCust.customerId.slice(-6)).not.toThrow();
+
+    const undefCust = normalizeAppointment({ customerId: undefined });
+    expect(typeof undefCust.customerId).toBe("string");
+    expect(() => undefCust.customerId.slice(-6)).not.toThrow();
+
+    const emptyCust = normalizeAppointment({ customerId: "" });
+    expect(typeof emptyCust.customerId).toBe("string");
+    expect(() => emptyCust.customerId.slice(-6)).not.toThrow();
+  });
+
   it("staffId is string | null, never an object", () => {
     const normalized = normalizeAppointment(BACKEND_RESPONSE_FIXTURE);
     expect(typeof normalized.staffId).toBe("string");
 
     const unassigned = normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, staffId: null });
     expect(unassigned.staffId).toBeNull();
+
+    const malformedStaff = normalizeAppointment({ staffId: { name: "Alice Barber" } });
+    expect(malformedStaff.staffId === null || typeof malformedStaff.staffId === "string").toBe(true);
+    expect(() => malformedStaff.staffId?.slice(-6)).not.toThrow();
+    expect(malformedStaff.staff?.name).toBe("Alice Barber");
   });
 });
 
