@@ -9,7 +9,7 @@ import { formatDate, formatCurrency, formatInBranchTimezone } from "@/lib/format
 import { Calendar, Clock, User, Scissors, MapPin, Send, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { useTriggerAppointmentReminder } from "../hooks/useAppointments";
+import { useAppointment, useTriggerAppointmentReminder } from "../hooks/useAppointments";
 import { toast } from "sonner";
 import type { Appointment } from "../types/appointment.types";
 
@@ -27,7 +27,7 @@ interface AppointmentDetailsDialogProps {
 }
 
 export function AppointmentDetailsDialog({
-  appointment,
+  appointment: initialAppointment,
   isOpen,
   onClose,
   onReschedule,
@@ -40,6 +40,16 @@ export function AppointmentDetailsDialog({
 }: AppointmentDetailsDialogProps) {
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
+
+  // Fetch real-time fresh single appointment details from GET /appointments/:id
+  // Enabled only when the dialog is open and we have an appointment ID.
+  const { data: fetchedAppointment, isLoading: isFetchingDetails } = useAppointment(
+    isOpen ? initialAppointment?.id : undefined
+  );
+
+  // Use fresh fetched single appointment data, falling back to initial list item snapshot
+  const appointment = fetchedAppointment || initialAppointment;
+
   const triggerReminderMutation = useTriggerAppointmentReminder();
 
   if (!appointment) return null;
