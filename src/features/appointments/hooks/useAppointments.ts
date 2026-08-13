@@ -8,10 +8,12 @@ import {
   assignAppointmentStaff,
   updateAppointmentStatus,
   deleteAppointment,
+  triggerAppointmentReminder,
 } from "../api/appointments.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import type {
   AppointmentListQuery,
   CreateAppointmentPayload,
@@ -19,6 +21,7 @@ import type {
   RescheduleAppointmentPayload,
   AssignStaffPayload,
   UpdateAppointmentStatusPayload,
+  TriggerReminderPayload,
 } from "../types/appointment.types";
 
 export function useAppointments(params: AppointmentListQuery = {}) {
@@ -144,6 +147,29 @@ export function useDeleteAppointment() {
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
       queryClient.invalidateQueries({
         queryKey: getBranchQueryKey("appointment", [variables.id]),
+      });
+    },
+  });
+}
+
+export function useTriggerAppointmentReminder() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: TriggerReminderPayload }) =>
+      triggerAppointmentReminder(id, payload),
+    onSuccess: (data) => {
+      // Invalidate branch-scoped list queries and single appt query
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+      queryClient.invalidateQueries({
+        queryKey: getBranchQueryKey("appointment", [data.id]),
+      });
+
+      // Also invalidate org-wide queries to ensure consistency
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("appointments", null) });
+      queryClient.invalidateQueries({
+        queryKey: getScopeQueryKey("appointment", null, [data.id]),
       });
     },
   });

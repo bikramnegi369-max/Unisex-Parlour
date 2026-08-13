@@ -18,7 +18,7 @@ describe("Appointment Schema & API Contract Validation", () => {
       startTime: "14:30",
       bookingType: "advance",
       notes: "Customer prefers window seat",
-      reminder: { enabled: true },
+      reminder: { enabled: true, channel: "both", offsetMinutes: 60 },
     });
     expect(advanceValid.success).toBe(true);
 

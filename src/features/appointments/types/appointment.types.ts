@@ -9,13 +9,37 @@ export type AppointmentStatus =
 
 export type BookingType = "advance" | "walk_in";
 
-export type ReminderStatus = "pending" | "sent" | "failed";
+export type ReminderChannelStatus =
+  | "pending"
+  | "scheduled"
+  | "processing"
+  | "sent"
+  | "failed"
+  | "cancelled";
+
+export type ReminderAggregateStatus =
+  | "pending"
+  | "scheduled"
+  | "processing"
+  | "sent"
+  | "partial_delivery"
+  | "failed"
+  | "cancelled";
+
+export interface AppointmentReminderChannelState {
+  status: ReminderChannelStatus;
+  sentAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+}
 
 export interface AppointmentServiceSnapshot {
   serviceId: string;
   name: string;
   duration: number; // in minutes
   price: number;
+  taxRate?: number;
+  taxAmount?: number;
   category?: string;
 }
 
@@ -26,10 +50,23 @@ export interface AppointmentPricing {
   total: number;
 }
 
+export interface AppointmentCancellation {
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  reason?: string | null;
+}
+
 export interface AppointmentReminder {
   enabled: boolean;
-  sendAt?: string;
-  status?: ReminderStatus;
+  channel: "email" | "sms" | "both";
+  offsetMinutes: number;
+  sendAt?: string | null;
+  status: ReminderAggregateStatus;
+  sentAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+  email?: AppointmentReminderChannelState;
+  sms?: AppointmentReminderChannelState;
 }
 
 export interface CustomerSummary {
@@ -53,6 +90,7 @@ export interface BranchSummary {
 
 export interface Appointment {
   id: string;
+  appointmentCode?: string;
   organizationId: string;
   branchId: string;
   customerId: string;
@@ -64,10 +102,12 @@ export interface Appointment {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime?: string; // HH:mm
+  totalDuration?: number; // in minutes
   startAt?: string; // ISO Datetime
   endAt?: string; // ISO Datetime
   notes?: string;
   cancellationReason?: string;
+  cancellation?: AppointmentCancellation;
   completedAt?: string;
   cancelledAt?: string;
   reminder?: AppointmentReminder;
@@ -91,8 +131,13 @@ export interface CreateAppointmentPayload {
   notes?: string;
   reminder?: {
     enabled: boolean;
-    sendAt?: string;
+    channel: "email" | "sms" | "both";
+    offsetMinutes: number;
   };
+}
+
+export interface TriggerReminderPayload {
+  branchId: string;
 }
 
 export interface UpdateAppointmentPayload {

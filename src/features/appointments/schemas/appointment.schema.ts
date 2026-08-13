@@ -17,7 +17,8 @@ export const createAppointmentSchema = z.object({
   reminder: z
     .object({
       enabled: z.boolean(),
-      sendAt: z.string().optional(),
+      channel: z.enum(["email", "sms", "both"]),
+      offsetMinutes: z.number().int("Offset must be an integer").min(1, "Offset must be positive"),
     })
     .optional(),
 });

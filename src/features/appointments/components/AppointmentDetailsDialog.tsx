@@ -1,11 +1,16 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AppointmentStatusBadge, BookingTypeBadge } from "./AppointmentStatusBadge";
-import { formatDate, formatCurrency } from "@/lib/formatters";
-import { Calendar, Clock, User, Scissors, MapPin } from "lucide-react";
+import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
+import { formatDate, formatCurrency, formatInBranchTimezone } from "@/lib/formatters";
+import { Calendar, Clock, User, Scissors, MapPin, Send, AlertCircle, Loader2 } from "lucide-react";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
+import { useTriggerAppointmentReminder } from "../hooks/useAppointments";
+import { toast } from "sonner";
 import type { Appointment } from "../types/appointment.types";
 
 interface AppointmentDetailsDialogProps {
@@ -33,15 +38,49 @@ export function AppointmentDetailsDialog({
   canStatus,
   canDelete,
 }: AppointmentDetailsDialogProps) {
+  const { user } = useAuth();
+  const [showSendConfirmation, setShowSendConfirmation] = useState(false);
+  const triggerReminderMutation = useTriggerAppointmentReminder();
+
   if (!appointment) return null;
 
+  const canSendReminder = hasPermission(user, "appointments.reminders.send");
   const isTerminal = ["completed", "cancelled", "no_show"].includes(appointment.status);
   const totalPricing =
     appointment.pricing?.total ??
     appointment.services?.reduce((sum, s) => sum + s.price, 0) ??
     0;
 
+  const branchTimezone = appointment.branch?.timezone || "Asia/Kolkata";
   const dialogTitle = `Appointment #${appointment.id.slice(-6)}`;
+
+  const handleTriggerReminder = async () => {
+    if (!appointment.branchId || appointment.branchId === "all") {
+      toast.error("An explicit branch is required to trigger reminders.");
+      return;
+    }
+
+    try {
+      await triggerReminderMutation.mutateAsync({
+        id: appointment.id,
+        payload: { branchId: appointment.branchId },
+      });
+      toast.success("Appointment reminder triggered successfully.");
+      setShowSendConfirmation(false);
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
+      const status = axiosError.response?.status;
+      if (status === 403) {
+        toast.error("You don't have permission to send appointment reminders.");
+      } else if (status === 400) {
+        toast.error(axiosError.response?.data?.message || "Invalid reminder state or configuration.");
+      } else if (status === 409) {
+        toast.error(axiosError.response?.data?.message || "Reminder trigger conflict.");
+      } else {
+        toast.error(axiosError.response?.data?.message || "Failed to trigger appointment reminder.");
+      }
+    }
+  };
 
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title={dialogTitle}>
@@ -78,7 +117,7 @@ export function AppointmentDetailsDialog({
               {appointment.branch?.name || appointment.branchId}
             </div>
             <div className="text-[11px] text-muted-foreground pl-5">
-              {appointment.branch?.timezone || "Asia/Kolkata"}
+              {branchTimezone}
             </div>
           </div>
         </div>
@@ -129,6 +168,86 @@ export function AppointmentDetailsDialog({
             ))}
           </div>
         </div>
+
+        {/* Dedicated Reminder Notification Section */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+              Reminder Details
+            </span>
+
+            {canSendReminder && !isTerminal && appointment.reminder?.enabled && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSendConfirmation(true)}
+                disabled={triggerReminderMutation.isPending}
+                className="text-xs h-7 gap-1 border-primary/40 text-primary hover:bg-primary/10"
+              >
+                {triggerReminderMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Send className="h-3 w-3" />
+                )}
+                Send Reminder Now
+              </Button>
+            )}
+          </div>
+
+          <AppointmentReminderStatus reminder={appointment.reminder} />
+
+          {/* Render sendAt in branch timezone if scheduled */}
+          {appointment.reminder?.enabled && appointment.reminder.sendAt && (
+            <div className="text-[11px] bg-muted/30 p-2 rounded border border-border text-muted-foreground flex items-center justify-between">
+              <span>Scheduled Delivery Time ({branchTimezone}):</span>
+              <span className="font-semibold text-foreground">
+                {formatInBranchTimezone(appointment.reminder.sendAt, branchTimezone)}
+              </span>
+            </div>
+          )}
+
+          {isTerminal && (
+            <div className="text-[11px] text-muted-foreground italic flex items-center gap-1 pt-1">
+              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              Reminders are unavailable for completed or cancelled appointments.
+            </div>
+          )}
+        </div>
+
+        {/* Send Reminder Confirmation Alert Banner */}
+        {showSendConfirmation && (
+          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg space-y-2 text-xs">
+            <div className="font-bold text-foreground flex items-center gap-1.5">
+              <Send className="h-3.5 w-3.5 text-primary" />
+              Send reminder now to this customer?
+            </div>
+            <p className="text-muted-foreground text-[11px]">
+              This will attempt immediate dispatch through {appointment.reminder?.channel === "both" ? "SMS and Email" : (appointment.reminder?.channel || "configured channel").toUpperCase()}.
+            </p>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSendConfirmation(false)}
+                disabled={triggerReminderMutation.isPending}
+                className="text-xs h-7"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleTriggerReminder}
+                disabled={triggerReminderMutation.isPending}
+                className="text-xs h-7 bg-primary text-primary-foreground"
+              >
+                {triggerReminderMutation.isPending ? "Sending..." : "Confirm & Send"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Pricing Breakdown */}
         <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1 text-xs">

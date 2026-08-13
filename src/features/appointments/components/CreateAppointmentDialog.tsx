@@ -66,12 +66,24 @@ export function CreateAppointmentDialog({
       notes: "",
       reminder: {
         enabled: true,
+        channel: "both",
+        offsetMinutes: 60,
       },
     },
   });
 
   const bookingType = watch("bookingType");
   const selectedServiceIds = watch("serviceIds") || [];
+  const reminderEnabled = watch("reminder.enabled");
+  const selectedBranchId = watch("branchId");
+
+  const effectiveBranchTimezone = useMemo(() => {
+    if (selectedBranchId) {
+      const match = availableBranches.find((b) => b.id === selectedBranchId);
+      if (match?.timezone) return match.timezone;
+    }
+    return currentBranch?.timezone || "Asia/Kolkata";
+  }, [selectedBranchId, availableBranches, currentBranch]);
 
   // Fetch dropdown data
   const { data: customersData, isLoading: isLoadingCustomers } = useCustomers({ limit: 100 });
@@ -125,6 +137,8 @@ export function CreateAppointmentDialog({
         notes: "",
         reminder: {
           enabled: true,
+          channel: "both",
+          offsetMinutes: 60,
         },
       });
     }
@@ -369,19 +383,107 @@ export function CreateAppointmentDialog({
             </div>
           </div>
 
-          {/* Reminder Switch */}
-          <div className="flex items-center justify-between p-2 bg-muted/30 rounded-md border border-border">
-            <div className="flex items-center gap-2 text-xs">
-              <Bell className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-foreground">Send Reminder</span>
+          {/* Reminder Section */}
+          <div className="p-3 bg-muted/30 rounded-lg border border-border space-y-3 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-primary" />
+                <div>
+                  <span className="font-semibold text-foreground block">Customer Reminder</span>
+                  <span className="text-[10px] text-muted-foreground block">
+                    Automated notification before appointment
+                  </span>
+                </div>
+              </div>
+              <Controller
+                name="reminder.enabled"
+                control={control}
+                render={({ field }) => (
+                  <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                )}
+              />
             </div>
-            <Controller
-              name="reminder.enabled"
-              control={control}
-              render={({ field }) => (
-                <Switch checked={!!field.value} onCheckedChange={field.onChange} />
-              )}
-            />
+
+            {reminderEnabled && (
+              <div className="space-y-3 pt-2 border-t border-border/60">
+                {/* Channel Selector */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase">
+                    Delivery Channel
+                  </label>
+                  <Controller
+                    name="reminder.channel"
+                    control={control}
+                    render={({ field }) => (
+                      <div className="grid grid-cols-3 gap-2">
+                        <Button
+                          type="button"
+                          variant={field.value === "sms" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => field.onChange("sms")}
+                          className="text-xs h-8"
+                        >
+                          📱 SMS
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={field.value === "email" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => field.onChange("email")}
+                          className="text-xs h-8"
+                        >
+                          ✉️ Email
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={field.value === "both" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => field.onChange("both")}
+                          className="text-xs h-8"
+                        >
+                          📱 + ✉️ Both
+                        </Button>
+                      </div>
+                    )}
+                  />
+                </div>
+
+                {/* Timing / Offset Selector */}
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase">
+                    Notification Timing
+                  </label>
+                  <Controller
+                    name="reminder.offsetMinutes"
+                    control={control}
+                    render={({ field }) => (
+                      <select
+                        value={field.value ?? 60}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                        className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value={15}>15 minutes before</option>
+                        <option value={30}>30 minutes before</option>
+                        <option value={60}>1 hour before</option>
+                        <option value={120}>2 hours before</option>
+                        <option value={1440}>1 day before</option>
+                      </select>
+                    )}
+                  />
+                </div>
+
+                {/* Dynamic Branch Timezone Notice */}
+                <div className="p-2 bg-primary/5 rounded border border-primary/20 text-[10px] text-muted-foreground space-y-0.5">
+                  <div className="font-semibold text-primary">
+                    Server Scheduling Info:
+                  </div>
+                  <div>
+                    Exact reminder time will be calculated by the server using branch timezone:{" "}
+                    <span className="font-bold text-foreground">{isAllBranchesSelected && !selectedBranchId ? "Select branch above" : effectiveBranchTimezone}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Notes */}

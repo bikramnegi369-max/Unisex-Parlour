@@ -5,6 +5,7 @@ import { format, addDays, subDays, startOfWeek, isSameDay, parseISO } from "date
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, User, Scissors, Clock, MapPin, UserX, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AppointmentStatusBadge, BookingTypeBadge } from "./AppointmentStatusBadge";
+import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { formatInBranchTimezone } from "@/lib/formatters";
 import type { Appointment } from "../types/appointment.types";
@@ -325,6 +326,9 @@ export function AppointmentCalendarView({
                                     {appt.startTime} {appt.endTime ? `- ${appt.endTime}` : ""}
                                   </span>
                                   <div className="flex items-center gap-1 shrink-0">
+                                    {appt.reminder?.enabled && (
+                                      <AppointmentReminderStatus reminder={appt.reminder} compact />
+                                    )}
                                     <BookingTypeBadge bookingType={appt.bookingType} className="text-[9px] px-1 py-0" />
                                     <AppointmentStatusBadge status={appt.status} className="text-[9px] px-1 py-0" />
                                   </div>

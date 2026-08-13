@@ -4,6 +4,7 @@ import React from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { AppointmentStatusBadge, BookingTypeBadge } from "./AppointmentStatusBadge";
+import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { Button } from "@/components/ui/button";
 import { Eye, Calendar, UserCheck, RefreshCw, Trash2, MapPin } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/formatters";
@@ -102,9 +103,14 @@ export function AppointmentListView({
       cell: ({ row }) => {
         const appt = row.original;
         return (
-          <div className="flex items-center gap-1.5">
-            <AppointmentStatusBadge status={appt.status} />
-            <BookingTypeBadge bookingType={appt.bookingType} />
+          <div className="flex flex-col gap-1 items-start">
+            <div className="flex items-center gap-1.5">
+              <AppointmentStatusBadge status={appt.status} />
+              <BookingTypeBadge bookingType={appt.bookingType} />
+            </div>
+            {appt.reminder?.enabled && (
+              <AppointmentReminderStatus reminder={appt.reminder} compact />
+            )}
           </div>
         );
       },
