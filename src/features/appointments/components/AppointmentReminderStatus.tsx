@@ -102,6 +102,33 @@ export function getAggregateVariant(
   }
 }
 
+export function getAggregateStatusDescription(reminder: AppointmentReminder): string {
+  if (
+    reminder.failureReason === "sendAt is in the past" ||
+    reminder.email?.failureReason === "sendAt is in the past" ||
+    reminder.sms?.failureReason === "sendAt is in the past"
+  ) {
+    return "Reminder was not sent because its scheduled time had already passed.";
+  }
+  switch (reminder.status) {
+    case "scheduled":
+      return "Reminder is scheduled automatically.";
+    case "sent":
+      return "Reminder sent successfully.";
+    case "partial_delivery":
+      return "One reminder channel was delivered successfully; another failed.";
+    case "failed":
+      return reminder.failureReason || "Reminder delivery failed.";
+    case "cancelled":
+      return "Reminder was not sent.";
+    case "processing":
+      return "Reminder notification is processing...";
+    case "pending":
+    default:
+      return "Reminder pending scheduling.";
+  }
+}
+
 export function AppointmentReminderStatus({
   reminder,
   compact = false,
@@ -184,7 +211,7 @@ export function AppointmentReminderStatus({
             className={`text-[10px] px-1.5 py-0 text-muted-foreground flex items-center gap-1 ${className}`}
             title={
               reminder.failureReason?.includes("past")
-                ? "Reminder not sent — scheduled reminder time has already passed"
+                ? "Reminder was not sent because its scheduled time had already passed."
                 : "Reminder Cancelled"
             }
           >
@@ -210,6 +237,8 @@ export function AppointmentReminderStatus({
   const channelDisplay =
     channel === "both" ? "SMS + Email" : channel === "sms" ? "SMS" : "Email";
 
+  const descriptionText = getAggregateStatusDescription(reminder);
+
   return (
     <div
       className={`space-y-2 border border-border rounded-lg p-3 bg-card ${className}`}
@@ -232,9 +261,14 @@ export function AppointmentReminderStatus({
         </Badge>
       </div>
 
+      <div className="text-[11px] text-muted-foreground bg-muted/30 p-2 rounded border border-border/50 flex items-center gap-1.5">
+        <Info className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span>{descriptionText}</span>
+      </div>
+
       {status === "partial_delivery" && (
         <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-1.5">
-          <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
           <div>
             <span className="font-semibold">Partial Delivery: </span>
             SMS: {getChannelStatusLabel(sms?.status)} | Email:{" "}
@@ -298,16 +332,15 @@ export function AppointmentReminderStatus({
         )}
       </div>
 
-      {reminder.failureReason && status !== "partial_delivery" && (
-        <div className="text-[11px] text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 mt-1">
-          <span className="font-semibold">
-            {status === "cancelled" && reminder.failureReason.includes("past")
-              ? "Reminder not sent — "
-              : "Failure Details: "}
-          </span>
-          {reminder.failureReason}
-        </div>
-      )}
+      {reminder.failureReason &&
+        status !== "partial_delivery" &&
+        reminder.failureReason !== "sendAt is in the past" && (
+          <div className="text-[11px] text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 mt-1">
+            <span className="font-semibold">Failure Details: </span>
+            {reminder.failureReason}
+          </div>
+        )}
     </div>
   );
 }
+

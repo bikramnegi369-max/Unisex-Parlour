@@ -179,30 +179,15 @@ export function AppointmentDetailsDialog({
           </div>
         </div>
 
-        {/* Dedicated Reminder Notification Section */}
-        <div className="space-y-2">
+        {/* Section A: Automated Scheduled Reminder */}
+        <div className="space-y-2 border-t border-border pt-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-              Reminder Details
+              Automated Scheduled Reminder
             </span>
-
-            {canSendReminder && !isTerminal && appointment.reminder?.enabled && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSendConfirmation(true)}
-                disabled={triggerReminderMutation.isPending}
-                className="text-xs h-7 gap-1 border-primary/40 text-primary hover:bg-primary/10"
-              >
-                {triggerReminderMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Send className="h-3 w-3" />
-                )}
-                Send Reminder Now
-              </Button>
-            )}
+            <span className="text-[10px] text-muted-foreground font-medium">
+              Backend Automatic Workflow
+            </span>
           </div>
 
           <AppointmentReminderStatus reminder={appointment.reminder} />
@@ -220,42 +205,77 @@ export function AppointmentDetailsDialog({
           {isTerminal && (
             <div className="text-[11px] text-muted-foreground italic flex items-center gap-1 pt-1">
               <AlertCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              Reminders are unavailable for completed or cancelled appointments.
+              Reminders are unavailable for completed, cancelled, or no-show appointments.
             </div>
           )}
         </div>
 
-        {/* Send Reminder Confirmation Alert Banner */}
-        {showSendConfirmation && (
-          <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg space-y-2 text-xs">
-            <div className="font-bold text-foreground flex items-center gap-1.5">
-              <Send className="h-3.5 w-3.5 text-primary" />
-              Send reminder now to this customer?
+        {/* Section B: Manual "Send Reminder Now" Action */}
+        {canSendReminder && !isTerminal && appointment.branchId && appointment.branchId !== "all" && (
+          <div className="p-3 bg-muted/20 border border-border rounded-lg space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-bold text-foreground block">Manual Action</span>
+                <span className="text-[10px] text-muted-foreground block">
+                  Explicit immediate notification override
+                </span>
+              </div>
+              {!showSendConfirmation && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSendConfirmation(true)}
+                  disabled={triggerReminderMutation.isPending}
+                  className="text-xs h-7 gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                >
+                  {triggerReminderMutation.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Send className="h-3 w-3" />
+                  )}
+                  Send Reminder Now
+                </Button>
+              )}
             </div>
-            <p className="text-muted-foreground text-[11px]">
-              This will attempt immediate dispatch through {appointment.reminder?.channel === "both" ? "SMS and Email" : (appointment.reminder?.channel || "configured channel").toUpperCase()}.
-            </p>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSendConfirmation(false)}
-                disabled={triggerReminderMutation.isPending}
-                className="text-xs h-7"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleTriggerReminder}
-                disabled={triggerReminderMutation.isPending}
-                className="text-xs h-7 bg-primary text-primary-foreground"
-              >
-                {triggerReminderMutation.isPending ? "Sending..." : "Confirm & Send"}
-              </Button>
-            </div>
+
+            {/* Send Reminder Confirmation Alert Banner */}
+            {showSendConfirmation && (
+              <div className="p-2.5 bg-primary/10 border border-primary/30 rounded-md space-y-2 text-xs">
+                <div className="font-bold text-foreground flex items-center gap-1.5">
+                  <Send className="h-3.5 w-3.5 text-primary" />
+                  Send reminder now to this customer?
+                </div>
+                <p className="text-muted-foreground text-[11px]">
+                  This will trigger an immediate notification dispatch through{" "}
+                  {appointment.reminder?.channel === "both"
+                    ? "SMS and Email"
+                    : (appointment.reminder?.channel || "configured channel").toUpperCase()}{" "}
+                  for branch <span className="font-semibold text-foreground">{appointment.branch?.name || appointment.branchId}</span>.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowSendConfirmation(false)}
+                    disabled={triggerReminderMutation.isPending}
+                    className="text-xs h-7"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleTriggerReminder}
+                    disabled={triggerReminderMutation.isPending}
+                    className="text-xs h-7 bg-primary text-primary-foreground"
+                  >
+                    {triggerReminderMutation.isPending ? "Sending..." : "Confirm & Send"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
