@@ -406,14 +406,13 @@ export function AppointmentCalendarView({
             <ChevronRight className="h-4 w-4" />
           </Button>
 
-          {/* Jump-to-Date Selector */}
           <Input
             type="date"
             value={format(selectedDate, "yyyy-MM-dd")}
             onChange={(e) =>
               e.target.valueAsDate && onSelectDate(e.target.valueAsDate)
             }
-            className="h-8 text-xs w-36"
+            className="h-8 text-xs w-[145px] px-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0"
           />
 
           <span className="text-xs font-bold text-foreground ml-1">

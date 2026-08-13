@@ -1,7 +1,14 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { format, startOfWeek, addDays } from "date-fns";
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  addDays,
+} from "date-fns";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
@@ -34,6 +41,8 @@ import {
   AlertCircle,
   RotateCcw,
   Search,
+  CalendarDays,
+  X,
 } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { Pagination } from "@/components/ui/pagination";
@@ -353,37 +362,96 @@ export default function AppointmentsPage() {
             </div>
           </div>
 
-          {/* Date Range Inputs in List Mode */}
+          {/* Date Range Controls in List Mode */}
           {viewMode === "list" && (
-            <>
+            <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/80">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground font-semibold px-1">
+                <CalendarDays className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="hidden sm:inline">Range:</span>
+              </div>
+
+              {/* From Date Input */}
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground font-semibold">
-                  From:
-                </span>
+                <span className="text-muted-foreground font-medium text-[11px]">From:</span>
                 <Input
                   type="date"
                   value={startDate}
+                  max={endDate || undefined}
                   onChange={(e) => {
                     setStartDate(e.target.value);
                     setPage(1);
                   }}
-                  className="h-8 text-xs w-32"
+                  className="h-7 text-xs w-[145px] px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
                 />
               </div>
 
+              {/* To Date Input */}
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground font-semibold">To:</span>
+                <span className="text-muted-foreground font-medium text-[11px]">To:</span>
                 <Input
                   type="date"
                   value={endDate}
+                  min={startDate || undefined}
                   onChange={(e) => {
                     setEndDate(e.target.value);
                     setPage(1);
                   }}
-                  className="h-8 text-xs w-32"
+                  className="h-7 text-xs w-[145px] px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
                 />
               </div>
-            </>
+
+              {/* Quick Preset: Today */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const todayStr = format(new Date(), "yyyy-MM-dd");
+                  setStartDate(todayStr);
+                  setEndDate(todayStr);
+                  setPage(1);
+                }}
+                className="h-7 text-[11px] px-2 bg-background hover:bg-muted"
+                title="Filter for Today"
+              >
+                Today
+              </Button>
+
+              {/* Quick Preset: This Week */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const now = new Date();
+                  const weekStartStr = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+                  const weekEndStr = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+                  setStartDate(weekStartStr);
+                  setEndDate(weekEndStr);
+                  setPage(1);
+                }}
+                className="h-7 text-[11px] px-2 bg-background hover:bg-muted"
+                title="Filter for Current Week"
+              >
+                This Week
+              </Button>
+
+              {/* Clear Dates Button */}
+              {(startDate || endDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                    setPage(1);
+                  }}
+                  className="h-7 text-[11px] px-1.5 text-muted-foreground hover:text-foreground gap-1"
+                  title="Clear Date Range"
+                >
+                  <X className="h-3 w-3" />
+                  Clear
+                </Button>
+              )}
+            </div>
           )}
 
           {/* Reset Filters Button */}
