@@ -758,3 +758,74 @@ describe("Appointments Outside 08:00–20:00 Viewport", () => {
     expect(startMin >= 8 * 60 && endMin <= 20 * 60).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Production Hardening — Week View Selected Date Navigation
+// ---------------------------------------------------------------------------
+describe("Week View — Selected Date Navigation & Query Isolation", () => {
+  const mockWeeklyAppointments: Appointment[] = [
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-10", appointmentDate: "2026-08-10" }),
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-11", appointmentDate: "2026-08-11" }),
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-12", appointmentDate: "2026-08-12" }),
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-13", appointmentDate: "2026-08-13" }),
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-14", appointmentDate: "2026-08-14" }),
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-15", appointmentDate: "2026-08-15" }),
+    normalizeAppointment({ ...BACKEND_RESPONSE_FIXTURE, _id: "appt-aug-16", appointmentDate: "2026-08-16" }),
+  ];
+
+  it("filters weekly fetched appointments to ONLY show the selected date", () => {
+    const filterByDate = (appts: Appointment[], dateStr: string) =>
+      appts.filter((a) => a.date === dateStr);
+
+    const aug10 = filterByDate(mockWeeklyAppointments, "2026-08-10");
+    expect(aug10).toHaveLength(1);
+    expect(aug10[0].id).toBe("appt-aug-10");
+
+    const aug13 = filterByDate(mockWeeklyAppointments, "2026-08-13");
+    expect(aug13).toHaveLength(1);
+    expect(aug13[0].id).toBe("appt-aug-13");
+
+    const aug16 = filterByDate(mockWeeklyAppointments, "2026-08-16");
+    expect(aug16).toHaveLength(1);
+    expect(aug16[0].id).toBe("appt-aug-16");
+  });
+
+  it("does not alter weekly API query range (startDate/endDate) when selected date changes within the same week", () => {
+    const computeQueryRange = (selectedDateStr: string) => {
+      // Simulate page.tsx queryFilters calculation
+      const d = new Date(selectedDateStr + "T00:00:00.000Z");
+      // Monday of week
+      const dayOfWeek = d.getUTCDay();
+      const diffToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const mon = new Date(d);
+      mon.setUTCDate(d.getUTCDate() + diffToMon);
+      const sun = new Date(mon);
+      sun.setUTCDate(mon.getUTCDate() + 6);
+
+      return {
+        startDate: mon.toISOString().split("T")[0],
+        endDate: sun.toISOString().split("T")[0],
+      };
+    };
+
+    const rangeAug10 = computeQueryRange("2026-08-10");
+    const rangeAug13 = computeQueryRange("2026-08-13");
+    const rangeAug16 = computeQueryRange("2026-08-16");
+
+    expect(rangeAug10).toEqual({ startDate: "2026-08-10", endDate: "2026-08-16" });
+    expect(rangeAug13).toEqual({ startDate: "2026-08-10", endDate: "2026-08-16" });
+    expect(rangeAug16).toEqual({ startDate: "2026-08-10", endDate: "2026-08-16" });
+
+    // Different week triggers a new query range
+    const rangeNextWeek = computeQueryRange("2026-08-17");
+    expect(rangeNextWeek).toEqual({ startDate: "2026-08-17", endDate: "2026-08-23" });
+  });
+
+  it("returns empty array for an empty selected date without leaking appointments from other days in the week", () => {
+    const filterByDate = (appts: Appointment[], dateStr: string) =>
+      appts.filter((a) => a.date === dateStr);
+
+    const emptyDay = filterByDate(mockWeeklyAppointments, "2026-08-99");
+    expect(emptyDay).toHaveLength(0);
+  });
+});

@@ -229,18 +229,14 @@ export function AppointmentCalendarView({
     onSelectDate(new Date());
   };
 
-  // Filter appointments for current view
+  // Filter appointments for current view:
+  // In both Day View and Week View modes, the resource board displays the staff lanes
+  // for the exact selectedDate. (In Week View, the entire week Monday-Sunday is fetched
+  // by the parent API query, but only the active selectedDate is displayed in the staff lanes).
   const currentViewAppointments = useMemo(() => {
-    if (viewMode === "day") {
-      const selectedStr = format(selectedDate, "yyyy-MM-dd");
-      return appointments.filter((app) => app.date === selectedStr);
-    }
-    const startStr = format(weekDays[0], "yyyy-MM-dd");
-    const endStr = format(weekDays[6], "yyyy-MM-dd");
-    return appointments.filter(
-      (app) => app.date >= startStr && app.date <= endStr,
-    );
-  }, [appointments, selectedDate, viewMode, weekDays]);
+    const selectedStr = format(selectedDate, "yyyy-MM-dd");
+    return appointments.filter((app) => app.date === selectedStr);
+  }, [appointments, selectedDate]);
 
   // Filtered by selected staff filter
   const filteredAppointments = useMemo(() => {
