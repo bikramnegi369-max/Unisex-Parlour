@@ -18,7 +18,10 @@ export const createAppointmentSchema = z.object({
     .object({
       enabled: z.boolean(),
       channel: z.enum(["email", "sms", "both"]),
-      offsetMinutes: z.number().int("Offset must be an integer").min(1, "Offset must be positive"),
+      offsetMinutes: z
+        .number()
+        .int("Offset must be an integer")
+        .min(5, "Reminder offset must be at least 5 minutes"),
     })
     .optional(),
 });

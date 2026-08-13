@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
@@ -40,9 +40,14 @@ export function AssignStaffDialog({
     isActive: b.isActive,
   }));
 
-  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({
-    limit: 100,
-  });
+  const employeeParams = useMemo(() => {
+    return {
+      limit: 100,
+      branchId: appointment?.branchId || undefined,
+    };
+  }, [appointment?.branchId]);
+
+  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees(employeeParams);
   const employees = employeesData?.data || [];
   const {
     register,
@@ -112,22 +117,16 @@ export function AssignStaffDialog({
         )}
 
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-          {isAllBranchesSelected ? (
-            <Controller
-              name="branchId"
-              control={control}
-              render={({ field }) => (
-                <MutationBranchSelector
-                  value={field.value}
-                  onChange={field.onChange}
-                  branches={activeBranches}
-                  error={errors.branchId?.message}
-                />
-              )}
-            />
-          ) : (
-            <input type="hidden" {...register("branchId")} />
-          )}
+          <div className="space-y-1 text-xs">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Target Branch (Originating Branch)
+            </label>
+            <div className="p-2 bg-muted/50 rounded-md border border-border text-foreground font-semibold flex items-center justify-between">
+              <span>{appointment.branch?.name || appointment.branchId}</span>
+              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-normal">Read-Only</span>
+            </div>
+          </div>
+          <input type="hidden" {...register("branchId")} />
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -142,6 +141,11 @@ export function AssignStaffDialog({
               disabled={isLoadingEmployees}
             >
               <option value="">-- Unassigned --</option>
+              {appointment.staffId && !employees.some((e) => e.id === appointment.staffId) && (
+                <option value={appointment.staffId}>
+                  {appointment.staff?.name || `Staff #${appointment.staffId.slice(-6)}`} (Currently Assigned)
+                </option>
+              )}
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.name} {e.designation ? `(${e.designation})` : ""}

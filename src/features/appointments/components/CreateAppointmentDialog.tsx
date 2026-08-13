@@ -108,9 +108,14 @@ export function CreateAppointmentDialog({
   const { data: servicesData, isLoading: isLoadingServices } = useServices({
     limit: 100,
   });
-  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({
-    limit: 100,
-  });
+  const employeeParams = useMemo(() => {
+    return {
+      limit: 100,
+      branchId: selectedBranchId || (currentBranchId !== "all" ? currentBranchId || undefined : undefined),
+    };
+  }, [selectedBranchId, currentBranchId]);
+
+  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees(employeeParams);
 
   const customers = customersData?.data || [];
   const services = servicesData?.data || [];

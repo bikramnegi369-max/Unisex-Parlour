@@ -36,13 +36,12 @@ export function DeleteAppointmentDialog({
   if (!appointment) return null;
 
   const handleConfirm = async () => {
-    const branchIdToUse = isAllBranchesSelected ? selectedBranchId : appointment.branchId;
-    if (!branchIdToUse) {
-      toast.error("Explicit branch selection is required for deletion.");
+    if (!appointment.branchId) {
+      toast.error("Appointment is missing authoritative branchId.");
       return;
     }
     try {
-      await onConfirm(appointment.id, branchIdToUse);
+      await onConfirm(appointment.id, appointment.branchId);
       toast.success("Appointment deleted successfully.");
       onClose();
     } catch (err: unknown) {
@@ -67,15 +66,15 @@ export function DeleteAppointmentDialog({
           </span>
         </p>
 
-        {isAllBranchesSelected && (
-          <div className="pt-2">
-            <MutationBranchSelector
-              value={selectedBranchId}
-              onChange={setSelectedBranchId}
-              branches={activeBranches}
-            />
+        <div className="space-y-1 text-xs">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Target Branch (Originating Branch)
+          </label>
+          <div className="p-2 bg-muted/50 rounded-md border border-border text-foreground font-semibold flex items-center justify-between">
+            <span>{appointment.branch?.name || appointment.branchId}</span>
+            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-normal">Read-Only</span>
           </div>
-        )}
+        </div>
 
         <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
           <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
@@ -86,7 +85,7 @@ export function DeleteAppointmentDialog({
             variant="destructive"
             size="sm"
             onClick={handleConfirm}
-            disabled={isLoading || (isAllBranchesSelected && !selectedBranchId)}
+            disabled={isLoading || !appointment.branchId}
           >
             {isLoading ? "Deleting..." : "Confirm Delete"}
           </Button>

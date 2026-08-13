@@ -83,22 +83,16 @@ export function AppointmentStatusDialog({
     <Dialog isOpen={isOpen} onClose={onClose} title="Update Appointment Status">
       <div className="space-y-4 text-left">
         <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-          {isAllBranchesSelected ? (
-            <Controller
-              name="branchId"
-              control={control}
-              render={({ field }) => (
-                <MutationBranchSelector
-                  value={field.value}
-                  onChange={field.onChange}
-                  branches={activeBranches}
-                  error={errors.branchId?.message}
-                />
-              )}
-            />
-          ) : (
-            <input type="hidden" {...register("branchId")} />
-          )}
+          <div className="space-y-1 text-xs">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Target Branch (Originating Branch)
+            </label>
+            <div className="p-2 bg-muted/50 rounded-md border border-border text-foreground font-semibold flex items-center justify-between">
+              <span>{appointment.branch?.name || appointment.branchId}</span>
+              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-normal">Read-Only</span>
+            </div>
+          </div>
+          <input type="hidden" {...register("branchId")} />
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
