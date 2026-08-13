@@ -3,12 +3,40 @@
 import React from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
-import { AppointmentStatusBadge, BookingTypeBadge } from "./AppointmentStatusBadge";
+import {
+  AppointmentStatusBadge,
+  BookingTypeBadge,
+} from "./AppointmentStatusBadge";
 import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { Button } from "@/components/ui/button";
-import { Eye, Calendar, UserCheck, RefreshCw, Trash2, MapPin } from "lucide-react";
+import {
+  Eye,
+  Calendar,
+  UserCheck,
+  RefreshCw,
+  Trash2,
+  MapPin,
+} from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/formatters";
 import type { Appointment } from "../types/appointment.types";
+
+// ---------------------------------------------------------------------------
+// Safe display helpers — the UI must NEVER crash on malformed/partial data.
+// ---------------------------------------------------------------------------
+function getCustomerDisplayName(appt: Appointment): string {
+  if (appt.customer?.name) return appt.customer.name;
+  if (appt.customerId && appt.customerId.length > 0) {
+    return `Customer #${appt.customerId.slice(-6)}`;
+  }
+  return "Unknown customer";
+}
+
+function getServiceSummary(appt: Appointment): string {
+  const names = (appt.services || [])
+    .map((s) => s?.name)
+    .filter((n): n is string => Boolean(n));
+  return names.length > 0 ? names.join(", ") : "—";
+}
 
 interface AppointmentListViewProps {
   appointments: Appointment[];
@@ -63,10 +91,12 @@ export function AppointmentListView({
         return (
           <div className="space-y-0.5">
             <div className="text-xs font-semibold text-foreground">
-              {appt.customer?.name || "Customer #" + appt.customerId.slice(-6)}
+              {getCustomerDisplayName(appt)}
             </div>
             {appt.customer?.phone && (
-              <div className="text-[11px] text-muted-foreground">{appt.customer.phone}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {appt.customer.phone}
+              </div>
             )}
           </div>
         );
@@ -77,9 +107,12 @@ export function AppointmentListView({
       header: "Services",
       cell: ({ row }) => {
         const appt = row.original;
-        const serviceNames = appt.services?.map((s) => s.name).join(", ") || "—";
+        const serviceNames = getServiceSummary(appt);
         return (
-          <div className="text-xs text-foreground max-w-[200px] truncate" title={serviceNames}>
+          <div
+            className="text-xs text-foreground max-w-[200px] truncate"
+            title={serviceNames}
+          >
             {serviceNames}
           </div>
         );
@@ -92,7 +125,9 @@ export function AppointmentListView({
         const appt = row.original;
         return (
           <div className="text-xs font-medium text-foreground">
-            {appt.staff?.name || <span className="text-muted-foreground italic">Unassigned</span>}
+            {appt.staff?.name || (
+              <span className="text-muted-foreground italic">Unassigned</span>
+            )}
           </div>
         );
       },
@@ -137,8 +172,15 @@ export function AppointmentListView({
       header: "Total",
       cell: ({ row }) => {
         const appt = row.original;
-        const total = appt.pricing?.total ?? appt.services?.reduce((acc, s) => acc + s.price, 0) ?? 0;
-        return <div className="text-xs font-bold text-foreground">{formatCurrency(total)}</div>;
+        const total =
+          appt.pricing?.total ??
+          appt.services?.reduce((acc, s) => acc + s.price, 0) ??
+          0;
+        return (
+          <div className="text-xs font-bold text-foreground">
+            {formatCurrency(total)}
+          </div>
+        );
       },
     },
     {
@@ -146,7 +188,9 @@ export function AppointmentListView({
       header: "Actions",
       cell: ({ row }) => {
         const appt = row.original;
-        const isTerminal = ["completed", "cancelled", "no_show"].includes(appt.status);
+        const isTerminal = ["completed", "cancelled", "no_show"].includes(
+          appt.status,
+        );
 
         return (
           <div className="flex items-center gap-1">
@@ -213,10 +257,6 @@ export function AppointmentListView({
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      data={appointments}
-      isLoading={isLoading}
-    />
+    <DataTable columns={columns} data={appointments} isLoading={isLoading} />
   );
 }

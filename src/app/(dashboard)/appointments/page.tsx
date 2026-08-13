@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { format } from "date-fns";
+import React, { useState, useMemo } from "react";
+import { format, startOfWeek, addDays } from "date-fns";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
@@ -26,8 +26,20 @@ import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/error-state";
-import { Calendar, List, Plus, UserPlus, AlertCircle, RotateCcw, Search } from "lucide-react";
-import type { Appointment, AppointmentStatus, BookingType } from "@/features/appointments/types/appointment.types";
+import {
+  Calendar,
+  List,
+  Plus,
+  UserPlus,
+  AlertCircle,
+  RotateCcw,
+  Search,
+} from "lucide-react";
+import type {
+  Appointment,
+  AppointmentStatus,
+  BookingType,
+} from "@/features/appointments/types/appointment.types";
 
 export default function AppointmentsPage() {
   const { user } = useAuth();
@@ -42,9 +54,16 @@ export default function AppointmentsPage() {
 
   // Page State Orchestration
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [calendarViewMode, setCalendarViewMode] = useState<"day" | "week">(
+    "day",
+  );
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">("all");
-  const [bookingTypeFilter, setBookingTypeFilter] = useState<BookingType | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "all">(
+    "all",
+  );
+  const [bookingTypeFilter, setBookingTypeFilter] = useState<
+    BookingType | "all"
+  >("all");
   const [staffFilter, setStaffFilter] = useState<string | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -52,8 +71,11 @@ export default function AppointmentsPage() {
 
   // Dialog States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [createBookingType, setCreateBookingType] = useState<"advance" | "walk_in">("advance");
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [createBookingType, setCreateBookingType] = useState<
+    "advance" | "walk_in"
+  >("advance");
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<Appointment | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [isAssignStaffOpen, setIsAssignStaffOpen] = useState(false);
@@ -64,18 +86,62 @@ export default function AppointmentsPage() {
   const { data: employeesData } = useEmployees({ limit: 100 });
   const employees = employeesData?.data || [];
 
-  // Synchronized Query Filters
-  const queryFilters = {
-    search: searchQuery.trim() || undefined,
-    status: statusFilter === "all" ? undefined : statusFilter,
-    bookingType: bookingTypeFilter === "all" ? undefined : bookingTypeFilter,
-    staffId: staffFilter === "all" ? undefined : staffFilter,
-    date: viewMode === "calendar" ? format(selectedDate, "yyyy-MM-dd") : undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-  };
+  // Week range for calendar Week View (Monday-based)
+  const weekStart = useMemo(
+    () => startOfWeek(selectedDate, { weekStartsOn: 1 }),
+    [selectedDate],
+  );
+  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
 
-  const { data: appointmentsData, isLoading, isError, error, refetch } = useAppointments(queryFilters);
+  // Synchronized Query Filters
+  // - Calendar Day View: fetch only the selected date
+  // - Calendar Week View: fetch the complete Monday–Sunday range
+  // - List View: use explicit date range inputs
+  const queryFilters = useMemo(() => {
+    const isCalendarWeek =
+      viewMode === "calendar" && calendarViewMode === "week";
+
+    return {
+      search: searchQuery.trim() || undefined,
+      status: statusFilter === "all" ? undefined : statusFilter,
+      bookingType: bookingTypeFilter === "all" ? undefined : bookingTypeFilter,
+      staffId: staffFilter === "all" ? undefined : staffFilter,
+      date:
+        viewMode === "calendar" && calendarViewMode === "day"
+          ? format(selectedDate, "yyyy-MM-dd")
+          : undefined,
+      startDate: isCalendarWeek
+        ? format(weekStart, "yyyy-MM-dd")
+        : startDate || undefined,
+      endDate: isCalendarWeek
+        ? format(weekEnd, "yyyy-MM-dd")
+        : endDate || undefined,
+      // Calendar must never silently truncate to the backend default page size.
+      // Request a large page size for calendar views so all appointments
+      // for the requested day/week are available to the resource board.
+      limit: viewMode === "calendar" ? 500 : undefined,
+    };
+  }, [
+    viewMode,
+    calendarViewMode,
+    selectedDate,
+    weekStart,
+    weekEnd,
+    searchQuery,
+    statusFilter,
+    bookingTypeFilter,
+    staffFilter,
+    startDate,
+    endDate,
+  ]);
+
+  const {
+    data: appointmentsData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useAppointments(queryFilters);
   const appointments = appointmentsData?.data || [];
 
   const createMutation = useCreateAppointment();
@@ -169,7 +235,9 @@ export default function AppointmentsPage() {
         <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 p-3 rounded-lg text-xs text-amber-700 dark:text-amber-400">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <div>
-            <span className="font-semibold">All Branches Selected:</span> You are viewing consolidated appointments across all authorized branches. Modifications require explicit branch selection.
+            <span className="font-semibold">All Branches Selected:</span> You
+            are viewing consolidated appointments across all authorized
+            branches. Modifications require explicit branch selection.
           </div>
         </div>
       )}
@@ -218,7 +286,9 @@ export default function AppointmentsPage() {
             <span className="text-muted-foreground font-semibold">Status:</span>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as AppointmentStatus | "all")}
+              onChange={(e) =>
+                setStatusFilter(e.target.value as AppointmentStatus | "all")
+              }
               className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
             >
               <option value="all">All Statuses</option>
@@ -235,7 +305,9 @@ export default function AppointmentsPage() {
             <span className="text-muted-foreground font-semibold">Type:</span>
             <select
               value={bookingTypeFilter}
-              onChange={(e) => setBookingTypeFilter(e.target.value as BookingType | "all")}
+              onChange={(e) =>
+                setBookingTypeFilter(e.target.value as BookingType | "all")
+              }
               className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground focus:outline-none"
             >
               <option value="all">All Types</option>
@@ -265,7 +337,9 @@ export default function AppointmentsPage() {
           {viewMode === "list" && (
             <>
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground font-semibold">From:</span>
+                <span className="text-muted-foreground font-semibold">
+                  From:
+                </span>
                 <Input
                   type="date"
                   value={startDate}
@@ -303,7 +377,10 @@ export default function AppointmentsPage() {
       {isError ? (
         <ErrorState
           title="Failed to load appointments"
-          description={(error as Error)?.message || "An unexpected error occurred while fetching appointments."}
+          description={
+            (error as Error)?.message ||
+            "An unexpected error occurred while fetching appointments."
+          }
           retryAction={{
             label: "Retry",
             onClick: () => refetch(),
@@ -314,6 +391,8 @@ export default function AppointmentsPage() {
           appointments={appointments}
           isLoading={isLoading}
           selectedDate={selectedDate}
+          viewMode={calendarViewMode}
+          onViewModeChange={setCalendarViewMode}
           onSelectDate={setSelectedDate}
           onSelectAppointment={handleOpenDetails}
           isAllBranches={isAllBranchesSelected}

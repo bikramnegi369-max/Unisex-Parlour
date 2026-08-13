@@ -10,14 +10,25 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
-import { createAppointmentSchema, type CreateAppointmentSchemaType } from "../schemas/appointment.schema";
+import {
+  createAppointmentSchema,
+  type CreateAppointmentSchemaType,
+} from "../schemas/appointment.schema";
 import { useCustomers } from "@/features/customers/hooks/useCustomers";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
-import { Calendar, Bell, AlertTriangle, Search, Scissors, User, MapPin } from "lucide-react";
+import {
+  Calendar,
+  Bell,
+  AlertTriangle,
+  Search,
+  Scissors,
+  User,
+  MapPin,
+} from "lucide-react";
 
 interface CreateAppointmentDialogProps {
   isOpen: boolean;
@@ -34,7 +45,12 @@ export function CreateAppointmentDialog({
   isLoading,
   defaultBookingType = "advance",
 }: CreateAppointmentDialogProps) {
-  const { currentBranchId, currentBranch, isAllBranchesSelected, availableBranches } = useBranchContext();
+  const {
+    currentBranchId,
+    currentBranch,
+    isAllBranchesSelected,
+    availableBranches,
+  } = useBranchContext();
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
@@ -86,9 +102,15 @@ export function CreateAppointmentDialog({
   }, [selectedBranchId, availableBranches, currentBranch]);
 
   // Fetch dropdown data
-  const { data: customersData, isLoading: isLoadingCustomers } = useCustomers({ limit: 100 });
-  const { data: servicesData, isLoading: isLoadingServices } = useServices({ limit: 100 });
-  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({ limit: 100 });
+  const { data: customersData, isLoading: isLoadingCustomers } = useCustomers({
+    limit: 100,
+  });
+  const { data: servicesData, isLoading: isLoadingServices } = useServices({
+    limit: 100,
+  });
+  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({
+    limit: 100,
+  });
 
   const customers = customersData?.data || [];
   const services = servicesData?.data || [];
@@ -99,7 +121,7 @@ export function CreateAppointmentDialog({
     if (!customerSearch.trim()) return customers;
     const lower = customerSearch.toLowerCase();
     return customers.filter(
-      (c) => c.name.toLowerCase().includes(lower) || c.phone.includes(lower)
+      (c) => c.name.toLowerCase().includes(lower) || c.phone.includes(lower),
     );
   }, [customers, customerSearch]);
 
@@ -113,10 +135,13 @@ export function CreateAppointmentDialog({
   // Display-only estimation totals (authoritative pricing is computed by backend!)
   const selectedServicesSummary = useMemo(() => {
     const selected = services.filter((s) => selectedServiceIds.includes(s.id));
-    const totalDuration = selected.reduce((sum, s) => sum + (s.duration || 0), 0);
+    const totalDuration = selected.reduce(
+      (sum, s) => sum + (s.duration || 0),
+      0,
+    );
     const estimatedSubtotal = selected.reduce(
       (sum, s) => sum + (s.pricing?.basePrice ?? 0),
-      0
+      0,
     );
     return { count: selected.length, totalDuration, estimatedSubtotal };
   }, [services, selectedServiceIds]);
@@ -150,7 +175,9 @@ export function CreateAppointmentDialog({
       await onSubmit(data);
       onClose();
     } catch (err: unknown) {
-      const axiosError = err as { response?: { status?: number; data?: { message?: string } } };
+      const axiosError = err as {
+        response?: { status?: number; data?: { message?: string } };
+      };
       if (axiosError.response?.status === 409) {
         const msg =
           axiosError.response.data?.message ||
@@ -158,7 +185,9 @@ export function CreateAppointmentDialog({
         setConflictError(msg);
         toast.error(msg);
       } else {
-        toast.error(axiosError.response?.data?.message || "Failed to create appointment.");
+        toast.error(
+          axiosError.response?.data?.message || "Failed to create appointment.",
+        );
       }
     }
   };
@@ -168,15 +197,19 @@ export function CreateAppointmentDialog({
       setValue(
         "serviceIds",
         selectedServiceIds.filter((id) => id !== serviceId),
-        { shouldValidate: true }
+        { shouldValidate: true },
       );
     } else {
-      setValue("serviceIds", [...selectedServiceIds, serviceId], { shouldValidate: true });
+      setValue("serviceIds", [...selectedServiceIds, serviceId], {
+        shouldValidate: true,
+      });
     }
   };
 
   const dialogTitle =
-    bookingType === "walk_in" ? "New Walk-In Appointment" : "New Advance Appointment";
+    bookingType === "walk_in"
+      ? "New Walk-In Appointment"
+      : "New Advance Appointment";
 
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title={dialogTitle}>
@@ -222,7 +255,7 @@ export function CreateAppointmentDialog({
 
             <div className="text-[10px] text-muted-foreground flex items-center gap-1">
               <MapPin className="h-3 w-3 text-primary" />
-              Timezone: {currentBranch?.timezone || "Asia/Kolkata"}
+              Timezone: {effectiveBranchTimezone}
             </div>
           </div>
 
@@ -266,7 +299,9 @@ export function CreateAppointmentDialog({
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               disabled={isLoadingCustomers}
             >
-              <option value="">-- Select Customer ({filteredCustomers.length}) --</option>
+              <option value="">
+                -- Select Customer ({filteredCustomers.length}) --
+              </option>
               {filteredCustomers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.phone})
@@ -274,7 +309,9 @@ export function CreateAppointmentDialog({
               ))}
             </select>
             {errors.customerId && (
-              <span className="text-[11px] text-destructive">{errors.customerId.message}</span>
+              <span className="text-[11px] text-destructive">
+                {errors.customerId.message}
+              </span>
             )}
           </div>
 
@@ -286,7 +323,9 @@ export function CreateAppointmentDialog({
               </label>
               {selectedServicesSummary.count > 0 && (
                 <span className="text-[11px] font-bold text-primary">
-                  {selectedServicesSummary.count} selected (Est. {selectedServicesSummary.totalDuration} mins • {formatCurrency(selectedServicesSummary.estimatedSubtotal)})
+                  {selectedServicesSummary.count} selected (Est.{" "}
+                  {selectedServicesSummary.totalDuration} mins •{" "}
+                  {formatCurrency(selectedServicesSummary.estimatedSubtotal)})
                 </span>
               )}
             </div>
@@ -303,7 +342,9 @@ export function CreateAppointmentDialog({
             </div>
 
             {isLoadingServices ? (
-              <div className="text-xs text-muted-foreground">Loading services...</div>
+              <div className="text-xs text-muted-foreground">
+                Loading services...
+              </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-input rounded-md bg-background">
                 {filteredServices.map((srv) => {
@@ -336,18 +377,25 @@ export function CreateAppointmentDialog({
               </div>
             )}
             {errors.serviceIds && (
-              <span className="text-[11px] text-destructive">{errors.serviceIds.message}</span>
+              <span className="text-[11px] text-destructive">
+                {errors.serviceIds.message}
+              </span>
             )}
           </div>
 
           {/* Staff Selection (Optional / Unassigned) */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Assign Staff <span className="text-muted-foreground font-normal">(Optional / Unassigned)</span>
+              Assign Staff{" "}
+              <span className="text-muted-foreground font-normal">
+                (Optional / Unassigned)
+              </span>
             </label>
             <select
               value={watch("staffId") || ""}
-              onChange={(e) => setValue("staffId", e.target.value ? e.target.value : null)}
+              onChange={(e) =>
+                setValue("staffId", e.target.value ? e.target.value : null)
+              }
               className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               disabled={isLoadingEmployees}
             >
@@ -366,9 +414,15 @@ export function CreateAppointmentDialog({
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Date <span className="text-destructive">*</span>
               </label>
-              <Input type="date" {...register("date")} className="h-9 text-xs" />
+              <Input
+                type="date"
+                {...register("date")}
+                className="h-9 text-xs"
+              />
               {errors.date && (
-                <span className="text-[11px] text-destructive">{errors.date.message}</span>
+                <span className="text-[11px] text-destructive">
+                  {errors.date.message}
+                </span>
               )}
             </div>
 
@@ -376,9 +430,15 @@ export function CreateAppointmentDialog({
               <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Start Time <span className="text-destructive">*</span>
               </label>
-              <Input type="time" {...register("startTime")} className="h-9 text-xs" />
+              <Input
+                type="time"
+                {...register("startTime")}
+                className="h-9 text-xs"
+              />
               {errors.startTime && (
-                <span className="text-[11px] text-destructive">{errors.startTime.message}</span>
+                <span className="text-[11px] text-destructive">
+                  {errors.startTime.message}
+                </span>
               )}
             </div>
           </div>
@@ -389,7 +449,9 @@ export function CreateAppointmentDialog({
               <div className="flex items-center gap-2">
                 <Bell className="h-4 w-4 text-primary" />
                 <div>
-                  <span className="font-semibold text-foreground block">Customer Reminder</span>
+                  <span className="font-semibold text-foreground block">
+                    Customer Reminder
+                  </span>
                   <span className="text-[10px] text-muted-foreground block">
                     Automated notification before appointment
                   </span>
@@ -399,7 +461,10 @@ export function CreateAppointmentDialog({
                 name="reminder.enabled"
                 control={control}
                 render={({ field }) => (
-                  <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                  <Switch
+                    checked={!!field.value}
+                    onCheckedChange={field.onChange}
+                  />
                 )}
               />
             </div>
@@ -418,7 +483,9 @@ export function CreateAppointmentDialog({
                       <div className="grid grid-cols-3 gap-2">
                         <Button
                           type="button"
-                          variant={field.value === "sms" ? "default" : "outline"}
+                          variant={
+                            field.value === "sms" ? "default" : "outline"
+                          }
                           size="sm"
                           onClick={() => field.onChange("sms")}
                           className="text-xs h-8"
@@ -427,7 +494,9 @@ export function CreateAppointmentDialog({
                         </Button>
                         <Button
                           type="button"
-                          variant={field.value === "email" ? "default" : "outline"}
+                          variant={
+                            field.value === "email" ? "default" : "outline"
+                          }
                           size="sm"
                           onClick={() => field.onChange("email")}
                           className="text-xs h-8"
@@ -436,7 +505,9 @@ export function CreateAppointmentDialog({
                         </Button>
                         <Button
                           type="button"
-                          variant={field.value === "both" ? "default" : "outline"}
+                          variant={
+                            field.value === "both" ? "default" : "outline"
+                          }
                           size="sm"
                           onClick={() => field.onChange("both")}
                           className="text-xs h-8"
@@ -478,8 +549,13 @@ export function CreateAppointmentDialog({
                     Server Scheduling Info:
                   </div>
                   <div>
-                    Exact reminder time will be calculated by the server using branch timezone:{" "}
-                    <span className="font-bold text-foreground">{isAllBranchesSelected && !selectedBranchId ? "Select branch above" : effectiveBranchTimezone}</span>
+                    Exact reminder time will be calculated by the server using
+                    branch timezone:{" "}
+                    <span className="font-bold text-foreground">
+                      {isAllBranchesSelected && !selectedBranchId
+                        ? "Select branch above"
+                        : effectiveBranchTimezone}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -499,7 +575,13 @@ export function CreateAppointmentDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isLoading}>
