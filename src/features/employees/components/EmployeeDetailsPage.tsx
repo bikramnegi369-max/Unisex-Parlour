@@ -43,6 +43,7 @@ import {
 import { useBranches } from "@/features/branches/hooks/useBranches";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api/errors";
 import {
   Loader2,
   AlertCircle,
@@ -217,8 +218,8 @@ export default function EmployeeDetailsPage({
           setShowBranchDropdown(false);
           toast.success("Branch assigned successfully.");
         },
-        onError: (err: Error) => {
-          toast.error(err.message || "Failed to assign branch.");
+        onError: (err: unknown) => {
+          toast.error(getErrorMessage(err, "Failed to assign branch."));
         },
       },
     );
@@ -298,8 +299,8 @@ export default function EmployeeDetailsPage({
           setSelectedUserSummary(null);
           toast.success("User account linked successfully.");
         },
-        onError: (err: Error) => {
-          toast.error(err.message || "Failed to link user account.");
+        onError: (err: unknown) => {
+          toast.error(getErrorMessage(err, "Failed to link user account."));
         },
       },
     );
