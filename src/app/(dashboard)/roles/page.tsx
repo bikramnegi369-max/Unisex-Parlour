@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ShieldCheck, ShieldAlert, Trash2, Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { ShieldCheck, ShieldAlert, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import RolesListHeader from "@/features/roles/components/RolesListHeader";
@@ -33,6 +34,8 @@ export default function RolesPage() {
   const {
     data: permissionsResult,
     isLoading: isLoadingPermissions,
+    isError: isErrorPermissions,
+    refetch: refetchPermissions,
   } = usePermissions({
     page: currentPage,
     limit: pageSize,
@@ -66,10 +69,23 @@ export default function RolesPage() {
 
   const handleSavePermissions = (updatedPermissions: string[]) => {
     if (!selectedRole) return;
-    updatePermissions({
-      id: selectedRole.id,
-      payload: { permissions: updatedPermissions },
-    });
+    updatePermissions(
+      {
+        id: selectedRole.id,
+        payload: { permissions: updatedPermissions },
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Permissions updated successfully for ${selectedRole.name}.`);
+        },
+        onError: (err: unknown) => {
+          const msg =
+            (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
+            "Failed to update role permissions.";
+          toast.error(msg);
+        },
+      }
+    );
   };
 
   const handleDeleteClick = (role: Role, e: React.MouseEvent) => {
@@ -90,11 +106,46 @@ export default function RolesPage() {
     }
   };
 
+  // Shimmer Skeleton Loading State for Roles Page
   if (isLoadingRoles) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm font-medium text-muted-foreground">Loading roles...</p>
+      <div className="space-y-6 w-full max-w-full overflow-hidden animate-pulse">
+        {/* Header Shimmer */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-7 w-48 bg-muted rounded-lg" />
+            <div className="h-4 w-96 bg-muted/60 rounded-md" />
+          </div>
+          <div className="h-10 w-40 bg-muted rounded-xl" />
+        </div>
+
+        {/* 2-Column Grid Shimmer */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full min-w-0">
+          {/* Left Navigation Roles List Shimmer */}
+          <div className="lg:col-span-3 space-y-2 w-full min-w-0">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-12 bg-muted/50 rounded-xl border border-border/40" />
+            ))}
+          </div>
+
+          {/* Right Matrix Table Shimmer */}
+          <div className="lg:col-span-9 w-full min-w-0">
+            <div className="border border-border/80 rounded-2xl bg-card overflow-hidden p-6 space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-border/60">
+                <div className="space-y-2">
+                  <div className="h-6 w-64 bg-muted rounded-md" />
+                  <div className="h-4 w-80 bg-muted/60 rounded-md" />
+                </div>
+                <div className="h-10 w-36 bg-muted rounded-xl" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-20 bg-muted/40 rounded-xl border border-border/40" />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -202,6 +253,8 @@ export default function RolesPage() {
             onSavePermissions={handleSavePermissions}
             isSaving={isSavingPermissions}
             isLoadingPermissions={isLoadingPermissions}
+            isErrorPermissions={isErrorPermissions}
+            onRetryPermissions={() => refetchPermissions()}
             isLoadingModules={isLoadingModules}
           />
         </div>

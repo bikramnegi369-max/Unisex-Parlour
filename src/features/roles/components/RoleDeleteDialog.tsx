@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { toast } from "sonner";
 import DeactivateDialog from "@/components/entity/DeactivateDialog";
 import { useDeleteRole } from "../hooks/useRoles";
 
@@ -25,8 +26,13 @@ export default function RoleDeleteDialog({
     if (!roleId) return;
     deleteRole(roleId, {
       onSuccess: () => {
+        toast.success("Role deleted successfully.");
         onClose();
         if (onSuccess) onSuccess();
+      },
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to delete role.";
+        toast.error(msg);
       },
     });
   };

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import PermissionGate from "@/components/layout/PermissionGate";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -29,6 +30,8 @@ interface RoleMatrixTableProps {
   onSavePermissions: (updatedPermissions: string[]) => void;
   isSaving: boolean;
   isLoadingPermissions?: boolean;
+  isErrorPermissions?: boolean;
+  onRetryPermissions?: () => void;
   isLoadingModules?: boolean;
 }
 
@@ -48,6 +51,8 @@ export default function RoleMatrixTable({
   onSavePermissions,
   isSaving,
   isLoadingPermissions = false,
+  isErrorPermissions = false,
+  onRetryPermissions,
   isLoadingModules = false,
 }: RoleMatrixTableProps) {
   const { user } = useAuth();
@@ -75,13 +80,10 @@ export default function RoleMatrixTable({
     );
   }
 
-  // Derive unique module filter options dynamically from GET /rbac/modules API
-  const availableModules = Array.from(
-    new Set([
-      ...dynamicModules,
-      ...allPermissions.map((p) => p.module || "General"),
-    ])
-  ).sort();
+  // Module filter options are backend-authoritative from GET /rbac/modules API
+  const availableModules = dynamicModules.length > 0
+    ? dynamicModules
+    : Array.from(new Set(allPermissions.map((p) => p.module || "General"))).sort();
 
   // Group permissions dynamically by module
   const groupedPermissions: Record<string, PermissionItem[]> = {};
@@ -183,9 +185,41 @@ export default function RoleMatrixTable({
 
       <CardContent className="p-0 w-full max-w-full overflow-x-hidden">
         {isLoadingPermissions ? (
-          <div className="p-12 text-center space-y-3">
-            <Loader2 size={28} className="animate-spin text-primary mx-auto" />
-            <p className="text-sm font-medium text-muted-foreground">Loading permissions...</p>
+          <div className="p-5 sm:p-6 space-y-6 animate-pulse">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-32 bg-muted rounded-md" />
+                <div className="h-4 w-16 bg-muted/60 rounded-md" />
+              </div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-20 bg-muted/40 rounded-xl border border-border/40" />
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3 pt-4 border-t border-border/40">
+              <div className="flex items-center justify-between">
+                <div className="h-4 w-28 bg-muted rounded-md" />
+                <div className="h-4 w-16 bg-muted/60 rounded-md" />
+              </div>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-20 bg-muted/40 rounded-xl border border-border/40" />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : isErrorPermissions ? (
+          <div className="p-8">
+            <ErrorState
+              title="Failed to Load Permissions"
+              description="An error occurred while fetching canonical permissions data."
+              retryAction={
+                onRetryPermissions
+                  ? { label: "Retry", onClick: onRetryPermissions }
+                  : undefined
+              }
+            />
           </div>
         ) : allPermissions.length === 0 ? (
           <div className="p-12 text-center space-y-2">

@@ -117,7 +117,7 @@ describe("Roles API Functions", () => {
 
     expect(apiClient.get).toHaveBeenCalledWith("/rbac/permissions", {
       params: { page: 1, limit: 10 },
-      branchScope: "organization",
+      branchScope: "none",
     });
     expect(result.data).toHaveLength(1);
     expect(result.data[0].key).toBe("customers.view");

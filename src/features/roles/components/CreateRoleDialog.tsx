@@ -3,6 +3,7 @@
 import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { toast } from "sonner";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,7 +41,13 @@ export default function CreateRoleDialog({ isOpen, onClose }: CreateRoleDialogPr
   const onSubmit = (values: CreateRoleFormValues) => {
     createRole(values, {
       onSuccess: () => {
+        toast.success("Role created successfully.");
         handleClose();
+      },
+
+      onError: (err: unknown) => {
+        const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to create role.";
+        toast.error(msg);
       },
     });
   };
@@ -50,7 +57,7 @@ export default function CreateRoleDialog({ isOpen, onClose }: CreateRoleDialogPr
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 text-left">
         {error && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-xs font-semibold text-destructive">
-            {error.message || "Failed to create role. Please try again."}
+            {(error as { response?: { data?: { message?: string } } }).response?.data?.message || error.message || "Failed to create role. Please try again."}
           </div>
         )}
 

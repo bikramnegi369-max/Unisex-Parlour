@@ -69,7 +69,7 @@ export const getPermissions = async (
 ): Promise<PaginatedPermissionsResult> => {
   const { data } = await apiClient.get<PermissionsListResponse>("/rbac/permissions", {
     params,
-    branchScope: "organization",
+    branchScope: "none",
   });
 
   const rawData = data?.data;
