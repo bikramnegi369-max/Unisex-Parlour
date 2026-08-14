@@ -321,10 +321,26 @@ export default function EmployeeDetailsPage({
     () => (staffBranches || []).map((sb) => sb.branchId?._id),
     [staffBranches],
   );
+
+  // Filter assignable branches based on linked user's authorized branchAccess (or org-wide access)
+  const userEligibleBranchIds = useMemo(() => {
+    if (!employee?.userId) return null; // Unlinked staff can choose from any branch
+    if (linkedUser?.hasOrgWideAccess) return null;
+    return (linkedUser?.branchAccess || []).map((b) => b.branchId);
+  }, [employee?.userId, linkedUser]);
+
   const assignableBranches = useMemo(
-    () => (allBranches || []).filter((b) => !assignedBranchIds.includes(b.id)),
-    [allBranches, assignedBranchIds],
+    () =>
+      (allBranches || []).filter((b) => {
+        if (assignedBranchIds.includes(b.id)) return false;
+        if (userEligibleBranchIds !== null) {
+          return userEligibleBranchIds.includes(b.id);
+        }
+        return true;
+      }),
+    [allBranches, assignedBranchIds, userEligibleBranchIds],
   );
+
   const filteredBranches = useMemo(
     () =>
       assignableBranches.filter((b) =>
@@ -470,11 +486,10 @@ export default function EmployeeDetailsPage({
                   </div>
                   <div className="min-w-0">
                     <h3 className="font-bold text-base text-foreground break-words">
-                      Branch Assignments
+                      Assigned Branches
                     </h3>
                     <p className="text-xs text-muted-foreground break-words">
-                      Assign workplace locations where this staff member is
-                      authorized to serve.
+                      Branches where this employee works.
                     </p>
                   </div>
                 </div>

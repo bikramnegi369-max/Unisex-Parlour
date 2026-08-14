@@ -207,8 +207,8 @@ export default function UserForm({
       {/* Scoping Section */}
       <div className="space-y-4 pt-2">
         <div>
-          <h3 className="text-sm font-bold text-foreground">Branch Authorization</h3>
-          <p className="text-xs text-muted-foreground">Select branches this user is authorized to manage.</p>
+          <h3 className="text-sm font-bold text-foreground">Branch Access</h3>
+          <p className="text-xs text-muted-foreground">Branches this account is authorized to access in the ERP.</p>
         </div>
         <hr className="border-border/60" />
 
@@ -228,7 +228,7 @@ export default function UserForm({
         {!hasOrgWideAccess && (
           <div className="space-y-2">
             <label className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1">
-              Select Branch Access
+              Branch Access
             </label>
             {isLoadingBranches ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">

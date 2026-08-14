@@ -40,7 +40,7 @@ export interface UserSummary {
   isVerified?: boolean;
   isFirstLogin?: boolean;
   hasOrgWideAccess?: boolean;
-  branchAccess?: UserBranchAccess[] | string[];
+  branchAccess?: UserBranchAccess[];
   createdAt?: string;
   updatedAt?: string;
 }
