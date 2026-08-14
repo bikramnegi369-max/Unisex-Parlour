@@ -16,6 +16,7 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
+import type { Employee } from "@/features/employees/types/employee.types";
 
 interface AssignStaffDialogProps {
   appointment: Appointment | null;
@@ -142,12 +143,12 @@ export function AssignStaffDialog({
               disabled={isLoadingEmployees}
             >
               <option value="">-- Unassigned --</option>
-              {appointment.staffId && !employees.some((e) => e.id === appointment.staffId) && (
+              {appointment.staffId && !employees.some((e: Employee) => e.id === appointment.staffId) && (
                 <option value={appointment.staffId}>
                   {appointment.staff?.name || `Staff #${appointment.staffId.slice(-6)}`} (Currently Assigned)
                 </option>
               )}
-              {employees.map((e) => (
+              {employees.map((e: Employee) => (
                 <option key={e.id} value={e.id}>
                   {e.name} {e.designation ? `(${e.designation})` : ""}
                 </option>

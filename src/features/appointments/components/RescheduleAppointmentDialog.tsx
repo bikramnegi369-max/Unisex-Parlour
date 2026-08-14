@@ -54,9 +54,18 @@ export function RescheduleAppointmentDialog({
     },
   });
 
+  const [prevKey, setPrevKey] = useState<string | null>(null);
+  const currentKey = isOpen && appointment ? `${appointment.id}-${isOpen}` : null;
+
+  if (currentKey !== prevKey) {
+    setPrevKey(currentKey);
+    if (conflictError !== null) {
+      setConflictError(null);
+    }
+  }
+
   useEffect(() => {
     if (isOpen && appointment) {
-      setConflictError(null);
       reset({
         branchId: appointment.branchId,
         date: appointment.date,

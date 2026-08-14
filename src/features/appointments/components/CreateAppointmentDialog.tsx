@@ -16,8 +16,11 @@ import {
   type CreateAppointmentSchemaType,
 } from "../schemas/appointment.schema";
 import { useCustomers } from "@/features/customers/hooks/useCustomers";
+import type { Customer } from "@/features/customers/types/customer.types";
 import { useServices } from "@/features/services/hooks/services/useServices";
+import type { Service } from "@/features/services/types/service.types";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
+import type { Employee } from "@/features/employees/types/employee.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
@@ -30,6 +33,10 @@ import {
   User,
   MapPin,
 } from "lucide-react";
+
+const EMPTY_CUSTOMERS: Customer[] = [];
+const EMPTY_SERVICES: Service[] = [];
+const EMPTY_EMPLOYEES: Employee[] = [];
 
 interface CreateAppointmentDialogProps {
   isOpen: boolean;
@@ -112,45 +119,63 @@ export function CreateAppointmentDialog({
   const employeeParams = useMemo(() => {
     return {
       limit: 100,
-      branchId: selectedBranchId || (currentBranchId !== "all" ? currentBranchId || undefined : undefined),
+      branchId:
+        selectedBranchId ||
+        (currentBranchId !== "all" ? currentBranchId || undefined : undefined),
     };
   }, [selectedBranchId, currentBranchId]);
 
-  const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees(employeeParams);
+  const { data: employeesData, isLoading: isLoadingEmployees } =
+    useEmployees(employeeParams);
 
-  const customers = customersData?.data || [];
-  const services = servicesData?.data || [];
-  const employees = employeesData?.data || [];
+  const customers = useMemo(
+    () => customersData?.data || EMPTY_CUSTOMERS,
+    [customersData?.data],
+  );
+  const services = useMemo(
+    () => servicesData?.data || EMPTY_SERVICES,
+    [servicesData?.data],
+  );
+  const employees = useMemo(
+    () => employeesData?.data || EMPTY_EMPLOYEES,
+    [employeesData?.data],
+  );
 
   // Filter customers by search term
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return customers;
     const lower = customerSearch.toLowerCase();
     return customers.filter(
-      (c) => c.name.toLowerCase().includes(lower) || c.phone.includes(lower),
+      (c: Customer) =>
+        c.name.toLowerCase().includes(lower) || c.phone.includes(lower),
     );
   }, [customers, customerSearch]);
 
   // Filter services by search term
-  const filteredServices = useMemo(() => {
+  const filteredServices = useMemo<Service[]>(() => {
     if (!serviceSearch.trim()) return services;
     const lower = serviceSearch.toLowerCase();
-    return services.filter((s) => s.name.toLowerCase().includes(lower));
+    return services.filter((s: Service) =>
+      s.name.toLowerCase().includes(lower),
+    );
   }, [services, serviceSearch]);
 
   // Display-only estimation totals (authoritative pricing is computed by backend!)
   const selectedServicesSummary = useMemo(() => {
-    const selected = services.filter((s) => selectedServiceIds.includes(s.id));
+    const rawServices = servicesData?.data || [];
+    const selected = rawServices.filter((s: Service) =>
+      selectedServiceIds.includes(s.id),
+    );
     const totalDuration = selected.reduce(
-      (sum, s) => sum + (s.duration || 0),
+      (sum: number, s: Service) => sum + (s.duration || 0),
       0,
     );
     const estimatedSubtotal = selected.reduce(
-      (sum, s) => sum + (s.pricing?.basePrice ?? 0),
+      (sum: number, s: Service) => sum + (s.pricing?.basePrice ?? 0),
       0,
     );
     return { count: selected.length, totalDuration, estimatedSubtotal };
-  }, [services, selectedServiceIds]);
+  }, [servicesData?.data, selectedServiceIds]);
 
   useEffect(() => {
     if (isOpen) {
@@ -308,7 +333,7 @@ export function CreateAppointmentDialog({
               <option value="">
                 -- Select Customer ({filteredCustomers.length}) --
               </option>
-              {filteredCustomers.map((c) => (
+              {filteredCustomers.map((c: Customer) => (
                 <option key={c.id} value={c.id}>
                   {c.name} ({c.phone})
                 </option>
@@ -353,7 +378,7 @@ export function CreateAppointmentDialog({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-input rounded-md bg-background">
-                {filteredServices.map((srv) => {
+                {filteredServices.map((srv: Service) => {
                   const isChecked = selectedServiceIds.includes(srv.id);
                   const servicePrice = srv.pricing?.basePrice ?? 0;
                   return (
@@ -406,7 +431,7 @@ export function CreateAppointmentDialog({
               disabled={isLoadingEmployees}
             >
               <option value="">-- Unassigned (Floor Queue) --</option>
-              {employees.map((e) => (
+              {employees.map((e: Employee) => (
                 <option key={e.id} value={e.id}>
                   {e.name} {e.designation ? `(${e.designation})` : ""}
                 </option>

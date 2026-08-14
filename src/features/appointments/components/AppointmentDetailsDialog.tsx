@@ -11,7 +11,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { useAppointment, useTriggerAppointmentReminder } from "../hooks/useAppointments";
 import { toast } from "sonner";
-import type { Appointment } from "../types/appointment.types";
+import type { Appointment, AppointmentServiceSnapshot } from "../types/appointment.types";
 
 interface AppointmentDetailsDialogProps {
   appointment: Appointment | null;
@@ -58,7 +58,7 @@ export function AppointmentDetailsDialog({
   const isTerminal = ["completed", "cancelled", "no_show"].includes(appointment.status);
   const totalPricing =
     appointment.pricing?.total ??
-    appointment.services?.reduce((sum, s) => sum + s.price, 0) ??
+    appointment.services?.reduce((sum: number, s: AppointmentServiceSnapshot) => sum + s.price, 0) ??
     0;
 
   const branchTimezone = appointment.branch?.timezone || "Asia/Kolkata";
@@ -169,7 +169,7 @@ export function AppointmentDetailsDialog({
             Services ({appointment.services?.length || 0})
           </span>
           <div className="divide-y divide-border border border-border rounded-md bg-card">
-            {appointment.services?.map((srv, idx) => (
+            {appointment.services?.map((srv: AppointmentServiceSnapshot, idx: number) => (
               <div key={srv.serviceId || idx} className="p-2.5 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <Scissors className="h-3.5 w-3.5 text-primary" />

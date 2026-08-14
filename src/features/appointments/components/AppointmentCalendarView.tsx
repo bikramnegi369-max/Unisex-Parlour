@@ -412,7 +412,7 @@ export function AppointmentCalendarView({
             onChange={(e) =>
               e.target.valueAsDate && onSelectDate(e.target.valueAsDate)
             }
-            className="h-8 text-xs w-[145px] px-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0"
+            className="h-8 text-xs w-36.25 px-2 [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0"
           />
 
           <span className="text-xs font-bold text-foreground ml-1">
@@ -524,7 +524,7 @@ export function AppointmentCalendarView({
           </div>
         ) : (
           <div className="overflow-x-auto relative">
-            <div className="min-w-[800px] flex">
+            <div className="min-w-200 flex">
               {/* Sticky Left Time Column Axis */}
               <div className="w-20 shrink-0 border-r border-border bg-card z-30 sticky left-0 shadow-sm">
                 <div className="h-10 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center">
@@ -557,7 +557,7 @@ export function AppointmentCalendarView({
                   return (
                     <div
                       key={lane.id || "unassigned"}
-                      className="flex-1 min-w-[200px] border-r border-border/60 last:border-r-0 relative"
+                      className="flex-1 min-w-50 border-r border-border/60 last:border-r-0 relative"
                     >
                       {/* Lane Header */}
                       <div className="h-10 border-b border-border bg-muted/30 px-3 py-1.5 flex items-center justify-between">
