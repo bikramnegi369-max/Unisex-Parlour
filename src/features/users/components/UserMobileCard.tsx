@@ -57,7 +57,7 @@ export function UserMobileCard({
               </Badge>
             </div>
             <span className="text-[10px] bg-primary/5 text-primary border border-primary/10 px-1.5 py-0.5 rounded font-semibold mt-1 inline-block">
-              {roleName || "Staff"}
+              {roleName || "User"}
             </span>
             {user.hasOrgWideAccess && (
               <span className="inline-flex mt-0.5 ml-1 items-center px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[9px] font-semibold border border-amber-500/20">

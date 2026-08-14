@@ -22,7 +22,7 @@ export function UserListHeader({
       <SyncButton
         isSyncing={isSyncing}
         onSync={onSync}
-        label="Refresh Staff"
+        label="Refresh Users"
         className="w-full sm:w-auto"
       />
       {canCreate && (
@@ -31,7 +31,7 @@ export function UserListHeader({
           className="flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 cursor-pointer h-8 w-full sm:w-auto"
         >
           <Plus size={16} />
-          Add Staff Member
+          Add User
         </Button>
       )}
     </>
@@ -39,7 +39,7 @@ export function UserListHeader({
 
   return (
     <PageHeaderBanner
-      title="Staff Directory"
+      title="User Directory"
       description="Manage system users, credentials, roles, branch authorization, and account status."
       icon={ShieldCheck}
       actions={actions}

@@ -141,7 +141,7 @@ describe("User Management Directory UI Tests", () => {
     render(<UsersPage />, { wrapper: createWrapper() });
 
     expect(screen.getByText("Access Denied")).toBeDefined();
-    expect(screen.queryByText("Staff Directory")).toBeNull();
+    expect(screen.queryByText("User Directory")).toBeNull();
   });
 
   it("displays loading skeletons when directory is loading", () => {
@@ -155,7 +155,7 @@ describe("User Management Directory UI Tests", () => {
 
     render(<UsersPage />, { wrapper: createWrapper() });
 
-    expect(screen.getByText("Staff Directory")).toBeDefined();
+    expect(screen.getByText("User Directory")).toBeDefined();
     // Tables display animated skeleton lines during loading (1 header + 5 body rows)
     const pulseLines = screen.queryAllByRole("row");
 

@@ -49,7 +49,7 @@ export function UserFilters({
           <Select
             value={sort}
             onChange={(e) => onSortChange(e.target.value)}
-            aria-label="Sort Staff Members"
+            aria-label="Sort Users"
           >
             <option value="">Sort by (Default)</option>
             <option value="name">Name (A-Z)</option>

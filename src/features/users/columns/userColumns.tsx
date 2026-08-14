@@ -23,7 +23,7 @@ export const buildUserColumns = ({
 }: UserColumnOptions): ColumnDef<UserResponseDTO>[] => [
   {
     accessorKey: "name",
-    header: "Staff Member",
+    header: "User",
     cell: (info) => {
       const user = info.row.original;
       const formattedName = capitalizeWords(user.name);
@@ -88,7 +88,7 @@ export const buildUserColumns = ({
           variant="outline"
           className="bg-primary/5 text-primary border-primary/10"
         >
-          {roleName || "Staff"}
+          {roleName || "User"}
         </Badge>
       );
     },

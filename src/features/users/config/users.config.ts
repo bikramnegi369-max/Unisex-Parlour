@@ -19,12 +19,12 @@ export const USERS_CONFIG = {
   },
   labels: {
     user: {
-      singular: "Staff Member",
-      plural: "Staff Members",
-      emptyStateTitle: "No Staff Members Found",
+      singular: "User",
+      plural: "Users",
+      emptyStateTitle: "No Users Found",
       emptyStateDescription:
-        "Register a new staff account or switch active branches to get started.",
-      searchPlaceholder: "Search staff by name, email, or phone...",
+        "Register a new user account or switch active branches to get started.",
+      searchPlaceholder: "Search users by name, email, or phone...",
     },
   },
   defaults: {

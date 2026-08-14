@@ -24,7 +24,7 @@ export default function UserStatusDialog({
 
   const getImpactMessage = () => {
     if (targetStatus === "inactive") {
-      return "Deactivating this staff member will revoke all operational portal access. Any active session for this user will be invalidated immediately.";
+      return "Deactivating this user account will revoke all operational portal access. Any active session for this user will be invalidated immediately.";
     }
     if (targetStatus === "suspended") {
       return "Suspending this user account is a security action. The user will be locked out of the ERP system, and all current active sessions will be forcefully terminated.";

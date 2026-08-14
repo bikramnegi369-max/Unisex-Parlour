@@ -165,9 +165,9 @@ export default function UserList() {
   const handleSync = async () => {
     try {
       await refetch();
-      toast.success("Staff directory synchronized successfully.");
+      toast.success("User directory synchronized successfully.");
     } catch {
-      toast.error("Failed to synchronize staff directory.");
+      toast.error("Failed to synchronize user directory.");
     }
   };
 
@@ -188,10 +188,10 @@ export default function UserList() {
     createMutation.mutate(values, {
       onSuccess: () => {
         setIsCreateOpen(false);
-        toast.success("Staff account created successfully.");
+        toast.success("User account created successfully.");
       },
       onError: (err: Error) => {
-        toast.error(err.message || "Failed to create staff account.");
+        toast.error(err.message || "Failed to create user account.");
       },
     });
   };
@@ -204,10 +204,10 @@ export default function UserList() {
         onSuccess: () => {
           setIsEditOpen(false);
           setActiveUser(null);
-          toast.success("Staff details updated successfully.");
+          toast.success("User details updated successfully.");
         },
         onError: (err: Error) => {
-          toast.error(err.message || "Failed to update staff details.");
+          toast.error(err.message || "Failed to update user details.");
         },
       },
     );
@@ -224,14 +224,14 @@ export default function UserList() {
           setTargetStatus(null);
           toast.success(
             targetStatus === "active"
-              ? "Staff account activated successfully."
+              ? "User account activated successfully."
               : targetStatus === "suspended"
-                ? "Staff account suspended successfully."
-                : "Staff account deactivated successfully.",
+                ? "User account suspended successfully."
+                : "User account deactivated successfully.",
           );
         },
         onError: (err: Error) => {
-          toast.error(err.message || "Failed to update staff account status.");
+          toast.error(err.message || "Failed to update user account status.");
         },
       },
     );
@@ -239,7 +239,7 @@ export default function UserList() {
 
   const getFriendlyErrorMessage = (err: unknown) => {
     if (!err) {
-      return "An unexpected error occurred while retrieving staff records.";
+      return "An unexpected error occurred while retrieving user records.";
     }
 
     const errObj = err as Record<string, unknown> | null;
@@ -258,7 +258,7 @@ export default function UserList() {
       return "Your session has expired. Please log in again to continue.";
     }
     if (status === 403) {
-      return "You do not have the required permissions to view staff records in this scope.";
+      return "You do not have the required permissions to view user records in this scope.";
     }
     if (status === 404) {
       return "The requested directory resource could not be found.";
@@ -277,7 +277,7 @@ export default function UserList() {
       return "Connection failed. Please check your network connection and try again.";
     }
     return (
-      message || "An unexpected error occurred while retrieving staff records."
+      message || "An unexpected error occurred while retrieving user records."
     );
   };
 
@@ -287,7 +287,7 @@ export default function UserList() {
         <AlertCircle className="h-10 w-10 text-destructive" />
         <h3 className="text-lg font-bold text-foreground">Access Denied</h3>
         <p className="text-sm text-muted-foreground text-center max-w-sm">
-          You do not have the required `users.view` permission to view the staff
+          You do not have the required `users.view` permission to view the user
           directory.
         </p>
       </div>
@@ -360,7 +360,7 @@ export default function UserList() {
           <EmptyState
             icon={HelpCircle}
             title="No matches found"
-            description="No staff member matches your search criteria. Try expanding your query or resetting filters."
+            description="No user matches your search criteria. Try expanding your query or resetting filters."
             action={{
               label: "Reset Search & Filters",
               onClick: () => {
@@ -372,16 +372,16 @@ export default function UserList() {
         ) : (
           <EmptyState
             icon={Sparkles}
-            title="Staff Directory Empty"
+            title="User Directory Empty"
             description={
               isAllBranchesSelected
-                ? "No staff accounts have been created yet in the organization."
-                : `No staff records belong to ${currentBranch?.name} yet.`
+                ? "No user accounts have been created yet in the organization."
+                : `No user records belong to ${currentBranch?.name} yet.`
             }
             action={
               canCreate
                 ? {
-                    label: "Register First Staff Member",
+                    label: "Register First User",
                     onClick: () => setIsCreateOpen(true),
                     icon: Plus,
                   }
@@ -429,7 +429,7 @@ export default function UserList() {
               onPageChange={handlePageChange}
               pageSize={limit}
               onPageSizeChange={handlePageSizeChange}
-              itemLabel="staff members"
+              itemLabel="users"
             />
           )}
         </div>
@@ -439,7 +439,7 @@ export default function UserList() {
       <Dialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        title="Register New Staff Member"
+        title="Register New User"
       >
         <UserForm
           onSubmit={handleCreateSubmit}
@@ -453,7 +453,7 @@ export default function UserList() {
         <Dialog
           isOpen={isEditOpen}
           onClose={() => setIsEditOpen(false)}
-          title="Edit Staff Details"
+          title="Edit User Details"
         >
           <UserForm
             initialUser={activeUser}

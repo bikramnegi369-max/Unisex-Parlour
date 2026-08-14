@@ -26,7 +26,7 @@ export default function UserDetailsModal({
   if (user.status === "locked") statusVariant = "warning";
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title="Staff Member Details">
+    <Dialog isOpen={isOpen} onClose={onClose} title="User Details">
       <div className="space-y-6 text-left max-h-[70vh] overflow-y-auto pr-1">
         {/* Section 1: Identity */}
         <div>
