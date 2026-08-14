@@ -4,7 +4,7 @@ import { refreshAccessToken } from "../auth/refresh";
 
 declare module "axios" {
   export interface AxiosRequestConfig {
-    branchScope?: "current" | "organization" | { type: "branch"; branchId: string };
+    branchScope?: "current" | "organization" | "none" | { type: "branch"; branchId: string };
     authContext?: "normal" | "activation" | "password-change";
   }
 }

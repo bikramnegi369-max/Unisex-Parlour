@@ -8,7 +8,7 @@ import { PermissionType } from "./index";
 export const routePermissions = {
   "/dashboard": null, // Common authenticated navigation
   "/users": "users.view",
-  "/roles": "roles.manage",
+  "/roles": "roles.view",
   "/branches": "branches.manage",
   "/billing": "billing.view",
   "/finance": "finance.view",

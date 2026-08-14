@@ -1,253 +1,229 @@
 "use client";
 
-import React, { useState } from "react";
-import { ShieldCheck, Info, Loader2, Save } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import React, { useState, useEffect } from "react";
+import { ShieldCheck, ShieldAlert, Trash2, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import RolesListHeader from "@/features/roles/components/RolesListHeader";
+import CreateRoleDialog from "@/features/roles/components/CreateRoleDialog";
+import RoleDeleteDialog from "@/features/roles/components/RoleDeleteDialog";
+import RoleMatrixTable from "@/features/roles/components/RoleMatrixTable";
+import PermissionGate from "@/components/layout/PermissionGate";
+import { ErrorState } from "@/components/ui/error-state";
+import { EmptyState } from "@/components/ui/empty-state";
 
-type RoleName = "Owner" | "Manager" | "Receptionist" | "Stylist" | "Accountant";
-
-interface ModulePermission {
-  module: string;
-  actions: {
-    view: string;
-    create?: string;
-    edit?: string;
-    delete?: string;
-  };
-}
-
-const MODULES: ModulePermission[] = [
-  { module: "Customers", actions: { view: "customers.view", create: "customers.create", edit: "customers.update", delete: "customers.delete" } },
-  { module: "Appointments", actions: { view: "appointments.view", create: "appointments.create", edit: "appointments.edit", delete: "appointments.cancel" } },
-  { module: "Employees", actions: { view: "employees.view", create: "employees.create", edit: "employees.update", delete: "employees.delete" } },
-  { module: "Services", actions: { view: "services.view", create: "services.create", edit: "services.update", delete: "services.delete" } },
-  { module: "Billing & POS", actions: { view: "billing.view", create: "billing.create", delete: "billing.refund" } },
-  { module: "Finance", actions: { view: "finance.view", create: "finance.create", edit: "finance.edit" } },
-  { module: "Inventory", actions: { view: "inventory.view", create: "inventory.create", edit: "inventory.adjust" } },
-  { module: "Reports & Analytics", actions: { view: "reports.view" } },
-  { module: "Settings & Backups", actions: { view: "settings.view", edit: "settings.edit" } },
-];
-
-const INITIAL_ROLE_PERMISSIONS: Record<RoleName, string[]> = {
-  Owner: [], // Bypasses permission matrix, owns all implicitly
-  Manager: [
-    "customers.view", "customers.create", "customers.update",
-    "appointments.view", "appointments.create", "appointments.edit", "appointments.cancel",
-    "employees.view", "employees.update", "services.view", "services.update", "billing.view", "billing.create"
-  ],
-  Receptionist: [
-    "customers.view", "customers.create", "customers.update",
-    "appointments.view", "appointments.create", "appointments.edit", "appointments.cancel",
-    "billing.view", "billing.create"
-  ],
-  Stylist: [
-    "customers.view", "appointments.view", "services.view"
-  ],
-  Accountant: [
-    "billing.view", "finance.view", "finance.create", "finance.edit", "reports.view"
-  ],
-};
+import {
+  useRoles,
+  usePermissions,
+  usePermissionModules,
+  useUpdateRolePermissions,
+} from "@/features/roles/hooks/useRoles";
+import type { Role } from "@/features/roles/types/roles.types";
 
 export default function RolesPage() {
-  const [selectedRole, setSelectedRole] = useState<RoleName>("Manager");
-  const [rolePermissions, setRolePermissions] = useState<Record<RoleName, string[]>>(INITIAL_ROLE_PERMISSIONS);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const { data: roles = [], isLoading: isLoadingRoles, isError: isErrorRoles, refetch: refetchRoles } = useRoles();
+  const { data: serverModules = [], isLoading: isLoadingModules } = usePermissionModules();
 
-  const activePermissions = rolePermissions[selectedRole] || [];
+  // Pagination & Filtering State for Permissions
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedModule, setSelectedModule] = useState("all");
 
-  const handleTogglePermission = (permission: string) => {
-    if (selectedRole === "Owner") return; // Owner permissions cannot be changed
+  const {
+    data: permissionsResult,
+    isLoading: isLoadingPermissions,
+  } = usePermissions({
+    page: currentPage,
+    limit: pageSize,
+    search: searchQuery || undefined,
+    module: selectedModule !== "all" ? selectedModule : undefined,
+  });
 
-    const exists = activePermissions.includes(permission);
-    const updated = exists
-      ? activePermissions.filter((p) => p !== permission)
-      : [...activePermissions, permission];
+  const { mutate: updatePermissions, isPending: isSavingPermissions } = useUpdateRolePermissions();
 
-    setRolePermissions({
-      ...rolePermissions,
-      [selectedRole]: updated,
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+
+  // Reset to page 1 when search or module filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedModule]);
+
+  // Default selection to first role when data loads
+  useEffect(() => {
+    if (roles.length > 0 && !selectedRoleId) {
+      setSelectedRoleId(roles[0].id);
+    }
+  }, [roles, selectedRoleId]);
+
+  const selectedRole = roles.find((r) => r.id === selectedRoleId) || roles[0] || null;
+
+  const permissionsList = permissionsResult?.data || [];
+  const permissionsMeta = permissionsResult?.meta;
+
+  const handleSavePermissions = (updatedPermissions: string[]) => {
+    if (!selectedRole) return;
+    updatePermissions({
+      id: selectedRole.id,
+      payload: { permissions: updatedPermissions },
     });
   };
 
-  const handleSavePermissions = () => {
-    setIsSaving(true);
-    setSaveSuccess(false);
-    setTimeout(() => {
-      setIsSaving(false);
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
-    }, 1500);
+  const handleDeleteClick = (role: Role, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRoleToDelete(role);
+    setIsDeleteOpen(true);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Title Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Roles & Permissions</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Configure security authorization bounds and actions for company staff roles.
-        </p>
-      </div>
+  const handleAfterDelete = () => {
+    setRoleToDelete(null);
+    if (roles.length > 1) {
+      const remaining = roles.filter((r) => r.id !== roleToDelete?.id);
+      if (remaining.length > 0) {
+        setSelectedRoleId(remaining[0].id);
+      }
+    } else {
+      setSelectedRoleId(null);
+    }
+  };
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Side: Role Selector Tabs */}
-        <div className="lg:col-span-3 space-y-2">
-          {Object.keys(rolePermissions).map((roleStr) => {
-            const role = roleStr as RoleName;
-            const isSelected = selectedRole === role;
+  if (isLoadingRoles) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm font-medium text-muted-foreground">Loading roles...</p>
+      </div>
+    );
+  }
+
+  if (isErrorRoles) {
+    return (
+      <ErrorState
+        title="Failed to Load Roles"
+        description="An error occurred while fetching role permissions configuration."
+        retryAction={{
+          label: "Try Again",
+          onClick: () => refetchRoles(),
+        }}
+      />
+    );
+  }
+
+  if (roles.length === 0) {
+    return (
+      <div className="space-y-6 w-full max-w-full overflow-hidden">
+        <RolesListHeader onCreateRoleClick={() => setIsCreateOpen(true)} />
+
+        <Card className="border border-border/80 shadow-sm p-8 sm:p-12 text-center bg-card">
+          <EmptyState
+            icon={ShieldAlert}
+            title="No Roles Configured"
+            description="Your organization has no active security roles. Create your first custom role to manage staff authorization and capability bounds."
+            action={{
+              label: "Create Custom Role",
+              onClick: () => setIsCreateOpen(true),
+              icon: Plus,
+            }}
+          />
+        </Card>
+
+        {/* Create Custom Role Dialog */}
+        <CreateRoleDialog
+          isOpen={isCreateOpen}
+          onClose={() => setIsCreateOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 w-full max-w-full overflow-hidden">
+      <RolesListHeader onCreateRoleClick={() => setIsCreateOpen(true)} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full min-w-0">
+        {/* Left Side: Roles List Navigation */}
+        <div className="lg:col-span-3 space-y-2 w-full min-w-0">
+          {roles.map((role) => {
+            const isSelected = selectedRole?.id === role.id;
             return (
-              <button
-                key={role}
-                onClick={() => {
-                  setSelectedRole(role);
-                  setSaveSuccess(false);
-                }}
+              <div
+                key={role.id}
+                onClick={() => setSelectedRoleId(role.id)}
                 className={cn(
-                  "w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer flex items-center justify-between border",
+                  "w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer flex items-center justify-between border group",
                   isSelected
                     ? "bg-primary/5 text-primary border-primary/20 shadow-sm"
-                    : "bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
                 )}
               >
-                <span>{role}</span>
-                {role === "Owner" && (
-                  <span className="text-[10px] bg-amber-500/10 text-amber-500 font-semibold px-2 py-0.5 rounded-full border border-amber-500/20">
-                    Bypass
-                  </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <ShieldCheck size={16} className={isSelected ? "text-primary" : "text-muted-foreground"} />
+                  <span className="truncate">{role.name}</span>
+                </div>
+
+                {!role.isSystem && (
+                  <PermissionGate permission="roles.delete">
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteClick(role, e)}
+                      title="Delete Role"
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </PermissionGate>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
 
         {/* Right Side: Matrix Configurations */}
-        <div className="lg:col-span-9 space-y-6">
-          <Card className="border border-border/80 shadow-sm">
-            <CardHeader className="p-6 border-b border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <ShieldCheck size={20} className="text-primary" />
-                  {selectedRole} Authorization Matrix
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {selectedRole === "Owner"
-                    ? "Owners are assigned all canonical permissions explicitly by the backend."
-                    : `Customize action flags for the ${selectedRole} profile below.`}
-                </CardDescription>
-              </div>
-              <Button
-                disabled={selectedRole === "Owner" || isSaving}
-                onClick={handleSavePermissions}
-                className="flex items-center gap-2 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/10 rounded-lg cursor-pointer font-semibold text-sm"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Saving Changes...
-                  </>
-                ) : (
-                  <>
-                    <Save size={16} />
-                    Save Permissions
-                  </>
-                )}
-              </Button>
-            </CardHeader>
-
-            <CardContent className="p-0 overflow-x-auto">
-              {saveSuccess && (
-                <div className="m-6 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-600 dark:text-emerald-500 text-xs font-semibold animate-in fade-in duration-200">
-                  Permissions configuration for {selectedRole} saved successfully.
-                </div>
-              )}
-
-              {selectedRole === "Owner" ? (
-                <div className="p-8 text-center space-y-2">
-                  <Info size={28} className="text-amber-500 mx-auto" />
-                  <p className="text-sm font-semibold text-foreground">Root Ownership Enabled</p>
-                  <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                    The Owner profile is assigned all root-level permissions explicitly. Modifying these flags on the frontend is disabled since Owner access is managed directly by the backend registry.
-                  </p>
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse min-w-[500px]">
-                  <thead>
-                    <tr className="border-b border-border/85 bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      <th className="px-6 py-4">Module Panel</th>
-                      <th className="px-6 py-4 text-center">View</th>
-                      <th className="px-6 py-4 text-center">Create</th>
-                      <th className="px-6 py-4 text-center">Edit</th>
-                      <th className="px-6 py-4 text-center">Delete / Revoke</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60 text-sm">
-                    {MODULES.map((item) => (
-                      <tr key={item.module} className="hover:bg-muted/5 transition-colors">
-                        <td className="px-6 py-4 font-medium text-foreground">{item.module}</td>
-                        
-                        {/* View action check */}
-                        <td className="px-6 py-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={activePermissions.includes(item.actions.view)}
-                            onChange={() => handleTogglePermission(item.actions.view)}
-                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                          />
-                        </td>
-
-                        {/* Create action check */}
-                        <td className="px-6 py-4 text-center">
-                          {item.actions.create ? (
-                            <input
-                              type="checkbox"
-                              checked={activePermissions.includes(item.actions.create)}
-                              onChange={() => handleTogglePermission(item.actions.create!)}
-                              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground/45">—</span>
-                          )}
-                        </td>
-
-                        {/* Edit action check */}
-                        <td className="px-6 py-4 text-center">
-                          {item.actions.edit ? (
-                            <input
-                              type="checkbox"
-                              checked={activePermissions.includes(item.actions.edit)}
-                              onChange={() => handleTogglePermission(item.actions.edit!)}
-                              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground/45">—</span>
-                          )}
-                        </td>
-
-                        {/* Delete action check */}
-                        <td className="px-6 py-4 text-center">
-                          {item.actions.delete ? (
-                            <input
-                              type="checkbox"
-                              checked={activePermissions.includes(item.actions.delete)}
-                              onChange={() => handleTogglePermission(item.actions.delete!)}
-                              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                            />
-                          ) : (
-                            <span className="text-xs text-muted-foreground/45">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
+        <div className="lg:col-span-9 w-full min-w-0">
+          <RoleMatrixTable
+            selectedRole={selectedRole}
+            allPermissions={permissionsList}
+            dynamicModules={serverModules}
+            meta={permissionsMeta}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            onPageChange={(page) => setCurrentPage(page)}
+            onPageSizeChange={(limit) => {
+              setPageSize(limit);
+              setCurrentPage(1);
+            }}
+            searchQuery={searchQuery}
+            onSearchChange={(q) => setSearchQuery(q)}
+            selectedModule={selectedModule}
+            onModuleChange={(m) => setSelectedModule(m)}
+            onSavePermissions={handleSavePermissions}
+            isSaving={isSavingPermissions}
+            isLoadingPermissions={isLoadingPermissions}
+            isLoadingModules={isLoadingModules}
+          />
         </div>
       </div>
+
+      {/* Create Custom Role Dialog */}
+      <CreateRoleDialog
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+      />
+
+      {/* Delete Role Dialog */}
+      <RoleDeleteDialog
+        isOpen={isDeleteOpen}
+        onClose={() => {
+          setIsDeleteOpen(false);
+          setRoleToDelete(null);
+        }}
+        roleId={roleToDelete?.id || null}
+        roleName={roleToDelete?.name || ""}
+        onSuccess={handleAfterDelete}
+      />
     </div>
   );
 }

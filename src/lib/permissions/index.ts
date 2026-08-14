@@ -44,7 +44,10 @@ export type PermissionType =
   | "users.view"
   | "users.create"
   | "users.update"
-  | "roles.manage"
+  | "roles.view"
+  | "roles.create"
+  | "roles.update"
+  | "roles.delete"
   | "branches.manage"
   | "activity-logs.view";
 
