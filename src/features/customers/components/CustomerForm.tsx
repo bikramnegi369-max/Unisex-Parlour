@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Loader2, X, Search, Check } from "lucide-react";
 import { getCustomers } from "../api/customers.api";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface CustomerFormProps {
   initialCustomer?: Customer;
@@ -166,18 +167,19 @@ export default function CustomerForm({
     }
   }, [initialCustomer]);
 
+  const debouncedReferrerSearch = useDebounce(referrerSearch, 300);
+
   // Debounced search for referrer dropdown (with race-condition protection and active filter)
   useEffect(() => {
-    if (!referrerSearch.trim() || (selectedReferrer && referrerSearch === selectedReferrer.name)) {
+    if (!debouncedReferrerSearch.trim() || (selectedReferrer && debouncedReferrerSearch === selectedReferrer.name)) {
       return;
     }
 
     let isCurrent = true;
+    setIsSearchingReferrer(true);
 
-    const timer = setTimeout(async () => {
-      setIsSearchingReferrer(true);
-      try {
-        const response = await getCustomers({ search: referrerSearch.trim(), page: 1, limit: 5 });
+    getCustomers({ search: debouncedReferrerSearch.trim(), page: 1, limit: 5 })
+      .then((response) => {
         if (isCurrent) {
           // Exclude self and verify referrer status is active
           const filtered = response.data.filter(
@@ -185,20 +187,20 @@ export default function CustomerForm({
           );
           setReferrerResults(filtered);
         }
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error("Referrer lookup failed:", err);
-      } finally {
+      })
+      .finally(() => {
         if (isCurrent) {
           setIsSearchingReferrer(false);
         }
-      }
-    }, 300);
+      });
 
     return () => {
       isCurrent = false;
-      clearTimeout(timer);
     };
-  }, [referrerSearch, selectedReferrer, initialCustomer]);
+  }, [debouncedReferrerSearch, selectedReferrer, initialCustomer]);
 
   // Handle outside click to close dropdown
   useEffect(() => {

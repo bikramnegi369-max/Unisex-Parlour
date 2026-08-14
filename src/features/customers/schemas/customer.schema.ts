@@ -132,3 +132,23 @@ export type CustomerFormValues = {
   tags: string;
   loyaltyPoints: number;
 };
+
+export const quickCustomerSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(100, "Name must be less than 100 characters")
+    .trim(),
+  phone: basePhoneSchema,
+  email: z
+    .string()
+    .trim()
+    .email("Please enter a valid email address")
+    .or(z.literal("")),
+  gender: z
+    .enum(["male", "female", "other", "prefer_not_to_say"])
+    .default("prefer_not_to_say"),
+});
+
+export type QuickCustomerFormValues = z.infer<typeof quickCustomerSchema>;
+

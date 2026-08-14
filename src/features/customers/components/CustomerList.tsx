@@ -10,6 +10,7 @@ import { useCustomers } from "../hooks/useCustomers";
 import { useCreateCustomer } from "../hooks/useCreateCustomer";
 import { useUpdateCustomer } from "../hooks/useUpdateCustomer";
 import { useDeleteCustomer } from "../hooks/useDeleteCustomer";
+import { useDebounce } from "@/hooks/useDebounce";
 import CustomerTable from "./CustomerTable";
 import CustomerForm from "./CustomerForm";
 import CustomerDeleteDialog from "./CustomerDeleteDialog";
@@ -57,14 +58,14 @@ export default function CustomerList() {
 
   // Local state for immediate typing responsiveness
   const [search, setSearch] = useState(searchQueryParam);
-  const [debouncedSearch, setDebouncedSearch] = useState(searchQueryParam);
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
+
+  const debouncedSearch = useDebounce(search, 400);
 
   // Sync state during render when URL query changes (e.g. Back/Forward navigation)
   if (searchQueryParam !== prevSearchQuery) {
     setPrevSearchQuery(searchQueryParam);
     setSearch(searchQueryParam);
-    setDebouncedSearch(searchQueryParam);
   }
 
   // Modal states
@@ -107,18 +108,6 @@ export default function CustomerList() {
     setIsReactivateOpen(true);
   }, []);
 
-  // Debounce search input
-  useEffect(() => {
-    if (search === "") {
-      setDebouncedSearch("");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Sync debounced search with URL
   useEffect(() => {

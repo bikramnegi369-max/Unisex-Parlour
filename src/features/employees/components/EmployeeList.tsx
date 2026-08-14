@@ -20,6 +20,7 @@ import type { Employee, EmployeePayload } from "../types/employee.types";
 import { EmployeeListHeader } from "./EmployeeListHeader";
 import { EmployeeSearch } from "./EmployeeSearch";
 import { EmployeeFilters } from "./EmployeeFilters";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export default function EmployeeList() {
   const router = useRouter();
@@ -37,27 +38,27 @@ export default function EmployeeList() {
 
   // Read limit parameter from URL
   const limitParam = searchParams.get("limit");
-  const limit = limitParam ? parseInt(limitParam, 10) : 10;
+  const limit = limitParam ? parseInt(limitParam, 10) : 20;
 
   // Read search parameter from URL
   const searchQueryParam = searchParams.get("search") || "";
 
   // Read status filter parameter from URL
-  const statusParam = searchParams.get("status") || "all";
+  const statusParam = searchParams.get("status") || "active";
 
   // Read sort parameter from URL
   const sort = searchParams.get("sort") || "";
 
   // Local state for immediate typing responsiveness
   const [search, setSearch] = useState(searchQueryParam);
-  const [debouncedSearch, setDebouncedSearch] = useState(searchQueryParam);
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
+
+  const debouncedSearch = useDebounce(search, 400);
 
   // Sync state during render when URL query changes (e.g. Back/Forward navigation)
   if (searchQueryParam !== prevSearchQuery) {
     setPrevSearchQuery(searchQueryParam);
     setSearch(searchQueryParam);
-    setDebouncedSearch(searchQueryParam);
   }
 
   // Modal/dialog states
@@ -93,19 +94,6 @@ export default function EmployeeList() {
     setEmployeeToReactivate(emp);
     setIsReactivateOpen(true);
   }, []);
-
-  // Debounce search input
-  useEffect(() => {
-    if (search === "") {
-      setDebouncedSearch("");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Sync debounced search with URL
   useEffect(() => {

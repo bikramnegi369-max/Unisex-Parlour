@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +38,6 @@ export default function UserSelector({
   disabled = false,
 }: UserSelectorProps) {
   const [query, setQuery] = useState(initialUser?.name || "");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [results, setResults] = useState<UserSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,17 +46,7 @@ export default function UserSelector({
   const [selectedUser, setSelectedUser] = useState<UserSummary | null>(initialUser ?? null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setDebouncedQuery("");
-      setResults([]);
-      setIsOpen(false);
-      return;
-    }
-
-    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timer);
-  }, [query]);
+  const debouncedQuery = useDebounce(query.trim(), 250);
 
   useEffect(() => {
     if (!debouncedQuery || selectedUser) {

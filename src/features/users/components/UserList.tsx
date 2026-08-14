@@ -30,6 +30,7 @@ import type {
   CreateUserPayload,
   UserStatus,
 } from "../types/users.types";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export default function UserList() {
   const router = useRouter();
@@ -63,14 +64,14 @@ export default function UserList() {
 
   // Local state for immediate typing responsiveness
   const [search, setSearch] = useState(searchQueryParam);
-  const [debouncedSearch, setDebouncedSearch] = useState(searchQueryParam);
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
+
+  const debouncedSearch = useDebounce(search, 400);
 
   // Sync state during render when URL query changes (e.g. Back/Forward navigation)
   if (searchQueryParam !== prevSearchQuery) {
     setPrevSearchQuery(searchQueryParam);
     setSearch(searchQueryParam);
-    setDebouncedSearch(searchQueryParam);
   }
 
   // Modal states
@@ -86,19 +87,6 @@ export default function UserList() {
   const createMutation = useCreateUser();
   const updateMutation = useUpdateUser();
   const updateStatusMutation = useUpdateUserStatus();
-
-  // Debounce search input
-  useEffect(() => {
-    if (search === "") {
-      setDebouncedSearch("");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Sync debounced search with URL
   useEffect(() => {

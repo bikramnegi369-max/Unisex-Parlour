@@ -15,8 +15,7 @@ import {
   createAppointmentSchema,
   type CreateAppointmentSchemaType,
 } from "../schemas/appointment.schema";
-import { useCustomers } from "@/features/customers/hooks/useCustomers";
-import type { Customer } from "@/features/customers/types/customer.types";
+import { CustomerSelector } from "@/features/customers/components/CustomerSelector";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import type { Service } from "@/features/services/types/service.types";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
@@ -34,9 +33,9 @@ import {
   MapPin,
 } from "lucide-react";
 
-const EMPTY_CUSTOMERS: Customer[] = [];
 const EMPTY_SERVICES: Service[] = [];
 const EMPTY_EMPLOYEES: Employee[] = [];
+
 
 interface CreateAppointmentDialogProps {
   isOpen: boolean;
@@ -60,7 +59,6 @@ export function CreateAppointmentDialog({
     availableBranches,
   } = useBranchContext();
   const [conflictError, setConflictError] = useState<string | null>(null);
-  const [customerSearch, setCustomerSearch] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
 
   const activeBranches = availableBranches.map((b) => ({
@@ -110,9 +108,6 @@ export function CreateAppointmentDialog({
   }, [selectedBranchId, availableBranches, currentBranch]);
 
   // Fetch dropdown data
-  const { data: customersData, isLoading: isLoadingCustomers } = useCustomers({
-    limit: 100,
-  });
   const { data: servicesData, isLoading: isLoadingServices } = useServices({
     limit: 100,
   });
@@ -128,10 +123,6 @@ export function CreateAppointmentDialog({
   const { data: employeesData, isLoading: isLoadingEmployees } =
     useEmployees(employeeParams);
 
-  const customers = useMemo(
-    () => customersData?.data || EMPTY_CUSTOMERS,
-    [customersData?.data],
-  );
   const services = useMemo(
     () => servicesData?.data || EMPTY_SERVICES,
     [servicesData?.data],
@@ -140,16 +131,6 @@ export function CreateAppointmentDialog({
     () => employeesData?.data || EMPTY_EMPLOYEES,
     [employeesData?.data],
   );
-
-  // Filter customers by search term
-  const filteredCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customers;
-    const lower = customerSearch.toLowerCase();
-    return customers.filter(
-      (c: Customer) =>
-        c.name.toLowerCase().includes(lower) || c.phone.includes(lower),
-    );
-  }, [customers, customerSearch]);
 
   // Filter services by search term
   const filteredServices = useMemo<Service[]>(() => {
@@ -180,10 +161,10 @@ export function CreateAppointmentDialog({
   useEffect(() => {
     if (isOpen) {
       setConflictError(null);
-      setCustomerSearch("");
       setServiceSearch("");
       reset({
         branchId: currentBranchId || "",
+
         customerId: "",
         serviceIds: [],
         staffId: null,
@@ -308,43 +289,26 @@ export function CreateAppointmentDialog({
             <input type="hidden" {...register("branchId")} />
           )}
 
-          {/* Customer Selection with Search Filter */}
+          {/* Customer Selection */}
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Customer <span className="text-destructive">*</span>
             </label>
 
-            <div className="relative">
-              <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Search customer by name or phone..."
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                className="h-8 text-xs pl-8 mb-1.5"
-              />
-            </div>
-
-            <Select
-              {...register("customerId")}
-              className="w-full h-9 text-xs"
-              disabled={isLoadingCustomers}
-            >
-              <option value="">
-                -- Select Customer ({filteredCustomers.length}) --
-              </option>
-              {filteredCustomers.map((c: Customer) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.phone})
-                </option>
-              ))}
-            </Select>
-            {errors.customerId && (
-              <span className="text-[11px] text-destructive">
-                {errors.customerId.message}
-              </span>
-            )}
+            <Controller
+              name="customerId"
+              control={control}
+              render={({ field }) => (
+                <CustomerSelector
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.customerId?.message}
+                  disabled={isLoading}
+                />
+              )}
+            />
           </div>
+
 
           {/* Services Selection with Search & Live Summary */}
           <div className="space-y-1.5">
