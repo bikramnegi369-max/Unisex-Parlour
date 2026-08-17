@@ -48,7 +48,10 @@ export type PermissionType =
   | "roles.create"
   | "roles.update"
   | "roles.delete"
-  | "branches.manage"
+  | "branches.view"
+  | "branches.create"
+  | "branches.update"
+  | "branches.delete"
   | "activity-logs.view";
 
 export interface UserSession {

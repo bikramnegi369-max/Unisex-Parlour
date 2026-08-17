@@ -22,9 +22,11 @@ export interface Branch {
   id: string;
   name: string;
   organizationId: string;
-  address?: string;
-  phone?: string;
+  address?: string | null;
+  phone?: string | null;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   timezone?: string;
 }
 

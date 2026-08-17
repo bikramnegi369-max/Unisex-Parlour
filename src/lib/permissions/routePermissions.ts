@@ -9,7 +9,7 @@ export const routePermissions = {
   "/dashboard": null, // Common authenticated navigation
   "/users": "users.view",
   "/roles": "roles.view",
-  "/branches": "branches.manage",
+  "/branches": "branches.view",
   "/billing": "billing.view",
   "/finance": "finance.view",
   "/reports": "reports.view",
