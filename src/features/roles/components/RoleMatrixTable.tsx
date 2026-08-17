@@ -263,7 +263,7 @@ export default function RoleMatrixTable({
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => {}}
+                              readOnly
                               disabled={!canUpdateRole || isSaving}
                               className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer shrink-0"
                             />

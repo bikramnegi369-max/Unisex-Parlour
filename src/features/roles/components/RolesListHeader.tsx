@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
-import { Plus } from "lucide-react";
+import { Plus, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import PermissionGate from "@/components/layout/PermissionGate";
 
 interface RolesListHeaderProps {
@@ -10,24 +11,25 @@ interface RolesListHeaderProps {
 }
 
 export default function RolesListHeader({ onCreateRoleClick }: RolesListHeaderProps) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Roles & Permissions</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Configure security authorization bounds and action capabilities for organization staff roles.
-        </p>
-      </div>
+  const actions = (
+    <PermissionGate permission="roles.create">
+      <Button
+        onClick={onCreateRoleClick}
+        className="flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 cursor-pointer h-8 w-full sm:w-auto"
+      >
+        <Plus size={16} />
+        Create Custom Role
+      </Button>
+    </PermissionGate>
+  );
 
-      <PermissionGate permission="roles.create">
-        <Button
-          onClick={onCreateRoleClick}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/95 text-primary-foreground shadow-md shadow-primary/10 rounded-xl font-semibold cursor-pointer shrink-0"
-        >
-          <Plus size={18} />
-          Create Custom Role
-        </Button>
-      </PermissionGate>
-    </div>
+  return (
+    <PageHeaderBanner
+      title="Roles & Permissions"
+      description="Configure security authorization bounds and action capabilities for organization staff roles."
+      icon={ShieldCheck}
+      actions={actions}
+    />
   );
 }
+

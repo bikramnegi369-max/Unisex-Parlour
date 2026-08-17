@@ -221,7 +221,8 @@ export default function RolesPage() {
                       type="button"
                       onClick={(e) => handleDeleteClick(role, e)}
                       title="Delete Role"
-                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                      aria-label={`Delete ${role.name} role`}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-destructive/40 transition-colors opacity-80 sm:opacity-0 group-hover:opacity-100 cursor-pointer"
                     >
                       <Trash2 size={15} />
                     </button>

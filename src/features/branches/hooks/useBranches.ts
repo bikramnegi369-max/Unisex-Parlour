@@ -89,5 +89,7 @@ export function useBranches() {
     organization: query.data?.organization ?? null,
     isLoading: query.isLoading,
     isError: query.isError,
+    refetch: query.refetch,
+    isRefetching: query.isRefetching,
   };
 }
