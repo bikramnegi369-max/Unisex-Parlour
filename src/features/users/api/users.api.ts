@@ -40,7 +40,6 @@ const mapUserKeys = (user: RawUserSummaryItem): UserSummary => ({
 export const getUsers = async (params: GetUsersParams = {}): Promise<PaginatedResponse<UserResponseDTO>> => {
   const { data } = await apiClient.get<PaginatedResponse<UserResponseDTO>>("/users", {
     params,
-    branchScope: "current",
   });
   return data;
 };
@@ -48,7 +47,6 @@ export const getUsers = async (params: GetUsersParams = {}): Promise<PaginatedRe
 export const searchUsers = async (params: GetUsersParams = {}): Promise<PaginatedResponse<UserSummary>> => {
   const { data } = await apiClient.get<PaginatedResponse<UserResponseDTO>>("/users", {
     params,
-    branchScope: "current",
   });
 
   return {
@@ -68,29 +66,21 @@ export const getRoles = async (): Promise<UserRole[]> => {
 };
 
 export const getUser = async (id: string): Promise<UserResponseDTO> => {
-  const { data } = await apiClient.get<{ success: boolean; data: UserResponseDTO }>(`/users/${id}`, {
-    branchScope: "current",
-  });
+  const { data } = await apiClient.get<{ success: boolean; data: UserResponseDTO }>(`/users/${id}`);
   return data.data;
 };
 
 export const createUser = async (payload: CreateUserPayload): Promise<UserResponseDTO> => {
-  const { data } = await apiClient.post<{ success: boolean; data: UserResponseDTO }>("/users", payload, {
-    branchScope: "current",
-  });
+  const { data } = await apiClient.post<{ success: boolean; data: UserResponseDTO }>("/users", payload);
   return data.data;
 };
 
 export const updateUser = async (id: string, payload: UpdateUserPayload): Promise<UserResponseDTO> => {
-  const { data } = await apiClient.patch<{ success: boolean; data: UserResponseDTO }>(`/users/${id}`, payload, {
-    branchScope: "current",
-  });
+  const { data } = await apiClient.patch<{ success: boolean; data: UserResponseDTO }>(`/users/${id}`, payload);
   return data.data;
 };
 
 export const updateUserStatus = async (id: string, status: UpdateUserStatus): Promise<UserResponseDTO> => {
-  const { data } = await apiClient.patch<{ success: boolean; data: UserResponseDTO }>(`/users/${id}/status`, { status }, {
-    branchScope: "current",
-  });
+  const { data } = await apiClient.patch<{ success: boolean; data: UserResponseDTO }>(`/users/${id}/status`, { status });
   return data.data;
 };

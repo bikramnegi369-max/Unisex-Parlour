@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { useUsers } from "../hooks/useUsers";
@@ -39,7 +38,6 @@ export default function UserList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { isAllBranchesSelected, currentBranch } = useBranchContext();
 
   const canView = hasPermission(user, USERS_CONFIG.permissions.view);
   const canCreate = hasPermission(user, USERS_CONFIG.permissions.create);
@@ -283,11 +281,7 @@ export default function UserList() {
           sort={sort}
           onSortChange={handleSortChange}
           onClearFilters={handleClearFilters}
-          activeScopeName={
-            isAllBranchesSelected
-              ? "All Branches (Consolidated)"
-              : currentBranch?.name || ""
-          }
+          activeScopeName="Organization-Wide"
           isRefetching={isRefetching}
         />
       </div>
@@ -321,11 +315,7 @@ export default function UserList() {
           <EmptyState
             icon={Sparkles}
             title="User Directory Empty"
-            description={
-              isAllBranchesSelected
-                ? "No user accounts have been created yet in the organization."
-                : `No user records belong to ${currentBranch?.name} yet.`
-            }
+            description="No user accounts have been created yet in the organization."
             action={
               canCreate
                 ? {

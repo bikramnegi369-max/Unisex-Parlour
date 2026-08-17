@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateUser } from "../api/users.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import type { UpdateUserPayload } from "../types/users.types";
 
 interface UpdateUserParams {
@@ -10,14 +10,13 @@ interface UpdateUserParams {
 
 export function useUpdateUser() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, payload }: UpdateUserParams) => updateUser(id, payload),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("users") });
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("users", null) });
       queryClient.invalidateQueries({
-        queryKey: getBranchQueryKey("user", [data.id]),
+        queryKey: getScopeQueryKey("user", null, [data.id]),
       });
     },
   });

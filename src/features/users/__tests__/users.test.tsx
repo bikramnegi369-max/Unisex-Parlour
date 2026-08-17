@@ -25,7 +25,7 @@ vi.mock("@/lib/api/axios", () => {
 });
 
 describe("User Module API Contract & Security Tests", () => {
-  it("verifies GET /users matches contract and uses current branch scope", async () => {
+  it("verifies GET /users matches organization-scope contract and does not pass branchScope header", async () => {
     const mockResponse = { data: { success: true, data: [] } };
     vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
 
@@ -33,23 +33,20 @@ describe("User Module API Contract & Security Tests", () => {
 
     expect(apiClient.get).toHaveBeenCalledWith("/users", {
       params: { page: 1, limit: 10 },
-      branchScope: "current",
     });
   });
 
-  it("verifies GET /users/:id matches contract and uses branch scope", async () => {
+  it("verifies GET /users/:id matches contract without branchScope header", async () => {
     const mockResponse = { data: { success: true, data: { id: "u1" } } };
     vi.mocked(apiClient.get).mockResolvedValueOnce(mockResponse);
 
     const user = await getUser("u1");
 
-    expect(apiClient.get).toHaveBeenCalledWith("/users/u1", {
-      branchScope: "current",
-    });
+    expect(apiClient.get).toHaveBeenCalledWith("/users/u1");
     expect(user.id).toBe("u1");
   });
 
-  it("verifies POST /users matches contract and excludes organizationId/status/password/etc.", async () => {
+  it("verifies POST /users matches organization-scope contract without branchScope header", async () => {
     const mockResponse = { data: { success: true, data: { id: "u2" } } };
     vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
 
@@ -63,13 +60,11 @@ describe("User Module API Contract & Security Tests", () => {
 
     const user = await createUser(payload);
 
-    expect(apiClient.post).toHaveBeenCalledWith("/users", payload, {
-      branchScope: "current",
-    });
+    expect(apiClient.post).toHaveBeenCalledWith("/users", payload);
     expect(user.id).toBe("u2");
   });
 
-  it("verifies PATCH /users/:id matches contract and excludes status", async () => {
+  it("verifies PATCH /users/:id matches contract without branchScope header", async () => {
     const mockResponse = { data: { success: true, data: { id: "u1" } } };
     vi.mocked(apiClient.patch).mockResolvedValueOnce(mockResponse);
 
@@ -82,36 +77,32 @@ describe("User Module API Contract & Security Tests", () => {
 
     await updateUser("u1", payload);
 
-    expect(apiClient.patch).toHaveBeenCalledWith("/users/u1", payload, {
-      branchScope: "current",
-    });
+    expect(apiClient.patch).toHaveBeenCalledWith("/users/u1", payload);
   });
 
-  it("verifies PATCH /users/:id/status allows admin status changes", async () => {
+  it("verifies PATCH /users/:id/status matches contract without branchScope header", async () => {
     const mockResponse = { data: { success: true, data: { id: "u1", status: "inactive" } } };
     vi.mocked(apiClient.patch).mockResolvedValueOnce(mockResponse);
 
     await updateUserStatus("u1", "inactive");
 
-    expect(apiClient.patch).toHaveBeenCalledWith("/users/u1/status", { status: "inactive" }, {
-      branchScope: "current",
-    });
+    expect(apiClient.patch).toHaveBeenCalledWith("/users/u1/status", { status: "inactive" });
   });
 });
 
 describe("User Module Cache and Scoping Keys", () => {
-  it("verifies user list and user details queries use canonical branch-aware keys", () => {
-    const listKeyBranchA = getScopeQueryKey("users", "br_A", [{ page: 1 }]);
-    const listKeyBranchB = getScopeQueryKey("users", "br_B", [{ page: 1 }]);
-    expect(listKeyBranchA).toEqual(["users", { scope: "branch", branchId: "br_A" }, { page: 1 }]);
-    expect(listKeyBranchB).toEqual(["users", { scope: "branch", branchId: "br_B" }, { page: 1 }]);
-    expect(listKeyBranchA).not.toEqual(listKeyBranchB);
+  it("verifies user list and user details queries use canonical organization-level keys", () => {
+    const listKeyBranchA = getScopeQueryKey("users", null, [{ page: 1 }]);
+    const listKeyBranchB = getScopeQueryKey("users", null, [{ page: 1 }]);
+    expect(listKeyBranchA).toEqual(["users", { scope: "organization" }, { page: 1 }]);
+    expect(listKeyBranchB).toEqual(["users", { scope: "organization" }, { page: 1 }]);
+    expect(listKeyBranchA).toEqual(listKeyBranchB);
 
-    const detailKeyBranchA = getScopeQueryKey("user", "br_A", ["u1"]);
-    const detailKeyBranchB = getScopeQueryKey("user", "br_B", ["u1"]);
-    expect(detailKeyBranchA).toEqual(["user", { scope: "branch", branchId: "br_A" }, "u1"]);
-    expect(detailKeyBranchB).toEqual(["user", { scope: "branch", branchId: "br_B" }, "u1"]);
-    expect(detailKeyBranchA).not.toEqual(detailKeyBranchB);
+    const detailKeyBranchA = getScopeQueryKey("user", null, ["u1"]);
+    const detailKeyBranchB = getScopeQueryKey("user", null, ["u1"]);
+    expect(detailKeyBranchA).toEqual(["user", { scope: "organization" }, "u1"]);
+    expect(detailKeyBranchB).toEqual(["user", { scope: "organization" }, "u1"]);
+    expect(detailKeyBranchA).toEqual(detailKeyBranchB);
   });
 });
 
