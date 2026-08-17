@@ -13,6 +13,7 @@ import {
   setPasswordChangeToken,
   clearAllActivationTokens,
 } from "@/features/auth/utils/activation-storage";
+import { verifyOtpSchema } from "@/features/auth/schemas/auth.schema";
 
 export default function OtpPage() {
   const { sendOtp, isSendingOtp, verifyOtp, isVerifyingOtp } = useAuth();
@@ -80,7 +81,18 @@ export default function OtpPage() {
 
   const handleVerify = async (codeToVerify?: string) => {
     const targetOtp = codeToVerify || otp;
-    if (!activationToken || targetOtp.length !== 6) return;
+    if (!activationToken) return;
+
+    const parseResult = verifyOtpSchema.safeParse({
+      otp: targetOtp,
+      activationToken,
+    });
+
+    if (!parseResult.success) {
+      const issue = parseResult.error.issues[0];
+      setErrorMsg(issue ? issue.message : "Invalid verification code.");
+      return;
+    }
 
     setErrorMsg(null);
     setInfoMsg(null);

@@ -1,7 +1,6 @@
 import { apiClient } from "@/lib/api/axios";
 import type {
   Role,
-  PermissionItem,
   CreateRolePayload,
   UpdateRolePermissionsPayload,
   GetPermissionsParams,
@@ -12,15 +11,38 @@ import type {
   PermissionModulesResponse,
 } from "../types/roles.types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapRoleKeys = (role: any): Role => ({
+interface RawPermissionObject {
+  key?: string;
+  name?: string;
+}
+
+interface RawRoleDTO {
+  id?: string;
+  _id?: string;
+  name?: string;
+  description?: string;
+  isSystem?: boolean;
+  permissions?: Array<string | RawPermissionObject>;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface RawPermissionDTO {
+  id?: string;
+  _id?: string;
+  key?: string;
+  name?: string;
+  module?: string;
+  description?: string;
+}
+
+const mapRoleKeys = (role: RawRoleDTO | null | undefined): Role => ({
   id: String(role?.id || role?._id || role?.name || ""),
   name: String(role?.name || ""),
   description: role?.description ? String(role.description) : undefined,
   isSystem: Boolean(role?.isSystem),
   permissions: Array.isArray(role?.permissions)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? role.permissions.map((p: any) => (typeof p === "string" ? p : p.key || p.name || ""))
+    ? role.permissions.map((p) => (typeof p === "string" ? p : p.key || p.name || ""))
     : [],
   createdAt: role?.createdAt ? String(role.createdAt) : undefined,
   updatedAt: role?.updatedAt ? String(role.updatedAt) : undefined,
@@ -74,14 +96,23 @@ export const getPermissions = async (
 
   const rawData = data?.data;
   const mappedData = Array.isArray(rawData)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ? rawData.map((item: any) => ({
-        id: item.id || item._id,
-        key: item.key || item.name || item,
-        name: item.name || item.key || item,
-        module: item.module || (typeof item.key === "string" ? item.key.split(".")[0] : "General"),
-        description: item.description,
-      }))
+    ? rawData.map((item: RawPermissionDTO | string) => {
+        if (typeof item === "string") {
+          return {
+            id: item,
+            key: item,
+            name: item,
+            module: item.split(".")[0] || "General",
+          };
+        }
+        return {
+          id: item.id || item._id || "",
+          key: item.key || item.name || "",
+          name: item.name || item.key || "",
+          module: item.module || (typeof item.key === "string" ? item.key.split(".")[0] : "General"),
+          description: item.description,
+        };
+      })
     : [];
 
   const meta = data?.meta || {

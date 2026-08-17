@@ -31,9 +31,13 @@ export interface GetCustomerActivityParams {
   limit?: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapCustomerKeys = (c: any): Customer => ({
-  ...c,
+export interface RawCustomerDTO extends Partial<Customer> {
+  _id?: string;
+  id?: string;
+}
+
+const mapCustomerKeys = (c: RawCustomerDTO): Customer => ({
+  ...(c as Customer),
   id: c._id || c.id || "",
 });
 

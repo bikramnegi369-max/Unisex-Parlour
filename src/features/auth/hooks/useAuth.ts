@@ -1,12 +1,9 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/axios";
 import { UserSession } from "@/lib/permissions";
-import { setToken, removeToken, getToken } from "@/lib/auth/token";
-import { refreshAccessToken } from "@/lib/auth/refresh";
+import { setToken, removeToken } from "@/lib/auth/token";
 import { useRouter } from "next/navigation";
-import axios from "axios";
 import { useState, useEffect } from "react";
 import {
   LoginResponseData,
@@ -18,18 +15,17 @@ import {
   setActivationToken,
   clearAllActivationTokens,
 } from "@/features/auth/utils/activation-storage";
+import {
+  AuthApiError,
+  getAuthMe,
+  loginApi,
+  sendOtpApi,
+  verifyOtpApi,
+  activateChangePasswordApi,
+  logoutApi,
+} from "../api/auth.api";
 
-export class AuthApiError extends Error {
-  readonly status: number;
-  readonly code?: string;
-
-  constructor(message: string, status: number, code?: string) {
-    super(message);
-    this.name = "AuthApiError";
-    this.status = status;
-    this.code = code;
-  }
-}
+export { AuthApiError };
 
 export function useAuth() {
   const queryClient = useQueryClient();
@@ -39,30 +35,7 @@ export function useAuth() {
   // Active User session query
   const { data: user, isLoading: isQueryLoading, isError } = useQuery<UserSession | null>({
     queryKey: ["auth-user"],
-    queryFn: async () => {
-      let token = getToken();
-      if (!token) {
-        // Silent bootstrap check via refresh token HTTP-only cookie
-        try {
-          token = await refreshAccessToken();
-        } catch {
-          return null;
-        }
-      }
-      if (!token) {
-        return null;
-      }
-      try {
-        const { data } = await apiClient.get("/auth/me");
-        return data.data || data;
-      } catch (err) {
-        const errorMessage =
-          axios.isAxiosError(err) && err.response?.data?.message
-            ? err.response.data.message
-            : "Failed to fetch user session";
-        throw new Error(errorMessage);
-      }
-    },
+    queryFn: getAuthMe,
     retry: false,
     staleTime: 5 * 60 * 1000,
   });
@@ -75,18 +48,8 @@ export function useAuth() {
 
   // Login mutation
   const loginMutation = useMutation({
-    mutationFn: async (credentials: Record<string, string>): Promise<LoginResponseData> => {
-      try {
-        const { data } = await apiClient.post("/auth/login", credentials);
-        return data.data || data;
-      } catch (err) {
-        const errorMessage =
-          axios.isAxiosError(err) && err.response?.data?.message
-            ? err.response.data.message
-            : "Invalid email or password. Please try again.";
-        throw new Error(errorMessage);
-      }
-    },
+    mutationFn: (credentials: Record<string, string>): Promise<LoginResponseData> =>
+      loginApi(credentials),
     onSuccess: (data) => {
       if (data.requireActivation) {
         setActivationToken(data.activationToken);
@@ -105,134 +68,32 @@ export function useAuth() {
 
   // Send OTP Mutation
   const sendOtpMutation = useMutation({
-    mutationFn: async (activationToken: string): Promise<ActivationOtpSendData> => {
-      try {
-        const { data } = await apiClient.post(
-          "/auth/activate/otp/send",
-          {},
-          {
-            authContext: "activation",
-            headers: {
-              Authorization: `Bearer ${activationToken}`,
-            },
-          }
-        );
-        return data.data || data;
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          const status = err.response?.status || 500;
-          if (status === 401) {
-            throw new AuthApiError(
-              "Your activation session has expired. Please sign in again.",
-              401
-            );
-          }
-          if (status === 429) {
-            throw new AuthApiError(
-              err.response?.data?.message || "Please wait before requesting another code.",
-              429
-            );
-          }
-          if (err.response?.data?.message) {
-            throw new AuthApiError(err.response.data.message, status);
-          }
-          throw new AuthApiError("Failed to send verification code. Please try again.", status);
-        }
-        throw new AuthApiError("Failed to send verification code. Please try again.", 500);
-      }
-    },
+    mutationFn: (activationToken: string): Promise<ActivationOtpSendData> =>
+      sendOtpApi(activationToken),
   });
 
   // Verify OTP Mutation
   const verifyOtpMutation = useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       activationToken,
       otp,
     }: {
       activationToken: string;
       otp: string;
-    }): Promise<ActivationOtpVerifyData> => {
-      try {
-        const { data } = await apiClient.post(
-          "/auth/activate/otp/verify",
-          { otp },
-          {
-            authContext: "activation",
-            headers: {
-              Authorization: `Bearer ${activationToken}`,
-            },
-          }
-        );
-        return data.data || data;
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          const status = err.response?.status || 500;
-          if (status === 400) {
-            throw new AuthApiError(
-              err.response?.data?.message || "That verification code is incorrect or has expired.",
-              400
-            );
-          }
-          if (status === 401) {
-            throw new AuthApiError(
-              "Your activation session has expired. Please sign in again.",
-              401
-            );
-          }
-          if (status === 429) {
-            throw new AuthApiError(
-              err.response?.data?.message || "Too many incorrect attempts. Please request a new code.",
-              429
-            );
-          }
-          if (err.response?.data?.message) {
-            throw new AuthApiError(err.response.data.message, status);
-          }
-          throw new AuthApiError("OTP verification failed.", status);
-        }
-        throw new AuthApiError("OTP verification failed.", 500);
-      }
-    },
+    }): Promise<ActivationOtpVerifyData> =>
+      verifyOtpApi({ activationToken, otp }),
   });
 
   // Change Password & Activate Mutation
   const activateChangePasswordMutation = useMutation({
-    mutationFn: async ({
+    mutationFn: ({
       passwordChangeToken,
       password,
     }: {
       passwordChangeToken: string;
       password: string;
-    }): Promise<ActivationPasswordData> => {
-      try {
-        const { data } = await apiClient.post(
-          "/auth/activate/change-password",
-          { password },
-          {
-            authContext: "password-change",
-            headers: {
-              Authorization: `Bearer ${passwordChangeToken}`,
-            },
-          }
-        );
-        return data.data || data;
-      } catch (err) {
-        if (axios.isAxiosError(err)) {
-          const status = err.response?.status || 500;
-          if (status === 401) {
-            throw new AuthApiError(
-              "Your password setup session has expired. Please start again.",
-              401
-            );
-          }
-          if (err.response?.data?.message) {
-            throw new AuthApiError(err.response.data.message, status);
-          }
-          throw new AuthApiError("Password activation failed.", status);
-        }
-        throw new AuthApiError("Password activation failed.", 500);
-      }
-    },
+    }): Promise<ActivationPasswordData> =>
+      activateChangePasswordApi({ passwordChangeToken, password }),
     onSuccess: (data) => {
       const accessToken = data.accessToken;
       if (accessToken) {
@@ -245,13 +106,7 @@ export function useAuth() {
 
   // Logout mutation
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      try {
-        await apiClient.post("/auth/logout");
-      } catch {
-        // Silent catch if API is unreachable
-      }
-    },
+    mutationFn: logoutApi,
     onSuccess: () => {
       removeToken();
       clearAllActivationTokens();

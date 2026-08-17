@@ -23,6 +23,7 @@ import { UserListHeader } from "./UserListHeader";
 import { UserSearch } from "./UserSearch";
 import { UserFilters } from "./UserFilters";
 import { USERS_CONFIG } from "../config/users.config";
+import { getErrorMessage } from "@/lib/api/errors";
 import type {
   UserResponseDTO,
   UpdateUserStatus,
@@ -225,50 +226,6 @@ export default function UserList() {
     );
   };
 
-  const getFriendlyErrorMessage = (err: unknown) => {
-    if (!err) {
-      return "An unexpected error occurred while retrieving user records.";
-    }
-
-    const errObj = err as Record<string, unknown> | null;
-    const responseObj = errObj?.response as Record<string, unknown> | null;
-    const status =
-      (responseObj?.status as number | undefined) ||
-      (errObj?.status as number | undefined);
-    const message =
-      ((responseObj?.data as Record<string, unknown> | null)?.message as
-        | string
-        | undefined) ||
-      (errObj?.message as string | undefined) ||
-      "";
-
-    if (status === 401) {
-      return "Your session has expired. Please log in again to continue.";
-    }
-    if (status === 403) {
-      return "You do not have the required permissions to view user records in this scope.";
-    }
-    if (status === 404) {
-      return "The requested directory resource could not be found.";
-    }
-    if (
-      (status !== undefined && status >= 500) ||
-      message.includes("500") ||
-      message.toLowerCase().includes("request failed")
-    ) {
-      return "We are experiencing temporary server difficulties. Please try again in a few moments.";
-    }
-    if (
-      message.toLowerCase().includes("network error") ||
-      (typeof navigator !== "undefined" && !navigator.onLine)
-    ) {
-      return "Connection failed. Please check your network connection and try again.";
-    }
-    return (
-      message || "An unexpected error occurred while retrieving user records."
-    );
-  };
-
   if (!canView) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3">
@@ -286,7 +243,10 @@ export default function UserList() {
     return (
       <ErrorState
         title="Service Unavailable"
-        description={getFriendlyErrorMessage(error)}
+        description={getErrorMessage(
+          error,
+          "An unexpected error occurred while retrieving user records."
+        )}
         retryAction={{
           label: "Try Reconnecting",
           onClick: () => refetch(),

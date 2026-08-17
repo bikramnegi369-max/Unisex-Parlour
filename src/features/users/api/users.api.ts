@@ -10,7 +10,25 @@ import type {
   UserSummary,
 } from "../types/users.types";
 
-const mapUserKeys = (user: Partial<UserResponseDTO> & Partial<UserSummary> & { _id?: string }): UserSummary => ({
+interface RawUserSummaryItem {
+  id?: string;
+  _id?: string;
+  name?: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  status?: UserSummary["status"];
+  role?: unknown;
+}
+
+interface RawRoleItem {
+  id?: string;
+  _id?: string;
+  name?: string;
+  description?: string;
+}
+
+const mapUserKeys = (user: RawUserSummaryItem): UserSummary => ({
   id: user.id || user._id || "",
   name: user.name || "",
   username: user.username,
@@ -35,14 +53,14 @@ export const searchUsers = async (params: GetUsersParams = {}): Promise<Paginate
 
   return {
     ...data,
-    data: (data.data || []).map((user) => mapUserKeys(user as Partial<UserResponseDTO> & Partial<UserSummary>)),
+    data: (data.data || []).map((user) => mapUserKeys(user)),
   };
 };
 
 export const getRoles = async (): Promise<UserRole[]> => {
-  const { data } = await apiClient.get<{ success: boolean; data: any[] }>("/rbac/roles");
+  const { data } = await apiClient.get<{ success: boolean; data: RawRoleItem[] }>("/rbac/roles");
   const rawRoles = Array.isArray(data?.data) ? data.data : [];
-  return rawRoles.map((r: any) => ({
+  return rawRoles.map((r: RawRoleItem) => ({
     id: String(r.id || r._id || r.name || ""),
     name: String(r.name || ""),
     description: String(r.description || ""),

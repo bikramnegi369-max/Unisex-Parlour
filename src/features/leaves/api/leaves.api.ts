@@ -10,10 +10,15 @@ import type {
   LeaveMutateResponse,
 } from "../types/leaves.types";
 
-const mapLeaveKeys = (leave: Omit<Leave, "id"> & { _id?: string; id?: string }): Leave => ({
-  ...leave,
+export interface RawLeaveDTO extends Partial<Leave> {
+  _id?: string;
+  id?: string;
+}
+
+const mapLeaveKeys = (leave: RawLeaveDTO): Leave => ({
+  ...(leave as Leave),
   id: leave._id || leave.id || "",
-} as Leave);
+});
 
 export const getLeaves = async (params: LeaveListQuery = {}): Promise<PaginatedResponse<Leave>> => {
   const { data } = await apiClient.get<LeaveListResponse>("/leaves", {

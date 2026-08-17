@@ -3,16 +3,21 @@ import type { ApiResponse, PaginatedResponse } from "@/types/api.types";
 import type { ServiceCategory, ServiceCategoryPayload } from "../types/category.types";
 import type { ServiceCategoryFilters } from "../types/filters.types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapIdKey = <T>(item: any): T => {
-  if (!item) return item;
+export interface RawServiceCategoryDTO extends Partial<ServiceCategory> {
+  _id?: string;
+  id?: string;
+  status?: string;
+}
+
+const mapIdKey = (item: RawServiceCategoryDTO | null | undefined): ServiceCategory => {
+  if (!item) return item as unknown as ServiceCategory;
   return {
-    ...item,
+    ...(item as ServiceCategory),
     id: item._id || item.id || "",
     isActive: typeof item.isActive === "boolean" 
       ? item.isActive 
       : item.status === "active" || item.status === undefined,
-  } as T;
+  };
 };
 
 export const getServiceCategories = async (params: ServiceCategoryFilters = {}): Promise<PaginatedResponse<ServiceCategory>> => {
@@ -22,7 +27,7 @@ export const getServiceCategories = async (params: ServiceCategoryFilters = {}):
   });
   return {
     ...data,
-    data: (data.data || []).map((c) => mapIdKey<ServiceCategory>(c)),
+    data: (data.data || []).map((c) => mapIdKey(c)),
   };
 };
 

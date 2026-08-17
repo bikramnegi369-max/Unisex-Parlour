@@ -22,9 +22,13 @@ export interface GetEmployeesParams {
   branchId?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapEmployeeKeys = (emp: any): Employee => ({
-  ...emp,
+export interface RawEmployeeDTO extends Partial<Employee> {
+  _id?: string;
+  id?: string;
+}
+
+const mapEmployeeKeys = (emp: RawEmployeeDTO): Employee => ({
+  ...(emp as Employee),
   id: emp._id || emp.id || "",
 });
 

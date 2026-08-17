@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
 import { Lock, AlertCircle, Eye, EyeOff, CheckCircle2, Check, X } from "lucide-react";
 import { useAuth, AuthApiError } from "@/features/auth/hooks/useAuth";
 import { useRouter } from "next/navigation";
@@ -14,27 +13,12 @@ import {
   getPasswordChangeToken,
   clearAllActivationTokens,
 } from "@/features/auth/utils/activation-storage";
+import {
+  passwordSchema,
+  type PasswordFormValues,
+} from "@/features/auth/schemas/auth.schema";
 
-export const passwordSchema = z
-  .object({
-    password: z
-      .string()
-      .min(8, "Password must be at least 8 characters")
-      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-      .regex(/[0-9]/, "Password must contain at least one number")
-      .regex(
-        /[^a-zA-Z0-9]/,
-        "Password must contain at least one special character"
-      ),
-    confirmPassword: z.string().min(1, "Please confirm your password"),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
-
-export type PasswordFormValues = z.infer<typeof passwordSchema>;
+export { passwordSchema, type PasswordFormValues };
 
 export default function PasswordPage() {
   const { activateChangePassword, isActivatingChangePassword } = useAuth();

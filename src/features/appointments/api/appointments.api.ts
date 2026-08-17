@@ -9,9 +9,6 @@ import type {
   AssignStaffPayload,
   UpdateAppointmentStatusPayload,
   TriggerReminderPayload,
-  AppointmentListResponse,
-  AppointmentDetailsResponse,
-  AppointmentMutateResponse,
   AppointmentServiceSnapshot,
   AppointmentReminder,
   AppointmentPricing,
@@ -47,8 +44,7 @@ const toFlatId = (val: unknown): string => {
   return String(val);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const normalizeAppointment = (raw: Record<string, any>): Appointment => {
+export const normalizeAppointment = (raw: Record<string, unknown>): Appointment => {
   // 1. ID normalization (_id → id)
   const id: string = toFlatId(raw._id || raw.id);
 
@@ -166,7 +162,7 @@ export const normalizeAppointment = (raw: Record<string, any>): Appointment => {
 export const getAppointments = async (
   params: AppointmentListQuery = {}
 ): Promise<PaginatedResponse<Appointment>> => {
-  const { data } = await apiClient.get<AppointmentListResponse>("/appointments", {
+  const { data } = await apiClient.get<PaginatedResponse<Record<string, unknown>>>("/appointments", {
     params,
     branchScope: "current",
   });
@@ -178,7 +174,7 @@ export const getAppointments = async (
 };
 
 export const getAppointment = async (id: string): Promise<Appointment> => {
-  const { data } = await apiClient.get<AppointmentDetailsResponse>(`/appointments/${id}`, {
+  const { data } = await apiClient.get<{ success: boolean; data: Record<string, unknown> }>(`/appointments/${id}`, {
     branchScope: "current",
   });
   return normalizeAppointment(data.data);
@@ -187,7 +183,7 @@ export const getAppointment = async (id: string): Promise<Appointment> => {
 export const createAppointment = async (
   payload: CreateAppointmentPayload
 ): Promise<Appointment> => {
-  const { data } = await apiClient.post<AppointmentMutateResponse>(
+  const { data } = await apiClient.post<{ success: boolean; data: Record<string, unknown> }>(
     "/appointments",
     payload,
     {
@@ -201,7 +197,7 @@ export const updateAppointmentMetadata = async (
   id: string,
   payload: UpdateAppointmentPayload
 ): Promise<Appointment> => {
-  const { data } = await apiClient.patch<AppointmentMutateResponse>(
+  const { data } = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(
     `/appointments/${id}`,
     payload,
     {
@@ -215,7 +211,7 @@ export const rescheduleAppointment = async (
   id: string,
   payload: RescheduleAppointmentPayload
 ): Promise<Appointment> => {
-  const { data } = await apiClient.patch<AppointmentMutateResponse>(
+  const { data } = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(
     `/appointments/${id}/reschedule`,
     payload,
     {
@@ -229,7 +225,7 @@ export const assignAppointmentStaff = async (
   id: string,
   payload: AssignStaffPayload
 ): Promise<Appointment> => {
-  const { data } = await apiClient.patch<AppointmentMutateResponse>(
+  const { data } = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(
     `/appointments/${id}/assign-staff`,
     payload,
     {
@@ -243,7 +239,7 @@ export const updateAppointmentStatus = async (
   id: string,
   payload: UpdateAppointmentStatusPayload
 ): Promise<Appointment> => {
-  const { data } = await apiClient.patch<AppointmentMutateResponse>(
+  const { data } = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(
     `/appointments/${id}/status`,
     payload,
     {
@@ -273,7 +269,7 @@ export const triggerAppointmentReminder = async (
   if (!payload.branchId || payload.branchId === "all") {
     throw new Error("Target branch ID is required for reminder trigger and cannot be 'all'.");
   }
-  const { data } = await apiClient.post<AppointmentMutateResponse>(
+  const { data } = await apiClient.post<{ success: boolean; data: Record<string, unknown> }>(
     `/appointments/${id}/reminder/trigger`,
     payload,
     {

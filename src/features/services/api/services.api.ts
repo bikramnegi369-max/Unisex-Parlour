@@ -3,11 +3,21 @@ import type { ApiResponse, PaginatedResponse } from "@/types/api.types";
 import type { Service, ServicePayload } from "../types/service.types";
 import type { ServiceFilters } from "../types/filters.types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapIdKey = <T>(item: any): T => {
-  if (!item) return item;
+export interface RawServiceDTO extends Partial<Service> {
+  _id?: string;
+  id?: string;
+  status?: string;
+  serviceCode?: string;
+  taxConfiguration?: {
+    taxable?: boolean;
+    taxRate?: number;
+  };
+}
+
+const mapIdKey = (item: RawServiceDTO | null | undefined): Service => {
+  if (!item) return item as unknown as Service;
   return {
-    ...item,
+    ...(item as Service),
     id: item._id || item.id || "",
     isActive: typeof item.isActive === "boolean" 
       ? item.isActive 
@@ -19,7 +29,7 @@ const mapIdKey = <T>(item: any): T => {
     taxRate: typeof item.taxRate === "number"
       ? item.taxRate
       : item.taxConfiguration?.taxRate ?? 0,
-  } as T;
+  };
 };
 
 export const getServices = async (params: ServiceFilters = {}): Promise<PaginatedResponse<Service>> => {
@@ -29,7 +39,7 @@ export const getServices = async (params: ServiceFilters = {}): Promise<Paginate
   });
   return {
     ...data,
-    data: (data.data || []).map((s) => mapIdKey<Service>(s)),
+    data: (data.data || []).map((s) => mapIdKey(s)),
   };
 };
 
