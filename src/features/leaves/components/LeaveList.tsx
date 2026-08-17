@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
+import { getErrorMessage } from "@/lib/api/errors";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -172,8 +173,7 @@ export default function LeaveList() {
         setIsCreateOpen(false);
       },
       onError: (err: unknown) => {
-        const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to submit leave request.";
-        toast.error(msg);
+        toast.error(getErrorMessage(err, "Failed to submit leave request."));
       },
     });
   };
@@ -189,8 +189,7 @@ export default function LeaveList() {
           setActiveLeave(null);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to update leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to update leave request."));
         },
       }
     );
@@ -208,8 +207,7 @@ export default function LeaveList() {
           setActionLeave(null);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to approve leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to approve leave request."));
         },
       }
     );
@@ -226,8 +224,7 @@ export default function LeaveList() {
           setActionLeave(null);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to reject leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to reject leave request."));
         },
       }
     );
@@ -244,8 +241,7 @@ export default function LeaveList() {
           setActionLeave(null);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to cancel leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to cancel leave request."));
         },
       }
     );

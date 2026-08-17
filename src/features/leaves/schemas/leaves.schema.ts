@@ -2,6 +2,14 @@ import { z } from "zod";
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
+const getTodayStr = (): string => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export const createLeaveSchema = z
   .object({
     staffId: z.string().optional().or(z.literal("")),
@@ -12,8 +20,7 @@ export const createLeaveSchema = z
   })
   .refine(
     (data) => {
-      const todayStr = new Date().toISOString().split("T")[0];
-      return data.startDate >= todayStr;
+      return data.startDate >= getTodayStr();
     },
     {
       message: "Start date cannot be in the past",
@@ -31,9 +38,10 @@ export const createLeaveSchema = z
   )
   .refine(
     (data) => {
-      const start = new Date(data.startDate);
-      const end = new Date(data.endDate);
-      const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      const start = new Date(data.startDate + "T00:00:00");
+      const end = new Date(data.endDate + "T00:00:00");
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+      const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       return diff <= 365;
     },
     {
@@ -53,9 +61,8 @@ export const updateLeaveSchema = z
   })
   .refine(
     (data) => {
-      const todayStr = new Date().toISOString().split("T")[0];
       if (data.startDate) {
-        return data.startDate >= todayStr;
+        return data.startDate >= getTodayStr();
       }
       return true;
     },
@@ -79,9 +86,10 @@ export const updateLeaveSchema = z
   .refine(
     (data) => {
       if (data.startDate && data.endDate) {
-        const start = new Date(data.startDate);
-        const end = new Date(data.endDate);
-        const diff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const start = new Date(data.startDate + "T00:00:00");
+        const end = new Date(data.endDate + "T00:00:00");
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return false;
+        const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         return diff <= 365;
       }
       return true;
@@ -105,3 +113,4 @@ export const rejectLeaveSchema = z.object({
 export const cancelLeaveSchema = z.object({
   cancelReason: z.string().trim().min(1, "Cancellation reason is required"),
 });
+

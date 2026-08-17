@@ -12,6 +12,7 @@ import {
   useCancelLeave,
 } from "../hooks/useLeaves";
 import { formatDate, formatDateTime } from "@/lib/formatters";
+import { getErrorMessage } from "@/lib/api/errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,8 +88,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
           setIsEditOpen(false);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to update leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to update leave request."));
         },
       }
     );
@@ -103,8 +103,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
           setIsApproveOpen(false);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to approve leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to approve leave request."));
         },
       }
     );
@@ -119,8 +118,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
           setIsRejectOpen(false);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to reject leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to reject leave request."));
         },
       }
     );
@@ -135,8 +133,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
           setIsCancelOpen(false);
         },
         onError: (err: unknown) => {
-          const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message || "Failed to cancel leave request.";
-          toast.error(msg);
+          toast.error(getErrorMessage(err, "Failed to cancel leave request."));
         },
       }
     );
@@ -162,8 +159,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
 
   const isPending = leave.status === "pending";
   const isApproved = leave.status === "approved";
-  const staffName =
-    typeof leave.staffId === "object" ? leave.staffId.name : "Self Service";
+  const staffName = leave.name || "Self Service";
 
   return (
     <div className="space-y-6 text-left max-w-4xl mx-auto">
@@ -286,7 +282,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
                           <User size={12} />
                           Reviewed by:{" "}
                           <span className="font-medium text-foreground">
-                            {typeof leave.reviewedBy === "object" ? leave.reviewedBy.name : leave.reviewedBy}
+                            {leave.reviewedBy}
                           </span>
                         </div>
                       )}
@@ -324,7 +320,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
                           <User size={12} />
                           Cancelled by:{" "}
                           <span className="font-medium text-foreground">
-                            {typeof leave.cancelledBy === "object" ? leave.cancelledBy.name : leave.cancelledBy}
+                            {leave.cancelledBy}
                           </span>
                         </div>
                       )}
@@ -362,14 +358,14 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
               <div className="space-y-1">
                 <span className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Submitted For</span>
                 <span className="font-semibold text-foreground">
-                  {typeof leave.submittedFor === "object" ? leave.submittedFor.name : leave.submittedFor}
+                  {leave.submittedFor}
                 </span>
               </div>
               <hr className="border-border/40" />
               <div className="space-y-1">
                 <span className="block text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Submitted By</span>
                 <span className="font-semibold text-foreground">
-                  {typeof leave.submittedBy === "object" ? leave.submittedBy.name : leave.submittedBy}
+                  {leave.submittedBy}
                 </span>
               </div>
               <hr className="border-border/40" />

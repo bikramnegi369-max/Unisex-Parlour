@@ -57,10 +57,7 @@ export default function LeaveTable({
         header: "Staff Member",
         cell: (info) => {
           const leave = info.row.original;
-          const staffName =
-            typeof leave.staffId === "object"
-              ? leave.staffId.name
-              : "Self Service";
+          const staffName = leave.name || "Self Service";
           return <span className="font-semibold text-foreground">{staffName}</span>;
         },
       },
@@ -180,8 +177,7 @@ export default function LeaveTable({
   const renderMobileRow = (leave: Leave) => {
     const isPending = leave.status === "pending";
     const isApproved = leave.status === "approved";
-    const staffName =
-      typeof leave.staffId === "object" ? leave.staffId.name : "Self Service";
+    const staffName = leave.name || "Self Service";
 
     return (
       <div key={leave.id} className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm text-left">

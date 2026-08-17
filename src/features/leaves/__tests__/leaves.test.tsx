@@ -139,6 +139,21 @@ describe("Leaves Feature Module", () => {
       }
     });
 
+    it("rejects invalid date format strings", () => {
+      const invalidPayload = {
+        leaveType: "Casual Leave",
+        startDate: "2026/09/01",
+        endDate: "2026-09-05",
+        reason: "Personal work",
+      };
+
+      const result = createLeaveSchema.safeParse(invalidPayload);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toBe("Start date must be in YYYY-MM-DD format");
+      }
+    });
+
     it("rejects leave duration exceeding 365 days", () => {
       const invalidPayload = {
         leaveType: "Extended Sabbatical",
@@ -175,15 +190,25 @@ describe("Leaves Feature Module", () => {
   // 2. API Layer Tests
   // ---------------------------------------------------------------------------
   describe("Leaves API Layer", () => {
-    it("getLeaves fetches paginated list and normalizes _id to id", async () => {
+    it("getLeaves fetches paginated list and normalizes flat backend DTO", async () => {
       const mockApiResponse = {
         data: {
           data: [
             {
-              _id: "leave-101",
+              id: "leave-101",
+              branchId: "branch-101",
+              staffId: "staff-202",
+              name: "John Doe",
               leaveCode: "LV-0001",
               leaveType: "Casual Leave",
+              startDate: "2026-09-01",
+              endDate: "2026-09-05",
+              reason: "Vacation",
               status: "pending",
+              submittedBy: "Manager User",
+              submittedFor: "John Doe",
+              createdAt: "2026-08-01T10:00:00Z",
+              updatedAt: "2026-08-01T10:00:00Z",
             },
           ],
           meta: { page: 1, limit: 10, total: 1, totalPages: 1 },
@@ -198,15 +223,18 @@ describe("Leaves Feature Module", () => {
         branchScope: "current",
       });
       expect(result.data[0].id).toBe("leave-101");
-      expect(result.data[0].leaveCode).toBe("LV-0001");
+      expect(result.data[0].name).toBe("John Doe");
+      expect(result.data[0].submittedBy).toBe("Manager User");
+      expect(result.data[0].submittedFor).toBe("John Doe");
     });
 
     it("getLeave fetches single leave detail by ID", async () => {
       const mockApiResponse = {
         data: {
           data: {
-            _id: "leave-101",
+            id: "leave-101",
             leaveCode: "LV-0001",
+            name: "John Doe",
             status: "approved",
           },
         },
@@ -219,9 +247,10 @@ describe("Leaves Feature Module", () => {
         branchScope: "current",
       });
       expect(result.id).toBe("leave-101");
+      expect(result.name).toBe("John Doe");
     });
 
-    it("createLeave posts payload to /leaves with branchScope", async () => {
+    it("createLeave handles self-service request without staffId", async () => {
       const payload = {
         leaveType: "Sick Leave",
         startDate: "2026-09-01",
@@ -232,8 +261,9 @@ describe("Leaves Feature Module", () => {
       const mockApiResponse = {
         data: {
           data: {
-            _id: "leave-102",
+            id: "leave-102",
             ...payload,
+            submittedFor: "self",
             status: "pending",
           },
         },
@@ -246,6 +276,39 @@ describe("Leaves Feature Module", () => {
         branchScope: "current",
       });
       expect(result.id).toBe("leave-102");
+      expect(result.submittedFor).toBe("self");
+    });
+
+    it("createLeave handles on-behalf request with explicit staffId", async () => {
+      const payload = {
+        staffId: "staff-555",
+        leaveType: "Casual Leave",
+        startDate: "2026-09-10",
+        endDate: "2026-09-12",
+        reason: "Family emergency",
+      };
+
+      const mockApiResponse = {
+        data: {
+          data: {
+            id: "leave-103",
+            ...payload,
+            name: "Jane Smith",
+            submittedFor: "Jane Smith",
+            status: "pending",
+          },
+        },
+      };
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce(mockApiResponse);
+
+      const result = await createLeave(payload);
+      expect(apiClient.post).toHaveBeenCalledWith("/leaves", payload, {
+        branchScope: "current",
+      });
+      expect(result.id).toBe("leave-103");
+      expect(result.staffId).toBe("staff-555");
+      expect(result.name).toBe("Jane Smith");
     });
 
     it("updateLeave puts payload to /leaves/:id with branchScope", async () => {

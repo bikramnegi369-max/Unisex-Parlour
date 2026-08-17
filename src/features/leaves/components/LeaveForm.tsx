@@ -46,19 +46,22 @@ export default function LeaveForm({
 
   const defaultValues = useMemo(() => {
     if (!initialLeave) {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const todayStr = `${year}-${month}-${day}`;
       return {
         staffId: "",
         leaveType: "",
-        startDate: new Date().toISOString().split("T")[0],
-        endDate: new Date().toISOString().split("T")[0],
+        startDate: todayStr,
+        endDate: todayStr,
         reason: "",
       };
     }
 
     return {
-      staffId: typeof initialLeave.staffId === "string" 
-        ? initialLeave.staffId 
-        : initialLeave.staffId?._id || "",
+      staffId: initialLeave.staffId || "",
       leaveType: initialLeave.leaveType || "",
       startDate: initialLeave.startDate || "",
       endDate: initialLeave.endDate || "",
@@ -150,7 +153,7 @@ export default function LeaveForm({
               Staff Member
             </label>
             <div className="p-3 bg-muted/30 border border-border rounded-lg text-sm text-foreground font-medium">
-              {typeof initialLeave.staffId === "object" ? initialLeave.staffId.name : initialLeave.staffId}
+              {initialLeave.name || "Self Service"}
             </div>
           </div>
         )}

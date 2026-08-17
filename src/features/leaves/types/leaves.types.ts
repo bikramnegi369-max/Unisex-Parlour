@@ -1,34 +1,24 @@
 export type LeaveStatus = "pending" | "approved" | "rejected" | "cancelled";
 
-export interface PopulatedStaff {
-  _id: string;
-  name: string;
-  staffCode?: string;
-}
-
-export interface PopulatedUser {
-  _id: string;
-  name: string;
-}
+export type LeaveSubmittedFor = "self" | string;
 
 export interface Leave {
-  id: string; // mapped from _id
-  _id?: string;
-  organizationId: string;
+  id: string;
   branchId: string;
-  staffId: PopulatedStaff | string;
+  staffId: string;
+  name: string;
   leaveCode: string;
   leaveType: string;
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
   reason: string;
   status: LeaveStatus;
-  submittedBy: PopulatedUser | string;
-  submittedFor: PopulatedStaff | string;
-  reviewedBy?: PopulatedUser | string | null;
+  submittedBy: string;
+  submittedFor: LeaveSubmittedFor;
+  reviewedBy?: string | null;
   reviewedAt?: string | null;
   reviewNote?: string | null;
-  cancelledBy?: PopulatedUser | string | null;
+  cancelledBy?: string | null;
   cancelledAt?: string | null;
   cancelReason?: string | null;
   createdAt: string;
@@ -99,3 +89,4 @@ export interface LeaveMutateResponse {
   message?: string;
   data: Leave;
 }
+
