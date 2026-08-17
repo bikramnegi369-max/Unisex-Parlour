@@ -169,7 +169,13 @@ export function QuickCustomerDialog({
           </div>
         )}
 
-        <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-3">
+        <form
+          onSubmit={(e) => {
+            e.stopPropagation();
+            handleSubmit(handleFormSubmit)(e);
+          }}
+          className="space-y-3"
+        >
           {/* Full Name */}
           <div className="space-y-1">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">

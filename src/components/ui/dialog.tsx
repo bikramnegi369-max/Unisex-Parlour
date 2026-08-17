@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 interface DialogProps {
@@ -9,10 +10,15 @@ interface DialogProps {
 }
 
 export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
+  const [mounted, setMounted] = React.useState(false);
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const previousFocusRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
   const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Keep the latest onClose without re-running the focus-management effect.
   // The effect below intentionally depends only on `isOpen` so that a new
@@ -80,9 +86,9 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
@@ -117,6 +123,7 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
         )}
         <div>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

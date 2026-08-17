@@ -31,6 +31,7 @@ import {
   Scissors,
   User,
   MapPin,
+  Loader2,
 } from "lucide-react";
 
 const EMPTY_SERVICES: Service[] = [];
@@ -337,8 +338,15 @@ export function CreateAppointmentDialog({
             </div>
 
             {isLoadingServices ? (
-              <div className="text-xs text-muted-foreground">
-                Loading services...
+              <div className="p-4 text-center text-xs text-muted-foreground border border-input rounded-md bg-background flex items-center justify-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <span>Loading services...</span>
+              </div>
+            ) : filteredServices.length === 0 ? (
+              <div className="p-4 text-center text-xs text-muted-foreground border border-input rounded-md bg-background">
+                {serviceSearch.trim()
+                  ? "No services found matching your search."
+                  : "No services available for this branch."}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-input rounded-md bg-background">
