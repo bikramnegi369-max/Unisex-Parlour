@@ -3,6 +3,7 @@ import React from "react";
 import { render, screen, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import ServiceForm from "../components/services/ServiceForm";
+import type { ServiceFormValues } from "../schemas/service.schema";
 
 describe("ServiceForm Pre-filling", () => {
   afterEach(() => {
@@ -51,7 +52,7 @@ describe("ServiceForm Pre-filling", () => {
     render(
       <ServiceForm
         categories={categories}
-        initialService={rawService as any}
+        initialService={rawService as unknown as ServiceFormValues}
         onSubmit={vi.fn()}
         isSubmitting={false}
         onCancel={vi.fn()}
