@@ -109,6 +109,8 @@ interface PositionedAppointment {
 function layoutAppointments(
   appointments: Appointment[],
   hourPx: number = 120,
+  branchTimezone: string = "Asia/Kolkata",
+  isUnassignedQueueLane: boolean = false,
 ): PositionedAppointment[] {
   const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourPx;
   // Sort by startTime ascending, then by totalDuration descending
@@ -122,7 +124,14 @@ function layoutAppointments(
   });
 
   const positioned: PositionedAppointment[] = [];
-  const activeColumns: { endMin: number; column: number }[] = [];
+  const parsed: {
+    appt: Appointment;
+    effectiveStart: number;
+    effectiveEnd: number;
+    durationMins: number;
+    column: number;
+    totalColumnsInCluster: number;
+  }[] = [];
 
   for (const appt of sorted) {
     const startMin = parseTimeToMinutes(appt.startTime);
@@ -139,46 +148,134 @@ function layoutAppointments(
       if (sum > 0) durationMins = sum;
     }
 
+    // Group into visual events with calculated time intervals
     const effectiveStart = startMin ?? 0;
-    const effectiveEnd = effectiveStart + durationMins;
+    let effectiveEnd = effectiveStart + durationMins;
 
-    // Find first available column (no overlap with active columns)
-    let column = 0;
-    while (
-      activeColumns.some(
-        (c) => c.column === column && c.endMin > effectiveStart,
-      )
-    ) {
-      column++;
-    }
+    // Early-completion handling:
+    // If appointment is completed early and completedAt is available, compute the actual
+    // completion time in the branch's timezone. Truncate effectiveEnd so that subsequent
+    // bookings scheduled after actual completion do not collide or split lane columns needlessly.
+    if (appt.status === "completed" && appt.completedAt) {
+      try {
+        const compDate = new Date(appt.completedAt);
+        if (!isNaN(compDate.getTime())) {
+          const compParts = new Intl.DateTimeFormat("en-US", {
+            timeZone: branchTimezone,
+            hour: "numeric",
+            minute: "numeric",
+            hour12: false,
+          }).formatToParts(compDate);
+          const compH = parseInt(compParts.find((p) => p.type === "hour")?.value || "0", 10);
+          const compM = parseInt(compParts.find((p) => p.type === "minute")?.value || "0", 10);
+          const compMinutes = compH * 60 + compM;
 
-    // Remove expired columns
-    for (let i = activeColumns.length - 1; i >= 0; i--) {
-      if (activeColumns[i].endMin <= effectiveStart) {
-        activeColumns.splice(i, 1);
+          // If it completed earlier than scheduled endTime and after start time, collapse to actual end
+          if (compMinutes > effectiveStart && compMinutes < effectiveEnd) {
+            effectiveEnd = compMinutes;
+            durationMins = effectiveEnd - effectiveStart;
+          }
+        }
+      } catch {
+        // Fallback safely to scheduled duration
       }
     }
-    activeColumns.push({ endMin: effectiveEnd, column });
 
-    const totalColumns = Math.max(1, ...activeColumns.map((c) => c.column + 1));
+    parsed.push({
+      appt,
+      effectiveStart,
+      effectiveEnd,
+      durationMins,
+      column: 0,
+      totalColumnsInCluster: 1,
+    });
+  }
 
-    // Position within the lane
+  // Two-pass interval clustering:
+  // Pass 1: Partition appointments into connected overlapping clusters.
+  // Within each cluster, assign the lowest available column index.
+  type ClusterItem = (typeof parsed)[0];
+  const clusters: ClusterItem[][] = [];
+  let currentCluster: ClusterItem[] = [];
+  let clusterEndMin = -1;
+
+  for (const item of parsed) {
+    if (currentCluster.length === 0) {
+      currentCluster.push(item);
+      clusterEndMin = item.effectiveEnd;
+    } else if (item.effectiveStart < clusterEndMin) {
+      // Overlaps with current cluster
+      currentCluster.push(item);
+      clusterEndMin = Math.max(clusterEndMin, item.effectiveEnd);
+    } else {
+      // Starts a new cluster
+      clusters.push(currentCluster);
+      currentCluster = [item];
+      clusterEndMin = item.effectiveEnd;
+    }
+  }
+  if (currentCluster.length > 0) {
+    clusters.push(currentCluster);
+  }
+
+  // Pass 2: For each cluster, allocate columns via graph coloring / greedy slotting
+  // and set totalColumnsInCluster to the max column index + 1 of the cluster.
+  for (const cluster of clusters) {
+    const activeColumns: { endMin: number; column: number }[] = [];
+
+    for (const item of cluster) {
+      // Find lowest column index not conflicting with active items
+      let column = 0;
+      while (
+        activeColumns.some(
+          (c) => c.column === column && c.endMin > item.effectiveStart,
+        )
+      ) {
+        column++;
+      }
+
+      // Expire finished columns
+      for (let i = activeColumns.length - 1; i >= 0; i--) {
+        if (activeColumns[i].endMin <= item.effectiveStart) {
+          activeColumns.splice(i, 1);
+        }
+      }
+
+      activeColumns.push({ endMin: item.effectiveEnd, column });
+      item.column = column;
+    }
+
+    const clusterMaxCols = Math.max(1, ...cluster.map((c) => c.column + 1));
+    for (const item of cluster) {
+      item.totalColumnsInCluster = clusterMaxCols;
+    }
+  }
+
+  // Pass 3: Compute final pixel positions and percentage dimensions
+  for (const item of parsed) {
+    const { appt, effectiveStart, effectiveEnd, durationMins, column, totalColumnsInCluster } = item;
+
     const startFromViewport = effectiveStart - VIEWPORT_START_HOUR * 60;
     const topPx = Math.max(0, (startFromViewport / 60) * hourPx);
-    // Ensure generous minimum block height of 64px so cards never squish details
-    const heightPx = Math.max(64, (durationMins / 60) * hourPx);
+    // Ensure generous minimum block height of 68px so cards never squish details
+    const heightPx = Math.max(68, (durationMins / 60) * hourPx);
 
     // Clamp height to viewport for rendering, but track clipping
     const isClippedTop = startFromViewport < 0;
     const isClippedBottom = effectiveEnd > VIEWPORT_END_HOUR * 60;
     const clampedHeightPx = Math.min(heightPx, viewportHeightPx - topPx);
 
+    // Position each appointment into its dedicated side-by-side column.
+    // Each appointment occupies its own distinct column within the lane:
+    const leftPct = (column / totalColumnsInCluster) * 100;
+    const widthPct = 100 / totalColumnsInCluster;
+
     positioned.push({
       appt,
       topPx,
-      heightPx: Math.max(64, clampedHeightPx),
-      leftPct: (column / totalColumns) * 100,
-      widthPct: 100 / totalColumns,
+      heightPx: Math.max(68, clampedHeightPx),
+      leftPct,
+      widthPct,
       isOutsideViewport:
         effectiveStart >= VIEWPORT_END_HOUR * 60 ||
         effectiveEnd <= VIEWPORT_START_HOUR * 60,
@@ -588,12 +685,28 @@ export function AppointmentCalendarView({
                   const laneAppointments = filteredAppointments.filter((a) =>
                     lane.id === null ? !a.staffId : a.staffId === lane.id,
                   );
-                  const positioned = layoutAppointments(laneAppointments, hourScale);
+                  const isQueueLane = lane.id === null;
+                  const positioned = layoutAppointments(
+                    laneAppointments,
+                    hourScale,
+                    branchTimezone,
+                    isQueueLane,
+                  );
+
+                  // Calculate max concurrency in this lane so lane dynamically expands so each concurrent column gets full length width (at least 270px per column)
+                  const maxConcurrentCols = Math.max(
+                    1,
+                    ...positioned.map((p) => Math.round(100 / p.widthPct)),
+                  );
+                  // Ensure every side-by-side appointment card receives full length width (270px+ each) and is never squished or truncated
+                  const laneMinWidthPx = Math.max(270, maxConcurrentCols * 270);
+                  const laneMinWidthStyle = { minWidth: `${laneMinWidthPx}px` };
 
                   return (
                     <div
                       key={lane.id || "unassigned"}
-                      className="flex-1 min-w-64 border-r border-border/60 last:border-r-0 relative"
+                      style={laneMinWidthStyle}
+                      className="flex-1 border-r border-border/60 last:border-r-0 relative transition-all"
                     >
                       {/* Lane Header */}
                       <div className="h-10 border-b border-border bg-muted/30 px-3 py-1.5 flex items-center justify-between">
@@ -650,6 +763,10 @@ export function AppointmentCalendarView({
                             isClippedTop,
                             isClippedBottom,
                           }) => {
+                            const isCompleted = appt.status === "completed";
+                            const isCancelled = appt.status === "cancelled" || appt.status === "no_show";
+                            const isActive = appt.status === "in_progress" || appt.status === "scheduled";
+
                             if (isOutsideViewport) {
                               // Render a compact "outside viewport" indicator at the top/bottom edge
                               const edgeTop =
@@ -677,6 +794,17 @@ export function AppointmentCalendarView({
                               );
                             }
 
+                            // Card styling based on status and layering:
+                            // CRITICAL: Cards must be 100% opaque solid surfaces (never translucent or transparent on hover)
+                            // so overlapping or adjacent cards never bleed text or backgrounds through each other.
+                            // Hovering dynamically elevates the card to z-30 with a solid contrast border and crisp shadow.
+                            const cardZIndex = isActive ? "z-10 hover:z-30" : "z-5 hover:z-30";
+                            const cardBgBorder = isCompleted
+                              ? "bg-card border-emerald-500/50 hover:border-emerald-500 hover:shadow-md"
+                              : isCancelled
+                                ? "bg-muted border-border/80 opacity-70 hover:opacity-100 hover:border-border hover:shadow-md"
+                                : "bg-card border-primary/50 hover:border-primary shadow-xs hover:shadow-md";
+
                             return (
                               <div
                                 key={appt.id}
@@ -696,7 +824,7 @@ export function AppointmentCalendarView({
                                   left: `${leftPct}%`,
                                   width: `${widthPct}%`,
                                 }}
-                                className="absolute rounded-lg border p-1.5 text-xs shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 bg-card hover:bg-accent/40 border-primary/40 flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary"
+                                className={`absolute rounded-lg border p-1.5 text-xs transition-all cursor-pointer overflow-hidden flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary ${cardZIndex} ${cardBgBorder}`}
                               >
                                 {/* Clipping indicators */}
                                 {isClippedTop && (

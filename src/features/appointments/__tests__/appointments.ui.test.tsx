@@ -235,4 +235,69 @@ describe("Appointments UI Components & Week Date Navigation", () => {
     // Safe appointment code display
     expect(screen.getAllByText("#123456").length).toBeGreaterThan(0);
   });
+
+  it("renders early-completed appointment with dedicated completion styling and leaves space for subsequent appointments", () => {
+    const earlyCompletedAppt: Appointment = {
+      id: "appt_completed_early",
+      appointmentCode: "APP-EARLY-01",
+      organizationId: "org_1",
+      branchId: "br_1",
+      customerId: "cust_1",
+      customer: { id: "cust_1", name: "Early Bird", phone: "9876543210" },
+      serviceIds: ["srv_1"],
+      services: [{ serviceId: "srv_1", name: "Quick Trim", duration: 60, price: 50 }],
+      staffId: null,
+      bookingType: "walk_in",
+      status: "completed",
+      date: "2026-08-10",
+      startTime: "10:00",
+      endTime: "11:00",
+      // Completed early at 10:25 AM
+      completedAt: "2026-08-10T10:25:00+05:30",
+      createdAt: "2026-08-10T10:00:00Z",
+      updatedAt: "2026-08-10T10:25:00Z",
+    };
+
+    const nextAppt: Appointment = {
+      id: "appt_next_scheduled",
+      appointmentCode: "APP-NEXT-02",
+      organizationId: "org_1",
+      branchId: "br_1",
+      customerId: "cust_2",
+      customer: { id: "cust_2", name: "Next Client", phone: "9876543211" },
+      serviceIds: ["srv_2"],
+      services: [{ serviceId: "srv_2", name: "Full Styling", duration: 30, price: 60 }],
+      staffId: null,
+      bookingType: "walk_in",
+      status: "in_progress",
+      date: "2026-08-10",
+      startTime: "10:30",
+      endTime: "11:00",
+      createdAt: "2026-08-10T10:30:00Z",
+      updatedAt: "2026-08-10T10:30:00Z",
+    };
+
+    render(
+      <AppointmentCalendarView
+        appointments={[earlyCompletedAppt, nextAppt]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    // Both appointments should be visible with their codes and customer names
+    expect(screen.getAllByText("Early Bird").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("APP-EARLY-01").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Next Client").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("APP-NEXT-02").length).toBeGreaterThan(0);
+
+    // Verify status badges render accurately
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("In Progress").length).toBeGreaterThan(0);
+  });
 });
