@@ -159,7 +159,10 @@ export function AppointmentListView({
         return (
           <div className="flex flex-col gap-1 items-start">
             <div className="flex items-center gap-1.5">
-              <AppointmentStatusBadge status={appt.status} />
+              <AppointmentStatusBadge
+                status={appt.status}
+                isUnassignedQueue={!appt.staffId}
+              />
               <BookingTypeBadge bookingType={appt.bookingType} />
             </div>
             {appt.reminder?.enabled && (

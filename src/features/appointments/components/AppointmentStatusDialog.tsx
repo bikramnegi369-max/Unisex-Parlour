@@ -105,11 +105,18 @@ export function AppointmentStatusDialog({
               disabled={isTerminal}
             >
               <option value="scheduled">Scheduled</option>
-              <option value="in_progress">In Progress</option>
+              <option value="in_progress" disabled={!appointment.staffId}>
+                In Progress {!appointment.staffId ? "(Requires assigned staff)" : ""}
+              </option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
               <option value="no_show">No Show</option>
             </Select>
+            {!appointment.staffId && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                💡 This appointment is unassigned. Please assign a staff member before starting service.
+              </p>
+            )}
             {isTerminal && (
               <p className="text-[11px] text-amber-600 font-medium">
                 This appointment is in a terminal state ({appointment.status}) and cannot transition status further.

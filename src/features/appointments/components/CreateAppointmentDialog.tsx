@@ -174,7 +174,7 @@ export function CreateAppointmentDialog({
         bookingType: defaultBookingType,
         notes: "",
         reminder: {
-          enabled: true,
+          enabled: defaultBookingType === "advance",
           channel: "both",
           offsetMinutes: 60,
         },
@@ -184,8 +184,22 @@ export function CreateAppointmentDialog({
 
   const handleFormSubmit = async (data: CreateAppointmentSchemaType) => {
     setConflictError(null);
+    // Enforce production invariants: walk-in appointments are strictly today and require no reminders
+    const payload: CreateAppointmentSchemaType =
+      data.bookingType === "walk_in"
+        ? {
+            ...data,
+            date: format(new Date(), "yyyy-MM-dd"),
+            reminder: {
+              enabled: false,
+              channel: "both",
+              offsetMinutes: 60,
+            },
+          }
+        : data;
+
     try {
-      await onSubmit(data);
+      await onSubmit(payload);
       onClose();
     } catch (err: unknown) {
       const axiosError = err as {
@@ -228,12 +242,29 @@ export function CreateAppointmentDialog({
     <Dialog isOpen={isOpen} onClose={onClose} title={dialogTitle}>
       <div className="space-y-4 text-left">
         {conflictError && (
-          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-2 text-xs text-destructive">
-            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-semibold">Scheduling Conflict (409): </span>
-              {conflictError}
+          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg space-y-2 text-xs text-destructive">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Scheduling Conflict: </span>
+                {conflictError}
+              </div>
             </div>
+            {watch("staffId") && (
+              <div className="flex items-center gap-2 pt-1 border-t border-destructive/20 text-[11px]">
+                <span>Stylist busy?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValue("staffId", null);
+                    setConflictError(null);
+                  }}
+                  className="font-semibold text-primary underline hover:text-primary/80"
+                >
+                  Switch to &quot;Unassigned (Floor Queue)&quot;
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -249,7 +280,10 @@ export function CreateAppointmentDialog({
                   type="button"
                   variant={bookingType === "advance" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setValue("bookingType", "advance")}
+                  onClick={() => {
+                    setValue("bookingType", "advance", { shouldValidate: true });
+                    setValue("reminder.enabled", true);
+                  }}
                   className="text-xs h-7 px-3"
                 >
                   Advance Booking
@@ -258,7 +292,12 @@ export function CreateAppointmentDialog({
                   type="button"
                   variant={bookingType === "walk_in" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setValue("bookingType", "walk_in")}
+                  onClick={() => {
+                    setValue("bookingType", "walk_in", { shouldValidate: true });
+                    setValue("date", format(new Date(), "yyyy-MM-dd"), { shouldValidate: true });
+                    setValue("startTime", format(new Date(), "HH:mm"), { shouldValidate: true });
+                    setValue("reminder.enabled", false);
+                  }}
                   className="text-xs h-7 px-3"
                 >
                   Walk-In
@@ -388,12 +427,19 @@ export function CreateAppointmentDialog({
 
           {/* Staff Selection (Optional / Unassigned) */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Assign Staff{" "}
-              <span className="text-muted-foreground font-normal">
-                (Optional / Unassigned)
-              </span>
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Assign Staff{" "}
+                <span className="text-muted-foreground font-normal">
+                  (Optional / Unassigned)
+                </span>
+              </label>
+              {bookingType === "walk_in" && !watch("staffId") && (
+                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                  Floor Queue Mode
+                </span>
+              )}
+            </div>
             <Select
               value={watch("staffId") || ""}
               onChange={(e) =>
@@ -409,19 +455,39 @@ export function CreateAppointmentDialog({
                 </option>
               ))}
             </Select>
+            {bookingType === "walk_in" && (
+              <p className="text-[10px] text-muted-foreground">
+                {watch("staffId")
+                  ? "Assigned to specific staff. If they are busy right now, choose 'Unassigned' to place client in the floor queue."
+                  : "💡 Recommended if all stylists are busy: client is queued and can be assigned as soon as any stylist finishes."}
+              </p>
+            )}
           </div>
 
           {/* Date & Start Time */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Date <span className="text-destructive">*</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Date <span className="text-destructive">*</span>
+                </label>
+                {bookingType === "walk_in" && (
+                  <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                    Today (Walk-in)
+                  </span>
+                )}
+              </div>
               <Input
                 type="date"
                 {...register("date")}
-                className="h-9 text-xs"
+                disabled={bookingType === "walk_in"}
+                className={`h-9 text-xs ${bookingType === "walk_in" ? "opacity-75 bg-muted/50 cursor-not-allowed" : ""}`}
               />
+              {bookingType === "walk_in" ? (
+                <p className="text-[10px] text-muted-foreground">
+                  Walk-ins are strictly registered for today&apos;s floor roster.
+                </p>
+              ) : null}
               {errors.date && (
                 <span className="text-[11px] text-destructive">
                   {errors.date.message}
@@ -430,9 +496,54 @@ export function CreateAppointmentDialog({
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Start Time <span className="text-destructive">*</span>
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Start Time <span className="text-destructive">*</span>
+                </label>
+                {bookingType === "walk_in" && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValue("startTime", format(new Date(), "HH:mm"), {
+                          shouldValidate: true,
+                        })
+                      }
+                      className="text-[10px] text-primary hover:underline"
+                    >
+                      Now
+                    </button>
+                    <span className="text-[10px] text-muted-foreground">•</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextSlot = new Date();
+                        nextSlot.setMinutes(nextSlot.getMinutes() + 15);
+                        setValue("startTime", format(nextSlot, "HH:mm"), {
+                          shouldValidate: true,
+                        });
+                      }}
+                      className="text-[10px] text-primary hover:underline"
+                    >
+                      +15m
+                    </button>
+                    <span className="text-[10px] text-muted-foreground">•</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextSlot = new Date();
+                        nextSlot.setMinutes(nextSlot.getMinutes() + 30);
+                        setValue("startTime", format(nextSlot, "HH:mm"), {
+                          shouldValidate: true,
+                        });
+                      }}
+                      className="text-[10px] text-primary hover:underline"
+                    >
+                      +30m
+                    </button>
+                  </div>
+                )}
+              </div>
               <Input
                 type="time"
                 {...register("startTime")}
@@ -446,124 +557,135 @@ export function CreateAppointmentDialog({
             </div>
           </div>
 
-          {/* Reminder Section */}
-          <div className="p-3 bg-muted/30 rounded-lg border border-border space-y-3 text-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4 text-primary" />
-                <div>
-                  <span className="font-semibold text-foreground block">
-                    Customer Reminder
-                  </span>
-                  <span className="text-[10px] text-muted-foreground block">
-                    Automated notification before appointment
-                  </span>
-                </div>
-              </div>
-              <Controller
-                name="reminder.enabled"
-                control={control}
-                render={({ field }) => (
-                  <Switch
-                    checked={!!field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                )}
-              />
-            </div>
-
-            {reminderEnabled && (
-              <div className="space-y-3 pt-2 border-t border-border/60">
-                {/* Channel Selector */}
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase">
-                    Delivery Channel
-                  </label>
-                  <Controller
-                    name="reminder.channel"
-                    control={control}
-                    render={({ field }) => (
-                      <div className="grid grid-cols-3 gap-2">
-                        <Button
-                          type="button"
-                          variant={
-                            field.value === "sms" ? "default" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => field.onChange("sms")}
-                          className="text-xs h-8"
-                        >
-                          📱 SMS
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={
-                            field.value === "email" ? "default" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => field.onChange("email")}
-                          className="text-xs h-8"
-                        >
-                          ✉️ Email
-                        </Button>
-                        <Button
-                          type="button"
-                          variant={
-                            field.value === "both" ? "default" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => field.onChange("both")}
-                          className="text-xs h-8"
-                        >
-                          📱 + ✉️ Both
-                        </Button>
-                      </div>
-                    )}
-                  />
-                </div>
-
-                {/* Timing / Offset Selector */}
-                <div className="space-y-1">
-                  <label className="block text-[11px] font-semibold text-muted-foreground uppercase">
-                    Notification Timing
-                  </label>
-                  <Controller
-                    name="reminder.offsetMinutes"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        value={String(field.value ?? 60)}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                        className="w-full h-8 text-xs py-0"
-                      >
-                        <option value="15">15 minutes before</option>
-                        <option value="30">30 minutes before</option>
-                        <option value="60">1 hour before</option>
-                        <option value="120">2 hours before</option>
-                        <option value="1440">1 day before</option>
-                      </Select>
-                    )}
-                  />
-                </div>
-
-                {/* Dynamic Branch Timezone Notice */}
-                <div className="p-2 bg-primary/5 rounded border border-primary/20 text-[10px] text-muted-foreground space-y-0.5">
-                  <div className="font-semibold text-primary">
-                    Server Scheduling Info:
-                  </div>
+          {/* Reminder Section (Only applicable for Advance Bookings) */}
+          {bookingType === "advance" ? (
+            <div className="p-3 bg-muted/30 rounded-lg border border-border space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bell className="h-4 w-4 text-primary" />
                   <div>
-                    Exact reminder time will be calculated by the server using
-                    branch timezone:{" "}
-                    <span className="font-bold text-foreground">
-                      {isAllBranchesSelected && !selectedBranchId
-                        ? "Select branch above"
-                        : effectiveBranchTimezone}
+                    <span className="font-semibold text-foreground block">
+                      Customer Reminder
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Automated notification before appointment
                     </span>
                   </div>
                 </div>
+                <Controller
+                  name="reminder.enabled"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      checked={!!field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
               </div>
-            )}
-          </div>
+
+              {reminderEnabled && (
+                <div className="space-y-3 pt-2 border-t border-border/60">
+                  {/* Channel Selector */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase">
+                      Delivery Channel
+                    </label>
+                    <Controller
+                      name="reminder.channel"
+                      control={control}
+                      render={({ field }) => (
+                        <div className="grid grid-cols-3 gap-2">
+                          <Button
+                            type="button"
+                            variant={
+                              field.value === "sms" ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => field.onChange("sms")}
+                            className="text-xs h-8"
+                          >
+                            📱 SMS
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={
+                              field.value === "email" ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => field.onChange("email")}
+                            className="text-xs h-8"
+                          >
+                            ✉️ Email
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={
+                              field.value === "both" ? "default" : "outline"
+                            }
+                            size="sm"
+                            onClick={() => field.onChange("both")}
+                            className="text-xs h-8"
+                          >
+                            📱 + ✉️ Both
+                          </Button>
+                        </div>
+                      )}
+                    />
+                  </div>
+
+                  {/* Timing / Offset Selector */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase">
+                      Notification Timing
+                    </label>
+                    <Controller
+                      name="reminder.offsetMinutes"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={String(field.value ?? 60)}
+                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          className="w-full h-8 text-xs py-0"
+                        >
+                          <option value="15">15 minutes before</option>
+                          <option value="30">30 minutes before</option>
+                          <option value="60">1 hour before</option>
+                          <option value="120">2 hours before</option>
+                          <option value="1440">1 day before</option>
+                        </Select>
+                      )}
+                    />
+                  </div>
+
+                  {/* Dynamic Branch Timezone Notice */}
+                  <div className="p-2 bg-primary/5 rounded border border-primary/20 text-[10px] text-muted-foreground space-y-0.5">
+                    <div className="font-semibold text-primary">
+                      Server Scheduling Info:
+                    </div>
+                    <div>
+                      Exact reminder time will be calculated by the server using
+                      branch timezone:{" "}
+                      <span className="font-bold text-foreground">
+                        {isAllBranchesSelected && !selectedBranchId
+                          ? "Select branch above"
+                          : effectiveBranchTimezone}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-2.5 bg-purple-500/5 rounded-lg border border-purple-500/20 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+                <Bell className="h-3.5 w-3.5 opacity-60" />
+                <span className="text-[11px]">
+                  Reminders are disabled for walk-in visits (client is present in salon).
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="space-y-1.5">

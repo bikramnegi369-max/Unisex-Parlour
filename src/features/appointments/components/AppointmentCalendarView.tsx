@@ -43,8 +43,6 @@ interface AppointmentCalendarViewProps {
 // Visual viewport time slots from 08:00 to 20:00 (12 hours)
 const VIEWPORT_START_HOUR = 8;
 const VIEWPORT_END_HOUR = 20;
-const HOUR_PX = 64; // 64px per hour slot
-const VIEWPORT_HEIGHT_PX = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * HOUR_PX;
 
 const TIME_SLOTS = Array.from(
   { length: VIEWPORT_END_HOUR - VIEWPORT_START_HOUR + 1 },
@@ -109,10 +107,12 @@ interface PositionedAppointment {
 }
 
 function layoutAppointments(
-  laneAppointments: Appointment[],
+  appointments: Appointment[],
+  hourPx: number = 120,
 ): PositionedAppointment[] {
-  // Sort by start time, then by duration (longer first for stability)
-  const sorted = [...laneAppointments].sort((a, b) => {
+  const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourPx;
+  // Sort by startTime ascending, then by totalDuration descending
+  const sorted = [...appointments].sort((a, b) => {
     const aStart = parseTimeToMinutes(a.startTime) ?? 0;
     const bStart = parseTimeToMinutes(b.startTime) ?? 0;
     if (aStart !== bStart) return aStart - bStart;
@@ -164,18 +164,19 @@ function layoutAppointments(
 
     // Position within the lane
     const startFromViewport = effectiveStart - VIEWPORT_START_HOUR * 60;
-    const topPx = Math.max(0, (startFromViewport / 60) * HOUR_PX);
-    const heightPx = Math.max(28, (durationMins / 60) * HOUR_PX);
+    const topPx = Math.max(0, (startFromViewport / 60) * hourPx);
+    // Ensure generous minimum block height of 64px so cards never squish details
+    const heightPx = Math.max(64, (durationMins / 60) * hourPx);
 
     // Clamp height to viewport for rendering, but track clipping
     const isClippedTop = startFromViewport < 0;
     const isClippedBottom = effectiveEnd > VIEWPORT_END_HOUR * 60;
-    const clampedHeightPx = Math.min(heightPx, VIEWPORT_HEIGHT_PX - topPx);
+    const clampedHeightPx = Math.min(heightPx, viewportHeightPx - topPx);
 
     positioned.push({
       appt,
       topPx,
-      heightPx: Math.max(28, clampedHeightPx),
+      heightPx: Math.max(64, clampedHeightPx),
       leftPct: (column / totalColumns) * 100,
       widthPct: 100 / totalColumns,
       isOutsideViewport:
@@ -204,6 +205,8 @@ export function AppointmentCalendarView({
   >("all");
   const { currentBranch, availableBranches, isAllBranchesSelected } =
     useBranchContext();
+  const [hourScale, setHourScale] = useState<number>(120); // 120px gives ideal full visibility for text, codes, and badges
+  const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
 
   // Branch timezone for the current view
   const branchTimezone = currentBranch?.timezone || "Asia/Kolkata";
@@ -260,27 +263,26 @@ export function AppointmentCalendarView({
   // -------------------------------------------------------------------------
   // Branch-timezone current-time indicator
   // -------------------------------------------------------------------------
-  const [now, setNow] = useState(() => new Date());
-
+  const [now, setNow] = useState<Date>(() => new Date());
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60_000);
+    const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
 
-  // Format current time in the branch timezone to get branch-local hour/minute
   const branchNowParts = useMemo(() => {
     try {
-      const parts = new Intl.DateTimeFormat("en-GB", {
+      const parts = new Intl.DateTimeFormat("en-US", {
         timeZone: branchTimezone,
-        hour: "2-digit",
-        minute: "2-digit",
+        hour: "numeric",
+        minute: "numeric",
         hour12: false,
       }).formatToParts(now);
-      const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-      const minute = Number(
-        parts.find((p) => p.type === "minute")?.value ?? "0",
-      );
-      return { hour, minute };
+      const hourPart = parts.find((p) => p.type === "hour")?.value || "0";
+      const minutePart = parts.find((p) => p.type === "minute")?.value || "0";
+      return {
+        hour: parseInt(hourPart, 10),
+        minute: parseInt(minutePart, 10),
+      };
     } catch {
       return { hour: now.getHours(), minute: now.getMinutes() };
     }
@@ -308,7 +310,7 @@ export function AppointmentCalendarView({
     currentBranchMinutes >= VIEWPORT_START_HOUR * 60 &&
     currentBranchMinutes <= VIEWPORT_END_HOUR * 60;
   const currentTimeTopPx =
-    ((currentBranchMinutes - VIEWPORT_START_HOUR * 60) / 60) * HOUR_PX;
+    ((currentBranchMinutes - VIEWPORT_START_HOUR * 60) / 60) * hourScale;
 
   // -------------------------------------------------------------------------
   // All Branches resource lanes
@@ -452,6 +454,40 @@ export function AppointmentCalendarView({
             </div>
           </div>
 
+          {/* Zoom / Scale Selector */}
+          <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md border border-border">
+            <Button
+              type="button"
+              variant={hourScale === 100 ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setHourScale(100)}
+              className="text-[11px] h-7 px-2"
+              title="Compact Timeline"
+            >
+              Compact
+            </Button>
+            <Button
+              type="button"
+              variant={hourScale === 130 ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setHourScale(130)}
+              className="text-[11px] h-7 px-2"
+              title="Standard Full Visibility Timeline"
+            >
+              Standard
+            </Button>
+            <Button
+              type="button"
+              variant={hourScale === 160 ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setHourScale(160)}
+              className="text-[11px] h-7 px-2"
+              title="Expanded Spacious Timeline"
+            >
+              Expanded
+            </Button>
+          </div>
+
           {/* Day / Week View Mode Toggle */}
           <div className="bg-muted p-0.5 rounded-md flex items-center border border-border">
             <Button
@@ -532,13 +568,13 @@ export function AppointmentCalendarView({
                 </div>
                 <div
                   className="relative bg-card"
-                  style={{ height: `${VIEWPORT_HEIGHT_PX}px` }}
+                  style={{ height: `${viewportHeightPx}px` }}
                 >
                   {TIME_SLOTS.map((time, idx) => (
                     <div
                       key={time}
-                      className="absolute left-0 right-0 h-16 border-b border-border/40 text-[10px] font-semibold text-muted-foreground pr-2 flex items-start justify-end pt-1"
-                      style={{ top: `${idx * HOUR_PX}px` }}
+                      className="absolute left-0 right-0 border-b border-border/40 text-[10px] font-semibold text-muted-foreground pr-2 flex items-start justify-end pt-1"
+                      style={{ height: `${hourScale}px`, top: `${idx * hourScale}px` }}
                     >
                       {time}
                     </div>
@@ -552,12 +588,12 @@ export function AppointmentCalendarView({
                   const laneAppointments = filteredAppointments.filter((a) =>
                     lane.id === null ? !a.staffId : a.staffId === lane.id,
                   );
-                  const positioned = layoutAppointments(laneAppointments);
+                  const positioned = layoutAppointments(laneAppointments, hourScale);
 
                   return (
                     <div
                       key={lane.id || "unassigned"}
-                      className="flex-1 min-w-50 border-r border-border/60 last:border-r-0 relative"
+                      className="flex-1 min-w-64 border-r border-border/60 last:border-r-0 relative"
                     >
                       {/* Lane Header */}
                       <div className="h-10 border-b border-border bg-muted/30 px-3 py-1.5 flex items-center justify-between">
@@ -580,7 +616,7 @@ export function AppointmentCalendarView({
                       {/* Lane Body Grid Slots */}
                       <div
                         className="relative bg-card/40"
-                        style={{ height: `${VIEWPORT_HEIGHT_PX}px` }}
+                        style={{ height: `${viewportHeightPx}px` }}
                       >
                         {/* Current Time Red Line (branch timezone) */}
                         {showCurrentTimeLine && (
@@ -597,8 +633,8 @@ export function AppointmentCalendarView({
                         {TIME_SLOTS.map((_, idx) => (
                           <div
                             key={idx}
-                            className="absolute left-0 right-0 h-16 border-b border-border/30"
-                            style={{ top: `${idx * HOUR_PX}px` }}
+                            className="absolute left-0 right-0 border-b border-border/30"
+                            style={{ height: `${hourScale}px`, top: `${idx * hourScale}px` }}
                           />
                         ))}
 
@@ -660,7 +696,7 @@ export function AppointmentCalendarView({
                                   left: `${leftPct}%`,
                                   width: `${widthPct}%`,
                                 }}
-                                className="absolute rounded-lg border p-1.5 text-xs shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 bg-card hover:bg-accent/40 border-primary/40 space-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary"
+                                className="absolute rounded-lg border p-1.5 text-xs shadow-xs hover:shadow-md transition-all cursor-pointer overflow-hidden z-10 bg-card hover:bg-accent/40 border-primary/40 flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary"
                               >
                                 {/* Clipping indicators */}
                                 {isClippedTop && (
@@ -670,45 +706,52 @@ export function AppointmentCalendarView({
                                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-400/70 rounded-b-lg" />
                                 )}
 
-                                <div className="flex items-center justify-between gap-1 text-[10px] font-bold">
-                                  <span className="text-primary truncate">
-                                    {appt.startTime}
-                                    {appt.endTime ? ` - ${appt.endTime}` : ""}
-                                  </span>
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {appt.reminder?.enabled && (
-                                      <AppointmentReminderStatus
-                                        reminder={appt.reminder}
-                                        compact
+                                <div className="space-y-1">
+                                  {/* Top Row: Time + Status Badges */}
+                                  <div className="flex items-center justify-between gap-1 text-[10px] font-bold">
+                                    <span className="text-primary truncate">
+                                      {appt.startTime}
+                                      {appt.endTime ? ` - ${appt.endTime}` : ""}
+                                    </span>
+                                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                                      {appt.reminder?.enabled && (
+                                        <AppointmentReminderStatus
+                                          reminder={appt.reminder}
+                                          compact
+                                        />
+                                      )}
+                                      <BookingTypeBadge
+                                        bookingType={appt.bookingType}
+                                        className="text-[9px] px-1 py-0"
                                       />
-                                    )}
-                                    <BookingTypeBadge
-                                      bookingType={appt.bookingType}
-                                      className="text-[9px] px-1 py-0"
-                                    />
-                                    <AppointmentStatusBadge
-                                      status={appt.status}
-                                      className="text-[9px] px-1 py-0"
-                                    />
+                                      <AppointmentStatusBadge
+                                        status={appt.status}
+                                        isUnassignedQueue={!appt.staffId}
+                                        className="text-[9px] px-1 py-0"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Middle Row: Customer Name & Code */}
+                                  <div className="font-bold text-foreground truncate text-xs flex items-center justify-between gap-1">
+                                    <span className="truncate">
+                                      {getCustomerDisplayName(appt)}
+                                    </span>
+                                    <span className="font-mono text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded shrink-0 border border-primary/20">
+                                      {appt.appointmentCode ||
+                                        `#${appt.id.slice(-6)}`}
+                                    </span>
+                                  </div>
+
+                                  {/* Services Summary */}
+                                  <div className="text-[10px] text-muted-foreground truncate font-medium">
+                                    <Scissors className="inline h-2.5 w-2.5 mr-0.5 text-muted-foreground/70" />
+                                    {getServiceSummary(appt)}
                                   </div>
                                 </div>
 
-                                <div className="font-bold text-foreground truncate text-xs flex items-center justify-between gap-1">
-                                  <span className="truncate">
-                                    {getCustomerDisplayName(appt)}
-                                  </span>
-                                  <span className="font-mono text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded shrink-0 border border-primary/20">
-                                    {appt.appointmentCode ||
-                                      `#${appt.id.slice(-6)}`}
-                                  </span>
-                                </div>
-
-                                <div className="text-[10px] text-muted-foreground truncate font-medium">
-                                  <Scissors className="inline h-2.5 w-2.5 mr-0.5 text-muted-foreground/70" />
-                                  {getServiceSummary(appt)}
-                                </div>
-
-                                <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-0.5 border-t border-border/40 gap-1">
+                                {/* Bottom Row: Staff & Price */}
+                                <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 mt-1 border-t border-border/40 gap-1">
                                   <span className="truncate">
                                     Staff:{" "}
                                     <strong className="text-foreground font-semibold">

@@ -4,10 +4,33 @@ import type { AppointmentStatus, BookingType } from "../types/appointment.types"
 
 interface AppointmentStatusBadgeProps {
   status: AppointmentStatus;
+  isUnassignedQueue?: boolean;
   className?: string;
 }
 
-export function AppointmentStatusBadge({ status, className }: AppointmentStatusBadgeProps) {
+export function AppointmentStatusBadge({
+  status,
+  isUnassignedQueue,
+  className,
+}: AppointmentStatusBadgeProps) {
+  // If the appointment is unassigned and not in a terminal state (cancelled/completed/no_show),
+  // it is physically in the lounge waiting queue rather than actively being served.
+  if (
+    isUnassignedQueue &&
+    status !== "completed" &&
+    status !== "cancelled" &&
+    status !== "no_show"
+  ) {
+    return (
+      <Badge
+        variant="outline"
+        className={`border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 font-medium ${className || ""}`}
+      >
+        Waiting in Queue
+      </Badge>
+    );
+  }
+
   switch (status) {
     case "scheduled":
       return (

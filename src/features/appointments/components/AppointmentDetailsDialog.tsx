@@ -104,7 +104,10 @@ export function AppointmentDetailsDialog({
           </div>
           <div className="flex items-center gap-1.5">
             <BookingTypeBadge bookingType={appointment.bookingType} />
-            <AppointmentStatusBadge status={appointment.status} />
+            <AppointmentStatusBadge
+              status={appointment.status}
+              isUnassignedQueue={!appointment.staffId}
+            />
           </div>
         </div>
 
