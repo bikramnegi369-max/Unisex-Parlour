@@ -1,14 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import {
-  format,
-  addDays,
-  subDays,
-  startOfWeek,
-  isSameDay,
-  parseISO,
-} from "date-fns";
+import { format, addDays, subDays, startOfWeek, isSameDay } from "date-fns";
 import {
   ChevronLeft,
   ChevronRight,
@@ -26,7 +19,7 @@ import {
 import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useBranchContext } from "@/hooks/useBranchContext";
-import { formatInBranchTimezone, formatCurrency } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 import type { Appointment } from "../types/appointment.types";
 
 interface AppointmentCalendarViewProps {
@@ -86,12 +79,6 @@ function parseTimeToMinutes(time: string | undefined): number | null {
   return h * 60 + m;
 }
 
-function formatMinutesToTime(totalMinutes: number): string {
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-}
-
 // ---------------------------------------------------------------------------
 // Collision-aware appointment layout
 // ---------------------------------------------------------------------------
@@ -110,7 +97,6 @@ function layoutAppointments(
   appointments: Appointment[],
   hourPx: number = 120,
   branchTimezone: string = "Asia/Kolkata",
-  isUnassignedQueueLane: boolean = false,
 ): PositionedAppointment[] {
   const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourPx;
   // Sort by startTime ascending, then by totalDuration descending
@@ -166,8 +152,14 @@ function layoutAppointments(
             minute: "numeric",
             hour12: false,
           }).formatToParts(compDate);
-          const compH = parseInt(compParts.find((p) => p.type === "hour")?.value || "0", 10);
-          const compM = parseInt(compParts.find((p) => p.type === "minute")?.value || "0", 10);
+          const compH = parseInt(
+            compParts.find((p) => p.type === "hour")?.value || "0",
+            10,
+          );
+          const compM = parseInt(
+            compParts.find((p) => p.type === "minute")?.value || "0",
+            10,
+          );
           const compMinutes = compH * 60 + compM;
 
           // If it completed earlier than scheduled endTime and after start time, collapse to actual end
@@ -253,7 +245,14 @@ function layoutAppointments(
 
   // Pass 3: Compute final pixel positions and percentage dimensions
   for (const item of parsed) {
-    const { appt, effectiveStart, effectiveEnd, durationMins, column, totalColumnsInCluster } = item;
+    const {
+      appt,
+      effectiveStart,
+      effectiveEnd,
+      durationMins,
+      column,
+      totalColumnsInCluster,
+    } = item;
 
     const startFromViewport = effectiveStart - VIEWPORT_START_HOUR * 60;
     const topPx = Math.max(0, (startFromViewport / 60) * hourPx);
@@ -300,17 +299,20 @@ export function AppointmentCalendarView({
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<
     string | "all"
   >("all");
-  const { currentBranch, availableBranches, isAllBranchesSelected } =
-    useBranchContext();
+  const { currentBranch } = useBranchContext();
   const [hourScale, setHourScale] = useState<number>(120); // 120px gives ideal full visibility for text, codes, and badges
-  const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
+  const viewportHeightPx =
+    (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
 
   // Branch timezone for the current view
   const branchTimezone = currentBranch?.timezone || "Asia/Kolkata";
 
   // Fetch active branch employees for staff lanes
   const { data: employeesData } = useEmployees({ limit: 100 });
-  const employees = employeesData?.data || [];
+  const employees = useMemo(
+    () => employeesData?.data || [],
+    [employeesData?.data],
+  );
 
   // Week days calculation
   const weekStart = useMemo(
@@ -671,7 +673,10 @@ export function AppointmentCalendarView({
                     <div
                       key={time}
                       className="absolute left-0 right-0 border-b border-border/40 text-[10px] font-semibold text-muted-foreground pr-2 flex items-start justify-end pt-1"
-                      style={{ height: `${hourScale}px`, top: `${idx * hourScale}px` }}
+                      style={{
+                        height: `${hourScale}px`,
+                        top: `${idx * hourScale}px`,
+                      }}
                     >
                       {time}
                     </div>
@@ -685,12 +690,10 @@ export function AppointmentCalendarView({
                   const laneAppointments = filteredAppointments.filter((a) =>
                     lane.id === null ? !a.staffId : a.staffId === lane.id,
                   );
-                  const isQueueLane = lane.id === null;
                   const positioned = layoutAppointments(
                     laneAppointments,
                     hourScale,
                     branchTimezone,
-                    isQueueLane,
                   );
 
                   // Calculate max concurrency in this lane so lane dynamically expands so each concurrent column gets full length width (at least 270px per column)
@@ -747,7 +750,10 @@ export function AppointmentCalendarView({
                           <div
                             key={idx}
                             className="absolute left-0 right-0 border-b border-border/30"
-                            style={{ height: `${hourScale}px`, top: `${idx * hourScale}px` }}
+                            style={{
+                              height: `${hourScale}px`,
+                              top: `${idx * hourScale}px`,
+                            }}
                           />
                         ))}
 
@@ -764,8 +770,12 @@ export function AppointmentCalendarView({
                             isClippedBottom,
                           }) => {
                             const isCompleted = appt.status === "completed";
-                            const isCancelled = appt.status === "cancelled" || appt.status === "no_show";
-                            const isActive = appt.status === "in_progress" || appt.status === "scheduled";
+                            const isCancelled =
+                              appt.status === "cancelled" ||
+                              appt.status === "no_show";
+                            const isActive =
+                              appt.status === "in_progress" ||
+                              appt.status === "scheduled";
 
                             if (isOutsideViewport) {
                               // Render a compact "outside viewport" indicator at the top/bottom edge
@@ -778,7 +788,7 @@ export function AppointmentCalendarView({
                                   key={appt.id}
                                   onClick={() => onSelectAppointment(appt)}
                                   style={{
-                                    top: edgeTop ? 0 : VIEWPORT_HEIGHT_PX - 28,
+                                    top: edgeTop ? 0 : viewportHeightPx - 28,
                                     left: `${leftPct}%`,
                                     width: `${widthPct}%`,
                                   }}
@@ -798,7 +808,9 @@ export function AppointmentCalendarView({
                             // CRITICAL: Cards must be 100% opaque solid surfaces (never translucent or transparent on hover)
                             // so overlapping or adjacent cards never bleed text or backgrounds through each other.
                             // Hovering dynamically elevates the card to z-30 with a solid contrast border and crisp shadow.
-                            const cardZIndex = isActive ? "z-10 hover:z-30" : "z-5 hover:z-30";
+                            const cardZIndex = isActive
+                              ? "z-10 hover:z-30"
+                              : "z-5 hover:z-30";
                             const cardBgBorder = isCompleted
                               ? "bg-card border-emerald-500/50 hover:border-emerald-500 hover:shadow-md"
                               : isCancelled

@@ -17,7 +17,6 @@ import {
   RefreshCw,
   Trash2,
   MapPin,
-  Scissors,
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/formatters";
 import type { Appointment } from "../types/appointment.types";
@@ -129,7 +128,7 @@ export function AppointmentListView({
         const serviceNames = getServiceSummary(appt);
         return (
           <div
-            className="text-xs text-foreground max-w-[200px] truncate"
+            className="text-xs text-foreground max-w-50 truncate"
             title={serviceNames}
           >
             {serviceNames}
@@ -284,7 +283,9 @@ export function AppointmentListView({
   ];
 
   const renderMobileRow = (appt: Appointment) => {
-    const isTerminal = ["completed", "cancelled", "no_show"].includes(appt.status);
+    const isTerminal = ["completed", "cancelled", "no_show"].includes(
+      appt.status,
+    );
     const total =
       appt.pricing?.total ??
       appt.services?.reduce((acc, s) => acc + s.price, 0) ??
