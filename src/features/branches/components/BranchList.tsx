@@ -24,7 +24,7 @@ export function BranchList() {
   const canUpdate = hasPermission(user, "branches.update");
   const canDelete = hasPermission(user, "branches.delete");
 
-  const { branches, organization, isLoading, isError, refetch, isRefetching } = useBranches();
+  const { branches, isLoading, isError, refetch, isRefetching } = useBranches();
 
   // Modals state
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -62,8 +62,12 @@ export function BranchList() {
             <Building2 size={16} />
           </div>
           <div>
-            <span className="font-bold text-foreground text-sm block">{row.original.name}</span>
-            <span className="text-[11px] text-muted-foreground">ID: {row.original.id}</span>
+            <span className="font-bold text-foreground text-sm block">
+              {row.original.name}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              ID: {row.original.id}
+            </span>
           </div>
         </div>
       ),
@@ -73,7 +77,9 @@ export function BranchList() {
       header: "Phone",
       cell: ({ row }) => (
         <span className="text-xs text-foreground">
-          {row.original.phone || <span className="text-muted-foreground/60">—</span>}
+          {row.original.phone || (
+            <span className="text-muted-foreground/60">—</span>
+          )}
         </span>
       ),
     },
@@ -82,7 +88,9 @@ export function BranchList() {
       header: "Address",
       cell: ({ row }) => (
         <span className="text-xs text-foreground max-w-xs truncate block">
-          {row.original.address || <span className="text-muted-foreground/60">—</span>}
+          {row.original.address || (
+            <span className="text-muted-foreground/60">—</span>
+          )}
         </span>
       ),
     },
@@ -98,7 +106,9 @@ export function BranchList() {
         <EntityActionMenu
           onView={() => handleViewDetails(row.original)}
           onEdit={canUpdate ? () => handleEdit(row.original) : undefined}
-          onDelete={canDelete ? () => handleDeactivate(row.original) : undefined}
+          onDelete={
+            canDelete ? () => handleDeactivate(row.original) : undefined
+          }
           status={row.original.isActive ? "active" : "inactive"}
         />
       ),
@@ -191,4 +201,3 @@ export function BranchList() {
     </div>
   );
 }
-

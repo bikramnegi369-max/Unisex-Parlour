@@ -1,10 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
@@ -24,15 +22,6 @@ export function DeleteAppointmentDialog({
   onConfirm,
   isLoading,
 }: DeleteAppointmentDialogProps) {
-  const { currentBranchId, isAllBranchesSelected, availableBranches } = useBranchContext();
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(appointment?.branchId || currentBranchId || "");
-
-  const activeBranches = availableBranches.map((b) => ({
-    id: b.id,
-    name: b.name,
-    isActive: b.isActive,
-  }));
-
   if (!appointment) return null;
 
   const handleConfirm = async () => {
@@ -62,7 +51,7 @@ export function DeleteAppointmentDialog({
           <span className="font-semibold text-foreground">{appointment.customer?.name || "Customer"}</span>?
         </p>
 
-        <p className="text-xs text-muted-foreground bg-amber-500/10 p-2 rounded-md border border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center gap-2">
+        <p className="text-xs bg-amber-500/10 p-2 rounded-md border border-amber-500/20 text-amber-700 dark:text-amber-400 flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
           <span>
             Note: Delete is an administrative action. For routine customer cancellations, please use <span className="font-semibold">Cancel Status</span> instead.

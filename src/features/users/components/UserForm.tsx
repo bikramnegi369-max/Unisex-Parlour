@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,16 +7,14 @@ import { Input } from "@/components/ui/input";
 import { useBranches } from "@/features/branches/hooks/useBranches";
 import { useRoles } from "../hooks/useRoles";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import {
-  createUserSchema,
-  updateUserSchema,
-  type CreateUserFormValues,
-  type UpdateUserFormValues,
-} from "../schemas/users.schema";
-import type { UserResponseDTO } from "../types/users.types";
+import { createUserSchema, updateUserSchema } from "../schemas/users.schema";
+import type { UserBranchAccess, UserResponseDTO } from "../types/users.types";
+import type { Role } from "@/features/roles/types/roles.types";
+import type { Branch } from "@/types/branch";
 
 interface UserFormProps {
   initialUser?: UserResponseDTO;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onSubmit: (data: any) => void;
   isSubmitting: boolean;
   onCancel: () => void;
@@ -28,10 +26,10 @@ export default function UserForm({
   isSubmitting,
   onCancel,
 }: UserFormProps) {
-  const isEditMode = !!initialUser;
-  const { user: currentUser } = useAuth();
-  const { branches, isLoading: isLoadingBranches } = useBranches();
+  const isEditMode = Boolean(initialUser);
   const { data: roles = [], isLoading: isLoadingRoles } = useRoles();
+  const { branches = [], isLoading: isLoadingBranches } = useBranches();
+  const { user: currentUser } = useAuth();
 
   // If editing self, block hasOrgWideAccess changes
   const isSelfEdit = currentUser?.id === initialUser?.id;
@@ -48,15 +46,14 @@ export default function UserForm({
       };
     }
 
-    // Map branchAccess objects to string array of branchIds
-    const selectedBranches = initialUser.branchAccess
-      .filter((b) => b.isActive)
-      .map((b) => b.branchId);
-
     const initialRoleId =
       typeof initialUser.role === "object" && initialUser.role !== null
         ? initialUser.role.id
-        : (roles.find((r) => r.name === initialUser.role)?.id || "");
+        : roles.find((r: Role) => r.name === initialUser.role)?.id || "";
+
+    const selectedBranches = (initialUser.branchAccess || []).map(
+      (b: UserBranchAccess) => b.branchId,
+    );
 
     return {
       name: initialUser.name || "",
@@ -70,19 +67,36 @@ export default function UserForm({
 
   const activeSchema = isEditMode ? updateUserSchema : createUserSchema;
 
+  type FormDataType = {
+    name: string;
+    email: string;
+    phone: string;
+    roleId: string;
+    branchAccess: string[];
+    hasOrgWideAccess: boolean;
+  };
+
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     formState: { errors },
-  } = useForm<any>({
-    resolver: zodResolver(activeSchema),
+  } = useForm<FormDataType>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(activeSchema) as any,
     defaultValues,
   });
 
-  const hasOrgWideAccess = watch("hasOrgWideAccess");
-  const selectedBranchAccess: string[] = watch("branchAccess") || [];
+  const hasOrgWideAccess = useWatch({
+    control,
+    name: "hasOrgWideAccess",
+  });
+  const branchAccessWatch = useWatch({
+    control,
+    name: "branchAccess",
+  });
+  const selectedBranchAccess: string[] = branchAccessWatch || [];
 
   const handleBranchCheckboxChange = (branchId: string, checked: boolean) => {
     let updated: string[];
@@ -91,15 +105,18 @@ export default function UserForm({
     } else {
       updated = selectedBranchAccess.filter((id) => id !== branchId);
     }
-    setValue("branchAccess", updated, { shouldDirty: true, shouldValidate: true });
+    setValue("branchAccess", updated, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
-  const handleFormSubmit = (values: any) => {
+  const handleFormSubmit = (values: FormDataType) => {
     // Backend Zod schema expects branchAccess to be an array of objects: [{ branchId, branchName, isActive }]
     const formattedBranchAccess = values.hasOrgWideAccess
       ? []
       : (values.branchAccess || []).map((bId: string) => {
-          const matchedBranch = branches.find((b) => b.id === bId);
+          const matchedBranch = branches.find((b: Branch) => b.id === bId);
           return {
             branchId: bId,
             branchName: matchedBranch?.name || "Branch",
@@ -118,44 +135,69 @@ export default function UserForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto px-1 py-1 text-left">
+    <form
+      onSubmit={handleSubmit(handleFormSubmit)}
+      className="space-y-6 max-h-[70vh] overflow-y-auto px-1 py-1 text-left"
+    >
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground">Account Information</h3>
-          <p className="text-xs text-muted-foreground">General details and authorization parameters.</p>
+          <h3 className="text-sm font-bold text-foreground">
+            Account Information
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            General details and authorization parameters.
+          </p>
         </div>
         <hr className="border-border/60" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="name" className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
+            <label
+              htmlFor="name"
+              className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
+            >
               Full Name <span className="text-destructive">*</span>
             </label>
             <Input
               id="name"
               placeholder="e.g. John Doe"
-              className={errors.name ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.name
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("name")}
             />
             {errors.name && (
-              <p className="text-xs text-destructive font-medium mt-1">{errors.name.message as string}</p>
+              <p className="text-xs text-destructive font-medium mt-1">
+                {errors.name.message as string}
+              </p>
             )}
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
+            <label
+              htmlFor="phone"
+              className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
+            >
               Phone Number <span className="text-destructive">*</span>
             </label>
             <Input
               id="phone"
               placeholder="e.g. +1234567890"
-              className={errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.phone
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("phone")}
             />
             {errors.phone && (
-              <p className="text-xs text-destructive font-medium mt-1">{errors.phone.message as string}</p>
+              <p className="text-xs text-destructive font-medium mt-1">
+                {errors.phone.message as string}
+              </p>
             )}
           </div>
         </div>
@@ -163,24 +205,36 @@ export default function UserForm({
         {!isEditMode && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="email" className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
+              <label
+                htmlFor="email"
+                className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
+              >
                 Email Address <span className="text-destructive">*</span>
               </label>
               <Input
                 id="email"
                 type="email"
                 placeholder="jane@parlour.com"
-                className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+                className={
+                  errors.email
+                    ? "border-destructive focus-visible:ring-destructive"
+                    : ""
+                }
                 disabled={isSubmitting}
                 {...register("email")}
               />
               {errors.email && (
-                <p className="text-xs text-destructive font-medium mt-1">{errors.email.message as string}</p>
+                <p className="text-xs text-destructive font-medium mt-1">
+                  {errors.email.message as string}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="roleId" className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
+              <label
+                htmlFor="roleId"
+                className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
+              >
                 System Role <span className="text-destructive">*</span>
               </label>
               <select
@@ -190,14 +244,16 @@ export default function UserForm({
                 {...register("roleId")}
               >
                 <option value="">Select a role...</option>
-                {roles.map((r, index) => (
+                {roles.map((r: Role, index: number) => (
                   <option key={r.id || r.name || `role-${index}`} value={r.id}>
                     {r.name}
                   </option>
                 ))}
               </select>
               {errors.roleId && (
-                <p className="text-xs text-destructive font-medium mt-1">{errors.roleId.message as string}</p>
+                <p className="text-xs text-destructive font-medium mt-1">
+                  {errors.roleId.message as string}
+                </p>
               )}
             </div>
           </div>
@@ -208,7 +264,9 @@ export default function UserForm({
       <div className="space-y-4 pt-2">
         <div>
           <h3 className="text-sm font-bold text-foreground">Branch Access</h3>
-          <p className="text-xs text-muted-foreground">Branches this account is authorized to access in the ERP.</p>
+          <p className="text-xs text-muted-foreground">
+            Branches this account is authorized to access in the ERP.
+          </p>
         </div>
         <hr className="border-border/60" />
 
@@ -220,7 +278,10 @@ export default function UserForm({
             disabled={isSubmitting || isSelfEdit}
             {...register("hasOrgWideAccess")}
           />
-          <label htmlFor="hasOrgWideAccess" className="text-xs font-semibold text-foreground cursor-pointer">
+          <label
+            htmlFor="hasOrgWideAccess"
+            className="text-xs font-semibold text-foreground cursor-pointer"
+          >
             Grant Organization-Wide Access (All current and future branches)
           </label>
         </div>
@@ -237,17 +298,22 @@ export default function UserForm({
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-muted/20 p-3 rounded-lg border border-border">
-                {branches.map((b) => (
+                {branches.map((b: Branch) => (
                   <div key={b.id} className="flex items-center gap-2">
                     <input
                       id={`branch-${b.id}`}
                       type="checkbox"
                       checked={selectedBranchAccess.includes(b.id)}
-                      onChange={(e) => handleBranchCheckboxChange(b.id, e.target.checked)}
+                      onChange={(e) =>
+                        handleBranchCheckboxChange(b.id, e.target.checked)
+                      }
                       className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                       disabled={isSubmitting}
                     />
-                    <label htmlFor={`branch-${b.id}`} className="text-xs font-medium text-foreground cursor-pointer select-none">
+                    <label
+                      htmlFor={`branch-${b.id}`}
+                      className="text-xs font-medium text-foreground cursor-pointer select-none"
+                    >
                       {b.name}
                     </label>
                   </div>
@@ -273,7 +339,11 @@ export default function UserForm({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/95 cursor-pointer">
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="bg-primary hover:bg-primary/95 cursor-pointer"
+        >
           {isSubmitting ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />

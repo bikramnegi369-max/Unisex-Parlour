@@ -1,12 +1,11 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
 import { Select } from "@/components/ui/select";
 import {
   assignStaffSchema,
@@ -35,16 +34,10 @@ export function AssignStaffDialog({
   onSubmit,
   isLoading,
 }: AssignStaffDialogProps) {
-  const { isAllBranchesSelected, availableBranches, currentBranch } = useBranchContext();
+  const { currentBranch } = useBranchContext();
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [syncTimeToNow, setSyncTimeToNow] = useState(true);
   const rescheduleMutation = useRescheduleAppointment();
-
-  const activeBranches = availableBranches.map((b) => ({
-    id: b.id,
-    name: b.name,
-    isActive: b.isActive,
-  }));
 
   const employeeParams = useMemo(() => {
     return {
@@ -58,11 +51,9 @@ export function AssignStaffDialog({
   const {
     register,
     handleSubmit,
-    control,
     setValue,
-    watch,
+    control,
     reset,
-    formState: { errors },
   } = useForm<AssignStaffSchemaType>({
     resolver: zodResolver(assignStaffSchema),
     defaultValues: {
@@ -71,7 +62,10 @@ export function AssignStaffDialog({
     },
   });
 
-  const selectedStaffId = watch("staffId");
+  const selectedStaffId = useWatch({
+    control,
+    name: "staffId",
+  });
 
   // Detect whether this is a walk-in waiting in queue whose scheduled time has elapsed
   const isElapsedWalkInQueue = useMemo(() => {
@@ -109,15 +103,23 @@ export function AssignStaffDialog({
     }
   }, [appointment, currentBranch?.timezone]);
 
+  const prevOpenRef = React.useRef(isOpen);
+
   useEffect(() => {
+    // When the dialog opens with an active appointment, reset form values
     if (isOpen && appointment) {
-      setConflictError(null);
-      setSyncTimeToNow(true);
       reset({
         branchId: appointment.branchId,
         staffId: appointment.staffId || null,
       });
     }
+
+    // Reset local modal state when closing
+    if (prevOpenRef.current && !isOpen) {
+      setConflictError(null);
+      setSyncTimeToNow(true);
+    }
+    prevOpenRef.current = isOpen;
   }, [isOpen, appointment, reset]);
 
   const handleFormSubmit = async (data: AssignStaffSchemaType) => {
@@ -127,7 +129,8 @@ export function AssignStaffDialog({
     try {
       // If the walk-in's queue start time has passed and sync is selected, auto-align start time to NOW (+1 min buffer to prevent backend clock skew)
       if (isElapsedWalkInQueue && syncTimeToNow && data.staffId) {
-        const safeCurrentTime = new Date(Date.now() + 60000);
+        const now = new Date();
+        const safeCurrentTime = new Date(now.getTime() + 60000);
         const currentTimeStr = format(safeCurrentTime, "HH:mm");
         await rescheduleMutation.mutateAsync({
           id: appointment.id,
@@ -266,7 +269,7 @@ export function AssignStaffDialog({
               Select Staff Member
             </label>
             <Select
-              value={watch("staffId") || ""}
+              value={selectedStaffId || ""}
               onChange={(e) => {
                 setValue("staffId", e.target.value ? e.target.value : null);
               }}

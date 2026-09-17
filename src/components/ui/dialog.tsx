@@ -10,15 +10,15 @@ interface DialogProps {
 }
 
 export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
-  const [mounted, setMounted] = React.useState(false);
+  const mounted = React.useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
   const dialogRef = React.useRef<HTMLDivElement>(null);
   const previousFocusRef = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
   const onCloseRef = React.useRef(onClose);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Keep the latest onClose without re-running the focus-management effect.
   // The effect below intentionally depends only on `isOpen` so that a new

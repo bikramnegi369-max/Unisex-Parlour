@@ -1,8 +1,6 @@
 "use client";
-"use no memo";
-
 import React from "react";
-import { useForm, Controller, type Resolver } from "react-hook-form";
+import { useForm, Controller, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { serviceSchema, type ServiceFormValues } from "../../schemas/service.schema";
 import { Input } from "@/components/ui/input";
@@ -63,7 +61,6 @@ export default function ServiceForm({
     register,
     handleSubmit,
     setError,
-    watch,
     control,
     reset,
     formState: { errors },
@@ -72,7 +69,10 @@ export default function ServiceForm({
     defaultValues,
   });
 
-  const isTaxable = watch("taxable");
+  const isTaxable = useWatch({
+    control,
+    name: "taxable",
+  });
 
   // Re-synchronize form values when initialService or defaultValues changes
   React.useEffect(() => {

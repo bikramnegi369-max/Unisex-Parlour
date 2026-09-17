@@ -17,7 +17,10 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
   const [page, setPage] = useState(1);
   const limit = 10;
 
-  const { data, isLoading, isError, refetch } = useCustomerActivity(customerId, { page, limit });
+  const { data, isLoading, isError, refetch } = useCustomerActivity(
+    customerId,
+    { page, limit },
+  );
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
@@ -93,12 +96,15 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
             return (
               <div key={item._id} className="relative group text-left">
                 {/* Timeline dot marker */}
-                <span className="absolute -left-[31px] top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-primary/20 bg-background text-primary-foreground ring-4 ring-background">
+                <span className="absolute -left-7.75 top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-primary/20 bg-background text-primary-foreground ring-4 ring-background">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                 </span>
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] uppercase bg-primary/10 text-primary border-primary/20 tracking-wide px-2 py-0.5 rounded">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] uppercase bg-primary/10 text-primary border-primary/20 tracking-wide px-2 py-0.5 rounded"
+                    >
                       {getActionLabel(item.action)}
                     </Badge>
                     <span className="text-xs text-muted-foreground font-medium">
@@ -113,7 +119,9 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
                       Performed by:{" "}
                       <span className="text-foreground/80">
                         {typeof item.performedBy === "object"
-                          ? item.performedBy.name || item.performedBy._id || "System User"
+                          ? item.performedBy.name ||
+                            item.performedBy._id ||
+                            "System User"
                           : item.performedBy || "System User"}
                       </span>
                     </p>
@@ -135,7 +143,7 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
                 size="sm"
                 onClick={() => handlePageChange(Number(pagination.page) - 1)}
                 disabled={Number(pagination.page) <= 1}
-                className="h-9 min-w-[44px]"
+                className="h-9 min-w-11"
               >
                 <ChevronLeft size={16} />
               </Button>
@@ -144,7 +152,7 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
                 size="sm"
                 onClick={() => handlePageChange(Number(pagination.page) + 1)}
                 disabled={Number(pagination.page) >= pagination.totalPages}
-                className="h-9 min-w-[44px]"
+                className="h-9 min-w-11"
               >
                 <ChevronRight size={16} />
               </Button>

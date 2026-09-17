@@ -138,7 +138,6 @@ apiClient.interceptors.response.use(
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        console.log("Axios error : ", refreshError)
         removeToken();
         removeRefreshToken();
         if (typeof window !== 'undefined' && window.location.pathname !== "/login") {

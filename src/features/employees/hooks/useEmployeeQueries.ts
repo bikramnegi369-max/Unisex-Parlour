@@ -6,6 +6,7 @@ import {
   getStaffBranches,
   getStaffServices,
 } from "../api/employees.api";
+import type { StaffBranch, StaffService } from "../types/employee.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -55,7 +56,7 @@ export function useStaffBranches(id: string | undefined) {
   const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
   const queryKey = getBranchQueryKey("staff-branches", [id || ""]);
 
-  return useQuery({
+  return useQuery<StaffBranch[]>({
     queryKey,
     queryFn: () => getStaffBranches(id!),
     enabled: isEnabled,
@@ -71,7 +72,7 @@ export function useStaffServices(id: string | undefined) {
   const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
   const queryKey = getBranchQueryKey("staff-services", [id || ""]);
 
-  return useQuery({
+  return useQuery<StaffService[]>({
     queryKey,
     queryFn: () => getStaffServices(id!),
     enabled: isEnabled,

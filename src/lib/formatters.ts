@@ -54,7 +54,7 @@ export function formatDate(
   try {
     const d = toDate(date);
     return isNaN(d.getTime()) ? fallback : format(d, formatStr);
-  } catch (_) {
+  } catch {
     return fallback;
   }
 }
@@ -82,7 +82,7 @@ export function formatRelativeTime(
     const d = toDate(date);
     if (isNaN(d.getTime())) return fallback;
     return formatDistanceToNow(d, { addSuffix: true });
-  } catch (_) {
+  } catch {
     return fallback;
   }
 }
@@ -112,7 +112,7 @@ export function formatInBranchTimezone(
       timeZone: timeZone || "Asia/Kolkata",
       ...options,
     }).format(d);
-  } catch (_) {
+  } catch {
     return fallback;
   }
 }

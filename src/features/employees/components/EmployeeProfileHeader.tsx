@@ -1,10 +1,19 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import type { Employee } from "../types/employee.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Trash2, Phone, Mail, UserCheck, Calendar } from "lucide-react";
+import {
+  ArrowLeft,
+  Edit,
+  Trash2,
+  Phone,
+  Mail,
+  UserCheck,
+  Calendar,
+} from "lucide-react";
 import { formatDate } from "@/lib/formatters";
 
 interface EmployeeProfileHeaderProps {
@@ -30,7 +39,10 @@ export function EmployeeProfileHeader({
   const fullName = employee.name || "";
   const isActive = employee.status === "active";
   const nameParts = fullName.trim().split(/\s+/);
-  const initials = nameParts.map((part) => part.charAt(0).toUpperCase()).slice(0, 2).join("");
+  const initials = nameParts
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
 
   return (
     <div className="space-y-6">
@@ -84,15 +96,18 @@ export function EmployeeProfileHeader({
       </div>
 
       {/* Identity Summary Card */}
-      <div className="p-6 bg-gradient-to-r from-card via-card to-primary/[0.03] border border-border/80 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+      <div className="p-6 bg-linear-to-r from-card via-card to-primary/3 border border-border/80 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="absolute -top-12 -right-12 w-40 h-40 bg-primary/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-5 min-w-0">
           <div className="relative shrink-0">
             {employee.avatarUrl ? (
-              <img
+              <Image
                 src={employee.avatarUrl}
                 alt={fullName}
+                width={64}
+                height={64}
+                unoptimized
                 className="h-16 w-16 rounded-full object-cover ring-2 ring-primary/20 shadow-md"
               />
             ) : (
@@ -109,8 +124,13 @@ export function EmployeeProfileHeader({
 
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">{fullName}</h1>
-              <Badge variant={isActive ? "success" : "muted"} className="capitalize px-2.5 py-0.5 text-xs font-semibold">
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                {fullName}
+              </h1>
+              <Badge
+                variant={isActive ? "success" : "muted"}
+                className="capitalize px-2.5 py-0.5 text-xs font-semibold"
+              >
                 {employee.status}
               </Badge>
             </div>

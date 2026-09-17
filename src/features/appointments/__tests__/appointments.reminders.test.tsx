@@ -43,7 +43,7 @@ describe("Appointments — Reminder Notification Contract & UX Architecture", ()
         offsetMinutes: 60,
       });
 
-      expect((payload as any).triggerNow).toBeUndefined();
+      expect((payload as unknown as Record<string, unknown>).triggerNow).toBeUndefined();
     });
 
     it("2. Update appointment payload metadata omits /reminder/trigger calls and sendAt", () => {
@@ -52,8 +52,8 @@ describe("Appointments — Reminder Notification Contract & UX Architecture", ()
         notes: "Updated customer preference",
       };
 
-      expect((updatePayload as any).reminder).toBeUndefined();
-      expect((updatePayload as any).sendAt).toBeUndefined();
+      expect((updatePayload as unknown as Record<string, unknown>).reminder).toBeUndefined();
+      expect((updatePayload as unknown as Record<string, unknown>).sendAt).toBeUndefined();
     });
   });
 
@@ -97,7 +97,7 @@ describe("Appointments — Reminder Notification Contract & UX Architecture", ()
       };
 
       const parsed = createAppointmentSchema.parse(rawInput);
-      expect((parsed.reminder as any).sendAt).toBeUndefined();
+      expect((parsed.reminder as Record<string, unknown> | undefined)?.sendAt).toBeUndefined();
     });
   });
 

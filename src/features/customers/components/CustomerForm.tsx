@@ -1,7 +1,10 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import { useForm, type Path, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { customerSchema, type CustomerFormValues } from "../schemas/customer.schema";
+import {
+  customerSchema,
+  type CustomerFormValues,
+} from "../schemas/customer.schema";
 import { type Customer, type CustomerPayload } from "../types/customer.types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,15 +32,15 @@ export default function CustomerForm({
   error,
 }: CustomerFormProps) {
   // Local state for Tag Chips
-  const [tags, setTags] = useState<string[]>(
-    initialCustomer?.tags || []
-  );
+  const [tags, setTags] = useState<string[]>(initialCustomer?.tags || []);
   const [tagInput, setTagInput] = useState("");
 
   // Local state for Searchable Referrer Autocomplete
   const [referrerSearch, setReferrerSearch] = useState("");
   const [referrerResults, setReferrerResults] = useState<Customer[]>([]);
-  const [selectedReferrer, setSelectedReferrer] = useState<Customer | null>(null);
+  const [selectedReferrer, setSelectedReferrer] = useState<Customer | null>(
+    null,
+  );
   const [isSearchingReferrer, setIsSearchingReferrer] = useState(false);
   const [showReferrerDropdown, setShowReferrerDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -87,8 +90,11 @@ export default function CustomerForm({
       name: initialCustomer.name || "",
       phone: initialCustomer.phone || "",
       email: initialCustomer.email || "",
-      gender: (initialCustomer.gender || "prefer_not_to_say") as CustomerFormValues["gender"],
-      dateOfBirth: initialCustomer.dateOfBirth ? initialCustomer.dateOfBirth.split("T")[0] : "",
+      gender: (initialCustomer.gender ||
+        "prefer_not_to_say") as CustomerFormValues["gender"],
+      dateOfBirth: initialCustomer.dateOfBirth
+        ? initialCustomer.dateOfBirth.split("T")[0]
+        : "",
       alternatePhone: initialCustomer.alternatePhone || "",
       address: {
         addressLine1: initialCustomer.address?.addressLine1 || "",
@@ -100,7 +106,8 @@ export default function CustomerForm({
       },
       preferences: {
         drinkPreference: initialCustomer.preferences?.drinkPreference || "",
-        preferredContactTime: initialCustomer.preferences?.preferredContactTime || "",
+        preferredContactTime:
+          initialCustomer.preferences?.preferredContactTime || "",
         language: initialCustomer.preferences?.language || "",
         remarks: initialCustomer.preferences?.remarks || "",
       },
@@ -109,15 +116,24 @@ export default function CustomerForm({
         email: !!initialCustomer.marketingPreferences?.email,
         whatsapp: !!initialCustomer.marketingPreferences?.whatsapp,
         promotions: !!initialCustomer.marketingPreferences?.promotions,
-        appointmentReminders: !!initialCustomer.marketingPreferences?.appointmentReminders,
+        appointmentReminders:
+          !!initialCustomer.marketingPreferences?.appointmentReminders,
       },
       doNotContact: !!initialCustomer.doNotContact,
-      acquisitionSource: (initialCustomer.acquisitionSource || "walk_in") as CustomerFormValues["acquisitionSource"],
+      acquisitionSource: (initialCustomer.acquisitionSource ||
+        "walk_in") as CustomerFormValues["acquisitionSource"],
       referredByCustomerId: initialCustomer.referredByCustomerId || "",
-      status: (initialCustomer.status || "active") as CustomerFormValues["status"],
-      allergies: Array.isArray(initialCustomer.allergies) ? initialCustomer.allergies.join(", ") : initialCustomer.allergies || "",
-      sensitivities: Array.isArray(initialCustomer.sensitivities) ? initialCustomer.sensitivities.join(", ") : initialCustomer.sensitivities || "",
-      tags: Array.isArray(initialCustomer.tags) ? initialCustomer.tags.join(", ") : initialCustomer.tags || "",
+      status: (initialCustomer.status ||
+        "active") as CustomerFormValues["status"],
+      allergies: Array.isArray(initialCustomer.allergies)
+        ? initialCustomer.allergies.join(", ")
+        : initialCustomer.allergies || "",
+      sensitivities: Array.isArray(initialCustomer.sensitivities)
+        ? initialCustomer.sensitivities.join(", ")
+        : initialCustomer.sensitivities || "",
+      tags: Array.isArray(initialCustomer.tags)
+        ? initialCustomer.tags.join(", ")
+        : initialCustomer.tags || "",
       loyaltyPoints: initialCustomer.loyaltyPoints ?? 0,
     };
   }, [initialCustomer]);
@@ -130,15 +146,29 @@ export default function CustomerForm({
     reset,
     formState: { errors },
   } = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerSchema) as unknown as Resolver<CustomerFormValues>,
+    resolver: zodResolver(
+      customerSchema,
+    ) as unknown as Resolver<CustomerFormValues>,
     defaultValues,
   });
 
-  // Re-synchronize form default values and tag chips state when initialCustomer changes
+  // Track previous initialCustomer to adjust local state during render without cascading renders
+  const [prevCustomer, setPrevCustomer] = useState<Customer | undefined>(
+    initialCustomer,
+  );
+  if (initialCustomer !== prevCustomer) {
+    setPrevCustomer(initialCustomer);
+    setTags(initialCustomer?.tags || []);
+    if (!initialCustomer?.referredByCustomerId) {
+      setSelectedReferrer(null);
+      setReferrerSearch("");
+    }
+  }
+
+  // Re-synchronize react-hook-form values when defaultValues change
   useEffect(() => {
     reset(defaultValues);
-    setTags(initialCustomer?.tags || []);
-  }, [defaultValues, reset, initialCustomer]);
+  }, [defaultValues, reset]);
 
   // Effect to map server validation errors
   useEffect(() => {
@@ -147,55 +177,75 @@ export default function CustomerForm({
     }
   }, [error, setError]);
 
-  // Load initial referrer customer info if edit mode
+  // Load initial referrer customer info asynchronously if edit mode
   useEffect(() => {
-    if (initialCustomer?.referredByCustomerId) {
-      getCustomers({ search: undefined, page: 1, limit: 100 })
-        .then((res) => {
-          const matched = res.data.find(
-            (c) => c.id === initialCustomer.referredByCustomerId || c._id === initialCustomer.referredByCustomerId
-          );
-          if (matched) {
-            setSelectedReferrer(matched);
-            setReferrerSearch(matched.name);
-          }
-        })
-        .catch((err) => console.error("Failed to load referrer profile details:", err));
-    } else {
-      setSelectedReferrer(null);
-      setReferrerSearch("");
+    if (!initialCustomer?.referredByCustomerId) {
+      return;
     }
-  }, [initialCustomer]);
+
+    let isCurrent = true;
+    getCustomers({ search: undefined, page: 1, limit: 100 })
+      .then((res) => {
+        if (!isCurrent) return;
+        const matched = res.data.find(
+          (c) =>
+            c.id === initialCustomer.referredByCustomerId ||
+            c._id === initialCustomer.referredByCustomerId,
+        );
+        if (matched) {
+          setSelectedReferrer(matched);
+          setReferrerSearch(matched.name);
+        }
+      })
+      .catch((err) => {
+        if (isCurrent) {
+          console.error("Failed to load referrer profile details:", err);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [initialCustomer?.referredByCustomerId]);
 
   const debouncedReferrerSearch = useDebounce(referrerSearch, 300);
 
   // Debounced search for referrer dropdown (with race-condition protection and active filter)
   useEffect(() => {
-    if (!debouncedReferrerSearch.trim() || (selectedReferrer && debouncedReferrerSearch === selectedReferrer.name)) {
+    const query = debouncedReferrerSearch.trim();
+    const isMatchingSelected =
+      selectedReferrer && debouncedReferrerSearch === selectedReferrer.name;
+
+    if (!query || isMatchingSelected) {
       return;
     }
 
     let isCurrent = true;
-    setIsSearchingReferrer(true);
 
-    getCustomers({ search: debouncedReferrerSearch.trim(), page: 1, limit: 5 })
-      .then((response) => {
+    // Execute lookup asynchronously
+    (async () => {
+      setIsSearchingReferrer(true);
+      try {
+        const response = await getCustomers({
+          search: query,
+          page: 1,
+          limit: 5,
+        });
         if (isCurrent) {
           // Exclude self and verify referrer status is active
           const filtered = response.data.filter(
-            (c) => c.id !== initialCustomer?.id && c.status === "active"
+            (c) => c.id !== initialCustomer?.id && c.status === "active",
           );
           setReferrerResults(filtered);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         console.error("Referrer lookup failed:", err);
-      })
-      .finally(() => {
+      } finally {
         if (isCurrent) {
           setIsSearchingReferrer(false);
         }
-      });
+      }
+    })();
 
     return () => {
       isCurrent = false;
@@ -205,7 +255,10 @@ export default function CustomerForm({
   // Handle outside click to close dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setShowReferrerDropdown(false);
       }
     }
@@ -255,10 +308,16 @@ export default function CustomerForm({
     const formattedPayload = {
       ...cleanValues,
       allergies: values.allergies
-        ? values.allergies.split(",").map((s) => s.trim()).filter(Boolean)
+        ? values.allergies
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
         : [],
       sensitivities: values.sensitivities
-        ? values.sensitivities.split(",").map((s) => s.trim()).filter(Boolean)
+        ? values.sensitivities
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
         : [],
       tags: tags.map((t) => t.trim()).filter(Boolean),
       // Ensure email is null if empty as per backend schema default
@@ -270,70 +329,122 @@ export default function CustomerForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 max-h-[75vh] overflow-y-auto px-1 py-2 text-left">
+    <form
+      onSubmit={handleSubmit(handleFormSubmit)}
+      className="space-y-6 max-h-[75vh] overflow-y-auto px-1 py-2 text-left"
+    >
       {/* 1. Basic Information */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/5 p-4">
-        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">Basic Information</h3>
+        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">
+          Basic Information
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="name" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="name"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Full Name <span className="text-destructive">*</span>
             </label>
             <Input
               id="name"
               placeholder="e.g. John Doe"
-              className={errors.name ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.name
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("name")}
             />
-            {errors.name && <p className="mt-1 text-xs font-medium text-destructive">{errors.name.message}</p>}
+            {errors.name && (
+              <p className="mt-1 text-xs font-medium text-destructive">
+                {errors.name.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="phone"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Phone Number <span className="text-destructive">*</span>
             </label>
             <Input
               id="phone"
               placeholder="e.g. +1234567890"
-              className={errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.phone
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("phone")}
             />
-            {errors.phone && <p className="mt-1 text-xs font-medium text-destructive">{errors.phone.message}</p>}
+            {errors.phone && (
+              <p className="mt-1 text-xs font-medium text-destructive">
+                {errors.phone.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label htmlFor="alternatePhone" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="alternatePhone"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Alternate Phone
             </label>
             <Input
               id="alternatePhone"
               placeholder="e.g. +1987654321"
-              className={errors.alternatePhone ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.alternatePhone
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("alternatePhone")}
             />
-            {errors.alternatePhone && <p className="mt-1 text-xs font-medium text-destructive">{errors.alternatePhone.message}</p>}
+            {errors.alternatePhone && (
+              <p className="mt-1 text-xs font-medium text-destructive">
+                {errors.alternatePhone.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="email"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Email Address
             </label>
             <Input
               id="email"
               type="email"
               placeholder="e.g. john@example.com"
-              className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.email
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("email")}
             />
-            {errors.email && <p className="mt-1 text-xs font-medium text-destructive">{errors.email.message}</p>}
+            {errors.email && (
+              <p className="mt-1 text-xs font-medium text-destructive">
+                {errors.email.message}
+              </p>
+            )}
           </div>
 
           <div>
-            <label htmlFor="gender" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="gender"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Gender
             </label>
             <Select id="gender" disabled={isSubmitting} {...register("gender")}>
@@ -345,27 +456,43 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label htmlFor="dateOfBirth" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="dateOfBirth"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Date of Birth
             </label>
             <Input
               id="dateOfBirth"
               type="date"
-              className={errors.dateOfBirth ? "border-destructive focus-visible:ring-destructive" : ""}
+              className={
+                errors.dateOfBirth
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
               disabled={isSubmitting}
               {...register("dateOfBirth")}
             />
-            {errors.dateOfBirth && <p className="mt-1 text-xs font-medium text-destructive">{errors.dateOfBirth.message}</p>}
+            {errors.dateOfBirth && (
+              <p className="mt-1 text-xs font-medium text-destructive">
+                {errors.dateOfBirth.message}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
       {/* 2. Contact & Address */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/5 p-4">
-        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">Contact & Address</h3>
+        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">
+          Contact & Address
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
-            <label htmlFor="addressLine1" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="addressLine1"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Address Line 1
             </label>
             <Input
@@ -377,7 +504,10 @@ export default function CustomerForm({
           </div>
 
           <div className="md:col-span-2">
-            <label htmlFor="addressLine2" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="addressLine2"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Address Line 2
             </label>
             <Input
@@ -389,41 +519,78 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label htmlFor="city" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="city"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               City
             </label>
-            <Input id="city" placeholder="City" disabled={isSubmitting} {...register("address.city")} />
+            <Input
+              id="city"
+              placeholder="City"
+              disabled={isSubmitting}
+              {...register("address.city")}
+            />
           </div>
 
           <div>
-            <label htmlFor="state" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="state"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               State / Province
             </label>
-            <Input id="state" placeholder="State" disabled={isSubmitting} {...register("address.state")} />
+            <Input
+              id="state"
+              placeholder="State"
+              disabled={isSubmitting}
+              {...register("address.state")}
+            />
           </div>
 
           <div>
-            <label htmlFor="postalCode" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="postalCode"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Postal / ZIP Code
             </label>
-            <Input id="postalCode" placeholder="ZIP Code" disabled={isSubmitting} {...register("address.postalCode")} />
+            <Input
+              id="postalCode"
+              placeholder="ZIP Code"
+              disabled={isSubmitting}
+              {...register("address.postalCode")}
+            />
           </div>
 
           <div>
-            <label htmlFor="country" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="country"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Country
             </label>
-            <Input id="country" placeholder="Country" disabled={isSubmitting} {...register("address.country")} />
+            <Input
+              id="country"
+              placeholder="Country"
+              disabled={isSubmitting}
+              {...register("address.country")}
+            />
           </div>
         </div>
       </div>
 
       {/* 3. Preferences */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/5 p-4">
-        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">Preferences</h3>
+        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">
+          Preferences
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="drinkPreference" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="drinkPreference"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Drink Preference
             </label>
             <Input
@@ -435,7 +602,10 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label htmlFor="preferredContactTime" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="preferredContactTime"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Preferred Contact Time
             </label>
             <Input
@@ -447,7 +617,10 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label htmlFor="language" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="language"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Preferred Language
             </label>
             <Input
@@ -459,7 +632,10 @@ export default function CustomerForm({
           </div>
 
           <div className="md:col-span-2">
-            <label htmlFor="remarks" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="remarks"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Remarks
             </label>
             <textarea
@@ -476,8 +652,10 @@ export default function CustomerForm({
 
       {/* 4. Communication & Marketing */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/5 p-4">
-        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">Communication & Marketing</h3>
-        
+        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">
+          Communication & Marketing
+        </h3>
+
         <div className="flex items-center gap-2 py-1">
           <input
             id="doNotContact"
@@ -486,20 +664,28 @@ export default function CustomerForm({
             disabled={isSubmitting}
             {...register("doNotContact")}
           />
-          <label htmlFor="doNotContact" className="text-sm font-semibold text-destructive cursor-pointer">
+          <label
+            htmlFor="doNotContact"
+            className="text-sm font-semibold text-destructive cursor-pointer"
+          >
             DO NOT CONTACT (Check to restrict all outgoing communications)
           </label>
         </div>
 
         <div className="space-y-2 mt-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Allowed Marketing Channels</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Allowed Marketing Channels
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               { id: "marketingPreferences.sms", label: "SMS" },
               { id: "marketingPreferences.email", label: "Email" },
               { id: "marketingPreferences.whatsapp", label: "WhatsApp" },
               { id: "marketingPreferences.promotions", label: "Promotions" },
-              { id: "marketingPreferences.appointmentReminders", label: "Reminders" },
+              {
+                id: "marketingPreferences.appointmentReminders",
+                label: "Reminders",
+              },
             ].map((channel) => (
               <div key={channel.id} className="flex items-center gap-2">
                 <input
@@ -509,7 +695,10 @@ export default function CustomerForm({
                   disabled={isSubmitting}
                   {...register(channel.id as Path<CustomerFormValues>)}
                 />
-                <label htmlFor={channel.id} className="text-sm font-medium text-foreground cursor-pointer">
+                <label
+                  htmlFor={channel.id}
+                  className="text-sm font-medium text-foreground cursor-pointer"
+                >
                   {channel.label}
                 </label>
               </div>
@@ -520,13 +709,22 @@ export default function CustomerForm({
 
       {/* 5. CRM & Administration */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/5 p-4">
-        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">CRM & Account Settings</h3>
+        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">
+          CRM & Account Settings
+        </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="acquisitionSource" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="acquisitionSource"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Acquisition Source
             </label>
-            <Select id="acquisitionSource" disabled={isSubmitting} {...register("acquisitionSource")}>
+            <Select
+              id="acquisitionSource"
+              disabled={isSubmitting}
+              {...register("acquisitionSource")}
+            >
               <option value="walk_in">Walk-in</option>
               <option value="instagram">Instagram</option>
               <option value="facebook">Facebook</option>
@@ -539,7 +737,10 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label htmlFor="status" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="status"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Account Status
             </label>
             <Select id="status" disabled={isSubmitting} {...register("status")}>
@@ -551,7 +752,10 @@ export default function CustomerForm({
 
           {/* Searchable Referrer Autocomplete */}
           <div className="relative" ref={dropdownRef}>
-            <label htmlFor="referredBySearch" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="referredBySearch"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Referred By Customer
             </label>
             <div className="relative flex items-center">
@@ -585,40 +789,46 @@ export default function CustomerForm({
             {/* hidden field to bind form values */}
             <input type="hidden" {...register("referredByCustomerId")} />
 
-            {showReferrerDropdown && (referrerResults.length > 0 || isSearchingReferrer) && (
-              <div className="absolute z-10 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {isSearchingReferrer ? (
-                  <div className="p-3 text-xs text-muted-foreground flex items-center justify-center gap-2">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Searching...
-                  </div>
-                ) : (
-                  <ul className="py-1">
-                    {referrerResults.map((customer) => (
-                      <li key={customer.id}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelectReferrer(customer)}
-                          className="flex items-center justify-between w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
-                        >
-                          <div>
-                            <p className="font-medium">{customer.name}</p>
-                            <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                          </div>
-                          {selectedReferrer?.id === customer.id && (
-                            <Check className="h-4 w-4 text-primary" />
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+            {showReferrerDropdown &&
+              (referrerResults.length > 0 || isSearchingReferrer) && (
+                <div className="absolute z-10 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                  {isSearchingReferrer ? (
+                    <div className="p-3 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Searching...
+                    </div>
+                  ) : (
+                    <ul className="py-1">
+                      {referrerResults.map((customer) => (
+                        <li key={customer.id}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectReferrer(customer)}
+                            className="flex items-center justify-between w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                          >
+                            <div>
+                              <p className="font-medium">{customer.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {customer.phone}
+                              </p>
+                            </div>
+                            {selectedReferrer?.id === customer.id && (
+                              <Check className="h-4 w-4 text-primary" />
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
           </div>
 
           <div>
-            <label htmlFor="loyaltyPoints" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="loyaltyPoints"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Loyalty Points
             </label>
             <Input
@@ -637,7 +847,10 @@ export default function CustomerForm({
 
           {/* Interactive Tag Chips Component */}
           <div className="md:col-span-2 space-y-2">
-            <label htmlFor="tagInput" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="tagInput"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Tags
             </label>
             <div className="flex flex-wrap gap-1.5 p-2 bg-background border border-input rounded-md focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
@@ -658,12 +871,14 @@ export default function CustomerForm({
               ))}
               <input
                 id="tagInput"
-                placeholder={tags.length === 0 ? "Type tag name and press Enter..." : ""}
+                placeholder={
+                  tags.length === 0 ? "Type tag name and press Enter..." : ""
+                }
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
                 disabled={isSubmitting}
-                className="flex-1 bg-transparent text-sm focus:outline-none min-w-[120px]"
+                className="flex-1 bg-transparent text-sm focus:outline-none min-w-30"
               />
             </div>
             {/* hidden field to register Zod schema tags string */}
@@ -674,10 +889,15 @@ export default function CustomerForm({
 
       {/* 6. Health Information */}
       <div className="space-y-4 rounded-xl border border-border/60 bg-muted/5 p-4">
-        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">Health & Sensitivities</h3>
+        <h3 className="text-sm font-semibold text-foreground border-b border-border/50 pb-2">
+          Health & Sensitivities
+        </h3>
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label htmlFor="allergies" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="allergies"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Allergies (Comma separated)
             </label>
             <Input
@@ -689,7 +909,10 @@ export default function CustomerForm({
           </div>
 
           <div>
-            <label htmlFor="sensitivities" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+            <label
+              htmlFor="sensitivities"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+            >
               Sensitivities (Comma separated)
             </label>
             <Input
@@ -703,10 +926,19 @@ export default function CustomerForm({
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-border/80">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting} className="min-w-25 cursor-pointer">
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          className="min-w-25 cursor-pointer"
+        >
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -720,5 +952,3 @@ export default function CustomerForm({
     </form>
   );
 }
-
-

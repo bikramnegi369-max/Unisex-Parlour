@@ -98,8 +98,9 @@ export function AppointmentDetailsDialog({
       <div className="space-y-4 text-left">
         <div className="flex items-center justify-between border-b border-border pb-2">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+            <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1.5">
               {appointmentCodeDisplay}
+              {isFetchingDetails && <Loader2 className="h-3 w-3 animate-spin text-primary" />}
             </span>
           </div>
           <div className="flex items-center gap-1.5">

@@ -116,11 +116,6 @@ export default function ServicesList() {
 
   // Debounce search input
   useEffect(() => {
-    if (search === "") {
-      setDebouncedSearch("");
-      return;
-    }
-
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
     }, 600);

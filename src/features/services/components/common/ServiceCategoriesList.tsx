@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { capitalizeWords } from "@/lib/formatters";
+import { useDebounce } from "@/hooks/useDebounce";
 
 export default function ServiceCategoriesList() {
   const router = useRouter();
@@ -48,13 +49,13 @@ export default function ServiceCategoriesList() {
 
   // Local state for search responsiveness
   const [search, setSearch] = useState(searchVal);
-  const [debouncedSearch, setDebouncedSearch] = useState(searchVal);
   const [prevSearchVal, setPrevSearchVal] = useState(searchVal);
+
+  const debouncedSearch = useDebounce(search, 500);
 
   if (searchVal !== prevSearchVal) {
     setPrevSearchVal(searchVal);
     setSearch(searchVal);
-    setDebouncedSearch(searchVal);
   }
 
   // Modals and dialog states
@@ -101,19 +102,6 @@ export default function ServiceCategoriesList() {
     params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
   };
-
-  // Debounce search input
-  useEffect(() => {
-    if (search === "") {
-      setDebouncedSearch("");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Sync debounced search with URL
   useEffect(() => {

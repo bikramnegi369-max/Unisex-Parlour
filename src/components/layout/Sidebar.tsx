@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { routePermissions, RoutePath } from "@/lib/permissions/routePermissions";
+import {
+  routePermissions,
+  RoutePath,
+} from "@/lib/permissions/routePermissions";
 import {
   LayoutDashboard,
   Users,
@@ -108,7 +111,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
   const { user } = useAuth();
   const dispatch = useAppDispatch();
   const isMobile = useMediaQuery("(max-width: 767px)");
-  const isCollapsedSelector = useAppSelector((state) => state.ui.sidebarCollapsed);
+  const isCollapsedSelector = useAppSelector(
+    (state) => state.ui.sidebarCollapsed,
+  );
 
   // Mobile drawer sidebar should never render in collapsed mode
   const isCollapsed = isMobile ? false : isCollapsedSelector;
@@ -117,14 +122,14 @@ export default function Sidebar({ onClose }: SidebarProps) {
     <aside
       className={cn(
         "flex flex-col h-full bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-all duration-300 ease-in-out z-20 shrink-0 overflow-x-hidden select-none shadow-sm",
-        isCollapsed ? "w-20" : "w-64"
+        isCollapsed ? "w-20" : "w-64",
       )}
     >
       {/* Sidebar Header / Branding */}
       <div className="flex items-center justify-between h-16 border-b border-sidebar-border shrink-0 px-4">
         {isCollapsed ? (
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform hover:scale-105">
-            <Scissors className="h-[18px] w-[18px]" />
+            <Scissors className="h-4.5 w-4.5" />
           </div>
         ) : (
           <div className="flex items-center justify-between w-full">
@@ -169,7 +174,12 @@ export default function Sidebar({ onClose }: SidebarProps) {
       )}
 
       {/* Navigation Items grouped by section */}
-      <nav className={cn("flex-1 py-3 overflow-y-auto overflow-x-hidden space-y-4 scrollbar-thin", isCollapsed ? "px-2" : "px-3")}>
+      <nav
+        className={cn(
+          "flex-1 py-3 overflow-y-auto overflow-x-hidden space-y-4 scrollbar-thin",
+          isCollapsed ? "px-2" : "px-3",
+        )}
+      >
         {navGroups.map((group) => {
           // Filter authorized items in group
           const visibleItems = group.items.filter((item) => {
@@ -197,7 +207,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
               )}
 
               {visibleItems.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                const isActive =
+                  pathname === item.href ||
+                  pathname.startsWith(item.href + "/");
                 const Icon = item.icon;
 
                 return (
@@ -206,20 +218,26 @@ export default function Sidebar({ onClose }: SidebarProps) {
                     href={item.href}
                     className={cn(
                       "flex items-center rounded-xl text-xs font-semibold transition-all duration-150 group relative h-9.5",
-                      isCollapsed ? "justify-center w-11 h-11 mx-auto my-1" : "px-3 w-full",
+                      isCollapsed
+                        ? "justify-center w-11 h-11 mx-auto my-1"
+                        : "px-3 w-full",
                       isActive
                         ? "bg-primary/10 text-primary font-bold shadow-2xs before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:bg-primary before:rounded-r"
-                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-muted-foreground hover:text-foreground"
+                        : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-muted-foreground",
                     )}
                   >
                     <Icon
                       className={cn(
-                        "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
+                        "h-4.5 w-4.5 shrink-0 transition-colors duration-150",
                         isCollapsed ? "" : "mr-3",
-                        isActive ? "text-primary" : "text-muted-foreground/70 group-hover:text-foreground"
+                        isActive
+                          ? "text-primary"
+                          : "text-muted-foreground/70 group-hover:text-foreground",
                       )}
                     />
-                    {!isCollapsed && <span className="truncate">{item.name}</span>}
+                    {!isCollapsed && (
+                      <span className="truncate">{item.name}</span>
+                    )}
 
                     {/* Tooltip on Collapsed Mode */}
                     {isCollapsed && (
@@ -241,7 +259,7 @@ export default function Sidebar({ onClose }: SidebarProps) {
           onClick={() => dispatch(toggleSidebarCollapse())}
           className={cn(
             "flex items-center justify-center w-full h-9 rounded-xl bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-all cursor-pointer font-semibold text-xs",
-            isCollapsed ? "w-11 mx-auto px-0" : "px-3 gap-2"
+            isCollapsed ? "w-11 mx-auto px-0" : "px-3 gap-2",
           )}
         >
           {isCollapsed ? (

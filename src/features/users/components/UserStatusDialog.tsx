@@ -45,12 +45,6 @@ export default function UserStatusDialog({
     return "Activate Account";
   };
 
-  const getConfirmButtonVariant = () => {
-    if (targetStatus === "inactive") return "outline";
-    if (targetStatus === "suspended") return "default";
-    return "default";
-  };
-
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title={getTitle()}>
       <div className="space-y-4 text-left">

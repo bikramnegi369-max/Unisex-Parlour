@@ -1,16 +1,16 @@
-import * as React from "react"
-import { AlertCircle, RefreshCw } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Button } from "./button"
+import * as React from "react";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "./button";
 
 export interface ErrorStateProps extends React.HTMLAttributes<HTMLDivElement> {
-  title?: string
-  description: string
+  title?: string;
+  description: string;
   retryAction?: {
-    label: string
-    onClick: () => void
-    isLoading?: boolean
-  }
+    label: string;
+    onClick: () => void;
+    isLoading?: boolean;
+  };
 }
 
 export function ErrorState({
@@ -24,7 +24,7 @@ export function ErrorState({
     <div
       className={cn(
         "flex flex-col items-center justify-center py-16 text-center bg-card border border-border/80 rounded-2xl p-8 max-w-md mx-auto mt-12 shadow-sm animate-in fade-in zoom-in-95 duration-200",
-        className
+        className,
       )}
       {...props}
     >
@@ -39,7 +39,7 @@ export function ErrorState({
         <Button
           onClick={retryAction.onClick}
           disabled={retryAction.isLoading}
-          className="mt-6 flex items-center gap-2 cursor-pointer min-w-[140px]"
+          className="mt-6 flex items-center gap-2 cursor-pointer min-w-35"
           size="sm"
         >
           <RefreshCw
@@ -50,5 +50,5 @@ export function ErrorState({
         </Button>
       )}
     </div>
-  )
+  );
 }

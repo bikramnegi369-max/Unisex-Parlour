@@ -1,14 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import {
-  format,
-  startOfWeek,
-  endOfWeek,
-  startOfMonth,
-  endOfMonth,
-  addDays,
-} from "date-fns";
+import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
@@ -21,6 +14,7 @@ import {
   useDeleteAppointment,
 } from "@/features/appointments/hooks/useAppointments";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
+import type { Employee } from "@/features/employees/types/employee.types";
 import { AppointmentCalendarView } from "@/features/appointments/components/AppointmentCalendarView";
 import { AppointmentListView } from "@/features/appointments/components/AppointmentListView";
 import { CreateAppointmentDialog } from "@/features/appointments/components/CreateAppointmentDialog";
@@ -353,9 +347,9 @@ export default function AppointmentsPage() {
                 className="h-8 text-xs py-0"
               >
                 <option value="all">All Staff</option>
-                {employees.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
+                {employees.map((employee: Employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
                   </option>
                 ))}
               </Select>
@@ -372,7 +366,9 @@ export default function AppointmentsPage() {
 
               {/* From Date Input */}
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground font-medium text-[11px]">From:</span>
+                <span className="text-muted-foreground font-medium text-[11px]">
+                  From:
+                </span>
                 <Input
                   type="date"
                   value={startDate}
@@ -381,13 +377,15 @@ export default function AppointmentsPage() {
                     setStartDate(e.target.value);
                     setPage(1);
                   }}
-                  className="h-7 text-xs w-[145px] px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+                  className="h-7 text-xs w-36.25 px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
                 />
               </div>
 
               {/* To Date Input */}
               <div className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground font-medium text-[11px]">To:</span>
+                <span className="text-muted-foreground font-medium text-[11px]">
+                  To:
+                </span>
                 <Input
                   type="date"
                   value={endDate}
@@ -396,7 +394,7 @@ export default function AppointmentsPage() {
                     setEndDate(e.target.value);
                     setPage(1);
                   }}
-                  className="h-7 text-xs w-[145px] px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+                  className="h-7 text-xs w-36.25 px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
                 />
               </div>
 
@@ -422,8 +420,14 @@ export default function AppointmentsPage() {
                 size="sm"
                 onClick={() => {
                   const now = new Date();
-                  const weekStartStr = format(startOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
-                  const weekEndStr = format(endOfWeek(now, { weekStartsOn: 1 }), "yyyy-MM-dd");
+                  const weekStartStr = format(
+                    startOfWeek(now, { weekStartsOn: 1 }),
+                    "yyyy-MM-dd",
+                  );
+                  const weekEndStr = format(
+                    endOfWeek(now, { weekStartsOn: 1 }),
+                    "yyyy-MM-dd",
+                  );
                   setStartDate(weekStartStr);
                   setEndDate(weekEndStr);
                   setPage(1);

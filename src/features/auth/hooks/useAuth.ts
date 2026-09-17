@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { UserSession } from "@/lib/permissions";
 import { setToken, removeToken } from "@/lib/auth/token";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
 import {
   LoginResponseData,
   ActivationOtpSendData,
@@ -30,7 +29,6 @@ export { AuthApiError };
 export function useAuth() {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [isBootstrapping, setIsBootstrapping] = useState(true);
 
   // Active User session query
   const { data: user, isLoading: isQueryLoading, isError } = useQuery<UserSession | null>({
@@ -40,11 +38,6 @@ export function useAuth() {
     staleTime: 5 * 60 * 1000,
   });
 
-  useEffect(() => {
-    if (!isQueryLoading) {
-      setIsBootstrapping(false);
-    }
-  }, [isQueryLoading]);
 
   // Login mutation
   const loginMutation = useMutation({
@@ -118,7 +111,7 @@ export function useAuth() {
   return {
     user: user || null,
     isAuthenticated: !!user,
-    isLoading: isQueryLoading || isBootstrapping,
+    isLoading: isQueryLoading,
     isError,
     login: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,

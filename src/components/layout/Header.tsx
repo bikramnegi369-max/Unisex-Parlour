@@ -2,7 +2,7 @@
 
 import { useAppDispatch, useAppSelector } from "@/hooks/store";
 import { toggleSidebar, toggleTheme } from "@/store/slices/uiSlice";
-import { Bell, Menu, Search, Sun, Moon, LogOut, Settings, User as UserIcon, CheckCheck } from "lucide-react";
+import { Bell, Menu, Search, Sun, Moon, LogOut, Settings, CheckCheck } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useState, useRef, useEffect } from "react";
 import BranchSwitcher from "./BranchSwitcher";

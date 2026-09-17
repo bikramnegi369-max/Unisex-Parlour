@@ -31,7 +31,8 @@ export function ApproveLeaveDialog({
     <Dialog isOpen={isOpen} onClose={onClose} title="Approve Leave Request">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to approve the leave request <strong>{leaveCode}</strong>? You can optionally add a review note.
+          Are you sure you want to approve the leave request{" "}
+          <strong>{leaveCode}</strong>? You can optionally add a review note.
         </p>
         <div className="py-2">
           <label className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
@@ -42,14 +43,18 @@ export function ApproveLeaveDialog({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             disabled={isSubmitting}
-            className="min-h-[80px]"
+            className="min-h-20"
           />
         </div>
         <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm} disabled={isSubmitting} className="cursor-pointer">
+          <Button
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="cursor-pointer"
+          >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Approve Leave
           </Button>
@@ -83,7 +88,9 @@ export function RejectLeaveDialog({
     <Dialog isOpen={isOpen} onClose={onClose} title="Reject Leave Request">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to reject the leave request <strong>{leaveCode}</strong>? A review note explaining the rejection is required.
+          Are you sure you want to reject the leave request{" "}
+          <strong>{leaveCode}</strong>? A review note explaining the rejection
+          is required.
         </p>
         <div className="py-2">
           <label className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
@@ -97,15 +104,24 @@ export function RejectLeaveDialog({
               if (e.target.value.trim()) setError("");
             }}
             disabled={isSubmitting}
-            className={`min-h-[80px] ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            className={`min-h-20 ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
           />
-          {error && <p className="mt-1.5 text-xs font-medium text-destructive">{error}</p>}
+          {error && (
+            <p className="mt-1.5 text-xs font-medium text-destructive">
+              {error}
+            </p>
+          )}
         </div>
         <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleConfirm} disabled={isSubmitting} className="cursor-pointer">
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="cursor-pointer"
+          >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Reject Leave
           </Button>
@@ -139,7 +155,8 @@ export function CancelLeaveDialog({
     <Dialog isOpen={isOpen} onClose={onClose} title="Cancel Leave Request">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Are you sure you want to cancel the leave request <strong>{leaveCode}</strong>? A cancellation reason is required.
+          Are you sure you want to cancel the leave request{" "}
+          <strong>{leaveCode}</strong>? A cancellation reason is required.
         </p>
         <div className="py-2">
           <label className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
@@ -153,15 +170,24 @@ export function CancelLeaveDialog({
               if (e.target.value.trim()) setError("");
             }}
             disabled={isSubmitting}
-            className={`min-h-[80px] ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
+            className={`min-h-20 ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
           />
-          {error && <p className="mt-1.5 text-xs font-medium text-destructive">{error}</p>}
+          {error && (
+            <p className="mt-1.5 text-xs font-medium text-destructive">
+              {error}
+            </p>
+          )}
         </div>
         <div className="flex justify-end gap-3 pt-4 border-t border-border/40">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={handleConfirm} disabled={isSubmitting} className="cursor-pointer">
+          <Button
+            variant="destructive"
+            onClick={handleConfirm}
+            disabled={isSubmitting}
+            className="cursor-pointer"
+          >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Cancel Leave
           </Button>

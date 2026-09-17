@@ -11,7 +11,6 @@ import {
   useStaffServices,
   useAssignStaffBranch,
   useRemoveStaffBranch,
-  useAssignStaffService,
   useAssignMultipleStaffServices,
   useRemoveStaffService,
   useLinkUserAccount,
@@ -41,7 +40,9 @@ import {
   type ProfileTabItem,
 } from "@/components/entity/EntityProfileLayout";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import type { Branch } from "@/types/branch";
 import { useServices } from "@/features/services/hooks/services/useServices";
+import type { Service } from "@/features/services/types/service.types";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api/errors";
 import {
@@ -65,7 +66,10 @@ import {
 } from "lucide-react";
 import UserSelector from "./UserSelector";
 import { useUser } from "@/features/users/hooks/useUser";
-import type { UserSummary } from "@/features/users/types/users.types";
+import type {
+  UserSummary,
+  UserBranchAccess,
+} from "@/features/users/types/users.types";
 
 interface EmployeeDetailsPageProps {
   employeeId: string;
@@ -152,7 +156,6 @@ export default function EmployeeDetailsPage({
   const reactivateMutation = useRestoreEmployee();
   const assignBranchMutation = useAssignStaffBranch();
   const removeBranchMutation = useRemoveStaffBranch();
-  const assignServiceMutation = useAssignStaffService();
   const assignMultipleServicesMutation = useAssignMultipleStaffServices();
   const removeServiceMutation = useRemoveStaffService();
   const linkUserMutation = useLinkUserAccount();
@@ -319,7 +322,7 @@ export default function EmployeeDetailsPage({
 
   // Branch & Service filter calculations
   const assignedBranchIds = useMemo(
-    () => (staffBranches || []).map((sb) => sb.branchId?._id),
+    () => (staffBranches || []).map((sb: StaffBranch) => sb.branchId?._id),
     [staffBranches],
   );
 
@@ -327,12 +330,14 @@ export default function EmployeeDetailsPage({
   const userEligibleBranchIds = useMemo(() => {
     if (!employee?.userId) return null; // Unlinked staff can choose from any branch
     if (linkedUser?.hasOrgWideAccess) return null;
-    return (linkedUser?.branchAccess || []).map((b) => b.branchId);
+    return (linkedUser?.branchAccess || []).map(
+      (b: UserBranchAccess) => b.branchId,
+    );
   }, [employee?.userId, linkedUser]);
 
   const assignableBranches = useMemo(
     () =>
-      (allBranches || []).filter((b) => {
+      (allBranches || []).filter((b: Branch) => {
         if (assignedBranchIds.includes(b.id)) return false;
         if (userEligibleBranchIds !== null) {
           return userEligibleBranchIds.includes(b.id);
@@ -344,23 +349,24 @@ export default function EmployeeDetailsPage({
 
   const filteredBranches = useMemo(
     () =>
-      assignableBranches.filter((b) =>
+      assignableBranches.filter((b: Branch) =>
         b.name.toLowerCase().includes(branchSearchQuery.toLowerCase()),
       ),
     [assignableBranches, branchSearchQuery],
   );
 
   const assignedServiceIds = useMemo(
-    () => (staffServices || []).map((ss) => ss.serviceId?._id),
+    () => (staffServices || []).map((ss: StaffService) => ss.serviceId?._id),
     [staffServices],
   );
   const assignableServices = useMemo(
-    () => allServices.filter((s) => !assignedServiceIds.includes(s.id)),
+    () =>
+      allServices.filter((s: Service) => !assignedServiceIds.includes(s.id)),
     [allServices, assignedServiceIds],
   );
   const filteredServices = useMemo(
     () =>
-      assignableServices.filter((s) =>
+      assignableServices.filter((s: Service) =>
         s.name.toLowerCase().includes(serviceSearchQuery.toLowerCase()),
       ),
     [assignableServices, serviceSearchQuery],
@@ -486,10 +492,10 @@ export default function EmployeeDetailsPage({
                     <Building2 className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-bold text-base text-foreground break-words">
+                    <h3 className="font-bold text-base text-foreground wrap-break-word">
                       Assigned Branches
                     </h3>
-                    <p className="text-xs text-muted-foreground break-words">
+                    <p className="text-xs text-muted-foreground wrap-break-word">
                       Branches where this employee works.
                     </p>
                   </div>
@@ -532,7 +538,7 @@ export default function EmployeeDetailsPage({
                               No matching branches found.
                             </p>
                           ) : (
-                            filteredBranches.map((b) => (
+                            filteredBranches.map((b: Branch) => (
                               <button
                                 key={b.id}
                                 type="button"
@@ -637,7 +643,7 @@ export default function EmployeeDetailsPage({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {staffBranches.map((sb) => (
+                  {staffBranches.map((sb: StaffBranch) => (
                     <div
                       key={sb._id}
                       className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all bg-card ${
@@ -648,7 +654,7 @@ export default function EmployeeDetailsPage({
                     >
                       <div className="space-y-1 text-left min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-sm text-foreground break-words">
+                          <h4 className="font-bold text-sm text-foreground wrap-break-word">
                             {sb.branchId?.name}
                           </h4>
                           {sb.isPrimary && (
@@ -666,7 +672,7 @@ export default function EmployeeDetailsPage({
                           </p>
                         )}
                         {sb.branchId?.address && (
-                          <p className="text-[11px] text-muted-foreground break-words">
+                          <p className="text-[11px] text-muted-foreground wrap-break-word">
                             {sb.branchId.address}
                           </p>
                         )}
@@ -703,10 +709,10 @@ export default function EmployeeDetailsPage({
                     <Scissors className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-bold text-base text-foreground break-words">
+                    <h3 className="font-bold text-base text-foreground wrap-break-word">
                       Service Capabilities
                     </h3>
-                    <p className="text-xs text-muted-foreground break-words">
+                    <p className="text-xs text-muted-foreground wrap-break-word">
                       Assign multiple services this staff member is trained to
                       perform.
                     </p>
@@ -777,7 +783,7 @@ export default function EmployeeDetailsPage({
                             : "All catalog services are already assigned!"}
                         </p>
                       ) : (
-                        filteredServices.map((service) => {
+                        filteredServices.map((service: Service) => {
                           const isChecked = selectedServiceIds.includes(
                             service.id,
                           );
@@ -898,13 +904,13 @@ export default function EmployeeDetailsPage({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                  {staffServices.map((ss) => (
+                  {staffServices.map((ss: StaffService) => (
                     <div
                       key={ss._id}
                       className="p-4 rounded-2xl border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all bg-card shadow-2xs"
                     >
                       <div className="space-y-1 text-left min-w-0 flex-1">
-                        <h4 className="font-bold text-sm text-foreground break-words">
+                        <h4 className="font-bold text-sm text-foreground wrap-break-word">
                           {ss.serviceId?.name}
                         </h4>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">

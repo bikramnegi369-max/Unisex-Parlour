@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Dialog } from "@/components/ui/dialog";
@@ -23,20 +23,11 @@ import type { Employee } from "@/features/employees/types/employee.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
-import {
-  Calendar,
-  Bell,
-  AlertTriangle,
-  Search,
-  Scissors,
-  User,
-  MapPin,
-  Loader2,
-} from "lucide-react";
+import { Bell, AlertTriangle, Search, MapPin, Loader2 } from "lucide-react";
 
 const EMPTY_SERVICES: Service[] = [];
 const EMPTY_EMPLOYEES: Employee[] = [];
-
+const EMPTY_SERVICE_IDS: string[] = [];
 
 interface CreateAppointmentDialogProps {
   isOpen: boolean;
@@ -73,7 +64,6 @@ export function CreateAppointmentDialog({
     handleSubmit,
     control,
     setValue,
-    watch,
     reset,
     formState: { errors },
   } = useForm<CreateAppointmentSchemaType>({
@@ -95,10 +85,15 @@ export function CreateAppointmentDialog({
     },
   });
 
-  const bookingType = watch("bookingType");
-  const selectedServiceIds = watch("serviceIds") || [];
-  const reminderEnabled = watch("reminder.enabled");
-  const selectedBranchId = watch("branchId");
+  const bookingType = useWatch({ control, name: "bookingType" });
+  const watchedServiceIds = useWatch({ control, name: "serviceIds" });
+  const selectedServiceIds = useMemo(
+    () => watchedServiceIds || EMPTY_SERVICE_IDS,
+    [watchedServiceIds],
+  );
+  const reminderEnabled = useWatch({ control, name: "reminder.enabled" });
+  const selectedBranchId = useWatch({ control, name: "branchId" });
+  const selectedStaffId = useWatch({ control, name: "staffId" });
 
   const effectiveBranchTimezone = useMemo(() => {
     if (selectedBranchId) {
@@ -159,13 +154,20 @@ export function CreateAppointmentDialog({
     return { count: selected.length, totalDuration, estimatedSubtotal };
   }, [servicesData?.data, selectedServiceIds]);
 
+  // Reset transient state during render when dialog opens (avoids cascading render warning)
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (isOpen) {
+      if (conflictError !== null) setConflictError(null);
+      if (serviceSearch !== "") setServiceSearch("");
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
-      setConflictError(null);
-      setServiceSearch("");
       reset({
         branchId: currentBranchId || "",
-
         customerId: "",
         serviceIds: [],
         staffId: null,
@@ -250,7 +252,7 @@ export function CreateAppointmentDialog({
                 {conflictError}
               </div>
             </div>
-            {watch("staffId") && (
+            {selectedStaffId && (
               <div className="flex items-center gap-2 pt-1 border-t border-destructive/20 text-[11px]">
                 <span>Stylist busy?</span>
                 <button
@@ -281,7 +283,9 @@ export function CreateAppointmentDialog({
                   variant={bookingType === "advance" ? "default" : "outline"}
                   size="sm"
                   onClick={() => {
-                    setValue("bookingType", "advance", { shouldValidate: true });
+                    setValue("bookingType", "advance", {
+                      shouldValidate: true,
+                    });
                     setValue("reminder.enabled", true);
                   }}
                   className="text-xs h-7 px-3"
@@ -293,9 +297,15 @@ export function CreateAppointmentDialog({
                   variant={bookingType === "walk_in" ? "default" : "outline"}
                   size="sm"
                   onClick={() => {
-                    setValue("bookingType", "walk_in", { shouldValidate: true });
-                    setValue("date", format(new Date(), "yyyy-MM-dd"), { shouldValidate: true });
-                    setValue("startTime", format(new Date(), "HH:mm"), { shouldValidate: true });
+                    setValue("bookingType", "walk_in", {
+                      shouldValidate: true,
+                    });
+                    setValue("date", format(new Date(), "yyyy-MM-dd"), {
+                      shouldValidate: true,
+                    });
+                    setValue("startTime", format(new Date(), "HH:mm"), {
+                      shouldValidate: true,
+                    });
                     setValue("reminder.enabled", false);
                   }}
                   className="text-xs h-7 px-3"
@@ -348,7 +358,6 @@ export function CreateAppointmentDialog({
               )}
             />
           </div>
-
 
           {/* Services Selection with Search & Live Summary */}
           <div className="space-y-1.5">
@@ -434,14 +443,14 @@ export function CreateAppointmentDialog({
                   (Optional / Unassigned)
                 </span>
               </label>
-              {bookingType === "walk_in" && !watch("staffId") && (
+              {bookingType === "walk_in" && !selectedStaffId && (
                 <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
                   Floor Queue Mode
                 </span>
               )}
             </div>
             <Select
-              value={watch("staffId") || ""}
+              value={selectedStaffId || ""}
               onChange={(e) =>
                 setValue("staffId", e.target.value ? e.target.value : null)
               }
@@ -457,7 +466,7 @@ export function CreateAppointmentDialog({
             </Select>
             {bookingType === "walk_in" && (
               <p className="text-[10px] text-muted-foreground">
-                {watch("staffId")
+                {selectedStaffId
                   ? "Assigned to specific staff. If they are busy right now, choose 'Unassigned' to place client in the floor queue."
                   : "💡 Recommended if all stylists are busy: client is queued and can be assigned as soon as any stylist finishes."}
               </p>
@@ -485,7 +494,8 @@ export function CreateAppointmentDialog({
               />
               {bookingType === "walk_in" ? (
                 <p className="text-[10px] text-muted-foreground">
-                  Walk-ins are strictly registered for today&apos;s floor roster.
+                  Walk-ins are strictly registered for today&apos;s floor
+                  roster.
                 </p>
               ) : null}
               {errors.date && (
@@ -645,7 +655,9 @@ export function CreateAppointmentDialog({
                       render={({ field }) => (
                         <Select
                           value={String(field.value ?? 60)}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
                           className="w-full h-8 text-xs py-0"
                         >
                           <option value="15">15 minutes before</option>
@@ -681,7 +693,8 @@ export function CreateAppointmentDialog({
               <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
                 <Bell className="h-3.5 w-3.5 opacity-60" />
                 <span className="text-[11px]">
-                  Reminders are disabled for walk-in visits (client is present in salon).
+                  Reminders are disabled for walk-in visits (client is present
+                  in salon).
                 </span>
               </div>
             </div>

@@ -49,12 +49,19 @@ export function EmployeeOverview({
               Identity & Work Profile
             </CardTitle>
             <div className="flex flex-wrap gap-2">
-              <Badge variant={employee.status === "active" ? "success" : "muted"} className="capitalize">
+              <Badge
+                variant={employee.status === "active" ? "success" : "muted"}
+                className="capitalize"
+              >
                 {employee.status}
               </Badge>
               <Badge
                 variant={isLinkedAccount ? "success" : "muted"}
-                className={isLinkedAccount ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" : ""}
+                className={
+                  isLinkedAccount
+                    ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                    : ""
+                }
               >
                 {isLinkedAccount ? "Account Linked" : "No Linked User Account"}
               </Badge>
@@ -72,11 +79,16 @@ export function EmployeeOverview({
                   Phone Number
                 </p>
                 {employee.phone ? (
-                  <a href={`tel:${employee.phone}`} className="text-sm font-semibold mt-1 block hover:underline text-foreground break-all">
+                  <a
+                    href={`tel:${employee.phone}`}
+                    className="text-sm font-semibold mt-1 block hover:underline text-foreground break-all"
+                  >
                     {employee.phone}
                   </a>
                 ) : (
-                  <p className="text-sm font-medium mt-1 text-muted-foreground">—</p>
+                  <p className="text-sm font-medium mt-1 text-muted-foreground">
+                    —
+                  </p>
                 )}
               </div>
             </div>
@@ -89,7 +101,10 @@ export function EmployeeOverview({
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                   Email Address
                 </p>
-                <a href={`mailto:${employee.email}`} className="text-sm font-semibold mt-1 block hover:underline text-foreground break-all">
+                <a
+                  href={`mailto:${employee.email}`}
+                  className="text-sm font-semibold mt-1 block hover:underline text-foreground break-all"
+                >
                   {employee.email}
                 </a>
               </div>
@@ -103,7 +118,7 @@ export function EmployeeOverview({
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                   Designation
                 </p>
-                <p className="text-sm font-semibold mt-1 text-foreground break-words">
+                <p className="text-sm font-semibold mt-1 text-foreground wrap-break-word">
                   {employee.designation}
                 </p>
               </div>
@@ -117,7 +132,7 @@ export function EmployeeOverview({
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                   Joining Date
                 </p>
-                <p className="text-sm font-semibold mt-1 text-foreground break-words">
+                <p className="text-sm font-semibold mt-1 text-foreground wrap-break-word">
                   {formatJoinedDate(employee.joiningDate)}
                 </p>
               </div>
@@ -131,8 +146,10 @@ export function EmployeeOverview({
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                   System User Linkage
                 </p>
-                <p className="text-sm font-semibold mt-1 text-foreground break-words">
-                  {isLinkedAccount ? "Linked to system login" : "Unlinked profile"}
+                <p className="text-sm font-semibold mt-1 text-foreground wrap-break-word">
+                  {isLinkedAccount
+                    ? "Linked to system login"
+                    : "Unlinked profile"}
                 </p>
               </div>
             </div>
@@ -145,7 +162,7 @@ export function EmployeeOverview({
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
                   Last Updated
                 </p>
-                <p className="text-sm font-semibold mt-1 text-foreground break-words">
+                <p className="text-sm font-semibold mt-1 text-foreground wrap-break-word">
                   {formatJoinedDate(employee.updatedAt)}
                 </p>
               </div>
@@ -164,36 +181,54 @@ export function EmployeeOverview({
         </CardHeader>
         <CardContent className="p-6">
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-            <div className="rounded-xl border border-border/80 bg-gradient-to-br from-background to-muted/20 p-4 sm:p-5 space-y-2 shadow-2xs min-w-0">
+            <div className="rounded-xl border border-border/80 bg-linear-to-br from-background to-muted/20 p-4 sm:p-5 space-y-2 shadow-2xs min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-muted-foreground min-w-0">
                   <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
                     <Building2 size={18} />
                   </div>
-                  <p className="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-muted-foreground whitespace-normal break-words">Assigned Branches</p>
+                  <p className="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-muted-foreground whitespace-normal wrap-break-word">
+                    Assigned Branches
+                  </p>
                 </div>
-                <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs shrink-0">
+                <Badge
+                  variant="outline"
+                  className="font-semibold text-[10px] sm:text-xs shrink-0"
+                >
                   {branchCount} {branchCount === 1 ? "Location" : "Locations"}
                 </Badge>
               </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-foreground pt-1">{branchCount}</p>
-              <p className="text-xs text-muted-foreground">Branch locations where this employee is authorized to work.</p>
+              <p className="text-2xl sm:text-3xl font-extrabold text-foreground pt-1">
+                {branchCount}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Branch locations where this employee is authorized to work.
+              </p>
             </div>
 
-            <div className="rounded-xl border border-border/80 bg-gradient-to-br from-background to-muted/20 p-4 sm:p-5 space-y-2 shadow-2xs min-w-0">
+            <div className="rounded-xl border border-border/80 bg-linear-to-br from-background to-muted/20 p-4 sm:p-5 space-y-2 shadow-2xs min-w-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-muted-foreground min-w-0">
                   <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 shrink-0">
                     <Scissors size={18} />
                   </div>
-                  <p className="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-muted-foreground whitespace-normal break-words">Service Capabilities</p>
+                  <p className="text-[11px] sm:text-xs uppercase font-bold tracking-wider text-muted-foreground whitespace-normal wrap-break-word">
+                    Service Capabilities
+                  </p>
                 </div>
-                <Badge variant="outline" className="font-semibold text-[10px] sm:text-xs shrink-0">
+                <Badge
+                  variant="outline"
+                  className="font-semibold text-[10px] sm:text-xs shrink-0"
+                >
                   {serviceCount} {serviceCount === 1 ? "Service" : "Services"}
                 </Badge>
               </div>
-              <p className="text-2xl sm:text-3xl font-extrabold text-foreground pt-1">{serviceCount}</p>
-              <p className="text-xs text-muted-foreground">Specialized services this staff member is trained to perform.</p>
+              <p className="text-2xl sm:text-3xl font-extrabold text-foreground pt-1">
+                {serviceCount}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Specialized services this staff member is trained to perform.
+              </p>
             </div>
           </div>
         </CardContent>

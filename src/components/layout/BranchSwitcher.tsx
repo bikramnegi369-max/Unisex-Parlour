@@ -7,11 +7,13 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasOrgWideAccess, hasBranchAccess } from "@/lib/permissions";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import type { Branch } from "@/types/branch";
 
 export default function BranchSwitcher() {
   const { user } = useAuth();
   const { branches, isLoading } = useBranches();
-  const { currentBranch, isAllBranchesSelected, selectBranch } = useBranchContext();
+  const { currentBranch, isAllBranchesSelected, selectBranch } =
+    useBranchContext();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -20,7 +22,10 @@ export default function BranchSwitcher() {
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setIsOpen(false);
       }
     }
@@ -29,11 +34,15 @@ export default function BranchSwitcher() {
   }, []);
 
   // Filter: Expose only branches the current user is authorized to access
-  const accessibleBranches = branches.filter((b) => hasBranchAccess(user, b.id));
+  const accessibleBranches = branches.filter((b: Branch) =>
+    hasBranchAccess(user, b.id),
+  );
 
   const displayLabel = isAllBranchesSelected
-    ? (canViewAllBranches ? "All Branches" : "No accessible branches")
-    : currentBranch?.name ?? "Select Branch";
+    ? canViewAllBranches
+      ? "All Branches"
+      : "No accessible branches"
+    : (currentBranch?.name ?? "Select Branch");
 
   if (isLoading) {
     return (
@@ -51,7 +60,7 @@ export default function BranchSwitcher() {
         className={cn(
           "flex items-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs",
           "bg-background hover:bg-muted/70 border-border/80 hover:border-border",
-          "text-foreground min-w-[140px] max-w-[210px]"
+          "text-foreground min-w-35 max-w-52.5",
         )}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -70,7 +79,7 @@ export default function BranchSwitcher() {
           size={14}
           className={cn(
             "text-muted-foreground/70 shrink-0 transition-transform duration-200",
-            isOpen && "rotate-180"
+            isOpen && "rotate-180",
           )}
         />
       </button>
@@ -78,7 +87,7 @@ export default function BranchSwitcher() {
       {isOpen && (
         <div
           role="listbox"
-          className="absolute top-full left-0 mt-2 min-w-[210px] w-full bg-popover border border-border rounded-2xl shadow-xl z-50 p-1.5 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100 space-y-1"
+          className="absolute top-full left-0 mt-2 min-w-52.5 w-full bg-popover border border-border rounded-2xl shadow-xl z-50 p-1.5 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100 space-y-1"
         >
           {/* All Branches option — only for org-wide users */}
           {canViewAllBranches && (
@@ -93,12 +102,14 @@ export default function BranchSwitcher() {
                 "flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs font-semibold rounded-xl transition-colors cursor-pointer",
                 isAllBranchesSelected
                   ? "bg-primary/10 text-primary font-bold"
-                  : "text-foreground hover:bg-muted"
+                  : "text-foreground hover:bg-muted",
               )}
             >
               <Layers size={14} className="shrink-0 text-purple-500" />
               <span className="flex-1 truncate">All Branches</span>
-              {isAllBranchesSelected && <Check size={14} className="text-primary shrink-0" />}
+              {isAllBranchesSelected && (
+                <Check size={14} className="text-primary shrink-0" />
+              )}
             </button>
           )}
 
@@ -113,7 +124,7 @@ export default function BranchSwitcher() {
             </div>
           ) : (
             <div className="max-h-60 overflow-y-auto space-y-0.5">
-              {accessibleBranches.map((branch) => {
+              {accessibleBranches.map((branch: Branch) => {
                 const isSelected = currentBranch?.id === branch.id;
                 const isActive = branch.isActive;
                 return (
@@ -131,18 +142,23 @@ export default function BranchSwitcher() {
                       !isActive
                         ? "opacity-50 cursor-not-allowed text-muted-foreground"
                         : isSelected
-                        ? "bg-primary/10 text-primary font-bold cursor-pointer"
-                        : "text-foreground hover:bg-muted cursor-pointer font-medium"
+                          ? "bg-primary/10 text-primary font-bold cursor-pointer"
+                          : "text-foreground hover:bg-muted cursor-pointer font-medium",
                     )}
                   >
-                    <Building2 size={14} className="shrink-0 text-muted-foreground/70" />
+                    <Building2
+                      size={14}
+                      className="shrink-0 text-muted-foreground/70"
+                    />
                     <span className="flex-1 truncate">{branch.name}</span>
                     {!isActive && (
                       <span className="text-[9px] font-bold bg-destructive/10 text-destructive px-1.5 py-0.5 rounded uppercase tracking-wide">
                         Inactive
                       </span>
                     )}
-                    {isSelected && <Check size={14} className="text-primary shrink-0" />}
+                    {isSelected && (
+                      <Check size={14} className="text-primary shrink-0" />
+                    )}
                   </button>
                 );
               })}

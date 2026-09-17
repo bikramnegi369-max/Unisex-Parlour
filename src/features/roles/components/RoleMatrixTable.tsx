@@ -1,8 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { ShieldCheck, Save, Loader2, Info, Check, Search, Filter } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import React, { useState } from "react";
+import {
+  ShieldCheck,
+  Save,
+  Loader2,
+  Info,
+  Check,
+  Search,
+  Filter,
+} from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -12,7 +26,11 @@ import { ErrorState } from "@/components/ui/error-state";
 import PermissionGate from "@/components/layout/PermissionGate";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import type { Role, PermissionItem, PaginationMeta } from "../types/roles.types";
+import type {
+  Role,
+  PermissionItem,
+  PaginationMeta,
+} from "../types/roles.types";
 
 interface RoleMatrixTableProps {
   selectedRole: Role | null;
@@ -58,15 +76,15 @@ export default function RoleMatrixTable({
   const { user } = useAuth();
   const canUpdateRole = hasPermission(user, "roles.update");
 
-  const [activePermissions, setActivePermissions] = useState<string[]>([]);
+  const [prevRole, setPrevRole] = useState(selectedRole);
+  const [activePermissions, setActivePermissions] = useState<string[]>(
+    selectedRole?.permissions || [],
+  );
 
-  useEffect(() => {
-    if (selectedRole) {
-      setActivePermissions(selectedRole.permissions || []);
-    } else {
-      setActivePermissions([]);
-    }
-  }, [selectedRole]);
+  if (selectedRole !== prevRole) {
+    setPrevRole(selectedRole);
+    setActivePermissions(selectedRole?.permissions || []);
+  }
 
   if (!selectedRole) {
     return (
@@ -81,9 +99,12 @@ export default function RoleMatrixTable({
   }
 
   // Module filter options are backend-authoritative from GET /rbac/modules API
-  const availableModules = dynamicModules.length > 0
-    ? dynamicModules
-    : Array.from(new Set(allPermissions.map((p) => p.module || "General"))).sort();
+  const availableModules =
+    dynamicModules.length > 0
+      ? dynamicModules
+      : Array.from(
+          new Set(allPermissions.map((p) => p.module || "General")),
+        ).sort();
 
   // Group permissions dynamically by module
   const groupedPermissions: Record<string, PermissionItem[]> = {};
@@ -100,7 +121,7 @@ export default function RoleMatrixTable({
   const handleToggle = (key: string) => {
     if (!canUpdateRole) return;
     setActivePermissions((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   };
 
@@ -121,10 +142,13 @@ export default function RoleMatrixTable({
         <div className="min-w-0 space-y-1">
           <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
             <ShieldCheck size={20} className="text-primary shrink-0" />
-            <span className="truncate">{selectedRole.name} Authorization Matrix</span>
+            <span className="truncate">
+              {selectedRole.name} Authorization Matrix
+            </span>
           </CardTitle>
           <CardDescription className="text-xs leading-relaxed">
-            {selectedRole.description || `Configure capability flags for ${selectedRole.name}`}
+            {selectedRole.description ||
+              `Configure capability flags for ${selectedRole.name}`}
           </CardDescription>
         </div>
 
@@ -171,7 +195,9 @@ export default function RoleMatrixTable({
               className="h-9 text-xs"
             >
               <option value="all">
-                {isLoadingModules ? "Loading modules..." : `All Modules (${availableModules.length})`}
+                {isLoadingModules
+                  ? "Loading modules..."
+                  : `All Modules (${availableModules.length})`}
               </option>
               {availableModules.map((mod) => (
                 <option key={mod} value={mod}>
@@ -193,7 +219,10 @@ export default function RoleMatrixTable({
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-20 bg-muted/40 rounded-xl border border-border/40" />
+                  <div
+                    key={i}
+                    className="h-20 bg-muted/40 rounded-xl border border-border/40"
+                  />
                 ))}
               </div>
             </div>
@@ -204,7 +233,10 @@ export default function RoleMatrixTable({
               </div>
               <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,260px),1fr))] gap-3">
                 {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-20 bg-muted/40 rounded-xl border border-border/40" />
+                  <div
+                    key={i}
+                    className="h-20 bg-muted/40 rounded-xl border border-border/40"
+                  />
                 ))}
               </div>
             </div>
@@ -224,7 +256,9 @@ export default function RoleMatrixTable({
         ) : allPermissions.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <Info size={32} className="text-muted-foreground mx-auto" />
-            <p className="text-sm font-semibold text-foreground">No Permissions Found</p>
+            <p className="text-sm font-semibold text-foreground">
+              No Permissions Found
+            </p>
             <p className="text-xs text-muted-foreground max-w-xs mx-auto">
               No permission records match your search or filter parameters.
             </p>
@@ -241,7 +275,12 @@ export default function RoleMatrixTable({
                       <span className="truncate">{moduleName} Panel</span>
                     </h3>
                     <span className="text-[11px] font-medium text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-md border border-border/50 shrink-0">
-                      {moduleItems.filter((i) => activePermissions.includes(i.key)).length} / {moduleItems.length} active
+                      {
+                        moduleItems.filter((i) =>
+                          activePermissions.includes(i.key),
+                        ).length
+                      }{" "}
+                      / {moduleItems.length} active
                     </span>
                   </div>
 
@@ -255,7 +294,7 @@ export default function RoleMatrixTable({
                           onClick={() => handleToggle(item.key)}
                           className={`group flex items-start gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all duration-150 w-full min-w-0 max-w-full overflow-hidden ${
                             isChecked
-                              ? "bg-primary/[0.04] border-primary/30 text-foreground shadow-2xs"
+                              ? "bg-primary/4 border-primary/30 text-foreground shadow-2xs"
                               : "bg-card border-border/80 hover:border-border hover:bg-muted/30 text-muted-foreground"
                           } ${canUpdateRole ? "cursor-pointer" : "cursor-not-allowed opacity-80"}`}
                         >
@@ -286,7 +325,7 @@ export default function RoleMatrixTable({
                             </div>
 
                             {item.description && (
-                              <p className="text-[11px] text-muted-foreground/80 leading-normal pt-0.5 line-clamp-2 break-words">
+                              <p className="text-[11px] text-muted-foreground/80 leading-normal pt-0.5 line-clamp-2 wrap-break-word">
                                 {item.description}
                               </p>
                             )}

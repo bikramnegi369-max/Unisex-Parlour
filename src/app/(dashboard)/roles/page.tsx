@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { toast } from "sonner";
 import { ShieldCheck, ShieldAlert, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -50,19 +50,8 @@ export default function RolesPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
 
-  // Reset to page 1 when search or module filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedModule]);
-
-  // Default selection to first role when data loads
-  useEffect(() => {
-    if (roles.length > 0 && !selectedRoleId) {
-      setSelectedRoleId(roles[0].id);
-    }
-  }, [roles, selectedRoleId]);
-
-  const selectedRole = roles.find((r) => r.id === selectedRoleId) || roles[0] || null;
+  // Selected role derives naturally from state or falls back to first role
+  const selectedRole = roles.find((r: Role) => r.id === selectedRoleId) || roles[0] || null;
 
   const permissionsList = permissionsResult?.data || [];
   const permissionsMeta = permissionsResult?.meta;
@@ -97,7 +86,7 @@ export default function RolesPage() {
   const handleAfterDelete = () => {
     setRoleToDelete(null);
     if (roles.length > 1) {
-      const remaining = roles.filter((r) => r.id !== roleToDelete?.id);
+      const remaining = roles.filter((r: Role) => r.id !== roleToDelete?.id);
       if (remaining.length > 0) {
         setSelectedRoleId(remaining[0].id);
       }
@@ -197,7 +186,7 @@ export default function RolesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full min-w-0">
         {/* Left Side: Roles List Navigation */}
         <div className="lg:col-span-3 space-y-2 w-full min-w-0">
-          {roles.map((role) => {
+          {roles.map((role: Role) => {
             const isSelected = selectedRole?.id === role.id;
             return (
               <div
@@ -248,9 +237,15 @@ export default function RolesPage() {
               setCurrentPage(1);
             }}
             searchQuery={searchQuery}
-            onSearchChange={(q) => setSearchQuery(q)}
+            onSearchChange={(q) => {
+              setSearchQuery(q);
+              setCurrentPage(1);
+            }}
             selectedModule={selectedModule}
-            onModuleChange={(m) => setSelectedModule(m)}
+            onModuleChange={(m) => {
+              setSelectedModule(m);
+              setCurrentPage(1);
+            }}
             onSavePermissions={handleSavePermissions}
             isSaving={isSavingPermissions}
             isLoadingPermissions={isLoadingPermissions}

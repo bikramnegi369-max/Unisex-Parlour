@@ -1,15 +1,16 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
-import { updateStatusSchema, type UpdateStatusSchemaType } from "../schemas/appointment.schema";
-import { useBranchContext } from "@/hooks/useBranchContext";
+import {
+  updateStatusSchema,
+  type UpdateStatusSchemaType,
+} from "../schemas/appointment.schema";
 import { toast } from "sonner";
 import type { Appointment } from "../types/appointment.types";
 
@@ -28,21 +29,11 @@ export function AppointmentStatusDialog({
   onSubmit,
   isLoading,
 }: AppointmentStatusDialogProps) {
-  const { isAllBranchesSelected, availableBranches } = useBranchContext();
-
-  const activeBranches = availableBranches.map((b) => ({
-    id: b.id,
-    name: b.name,
-    isActive: b.isActive,
-  }));
-
   const {
     register,
     handleSubmit,
     control,
-    watch,
     reset,
-    formState: { errors },
   } = useForm<UpdateStatusSchemaType>({
     resolver: zodResolver(updateStatusSchema),
     defaultValues: {
@@ -52,7 +43,10 @@ export function AppointmentStatusDialog({
     },
   });
 
-  const selectedStatus = watch("status");
+  const selectedStatus = useWatch({
+    control,
+    name: "status",
+  });
 
   useEffect(() => {
     if (isOpen && appointment) {
@@ -72,13 +66,18 @@ export function AppointmentStatusDialog({
       onClose();
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { message?: string } } };
-      toast.error(axiosError.response?.data?.message || "Failed to update appointment status.");
+      toast.error(
+        axiosError.response?.data?.message ||
+          "Failed to update appointment status.",
+      );
     }
   };
 
   if (!appointment) return null;
 
-  const isTerminal = ["completed", "cancelled", "no_show"].includes(appointment.status);
+  const isTerminal = ["completed", "cancelled", "no_show"].includes(
+    appointment.status,
+  );
 
   return (
     <Dialog isOpen={isOpen} onClose={onClose} title="Update Appointment Status">
@@ -90,7 +89,9 @@ export function AppointmentStatusDialog({
             </label>
             <div className="p-2 bg-muted/50 rounded-md border border-border text-foreground font-semibold flex items-center justify-between">
               <span>{appointment.branch?.name || appointment.branchId}</span>
-              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-normal">Read-Only</span>
+              <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-normal">
+                Read-Only
+              </span>
             </div>
           </div>
           <input type="hidden" {...register("branchId")} />
@@ -106,7 +107,8 @@ export function AppointmentStatusDialog({
             >
               <option value="scheduled">Scheduled</option>
               <option value="in_progress" disabled={!appointment.staffId}>
-                In Progress {!appointment.staffId ? "(Requires assigned staff)" : ""}
+                In Progress{" "}
+                {!appointment.staffId ? "(Requires assigned staff)" : ""}
               </option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
@@ -114,12 +116,14 @@ export function AppointmentStatusDialog({
             </Select>
             {!appointment.staffId && (
               <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                💡 This appointment is unassigned. Please assign a staff member before starting service.
+                💡 This appointment is unassigned. Please assign a staff member
+                before starting service.
               </p>
             )}
             {isTerminal && (
               <p className="text-[11px] text-amber-600 font-medium">
-                This appointment is in a terminal state ({appointment.status}) and cannot transition status further.
+                This appointment is in a terminal state ({appointment.status})
+                and cannot transition status further.
               </p>
             )}
           </div>
@@ -138,7 +142,13 @@ export function AppointmentStatusDialog({
           )}
 
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              disabled={isLoading}
+            >
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isLoading || isTerminal}>

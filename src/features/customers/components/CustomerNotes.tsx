@@ -8,7 +8,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { FileText, User, Plus, Loader2, ChevronLeft, ChevronRight, AlertCircle, Building2 } from "lucide-react";
+import {
+  FileText,
+  User,
+  Plus,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  Building2,
+} from "lucide-react";
 import { formatDateTime } from "@/lib/formatters";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -36,11 +45,19 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const { currentBranchId, availableBranches, getBranchName, isAllBranchesSelected } = useBranchContext();
+  const {
+    currentBranchId,
+    availableBranches,
+    getBranchName,
+    isAllBranchesSelected,
+  } = useBranchContext();
   const { user } = useAuth();
   const { data: customer } = useCustomer(customerId);
 
-  const { data, isLoading, isError, refetch } = useCustomerNotes(customerId, { page, limit });
+  const { data, isLoading, isError, refetch } = useCustomerNotes(customerId, {
+    page,
+    limit,
+  });
   const createNoteMutation = useCreateCustomerNote();
 
   const handleOpenAddDialog = () => {
@@ -53,8 +70,14 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
     if (currentBranchId) {
       setSelectedBranchId(currentBranchId);
     } else {
-      const isHomeBranchValid = customer?.homeBranchId &&
-        availableBranches.some((b) => b.id === customer.homeBranchId && b.isActive && hasBranchAccess(user, b.id));
+      const isHomeBranchValid =
+        customer?.homeBranchId &&
+        availableBranches.some(
+          (b) =>
+            b.id === customer.homeBranchId &&
+            b.isActive &&
+            hasBranchAccess(user, b.id),
+        );
       setSelectedBranchId(isHomeBranchValid ? customer.homeBranchId : "");
     }
     setIsAddOpen(true);
@@ -97,9 +120,14 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
           }, 1000);
         },
         onError: (err: unknown) => {
-          setSubmitError(getErrorMessage(err, "We encountered an issue saving your note. Please try again."));
+          setSubmitError(
+            getErrorMessage(
+              err,
+              "We encountered an issue saving your note. Please try again.",
+            ),
+          );
         },
-      }
+      },
     );
   };
 
@@ -112,7 +140,10 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
       return (
         <div className="space-y-4 animate-pulse">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="p-4 rounded-xl border border-border/70 bg-muted/5 space-y-2">
+            <div
+              key={i}
+              className="p-4 rounded-xl border border-border/70 bg-muted/5 space-y-2"
+            >
               <div className="h-4 bg-muted rounded w-3/4" />
               <div className="h-3 bg-muted rounded w-1/4" />
             </div>
@@ -125,7 +156,10 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
       return (
         <div className="p-6 text-center text-sm text-destructive flex flex-col items-center gap-3">
           <AlertCircle className="h-8 w-8 text-destructive" />
-          <p>We couldn't retrieve the notes for this customer. Please check your connection and try again.</p>
+          <p>
+            We couldn&apos;t retrieve the notes for this customer. Please check
+            your connection and try again.
+          </p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Retry
           </Button>
@@ -165,11 +199,15 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
               typeof note.branch === "object" && note.branch !== null
                 ? note.branch.name
                 : note.branchId
-                ? availableBranches.find((b) => b.id === note.branchId)?.name || note.branchId
-                : "";
+                  ? availableBranches.find((b) => b.id === note.branchId)
+                      ?.name || note.branchId
+                  : "";
 
             return (
-              <div key={note._id} className="p-4 rounded-xl border border-border/70 bg-card hover:bg-muted/5 transition-colors space-y-2">
+              <div
+                key={note._id}
+                className="p-4 rounded-xl border border-border/70 bg-card hover:bg-muted/5 transition-colors space-y-2"
+              >
                 <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                   {note.text}
                 </p>
@@ -177,12 +215,15 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
                   <span className="flex items-center gap-1.5 flex-wrap">
                     {originatingBranchName && (
                       <>
-                        <span className="text-foreground/90 font-bold">{originatingBranchName}</span>
+                        <span className="text-foreground/90 font-bold">
+                          {originatingBranchName}
+                        </span>
                         <span>·</span>
                       </>
                     )}
                     <User size={10} className="inline shrink-0" />
-                    Created by: <span className="text-foreground/80">{creatorName}</span>
+                    Created by:{" "}
+                    <span className="text-foreground/80">{creatorName}</span>
                   </span>
                   <span>{displayDate}</span>
                 </div>
@@ -202,7 +243,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
                 size="sm"
                 onClick={() => handlePageChange(Number(pagination.page) - 1)}
                 disabled={Number(pagination.page) <= 1}
-                className="h-9 min-w-[44px]"
+                className="h-9 min-w-11"
               >
                 <ChevronLeft size={16} />
               </Button>
@@ -211,7 +252,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
                 size="sm"
                 onClick={() => handlePageChange(Number(pagination.page) + 1)}
                 disabled={Number(pagination.page) >= pagination.totalPages}
-                className="h-9 min-w-[44px]"
+                className="h-9 min-w-11"
               >
                 <ChevronRight size={16} />
               </Button>
@@ -235,7 +276,7 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
           <Button
             size="sm"
             onClick={handleOpenAddDialog}
-            className="flex items-center gap-1.5 cursor-pointer h-9 min-w-[44px]"
+            className="flex items-center gap-1.5 cursor-pointer h-9 min-w-11"
           >
             <Plus size={14} />
             Add Note
@@ -244,7 +285,11 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
       </CardHeader>
       <CardContent className="p-6">{renderContent()}</CardContent>
 
-      <Dialog isOpen={isAddOpen} onClose={() => !isSubmitPending && setIsAddOpen(false)} title="Add Internal Staff Note">
+      <Dialog
+        isOpen={isAddOpen}
+        onClose={() => !isSubmitPending && setIsAddOpen(false)}
+        title="Add Internal Staff Note"
+      >
         <form onSubmit={handleSubmit} className="space-y-4 text-left">
           {submitError && (
             <div className="p-3 rounded-lg border border-destructive/20 bg-destructive/10 text-destructive text-xs font-semibold flex items-center gap-2">
@@ -283,7 +328,10 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
           )}
 
           <div className="space-y-1.5">
-            <label htmlFor="noteText" className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <label
+              htmlFor="noteText"
+              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+            >
               Note Content
             </label>
             <textarea
@@ -293,8 +341,10 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
               onChange={handleTextChange}
               disabled={isSubmitPending || submitSuccess}
               placeholder="Type your note here..."
-              className={`flex w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[100px] ${
-                validationError ? "border-destructive focus-visible:ring-destructive" : "border-input"
+              className={`flex w-full rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-25 ${
+                validationError
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : "border-input"
               }`}
             />
             <div className="flex items-center justify-between text-[10px] text-muted-foreground font-semibold">
@@ -311,14 +361,19 @@ export function CustomerNotes({ customerId }: CustomerNotesProps) {
               variant="outline"
               onClick={() => setIsAddOpen(false)}
               disabled={isSubmitPending || submitSuccess}
-              className="h-9 min-w-[44px]"
+              className="h-9 min-w-11"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitPending || submitSuccess || !noteText.trim() || (!selectedBranchId && isAllBranchesSelected)}
-              className="flex items-center gap-2 h-9 min-w-[44px]"
+              disabled={
+                isSubmitPending ||
+                submitSuccess ||
+                !noteText.trim() ||
+                (!selectedBranchId && isAllBranchesSelected)
+              }
+              className="flex items-center gap-2 h-9 min-w-11"
             >
               {isSubmitPending ? (
                 <>

@@ -10,7 +10,6 @@ import type { UserSummary } from "@/features/users/types/users.types";
 import {
   Loader2,
   Search,
-  UserRound,
   X,
   Mail,
   Phone,
@@ -43,15 +42,15 @@ export default function UserSelector({
   const [error, setError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [selectedUser, setSelectedUser] = useState<UserSummary | null>(initialUser ?? null);
+  const [selectedUser, setSelectedUser] = useState<UserSummary | null>(
+    initialUser ?? null,
+  );
   const inputRef = useRef<HTMLInputElement>(null);
 
   const debouncedQuery = useDebounce(query.trim(), 250);
 
   useEffect(() => {
     if (!debouncedQuery || selectedUser) {
-      setResults([]);
-      setIsLoading(false);
       return;
     }
 
@@ -61,7 +60,11 @@ export default function UserSelector({
       setError(null);
 
       try {
-        const response = await searchUsers({ search: debouncedQuery, page: 1, limit: 8 });
+        const response = await searchUsers({
+          search: debouncedQuery,
+          page: 1,
+          limit: 8,
+        });
         if (isActive) {
           setResults((response?.data || []) as UserSummary[]);
           setIsOpen(true);
@@ -85,7 +88,10 @@ export default function UserSelector({
     };
   }, [debouncedQuery, selectedUser]);
 
-  const displayResults = useMemo(() => results.filter(Boolean), [results]);
+  const displayResults = useMemo(() => {
+    if (!debouncedQuery || selectedUser) return [];
+    return results.filter(Boolean);
+  }, [debouncedQuery, selectedUser, results]);
 
   const handleSelect = (user: UserSummary) => {
     setSelectedUser(user);
@@ -118,10 +124,13 @@ export default function UserSelector({
       setHighlightedIndex((prev) => (prev + 1) % displayResults.length);
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
-      setHighlightedIndex((prev) => (prev - 1 + displayResults.length) % displayResults.length);
+      setHighlightedIndex(
+        (prev) => (prev - 1 + displayResults.length) % displayResults.length,
+      );
     } else if (event.key === "Enter") {
       event.preventDefault();
-      const target = displayResults[highlightedIndex >= 0 ? highlightedIndex : 0];
+      const target =
+        displayResults[highlightedIndex >= 0 ? highlightedIndex : 0];
       if (target) {
         handleSelect(target);
       }
@@ -134,7 +143,10 @@ export default function UserSelector({
   const getInitials = (name?: string) => {
     if (!name) return "U";
     const parts = name.trim().split(/\s+/);
-    return parts.map((p) => p.charAt(0).toUpperCase()).slice(0, 2).join("");
+    return parts
+      .map((p) => p.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join("");
   };
 
   return (
@@ -152,12 +164,16 @@ export default function UserSelector({
               </div>
               <div className="min-w-0 space-y-0.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-bold text-foreground text-sm truncate">{selectedUser.name}</p>
+                  <p className="font-bold text-foreground text-sm truncate">
+                    {selectedUser.name}
+                  </p>
                   {selectedUser.username && (
-                    <span className="text-xs text-muted-foreground font-mono">@{selectedUser.username}</span>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      @{selectedUser.username}
+                    </span>
                   )}
                 </div>
-                
+
                 <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap pt-0.5">
                   {selectedUser.email && (
                     <span className="inline-flex items-center gap-1.5 truncate">
@@ -176,11 +192,17 @@ export default function UserSelector({
             </div>
 
             <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-              <Badge variant={selectedUser.status === "active" ? "success" : "muted"} className="capitalize">
+              <Badge
+                variant={selectedUser.status === "active" ? "success" : "muted"}
+                className="capitalize"
+              >
                 {selectedUser.status || "active"}
               </Badge>
               {selectedUser.isVerified && (
-                <Badge variant="outline" className="border-blue-500/30 text-blue-600 bg-blue-50/50 dark:bg-blue-950/30 dark:text-blue-400 text-[10px] gap-1">
+                <Badge
+                  variant="outline"
+                  className="border-blue-500/30 text-blue-600 bg-blue-50/50 dark:bg-blue-950/30 dark:text-blue-400 text-[10px] gap-1"
+                >
                   <CheckCircle2 className="h-3 w-3 text-blue-500" />
                   Verified
                 </Badge>
@@ -283,12 +305,18 @@ export default function UserSelector({
                   Searching user directory...
                 </div>
               ) : error ? (
-                <div className="p-4 text-xs text-destructive text-center">{error}</div>
+                <div className="p-4 text-xs text-destructive text-center">
+                  {error}
+                </div>
               ) : displayResults.length === 0 && debouncedQuery ? (
                 <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground space-y-1">
                   <UserX className="h-8 w-8 stroke-[1.5] text-muted-foreground/50 mb-1" />
-                  <p className="text-xs font-semibold text-foreground">No matching users found</p>
-                  <p className="text-[11px]">No user profiles matched &quot;{debouncedQuery}&quot;.</p>
+                  <p className="text-xs font-semibold text-foreground">
+                    No matching users found
+                  </p>
+                  <p className="text-[11px]">
+                    No user profiles matched &quot;{debouncedQuery}&quot;.
+                  </p>
                 </div>
               ) : !debouncedQuery ? (
                 <div className="p-4 text-center text-xs text-muted-foreground">
@@ -325,10 +353,14 @@ export default function UserSelector({
 
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-xs text-foreground truncate">{user.name}</span>
+                            <span className="font-bold text-xs text-foreground truncate">
+                              {user.name}
+                            </span>
                             <div className="flex items-center gap-1 shrink-0">
                               <Badge
-                                variant={user.status === "active" ? "success" : "muted"}
+                                variant={
+                                  user.status === "active" ? "success" : "muted"
+                                }
                                 className="text-[9px] px-1.5 py-0 capitalize"
                               >
                                 {user.status || "active"}

@@ -1,15 +1,13 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MutationBranchSelector } from "@/components/branch/MutationBranchSelector";
 import { rescheduleAppointmentSchema, type RescheduleAppointmentSchemaType } from "../schemas/appointment.schema";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
@@ -29,19 +27,11 @@ export function RescheduleAppointmentDialog({
   onSubmit,
   isLoading,
 }: RescheduleAppointmentDialogProps) {
-  const { isAllBranchesSelected, availableBranches } = useBranchContext();
   const [conflictError, setConflictError] = useState<string | null>(null);
-
-  const activeBranches = availableBranches.map((b) => ({
-    id: b.id,
-    name: b.name,
-    isActive: b.isActive,
-  }));
 
   const {
     register,
     handleSubmit,
-    control,
     reset,
     formState: { errors },
   } = useForm<RescheduleAppointmentSchemaType>({

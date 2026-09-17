@@ -80,7 +80,10 @@ export const buildUserColumns = ({
     accessorKey: "role",
     header: "Role",
     cell: (info) => {
-      const role = info.getValue() as any;
+      const role = info.getValue() as
+        | { id: string; name: string }
+        | string
+        | undefined;
       const roleName =
         typeof role === "object" && role !== null ? role.name : role;
       return (
@@ -128,7 +131,7 @@ export const buildUserColumns = ({
         return <span className="text-xs text-muted-foreground">—</span>;
       }
       return (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap gap-1 max-w-50">
           {activeBranches.map((b) => (
             <Badge
               key={b.branchId}
