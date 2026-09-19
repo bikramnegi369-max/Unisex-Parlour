@@ -299,7 +299,7 @@ export function AppointmentCalendarView({
   const [selectedStaffFilter, setSelectedStaffFilter] = useState<
     string | "all"
   >("all");
-  const { currentBranch } = useBranchContext();
+  const { currentBranch, currentBranchId } = useBranchContext();
   const [hourScale, setHourScale] = useState<number>(120); // 120px gives ideal full visibility for text, codes, and badges
   const viewportHeightPx =
     (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
@@ -307,8 +307,18 @@ export function AppointmentCalendarView({
   // Branch timezone for the current view
   const branchTimezone = currentBranch?.timezone || "Asia/Kolkata";
 
-  // Fetch active branch employees for staff lanes
-  const { data: employeesData } = useEmployees({ limit: 100 });
+  // Fetch active branch employees for staff lanes - scoped to current branch unless isAllBranches
+  const employeeParams = useMemo(() => {
+    return {
+      limit: 100,
+      branchId:
+        !isAllBranches && currentBranchId && currentBranchId !== "all"
+          ? currentBranchId
+          : undefined,
+    };
+  }, [isAllBranches, currentBranchId]);
+
+  const { data: employeesData } = useEmployees(employeeParams);
   const employees = useMemo(
     () => employeesData?.data || [],
     [employeesData?.data],
@@ -429,6 +439,15 @@ export function AppointmentCalendarView({
     >();
     for (const appt of currentViewAppointments) {
       if (!appt.staffId) continue;
+      // If a specific branch is selected, do not derive lanes from appointments belonging to other branches
+      if (
+        !isAllBranches &&
+        currentBranchId &&
+        appt.branchId &&
+        appt.branchId !== currentBranchId
+      ) {
+        continue;
+      }
       if (laneMap.has(appt.staffId)) continue;
       laneMap.set(appt.staffId, {
         id: appt.staffId,
@@ -437,7 +456,7 @@ export function AppointmentCalendarView({
       });
     }
     return Array.from(laneMap.values());
-  }, [currentViewAppointments]);
+  }, [currentViewAppointments, isAllBranches, currentBranchId]);
 
   // Merge employee lanes with derived lanes (dedupe by id)
   const resourceLanes = useMemo(() => {
@@ -484,7 +503,7 @@ export function AppointmentCalendarView({
   return (
     <div className="space-y-4">
       {/* Navigation & Controls Bar */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 bg-card p-3 rounded-lg border border-border">
         {/* Date Navigation */}
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -529,15 +548,17 @@ export function AppointmentCalendarView({
         </div>
 
         {/* Staff Filter & View Switcher */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap w-full lg:w-auto justify-start sm:justify-end">
           {/* Staff Filter Dropdown */}
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="text-muted-foreground font-medium">Staff:</span>
-            <div className="w-40">
+          <div className="flex items-center gap-1.5 text-xs flex-1 sm:flex-initial min-w-45">
+            <span className="text-muted-foreground font-medium shrink-0">
+              Staff:
+            </span>
+            <div className="w-full sm:w-44">
               <Select
                 value={selectedStaffFilter}
                 onChange={(e) => setSelectedStaffFilter(e.target.value)}
-                className="h-8 text-xs py-0"
+                className="h-8 text-xs py-0 w-full"
               >
                 <option value="all">All Staff Lanes</option>
                 <option value="unassigned">Unassigned Only</option>
@@ -554,7 +575,7 @@ export function AppointmentCalendarView({
           </div>
 
           {/* Zoom / Scale Selector */}
-          <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md border border-border">
+          <div className="flex items-center gap-1 bg-muted p-0.5 rounded-md border border-border shrink-0">
             <Button
               type="button"
               variant={hourScale === 100 ? "default" : "ghost"}
@@ -588,7 +609,7 @@ export function AppointmentCalendarView({
           </div>
 
           {/* Day / Week View Mode Toggle */}
-          <div className="bg-muted p-0.5 rounded-md flex items-center border border-border">
+          <div className="bg-muted p-0.5 rounded-md flex items-center border border-border shrink-0">
             <Button
               variant={viewMode === "day" ? "default" : "ghost"}
               size="sm"

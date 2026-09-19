@@ -9,7 +9,6 @@ import { useUpdateService } from "../../hooks/services/useUpdateService";
 import { useDeleteService } from "../../hooks/services/useDeleteService";
 import { useReactivateService } from "../../hooks/services/useReactivateService";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
 import { SERVICES_CONFIG } from "../../config/services.config";
 import { Dialog } from "@/components/ui/dialog";
@@ -19,7 +18,6 @@ import { ServiceProfileHeader } from "./ServiceProfileHeader";
 import { EntityProfileLayout, type ProfileTabItem } from "@/components/entity/EntityProfileLayout";
 import { ServiceOverviewCard } from "./ServiceOverviewCard";
 import { ServicePricingCard } from "./ServicePricingCard";
-import { ServiceTaxCard } from "./ServiceTaxCard";
 import { ServiceAuditCard } from "./ServiceAuditCard";
 import ServiceForm from "../services/ServiceForm";
 import DeactivateDialog from "@/components/entity/DeactivateDialog";
@@ -39,7 +37,6 @@ interface ServiceProfilePageProps {
 export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const { availableBranches } = useBranchContext();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
@@ -154,7 +151,6 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
   const catId = typeof service.categoryId === "string" ? service.categoryId : (service.categoryId as { _id: string })?._id || "";
   const categoryName = categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === catId)?.name || catId;
-  const branchName = availableBranches.find((b) => b.id === service.branchId)?.name || service.branchId;
 
   // Declarative Tab Schema Definition
   const tabs: ProfileTabItem[] = [
@@ -188,8 +184,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
           <div className="space-y-6">
             <ServiceOverviewCard service={service} categoryName={categoryName} />
             <ServicePricingCard service={service} />
-            <ServiceTaxCard service={service} />
-            <ServiceAuditCard service={service} branchName={branchName} />
+            <ServiceAuditCard service={service} />
           </div>
         )}
 
@@ -236,8 +231,6 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
             categoryId: catId,
             duration: service.duration,
             basePrice: service.pricing?.basePrice ?? 0,
-            taxable: service.taxable,
-            taxRate: service.taxRate ?? 0,
             displayOrder: service.displayOrder,
           }}
           onSubmit={handleEditSubmit}

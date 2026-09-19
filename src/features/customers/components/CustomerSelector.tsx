@@ -3,6 +3,7 @@ import { Search, Plus, Check, User, AlertCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCustomers } from "../hooks/useCustomers";
+import { useCustomerGlobalSearch } from "../hooks/useCustomerGlobalSearch";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
@@ -13,6 +14,7 @@ import type { Customer } from "../types/customer.types";
 export interface CustomerSelectorProps {
   value: string; // customerId
   onChange: (customerId: string, customer?: Customer) => void;
+  branchId?: string;
   error?: string;
   disabled?: boolean;
 }
@@ -20,6 +22,7 @@ export interface CustomerSelectorProps {
 export function CustomerSelector({
   value,
   onChange,
+  branchId: propBranchId,
   error,
   disabled = false,
 }: CustomerSelectorProps) {
@@ -33,19 +36,39 @@ export function CustomerSelector({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const debouncedSearch = useDebounce(searchTerm, 300);
+  const isSearching = debouncedSearch.trim().length >= 2;
+
+  // Resolve effective branch: prioritize explicitly passed branchId (e.g. from appointment dialog), fallback to context
+  const effectiveBranchId =
+    propBranchId !== undefined
+      ? propBranchId || null
+      : isAllBranchesSelected
+        ? null
+        : currentBranchId;
 
   const canCreateCustomer = hasPermission(user, "customers.create");
-  const isBranchExplicit = !isAllBranchesSelected && currentBranchId !== null && currentBranchId !== "all";
+  const isBranchExplicit = effectiveBranchId !== null && effectiveBranchId !== "all";
 
-  // Query customers with debounced search term
-  const { data: customersData, isLoading } = useCustomers(
-    debouncedSearch.trim() ? { search: debouncedSearch.trim() } : { limit: 20 }
+  // When actively searching, search organization-wide (branchScope: none) so roaming customers can be found
+  const { data: globalSearchResults, isLoading: isLoadingGlobal } = useCustomerGlobalSearch({
+    search: debouncedSearch,
+    enabled: isSearching,
+  });
+
+  // When not searching (or query < 2 chars), only show customers from effective branch (branchScope: current or target branch)
+  const { data: branchCustomersData, isLoading: isLoadingBranch } = useCustomers(
+    { limit: 20, branchId: effectiveBranchId || undefined },
+    { enabled: !isSearching }
   );
 
-  const customers = useMemo(
-    () => customersData?.data || [],
-    [customersData?.data]
-  );
+  const isLoading = isSearching ? isLoadingGlobal : isLoadingBranch;
+
+  const customers: Customer[] = useMemo(() => {
+    if (isSearching) {
+      return globalSearchResults || [];
+    }
+    return branchCustomersData?.data || [];
+  }, [isSearching, globalSearchResults, branchCustomersData?.data]);
 
   // Derived selected customer to avoid setState in effect
   const selectedCustomer = useMemo(() => {
@@ -56,7 +79,7 @@ export function CustomerSelector({
     ) {
       return manuallySelectedCustomer;
     }
-    return customers.find((c) => c.id === value || c._id === value) || null;
+    return customers.find((c: Customer) => c.id === value || c._id === value) || null;
   }, [value, customers, manuallySelectedCustomer]);
 
   // Handle clicking outside to close dropdown
@@ -162,7 +185,7 @@ export function CustomerSelector({
             </div>
           ) : customers.length > 0 ? (
             <div className="space-y-0.5">
-              {customers.map((c) => (
+              {customers.map((c: Customer) => (
                 <button
                   key={c.id || c._id}
                   type="button"

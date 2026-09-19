@@ -14,6 +14,9 @@ export interface Employee {
   organizationId: string;
   userId?: string | null;
   isDeleted: boolean;
+  branches?: Array<{ _id?: string; id?: string; name?: string } | string>;
+  branchId?: string | { _id?: string; id?: string; name?: string };
+  staffBranches?: StaffBranch[];
   createdAt: string;
   updatedAt: string;
 }

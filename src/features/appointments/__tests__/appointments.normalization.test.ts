@@ -32,8 +32,6 @@ const BACKEND_RESPONSE_FIXTURE = {
       name: "test 1",
       duration: 30,
       price: 0,
-      taxRate: 13,
-      taxAmount: 0,
     },
   ],
 
@@ -47,7 +45,6 @@ const BACKEND_RESPONSE_FIXTURE = {
   pricing: {
     subtotal: 0,
     discount: 0,
-    tax: 0,
     total: 0,
   },
 
@@ -232,11 +229,6 @@ describe("normalizeAppointment — Backend Response Contract", () => {
       expect(normalized.services[0].price).toBe(0);
     });
 
-    it("preserves taxRate and taxAmount", () => {
-      expect(normalized.services[0].taxRate).toBe(13);
-      expect(normalized.services[0].taxAmount).toBe(0);
-    });
-
     it("preserves serviceId", () => {
       expect(normalized.services[0].serviceId).toBe("6a75b6961f6fcad358a15d0c");
     });
@@ -331,7 +323,6 @@ describe("normalizeAppointment — Backend Response Contract", () => {
       expect(normalized.pricing).toEqual({
         subtotal: 0,
         discount: 0,
-        tax: 0,
         total: 0,
       });
     });

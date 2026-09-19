@@ -36,7 +36,7 @@ const mockAppointments: Appointment[] = [
     date: "2026-08-10", // Monday
     startTime: "10:00",
     endTime: "10:45",
-    pricing: { subtotal: 50, tax: 0, total: 50 },
+    pricing: { subtotal: 50, total: 50 },
     createdAt: "2026-08-01T10:00:00Z",
     updatedAt: "2026-08-01T10:00:00Z",
   },
@@ -56,7 +56,7 @@ const mockAppointments: Appointment[] = [
     date: "2026-08-12", // Wednesday
     startTime: "14:00",
     endTime: "14:30",
-    pricing: { subtotal: 30, tax: 0, total: 30 },
+    pricing: { subtotal: 30, total: 30 },
     createdAt: "2026-08-01T10:00:00Z",
     updatedAt: "2026-08-01T10:00:00Z",
   },
@@ -76,7 +76,7 @@ const mockAppointments: Appointment[] = [
     date: "2026-08-16", // Sunday
     startTime: "16:00",
     endTime: "17:00",
-    pricing: { subtotal: 80, tax: 0, total: 80 },
+    pricing: { subtotal: 80, total: 80 },
     createdAt: "2026-08-01T10:00:00Z",
     updatedAt: "2026-08-01T10:00:00Z",
   },

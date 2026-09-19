@@ -19,6 +19,7 @@ export interface GetCustomersParams {
   limit?: number;
   status?: string;
   sort?: string;
+  branchId?: string;
 }
 
 export interface GetCustomerNotesParams {
@@ -41,10 +42,34 @@ const mapCustomerKeys = (c: RawCustomerDTO): Customer => ({
   id: c._id || c.id || "",
 });
 
+export interface SearchCustomersGlobalParams {
+  search: string;
+  limit?: number;
+}
+
+export const searchCustomersGlobal = async (
+  params: SearchCustomersGlobalParams
+): Promise<Customer[]> => {
+  const { data } = await apiClient.get<CustomerListResponse>("/customers", {
+    params: {
+      search: params.search,
+      limit: params.limit ?? 10,
+    },
+    branchScope: "none",
+  });
+
+  return (data.data || []).map(mapCustomerKeys);
+};
+
 export const getCustomers = async (params: GetCustomersParams = {}): Promise<PaginatedResponse<Customer>> => {
+  const branchScope =
+    params.branchId && params.branchId !== "all"
+      ? ({ type: "branch", branchId: params.branchId } as const)
+      : "current";
+
   const { data } = await apiClient.get<CustomerListResponse>("/customers", {
     params,
-    branchScope: "current",
+    branchScope,
   });
 
   return {

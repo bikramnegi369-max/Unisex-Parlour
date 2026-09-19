@@ -33,9 +33,14 @@ const mapEmployeeKeys = (emp: RawEmployeeDTO): Employee => ({
 });
 
 export const getEmployees = async (params: GetEmployeesParams = {}): Promise<PaginatedResponse<Employee>> => {
+  const branchScope =
+    params.branchId && params.branchId !== "all"
+      ? ({ type: "branch", branchId: params.branchId } as const)
+      : "current";
+
   const { data } = await apiClient.get<EmployeeListResponse>("/staff", {
     params,
-    branchScope: "current",
+    branchScope,
   });
 
   return {

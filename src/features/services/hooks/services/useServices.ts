@@ -1,19 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { getServices } from "../../api/services.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import type { ServiceFilters } from "../../types/filters.types";
 
 export function useServices(filters: ServiceFilters = {}) {
-  const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
-  const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "services.view");
-  const isEnabled = isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
+  const isEnabled = isAuthenticated && hasViewPermission;
 
-  const queryKey = getBranchQueryKey("services", [filters]);
+  const queryKey = getScopeQueryKey("services", null, [filters]);
 
   return useQuery({
     queryKey,

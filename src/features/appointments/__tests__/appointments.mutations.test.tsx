@@ -25,8 +25,7 @@ describe("Appointment Mutation & Workflow Rules", () => {
     endTime: "11:15",
     pricing: {
       subtotal: 550,
-      tax: 99,
-      total: 649,
+      total: 550,
     },
     createdAt: "2026-08-12T10:00:00.000Z",
     updatedAt: "2026-08-12T10:00:00.000Z",

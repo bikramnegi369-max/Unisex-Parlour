@@ -1,7 +1,7 @@
 import { useEntityMutation } from "@/lib/api/mutations";
 import { updateService } from "../../api/services.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import type { Service, ServicePayload } from "../../types/service.types";
 
 interface UpdateServiceParams {
@@ -11,13 +11,12 @@ interface UpdateServiceParams {
 
 export function useUpdateService() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useEntityMutation<Service, Error, UpdateServiceParams>({
     mutationFn: ({ id, payload }) => updateService(id, payload),
-    invalidateKeys: [getBranchQueryKey("services")],
+    invalidateKeys: [getScopeQueryKey("services", null)],
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("service", [data.id]) });
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("service", null, [data.id]) });
     },
   });
 }

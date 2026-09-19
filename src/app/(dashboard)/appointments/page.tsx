@@ -24,9 +24,11 @@ import { AssignStaffDialog } from "@/features/appointments/components/AssignStaf
 import { AppointmentStatusDialog } from "@/features/appointments/components/AppointmentStatusDialog";
 import { DeleteAppointmentDialog } from "@/features/appointments/components/DeleteAppointmentDialog";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SyncButton } from "@/components/ui/sync-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/error-state";
+import { toast } from "sonner";
 import {
   Calendar,
   List,
@@ -89,8 +91,20 @@ export default function AppointmentsPage() {
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
-  // Fetch employees for filter dropdown
-  const { data: employeesData } = useEmployees({ limit: 100 });
+  const { currentBranchId } = useBranchContext();
+
+  // Fetch employees for filter dropdown - strictly scoped to active branch unless All Branches is selected
+  const employeeParams = useMemo(() => {
+    return {
+      limit: 100,
+      branchId:
+        !isAllBranchesSelected && currentBranchId && currentBranchId !== "all"
+          ? currentBranchId
+          : undefined,
+    };
+  }, [isAllBranchesSelected, currentBranchId]);
+
+  const { data: employeesData } = useEmployees(employeeParams);
   const employees = employeesData?.data || [];
 
   // Week range for calendar Week View (Monday-based)
@@ -145,12 +159,22 @@ export default function AppointmentsPage() {
   const {
     data: appointmentsData,
     isLoading,
+    isRefetching,
     isError,
     error,
     refetch,
   } = useAppointments(queryFilters);
   const appointments = appointmentsData?.data || [];
   const meta = appointmentsData?.meta;
+
+  const handleSync = async () => {
+    try {
+      await refetch();
+      toast.success("Appointments synchronized successfully.");
+    } catch {
+      toast.error("Failed to synchronize appointments.");
+    }
+  };
 
   const createMutation = useCreateAppointment();
   const rescheduleMutation = useRescheduleAppointment();
@@ -215,27 +239,35 @@ export default function AppointmentsPage() {
         title="Appointments Scheduling"
         description="Manage salon appointments, staff allocations, scheduling, and walk-in bookings."
         actions={
-          canCreate && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleOpenCreate("walk_in")}
-                className="gap-1.5 text-xs bg-background/80"
-              >
-                <UserPlus className="h-4 w-4 text-purple-600" />
-                Walk-In Booking
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handleOpenCreate("advance")}
-                className="gap-1.5 text-xs"
-              >
-                <Plus className="h-4 w-4" />
-                Book Appointment
-              </Button>
-            </div>
-          )
+          <div className="flex items-center gap-2 flex-wrap">
+            <SyncButton
+              isSyncing={isRefetching}
+              onSync={handleSync}
+              label="Refresh Schedule"
+              className="w-full sm:w-auto"
+            />
+            {canCreate && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenCreate("walk_in")}
+                  className="gap-1.5 text-xs bg-background/80"
+                >
+                  <UserPlus className="h-4 w-4 text-purple-600" />
+                  Walk-In Booking
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleOpenCreate("advance")}
+                  className="gap-1.5 text-xs"
+                >
+                  <Plus className="h-4 w-4" />
+                  Book Appointment
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 

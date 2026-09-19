@@ -35,7 +35,7 @@ export default function ServiceCategoriesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { isAllBranchesSelected, getBranchName } = useBranchContext();
+  const { isAllBranchesSelected } = useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -144,10 +144,8 @@ export default function ServiceCategoriesList() {
           setActiveCategory(cat);
           setIsCategoryReactivateOpen(true);
         },
-        getBranchName,
-        isAllBranches: isAllBranchesSelected,
       }),
-    [getBranchName, isAllBranchesSelected]
+    []
   );
 
   // Service Category CRUD Handlers
@@ -231,8 +229,6 @@ export default function ServiceCategoriesList() {
         setActiveCategory(cat);
         setIsCategoryReactivateOpen(true);
       }}
-      isAllBranches={isAllBranchesSelected}
-      getBranchName={getBranchName}
     />
   );
 
@@ -281,7 +277,7 @@ export default function ServiceCategoriesList() {
               title={SERVICES_CONFIG.labels.category.emptyStateTitle}
               description={SERVICES_CONFIG.labels.category.emptyStateDescription}
               action={
-                canCreate && !isAllBranchesSelected
+                canCreate
                   ? {
                       label: "Create Category",
                       onClick: () => setIsCategoryCreateOpen(true),

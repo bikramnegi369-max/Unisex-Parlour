@@ -98,8 +98,6 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
     name: (s.name as string) || (s.serviceName as string) || "",
     duration: (s.duration as number) || 0,
     price: (s.price as number) || 0,
-    taxRate: s.taxRate as number | undefined,
-    taxAmount: s.taxAmount as number | undefined,
     category: s.category as string | undefined,
   }));
 

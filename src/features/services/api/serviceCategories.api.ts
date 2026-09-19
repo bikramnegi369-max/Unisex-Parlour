@@ -23,7 +23,7 @@ const mapIdKey = (item: RawServiceCategoryDTO | null | undefined): ServiceCatego
 export const getServiceCategories = async (params: ServiceCategoryFilters = {}): Promise<PaginatedResponse<ServiceCategory>> => {
   const { data } = await apiClient.get<PaginatedResponse<ServiceCategory>>("/services/categories", {
     params,
-    branchScope: "current",
+    branchScope: "none",
   });
   return {
     ...data,
@@ -33,34 +33,34 @@ export const getServiceCategories = async (params: ServiceCategoryFilters = {}):
 
 export const getServiceCategory = async (id: string): Promise<ServiceCategory> => {
   const { data } = await apiClient.get<ApiResponse<ServiceCategory>>(`/services/categories/${id}`, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapIdKey(data.data);
 };
 
 export const createServiceCategory = async (payload: ServiceCategoryPayload): Promise<ServiceCategory> => {
   const { data } = await apiClient.post<ApiResponse<ServiceCategory>>("/services/categories", payload, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapIdKey(data.data);
 };
 
 export const updateServiceCategory = async (id: string, payload: ServiceCategoryPayload): Promise<ServiceCategory> => {
   const { data } = await apiClient.put<ApiResponse<ServiceCategory>>(`/services/categories/${id}`, payload, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapIdKey(data.data);
 };
 
 export const deleteServiceCategory = async (id: string): Promise<void> => {
   await apiClient.delete(`/services/categories/${id}`, {
-    branchScope: "current",
+    branchScope: "none",
   });
 };
 
 export const reactivateServiceCategory = async (id: string): Promise<ServiceCategory> => {
   const { data } = await apiClient.put<ApiResponse<ServiceCategory>>(`/services/categories/${id}/reactivate`, {}, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapIdKey(data.data);
 };

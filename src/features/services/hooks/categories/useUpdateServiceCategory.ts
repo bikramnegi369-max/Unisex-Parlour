@@ -1,7 +1,7 @@
 import { useEntityMutation } from "@/lib/api/mutations";
 import { updateServiceCategory } from "../../api/serviceCategories.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
 
 interface UpdateServiceCategoryParams {
@@ -11,13 +11,12 @@ interface UpdateServiceCategoryParams {
 
 export function useUpdateServiceCategory() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useEntityMutation<ServiceCategory, Error, UpdateServiceCategoryParams>({
     mutationFn: ({ id, payload }) => updateServiceCategory(id, payload),
-    invalidateKeys: [getBranchQueryKey("service-categories")],
+    invalidateKeys: [getScopeQueryKey("service-categories", null)],
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("service-category", [data.id]) });
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("service-category", null, [data.id]) });
     },
   });
 }

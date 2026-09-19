@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useForm, Controller, useWatch } from "react-hook-form";
+import { useForm, Controller, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Dialog } from "@/components/ui/dialog";
@@ -18,16 +18,25 @@ import {
 import { CustomerSelector } from "@/features/customers/components/CustomerSelector";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import type { Service } from "@/features/services/types/service.types";
-import { useEmployees } from "@/features/employees/hooks/useEmployees";
+import {
+  useEmployees,
+  useMultipleStaffServices,
+} from "@/features/employees/hooks/useEmployees";
 import type { Employee } from "@/features/employees/types/employee.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
-import { Bell, AlertTriangle, Search, MapPin, Loader2 } from "lucide-react";
+import {
+  Bell,
+  AlertTriangle,
+  Search,
+  MapPin,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 
 const EMPTY_SERVICES: Service[] = [];
 const EMPTY_EMPLOYEES: Employee[] = [];
-const EMPTY_SERVICE_IDS: string[] = [];
 
 interface CreateAppointmentDialogProps {
   isOpen: boolean;
@@ -67,10 +76,13 @@ export function CreateAppointmentDialog({
     reset,
     formState: { errors },
   } = useForm<CreateAppointmentSchemaType>({
-    resolver: zodResolver(createAppointmentSchema),
+    resolver: zodResolver(
+      createAppointmentSchema,
+    ) as unknown as Resolver<CreateAppointmentSchemaType>,
     defaultValues: {
       branchId: currentBranchId || "",
       customerId: "",
+      services: [],
       serviceIds: [],
       staffId: null,
       date: format(new Date(), "yyyy-MM-dd"),
@@ -86,10 +98,14 @@ export function CreateAppointmentDialog({
   });
 
   const bookingType = useWatch({ control, name: "bookingType" });
-  const watchedServiceIds = useWatch({ control, name: "serviceIds" });
+  const watchedServices = useWatch({ control, name: "services" });
+  const selectedServices = useMemo(
+    () => watchedServices || [],
+    [watchedServices],
+  );
   const selectedServiceIds = useMemo(
-    () => watchedServiceIds || EMPTY_SERVICE_IDS,
-    [watchedServiceIds],
+    () => selectedServices.map((s) => s.serviceId),
+    [selectedServices],
   );
   const reminderEnabled = useWatch({ control, name: "reminder.enabled" });
   const selectedBranchId = useWatch({ control, name: "branchId" });
@@ -128,6 +144,27 @@ export function CreateAppointmentDialog({
     [employeesData?.data],
   );
 
+  const employeeIds = useMemo(
+    () => employees.map((e: Employee) => e.id),
+    [employees],
+  );
+
+  const { staffServicesMap, isLoading: isLoadingStaffServices } =
+    useMultipleStaffServices(employeeIds);
+
+  // Filter staff to only those who are assigned ALL selected services
+  const qualifiedEmployees = useMemo(() => {
+    if (selectedServiceIds.length === 0) {
+      return employees;
+    }
+    return employees.filter((emp: Employee) => {
+      const assignedServices = staffServicesMap[emp.id] || [];
+      return selectedServiceIds.every((reqServiceId) =>
+        assignedServices.includes(reqServiceId),
+      );
+    });
+  }, [employees, selectedServiceIds, staffServicesMap]);
+
   // Filter services by search term
   const filteredServices = useMemo<Service[]>(() => {
     if (!serviceSearch.trim()) return services;
@@ -140,19 +177,22 @@ export function CreateAppointmentDialog({
   // Display-only estimation totals (authoritative pricing is computed by backend!)
   const selectedServicesSummary = useMemo(() => {
     const rawServices = servicesData?.data || [];
-    const selected = rawServices.filter((s: Service) =>
-      selectedServiceIds.includes(s.id),
-    );
-    const totalDuration = selected.reduce(
-      (sum: number, s: Service) => sum + (s.duration || 0),
-      0,
-    );
-    const estimatedSubtotal = selected.reduce(
-      (sum: number, s: Service) => sum + (s.pricing?.basePrice ?? 0),
-      0,
-    );
-    return { count: selected.length, totalDuration, estimatedSubtotal };
-  }, [servicesData?.data, selectedServiceIds]);
+    let totalDuration = 0;
+    let estimatedSubtotal = 0;
+
+    for (const item of selectedServices) {
+      const srv = rawServices.find((s: Service) => s.id === item.serviceId);
+      if (srv) {
+        totalDuration += srv.duration || 0;
+        const price =
+          item.customPrice !== undefined && item.customPrice !== null
+            ? Number(item.customPrice)
+            : (srv.pricing?.basePrice ?? 0);
+        estimatedSubtotal += price;
+      }
+    }
+    return { count: selectedServices.length, totalDuration, estimatedSubtotal };
+  }, [servicesData?.data, selectedServices]);
 
   // Reset transient state during render when dialog opens (avoids cascading render warning)
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
@@ -169,6 +209,7 @@ export function CreateAppointmentDialog({
       reset({
         branchId: currentBranchId || "",
         customerId: "",
+        services: [],
         serviceIds: [],
         staffId: null,
         date: format(new Date(), "yyyy-MM-dd"),
@@ -186,11 +227,22 @@ export function CreateAppointmentDialog({
 
   const handleFormSubmit = async (data: CreateAppointmentSchemaType) => {
     setConflictError(null);
+
+    const formattedServices = (data.services || []).map((s) => ({
+      serviceId: s.serviceId,
+      customPrice:
+        s.customPrice !== undefined && s.customPrice !== null
+          ? Number(s.customPrice)
+          : undefined,
+    }));
+
     // Enforce production invariants: walk-in appointments are strictly today and require no reminders
     const payload: CreateAppointmentSchemaType =
       data.bookingType === "walk_in"
         ? {
             ...data,
+            services: formattedServices,
+            serviceIds: formattedServices.map((s) => s.serviceId),
             date: format(new Date(), "yyyy-MM-dd"),
             reminder: {
               enabled: false,
@@ -198,7 +250,11 @@ export function CreateAppointmentDialog({
               offsetMinutes: 60,
             },
           }
-        : data;
+        : {
+            ...data,
+            services: formattedServices,
+            serviceIds: formattedServices.map((s) => s.serviceId),
+          };
 
     try {
       await onSubmit(payload);
@@ -221,18 +277,51 @@ export function CreateAppointmentDialog({
     }
   };
 
-  const handleServiceToggle = (serviceId: string) => {
-    if (selectedServiceIds.includes(serviceId)) {
-      setValue(
-        "serviceIds",
-        selectedServiceIds.filter((id) => id !== serviceId),
-        { shouldValidate: true },
+  const handleServiceToggle = (service: Service) => {
+    const isSelected = selectedServices.some((s) => s.serviceId === service.id);
+    let updatedSelectedServiceIds: string[] = [];
+
+    if (isSelected) {
+      const updated = selectedServices.filter(
+        (s) => s.serviceId !== service.id,
       );
+      updatedSelectedServiceIds = updated.map((s) => s.serviceId);
+      setValue("services", updated, { shouldValidate: true });
+      setValue("serviceIds", updatedSelectedServiceIds);
     } else {
-      setValue("serviceIds", [...selectedServiceIds, serviceId], {
-        shouldValidate: true,
-      });
+      const defaultPrice = service.pricing?.basePrice ?? 0;
+      const updated = [
+        ...selectedServices,
+        { serviceId: service.id, customPrice: defaultPrice },
+      ];
+      updatedSelectedServiceIds = updated.map((s) => s.serviceId);
+      setValue("services", updated, { shouldValidate: true });
+      setValue("serviceIds", updatedSelectedServiceIds);
     }
+
+    // If a staff member is currently selected, verify they still offer all chosen services
+    if (selectedStaffId && updatedSelectedServiceIds.length > 0) {
+      const staffServices = staffServicesMap[selectedStaffId] || [];
+      const isStillQualified = updatedSelectedServiceIds.every((srvId) =>
+        staffServices.includes(srvId),
+      );
+      if (!isStillQualified) {
+        setValue("staffId", null);
+        const assignedStaffObj = employees.find(
+          (e: Employee) => e.id === selectedStaffId,
+        );
+        toast.info(
+          `${assignedStaffObj?.name || "Selected staff"} was unassigned because they do not offer all selected services.`,
+        );
+      }
+    }
+  };
+
+  const handleCustomPriceChange = (serviceId: string, customPrice: number) => {
+    const updated = selectedServices.map((s) =>
+      s.serviceId === serviceId ? { ...s, customPrice } : s,
+    );
+    setValue("services", updated, { shouldValidate: true });
   };
 
   const dialogTitle =
@@ -352,6 +441,7 @@ export function CreateAppointmentDialog({
                 <CustomerSelector
                   value={field.value}
                   onChange={(id) => field.onChange(id)}
+                  branchId={selectedBranchId || undefined}
                   error={errors.customerId?.message}
                   disabled={isLoading}
                 />
@@ -394,13 +484,13 @@ export function CreateAppointmentDialog({
               <div className="p-4 text-center text-xs text-muted-foreground border border-input rounded-md bg-background">
                 {serviceSearch.trim()
                   ? "No services found matching your search."
-                  : "No services available for this branch."}
+                  : "No services available in catalog."}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto p-2 border border-input rounded-md bg-background">
                 {filteredServices.map((srv: Service) => {
                   const isChecked = selectedServiceIds.includes(srv.id);
-                  const servicePrice = srv.pricing?.basePrice ?? 0;
+                  const basePrice = srv.pricing?.basePrice ?? 0;
                   return (
                     <label
                       key={srv.id}
@@ -413,13 +503,14 @@ export function CreateAppointmentDialog({
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => handleServiceToggle(srv.id)}
+                        onChange={() => handleServiceToggle(srv)}
                         className="rounded border-input text-primary focus:ring-primary"
                       />
                       <div className="flex-1 truncate">
                         <div className="font-semibold">{srv.name}</div>
                         <div className="text-[10px] opacity-75">
-                          {srv.duration} mins • {formatCurrency(servicePrice)}
+                          {srv.duration} mins • Catalog:{" "}
+                          {formatCurrency(basePrice)}
                         </div>
                       </div>
                     </label>
@@ -427,21 +518,98 @@ export function CreateAppointmentDialog({
                 })}
               </div>
             )}
-            {errors.serviceIds && (
-              <span className="text-[11px] text-destructive">
-                {errors.serviceIds.message}
+            {selectedServices.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border/70">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Appointment Pricing Per Service
+                  </span>
+                  <span className="text-[10px] text-muted-foreground italic">
+                    Custom price applies only to this appointment
+                  </span>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {selectedServices.map((selectedItem) => {
+                    const srv = services.find(
+                      (s: Service) => s.id === selectedItem.serviceId,
+                    );
+                    const catalogPrice = srv?.pricing?.basePrice ?? 0;
+                    return (
+                      <div
+                        key={selectedItem.serviceId}
+                        className="flex items-center justify-between gap-3 p-2 bg-muted/40 rounded-md border border-border text-xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-foreground truncate">
+                            {srv?.name || "Selected Service"}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">
+                            Base: {formatCurrency(catalogPrice)} •{" "}
+                            {srv?.duration || 0} mins
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <label
+                            htmlFor={`appt-price-${selectedItem.serviceId}`}
+                            className="text-[11px] font-medium text-muted-foreground whitespace-nowrap"
+                          >
+                            Appointment Price:
+                          </label>
+                          <div className="relative w-24">
+                            <span className="absolute left-2 top-1.5 text-[11px] text-muted-foreground">
+                              ₹
+                            </span>
+                            <Input
+                              id={`appt-price-${selectedItem.serviceId}`}
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={selectedItem.customPrice ?? catalogPrice}
+                              onChange={(e) =>
+                                handleCustomPriceChange(
+                                  selectedItem.serviceId,
+                                  e.target.value === ""
+                                    ? 0
+                                    : Number(e.target.value),
+                                )
+                              }
+                              className="h-7 text-xs pl-5 py-0 font-semibold"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {(errors.services || errors.serviceIds) && (
+              <span className="text-[11px] text-destructive block">
+                {errors.services?.message || errors.serviceIds?.message}
               </span>
             )}
           </div>
 
-          {/* Staff Selection (Optional / Unassigned) */}
+          {/* Staff Selection (Filtered by service capabilities) */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Assign Staff{" "}
-                <span className="text-muted-foreground font-normal">
-                  (Optional / Unassigned)
-                </span>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <span>Assign Staff</span>
+                {selectedServiceIds.length > 0 && (
+                  <span className="inline-flex items-center gap-1 text-[10px] normal-case font-medium text-primary bg-primary/10 px-1.5 py-0.2 rounded">
+                    <Sparkles className="h-3 w-3" />
+                    {qualifiedEmployees.length}{" "}
+                    {qualifiedEmployees.length === 1
+                      ? "stylist offers"
+                      : "stylists offer"}{" "}
+                    chosen service(s)
+                  </span>
+                )}
+                {selectedServiceIds.length === 0 && (
+                  <span className="text-muted-foreground font-normal normal-case">
+                    (Optional / Unassigned)
+                  </span>
+                )}
               </label>
               {bookingType === "walk_in" && !selectedStaffId && (
                 <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
@@ -455,22 +623,34 @@ export function CreateAppointmentDialog({
                 setValue("staffId", e.target.value ? e.target.value : null)
               }
               className="w-full h-9 text-xs"
-              disabled={isLoadingEmployees}
+              disabled={isLoadingEmployees || isLoadingStaffServices}
             >
-              <option value="">-- Unassigned (Floor Queue) --</option>
-              {employees.map((e: Employee) => (
+              <option value="">
+                {selectedServiceIds.length > 0 &&
+                qualifiedEmployees.length === 0
+                  ? "-- No staff available for selected services (Floor Queue) --"
+                  : "-- Unassigned (Floor Queue) --"}
+              </option>
+              {qualifiedEmployees.map((e: Employee) => (
                 <option key={e.id} value={e.id}>
                   {e.name} {e.designation ? `(${e.designation})` : ""}
                 </option>
               ))}
             </Select>
-            {bookingType === "walk_in" && (
+            {selectedServiceIds.length > 0 &&
+            qualifiedEmployees.length === 0 ? (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                ⚠️ None of the active branch staff are currently assigned to all
+                selected services. Keep unassigned to queue or adjust selected
+                services.
+              </p>
+            ) : bookingType === "walk_in" ? (
               <p className="text-[10px] text-muted-foreground">
                 {selectedStaffId
                   ? "Assigned to specific staff. If they are busy right now, choose 'Unassigned' to place client in the floor queue."
                   : "💡 Recommended if all stylists are busy: client is queued and can be assigned as soon as any stylist finishes."}
               </p>
-            )}
+            ) : null}
           </div>
 
           {/* Date & Start Time */}

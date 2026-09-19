@@ -1,17 +1,16 @@
 import { useEntityMutation } from "@/lib/api/mutations";
 import { deleteServiceCategory } from "../../api/serviceCategories.api";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useQueryClient } from "@tanstack/react-query";
+import { getScopeQueryKey } from "@/lib/api/queryKeys";
 
 export function useDeleteServiceCategory() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useEntityMutation<void, Error, string>({
     mutationFn: deleteServiceCategory,
-    invalidateKeys: [getBranchQueryKey("service-categories")],
+    invalidateKeys: [getScopeQueryKey("service-categories", null)],
     onSuccess: (_, id) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("service-category", [id]) });
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("service-category", null, [id]) });
     },
   });
 }

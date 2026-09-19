@@ -6,10 +6,10 @@ import { formatDateTime } from "@/lib/formatters";
 
 interface ServiceAuditCardProps {
   service: Service;
-  branchName: string;
+  branchName?: string;
 }
 
-export function ServiceAuditCard({ service, branchName }: ServiceAuditCardProps) {
+export function ServiceAuditCard({ service }: ServiceAuditCardProps) {
   const getFormattedDate = (dateStr?: string) => {
     if (!dateStr) return "—";
     return formatDateTime(dateStr);
@@ -34,10 +34,10 @@ export function ServiceAuditCard({ service, branchName }: ServiceAuditCardProps)
           </p>
         </div>
         <div className="space-y-1">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Configured Branch Scope</span>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resource Scope</span>
           <div>
             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10">
-              {branchName}
+              Organization Master
             </Badge>
           </div>
         </div>

@@ -10,8 +10,6 @@ export interface Service {
     specialPrice?: number;
   };
   basePrice: number;
-  taxable: boolean;
-  taxRate?: number;
   displayOrder: number;
   isActive: boolean;
   branchId: string;
@@ -32,12 +30,6 @@ export type ServicePayload = {
     specialPrice?: number;
   };
   basePrice?: number;
-  taxable?: boolean;
-  taxRate?: number;
-  taxConfiguration?: {
-    taxable?: boolean;
-    taxRate?: number;
-  };
   status?: "active" | "inactive";
   displayOrder?: number;
 };

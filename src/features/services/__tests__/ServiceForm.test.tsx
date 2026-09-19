@@ -26,7 +26,7 @@ describe("ServiceForm Pre-filling", () => {
     },
   ];
 
-  it("correctly pre-fills form fields when passed raw API response object with nested pricing and taxConfiguration", () => {
+  it("correctly pre-fills form fields when passed raw API response object with nested pricing", () => {
     const rawService = {
       _id: "6a6c83c579fc79a73740a736",
       id: "6a6c83c579fc79a73740a736",
@@ -39,10 +39,6 @@ describe("ServiceForm Pre-filling", () => {
       },
       pricing: {
         basePrice: 120000,
-      },
-      taxConfiguration: {
-        taxable: true,
-        taxRate: 13,
       },
       duration: 30,
       status: "active",
@@ -65,13 +61,13 @@ describe("ServiceForm Pre-filling", () => {
     const categorySelect = screen.getByLabelText(/Category/i) as HTMLSelectElement;
     const durationInput = screen.getByLabelText(/Duration/i) as HTMLInputElement;
     const priceInput = screen.getByLabelText(/Base Price/i) as HTMLInputElement;
-    const taxRateInput = screen.getByLabelText(/Tax Rate/i) as HTMLInputElement;
 
     expect(nameInput.value).toBe("sdfghj");
     expect(descTextarea.value).toBe("jk");
     expect(categorySelect.value).toBe("6a6c53d9f185420dac19b1dc");
     expect(durationInput.value).toBe("30");
     expect(priceInput.value).toBe("120000");
-    expect(taxRateInput.value).toBe("13");
+    expect(screen.queryByLabelText(/Tax Rate/i)).toBeNull();
+    expect(screen.queryByLabelText(/This service is taxable/i)).toBeNull();
   });
 });

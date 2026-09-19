@@ -76,9 +76,11 @@ vi.mock("../hooks/useCreateCustomer", () => ({
 }));
 
 const mockGetCustomers = vi.fn();
+const mockSearchCustomersGlobal = vi.fn();
 
 vi.mock("../api/customers.api", () => ({
   getCustomers: (params: { search?: string }) => mockGetCustomers(params),
+  searchCustomersGlobal: (params: { search: string }) => mockSearchCustomersGlobal(params),
   createCustomer: (payload: unknown) => mockMutateAsync(payload),
 }));
 
@@ -99,6 +101,7 @@ describe("CustomerSelector & QuickCustomerDialog", () => {
       data: mockCustomers,
       meta: { total: 2, page: 1, limit: 20, totalPages: 1 },
     });
+    mockSearchCustomersGlobal.mockResolvedValue(mockCustomers);
     mockMutateAsync.mockReset();
   });
 
@@ -135,12 +138,7 @@ describe("CustomerSelector & QuickCustomerDialog", () => {
   });
 
   it("shows empty state and Create New Customer button when no results match", async () => {
-    mockGetCustomers.mockResolvedValueOnce({
-      success: true,
-      status: "success",
-      data: [],
-      meta: { total: 0, page: 1, limit: 20, totalPages: 0 },
-    });
+    mockSearchCustomersGlobal.mockResolvedValueOnce([]);
 
     renderWithClient(<CustomerSelector value="" onChange={vi.fn()} />);
 

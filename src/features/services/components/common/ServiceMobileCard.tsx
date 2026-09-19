@@ -16,8 +16,6 @@ interface ServiceMobileCardProps {
   onDelete: (service: Service) => void;
   onReactivate: (service: Service) => void;
   categoryName: string;
-  isAllBranches?: boolean;
-  getBranchName?: (branchId: string) => string;
 }
 
 export function ServiceMobileCard({
@@ -29,8 +27,6 @@ export function ServiceMobileCard({
   onDelete,
   onReactivate,
   categoryName,
-  isAllBranches,
-  getBranchName,
 }: ServiceMobileCardProps) {
   const formattedName = capitalizeWords(service.name);
   const formattedCategoryName = capitalizeWords(categoryName);
@@ -125,12 +121,6 @@ export function ServiceMobileCard({
           <span>Base Price:</span>
           <span className="font-semibold text-foreground">{formatCurrency(service.pricing?.basePrice ?? 0)}</span>
         </div>
-        {isAllBranches && getBranchName && (
-          <div className="flex justify-between">
-            <span>Branch:</span>
-            <span className="font-semibold text-foreground">{getBranchName(service.branchId)}</span>
-          </div>
-        )}
       </div>
     </div>
   );

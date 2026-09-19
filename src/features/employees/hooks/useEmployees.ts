@@ -3,6 +3,7 @@ export {
   useEmployee,
   useStaffBranches,
   useStaffServices,
+  useMultipleStaffServices,
 } from "./useEmployeeQueries";
 
 export {

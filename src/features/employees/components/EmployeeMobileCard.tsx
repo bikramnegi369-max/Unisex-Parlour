@@ -5,6 +5,7 @@ import type { Employee } from "../types/employee.types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, Edit, Trash2, UserCheck } from "lucide-react";
+import { getEmployeeBranchNames } from "../utils/employeeBranchUtils";
 
 interface EmployeeMobileCardProps {
   employee: Employee;
@@ -25,11 +26,15 @@ export function EmployeeMobileCard({
   onEdit,
   onDelete,
   onReactivate,
+  getBranchName,
 }: EmployeeMobileCardProps) {
   const fullName = employee.name || "";
   const nameParts = fullName.trim().split(/\s+/);
-  const initials = nameParts.map(part => part.charAt(0).toUpperCase()).slice(0, 2).join("");
-  
+  const initials = nameParts
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
+
   return (
     <div className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -39,8 +44,12 @@ export function EmployeeMobileCard({
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-semibold text-foreground text-sm">{fullName}</h4>
-              <Badge variant={employee.status === "active" ? "success" : "muted"}>
+              <h4 className="font-semibold text-foreground text-sm">
+                {fullName}
+              </h4>
+              <Badge
+                variant={employee.status === "active" ? "success" : "muted"}
+              >
                 <span className="capitalize">{employee.status}</span>
               </Badge>
             </div>
@@ -106,10 +115,42 @@ export function EmployeeMobileCard({
       </div>
 
       <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground">
+        <div className="flex justify-between items-start gap-2">
+          <span>Branches:</span>
+          {(() => {
+            const uniqueBranches = getEmployeeBranchNames(
+              employee,
+              getBranchName,
+            );
+            if (uniqueBranches.length === 0) {
+              return (
+                <span className="text-muted-foreground italic">
+                  Not assigned
+                </span>
+              );
+            }
+            return (
+              <div className="flex flex-wrap gap-1 justify-end max-w-45">
+                {uniqueBranches.map((name) => (
+                  <Badge
+                    key={name}
+                    variant="outline"
+                    className="text-[10px] font-medium bg-muted/40 text-foreground border-border/70 px-1.5 py-0"
+                  >
+                    {name}
+                  </Badge>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
         <div className="flex justify-between">
           <span>Phone:</span>
           {employee.phone ? (
-            <a href={`tel:${employee.phone}`} className="font-semibold text-foreground hover:underline">
+            <a
+              href={`tel:${employee.phone}`}
+              className="font-semibold text-foreground hover:underline"
+            >
               {employee.phone}
             </a>
           ) : (
@@ -118,7 +159,10 @@ export function EmployeeMobileCard({
         </div>
         <div className="flex justify-between">
           <span>Email:</span>
-          <a href={`mailto:${employee.email}`} className="font-medium text-foreground hover:underline">
+          <a
+            href={`mailto:${employee.email}`}
+            className="font-medium text-foreground hover:underline"
+          >
             {employee.email}
           </a>
         </div>

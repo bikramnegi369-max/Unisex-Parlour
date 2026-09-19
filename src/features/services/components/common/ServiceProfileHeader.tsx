@@ -97,11 +97,6 @@ export function ServiceProfileHeader({
               <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-border text-[10px] py-0 px-1.5 font-medium">
                 {formattedCategory}
               </Badge>
-              {service.taxable && (
-                <Badge variant="outline" className="bg-amber-500/5 text-amber-600 border-amber-500/20 text-[10px] py-0 px-1.5 font-medium dark:text-amber-400">
-                  Taxable
-                </Badge>
-              )}
             </div>
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1.5">
               <Calendar size={12} />

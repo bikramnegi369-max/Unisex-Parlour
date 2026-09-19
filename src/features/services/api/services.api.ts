@@ -17,12 +17,6 @@ export interface RawServiceDTO {
     specialPrice?: number;
   };
   basePrice?: number;
-  taxConfiguration?: {
-    taxable?: boolean;
-    taxRate?: number;
-  };
-  taxable?: boolean;
-  taxRate?: number;
   status?: "active" | "inactive" | string;
   isActive?: boolean;
   isDeleted?: boolean;
@@ -44,12 +38,6 @@ export const mapServiceDTO = (item: RawServiceDTO | null | undefined): Service =
       : item.categoryId || "";
 
   const basePrice = item.pricing?.basePrice ?? item.basePrice ?? 0;
-  const taxable =
-    item.taxConfiguration?.taxable ??
-    (typeof item.taxable === "boolean" ? item.taxable : false);
-  const taxRate =
-    item.taxConfiguration?.taxRate ??
-    (typeof item.taxRate === "number" ? item.taxRate : 0);
   const isActive =
     typeof item.isActive === "boolean"
       ? item.isActive
@@ -67,8 +55,6 @@ export const mapServiceDTO = (item: RawServiceDTO | null | undefined): Service =
       specialPrice: item.pricing?.specialPrice,
     },
     basePrice,
-    taxable,
-    taxRate,
     displayOrder: item.displayOrder ?? 0,
     isActive,
     branchId: item.branchId || "",
@@ -86,7 +72,7 @@ export const getServices = async (
 ): Promise<PaginatedResponse<Service>> => {
   const { data } = await apiClient.get<PaginatedResponse<RawServiceDTO>>("/services", {
     params,
-    branchScope: "current",
+    branchScope: "none",
   });
   return {
     ...data,
@@ -96,7 +82,7 @@ export const getServices = async (
 
 export const getService = async (id: string): Promise<Service> => {
   const { data } = await apiClient.get<ApiResponse<RawServiceDTO>>(`/services/${id}`, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapServiceDTO(data.data);
 };
@@ -110,8 +96,6 @@ export const createService = async (payload: ServicePayload): Promise<Service> =
       : payload.categoryId || "";
 
   const basePrice = payload.basePrice ?? payload.pricing?.basePrice ?? 0;
-  const taxable = payload.taxable ?? payload.taxConfiguration?.taxable;
-  const taxRate = payload.taxRate ?? payload.taxConfiguration?.taxRate;
 
   const flatPayload: Record<string, unknown> = {
     name: payload.name,
@@ -126,18 +110,12 @@ export const createService = async (payload: ServicePayload): Promise<Service> =
   if (payload.description !== undefined) {
     flatPayload.description = payload.description;
   }
-  if (taxable !== undefined) {
-    flatPayload.taxable = taxable;
-  }
-  if (taxRate !== undefined) {
-    flatPayload.taxRate = taxRate;
-  }
   if (payload.displayOrder !== undefined) {
     flatPayload.displayOrder = payload.displayOrder;
   }
 
   const { data } = await apiClient.post<ApiResponse<RawServiceDTO>>("/services", flatPayload, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapServiceDTO(data.data);
 };
@@ -167,23 +145,8 @@ export const updateService = async (
     nestedPayload.pricing = { basePrice: payload.basePrice };
   }
 
-  const taxConfigObj = (payload as { taxConfiguration?: { taxable?: boolean; taxRate?: number } }).taxConfiguration;
-
-  if (taxConfigObj !== undefined && taxConfigObj !== null) {
-    nestedPayload.taxConfiguration = taxConfigObj;
-  } else if (payload.taxable !== undefined || payload.taxRate !== undefined) {
-    const taxConfig: Record<string, unknown> = {};
-    if (payload.taxable !== undefined) {
-      taxConfig.taxable = payload.taxable;
-    }
-    if (payload.taxRate !== undefined) {
-      taxConfig.taxRate = payload.taxRate;
-    }
-    nestedPayload.taxConfiguration = taxConfig;
-  }
-
   const { data } = await apiClient.put<ApiResponse<RawServiceDTO>>(`/services/${id}`, nestedPayload, {
-    branchScope: "current",
+    branchScope: "none",
   });
   return mapServiceDTO(data.data);
 };
@@ -195,14 +158,14 @@ export const updateServiceStatus = async (
   const { data } = await apiClient.put<ApiResponse<RawServiceDTO>>(
     `/services/${id}`,
     { status: isActive ? "active" : "inactive" },
-    { branchScope: "current" },
+    { branchScope: "none" },
   );
   return mapServiceDTO(data.data);
 };
 
 export const deleteService = async (id: string): Promise<void> => {
   await apiClient.delete(`/services/${id}`, {
-    branchScope: "current",
+    branchScope: "none",
   });
 };
 
@@ -210,7 +173,7 @@ export const reactivateService = async (id: string): Promise<Service> => {
   const { data } = await apiClient.patch<ApiResponse<RawServiceDTO>>(
     `/services/${id}/reactivate`,
     {},
-    { branchScope: "current" },
+    { branchScope: "none" },
   );
   return mapServiceDTO(data.data);
 };

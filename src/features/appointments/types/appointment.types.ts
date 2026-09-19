@@ -38,15 +38,12 @@ export interface AppointmentServiceSnapshot {
   name: string;
   duration: number; // in minutes
   price: number;
-  taxRate?: number;
-  taxAmount?: number;
   category?: string;
 }
 
 export interface AppointmentPricing {
   subtotal: number;
   discount?: number;
-  tax: number;
   total: number;
 }
 
@@ -120,14 +117,21 @@ export interface Appointment {
   branch?: BranchSummary;
 }
 
+export interface CreateAppointmentServiceItem {
+  serviceId: string;
+  customPrice?: number;
+}
+
 export interface CreateAppointmentPayload {
   branchId: string; // Authoritative mutation target branch
   customerId: string;
-  serviceIds: string[];
+  services?: CreateAppointmentServiceItem[];
+  serviceIds?: string[];
   staffId?: string | null;
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   bookingType: BookingType;
+  discount?: number;
   notes?: string;
   reminder?: {
     enabled: boolean;

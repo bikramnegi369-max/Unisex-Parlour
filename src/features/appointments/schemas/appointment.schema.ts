@@ -1,30 +1,43 @@
 import { z } from "zod";
 
-export const createAppointmentSchema = z.object({
-  branchId: z.string().min(1, "Branch is required for appointment creation"),
-  customerId: z.string().min(1, "Customer selection is required"),
-  serviceIds: z
-    .array(z.string())
-    .min(1, "At least one service must be selected"),
-  staffId: z.string().nullable().optional(),
-  date: z.string().min(1, "Date is required"),
-  startTime: z
-    .string()
-    .min(1, "Start time is required")
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time format must be HH:mm (e.g. 10:30)"),
-  bookingType: z.enum(["advance", "walk_in"]),
-  notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),
-  reminder: z
-    .object({
-      enabled: z.boolean(),
-      channel: z.enum(["email", "sms", "both"]),
-      offsetMinutes: z
-        .number()
-        .int("Offset must be an integer")
-        .min(5, "Reminder offset must be at least 5 minutes"),
-    })
-    .optional(),
+export const createAppointmentServiceItemSchema = z.object({
+  serviceId: z.string().min(1, "Service ID is required"),
+  customPrice: z.coerce.number().min(0, "Price must be a positive number").optional(),
 });
+
+export const createAppointmentSchema = z
+  .object({
+    branchId: z.string().min(1, "Branch is required for appointment creation"),
+    customerId: z.string().min(1, "Customer selection is required"),
+    services: z.array(createAppointmentServiceItemSchema).optional(),
+    serviceIds: z.array(z.string()).optional(),
+    staffId: z.string().nullable().optional(),
+    date: z.string().min(1, "Date is required"),
+    startTime: z
+      .string()
+      .min(1, "Start time is required")
+      .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time format must be HH:mm (e.g. 10:30)"),
+    bookingType: z.enum(["advance", "walk_in"]),
+    discount: z.coerce.number().min(0).optional(),
+    notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),
+    reminder: z
+      .object({
+        enabled: z.boolean(),
+        channel: z.enum(["email", "sms", "both"]),
+        offsetMinutes: z
+          .number()
+          .int("Offset must be an integer")
+          .min(5, "Reminder offset must be at least 5 minutes"),
+      })
+      .optional(),
+  })
+  .refine(
+    (data) => (data.services && data.services.length > 0) || (data.serviceIds && data.serviceIds.length > 0),
+    {
+      message: "At least one service must be selected",
+      path: ["services"],
+    }
+  );
 
 export type CreateAppointmentSchemaType = z.infer<typeof createAppointmentSchema>;
 

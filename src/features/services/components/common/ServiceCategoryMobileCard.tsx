@@ -14,8 +14,6 @@ interface ServiceCategoryMobileCardProps {
   onEdit: (category: ServiceCategory) => void;
   onDelete: (category: ServiceCategory) => void;
   onReactivate: (category: ServiceCategory) => void;
-  isAllBranches?: boolean;
-  getBranchName?: (branchId: string) => string;
 }
 
 export function ServiceCategoryMobileCard({
@@ -25,8 +23,6 @@ export function ServiceCategoryMobileCard({
   onEdit,
   onDelete,
   onReactivate,
-  isAllBranches,
-  getBranchName,
 }: ServiceCategoryMobileCardProps) {
   const formattedName = capitalizeWords(category.name);
   return (
@@ -99,12 +95,6 @@ export function ServiceCategoryMobileCard({
           <span>Display Order:</span>
           <span className="font-semibold text-foreground">{category.displayOrder}</span>
         </div>
-        {isAllBranches && getBranchName && (
-          <div className="flex justify-between">
-            <span>Branch:</span>
-            <span className="font-semibold text-foreground">{getBranchName(category.branchId)}</span>
-          </div>
-        )}
       </div>
     </div>
   );

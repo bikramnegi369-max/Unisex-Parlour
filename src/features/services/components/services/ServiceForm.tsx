@@ -1,12 +1,11 @@
 "use client";
 import React from "react";
-import { useForm, Controller, useWatch, type Resolver } from "react-hook-form";
+import { useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { serviceSchema, type ServiceFormValues } from "../../schemas/service.schema";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
 import { Loader2 } from "lucide-react";
@@ -41,7 +40,6 @@ export default function ServiceForm({
     const rawService = initialService as
       | (Partial<ServiceFormValues> & {
           pricing?: { basePrice?: number };
-          taxConfiguration?: { taxable?: boolean; taxRate?: number };
         })
       | undefined;
 
@@ -51,8 +49,6 @@ export default function ServiceForm({
       categoryId: catId,
       duration: initialService?.duration ?? 30,
       basePrice: initialService?.basePrice ?? rawService?.pricing?.basePrice ?? 0,
-      taxable: initialService?.taxable ?? rawService?.taxConfiguration?.taxable ?? true,
-      taxRate: initialService?.taxRate ?? rawService?.taxConfiguration?.taxRate ?? 0,
       displayOrder: initialService?.displayOrder ?? 0,
     };
   }, [initialService]);
@@ -61,17 +57,11 @@ export default function ServiceForm({
     register,
     handleSubmit,
     setError,
-    control,
     reset,
     formState: { errors },
   } = useForm<ServiceFormValues>({
     resolver: zodResolver(serviceSchema) as unknown as Resolver<ServiceFormValues>,
     defaultValues,
-  });
-
-  const isTaxable = useWatch({
-    control,
-    name: "taxable",
   });
 
   // Re-synchronize form values when initialService or defaultValues changes
@@ -174,44 +164,6 @@ export default function ServiceForm({
           )}
         </div>
       </div>
-
-      <div className="flex items-center gap-3 py-2">
-        <Controller
-          name="taxable"
-          control={control}
-          render={({ field }) => (
-            <Switch
-              id="service-taxable"
-              checked={field.value}
-              onCheckedChange={field.onChange}
-              disabled={isSubmitting}
-              aria-label="Toggle taxable status"
-            />
-          )}
-        />
-        <label htmlFor="service-taxable" className="text-sm font-medium text-foreground select-none cursor-pointer">
-          This service is taxable
-        </label>
-      </div>
-
-      {isTaxable && (
-        <div>
-          <label htmlFor="service-tax-rate" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-            Tax Rate (%)
-          </label>
-          <Input
-            id="service-tax-rate"
-            type="number"
-            step="0.01"
-            placeholder="0.00"
-            disabled={isSubmitting}
-            {...register("taxRate")}
-          />
-          {errors.taxRate && (
-            <p className="text-xs text-destructive mt-1 font-medium">{errors.taxRate.message}</p>
-          )}
-        </div>
-      )}
 
       <div>
         <label htmlFor="service-display-order" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">

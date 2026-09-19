@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { AlertTriangle, Plus, FolderKanban, Sparkles } from "lucide-react";
+import { Plus, FolderKanban, Sparkles } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SERVICES_CONFIG } from "../../config/services.config";
@@ -17,7 +17,6 @@ interface ServicesListHeaderProps {
 }
 
 export function ServicesListHeader({
-  isAllBranchesSelected,
   canCreate,
   onAddClick,
   viewMode,
@@ -41,7 +40,7 @@ export function ServicesListHeader({
         }
         className={cn(
           buttonVariants({ variant: "outline" }),
-          "flex items-center justify-center gap-1.5 cursor-pointer h-8 w-full sm:w-auto"
+          "flex items-center justify-center gap-1.5 cursor-pointer h-8 w-full sm:w-auto",
         )}
       >
         {isServices ? <FolderKanban size={16} /> : <Sparkles size={16} />}
@@ -55,21 +54,14 @@ export function ServicesListHeader({
         className="w-full sm:w-auto"
       />
 
-      {isAllBranchesSelected ? (
-        <div className="text-xs font-medium text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 flex items-center justify-center gap-1.5 h-8 w-full sm:w-auto">
-          <AlertTriangle size={14} />
-          <span>Select branch to configure catalogue</span>
-        </div>
-      ) : (
-        canCreate && (
-          <Button
-            onClick={onAddClick}
-            className="flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 cursor-pointer h-8 w-full sm:w-auto"
-          >
-            <Plus size={16} />
-            {isServices ? "Add Service" : "Add Category"}
-          </Button>
-        )
+      {canCreate && (
+        <Button
+          onClick={onAddClick}
+          className="flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 cursor-pointer h-8 w-full sm:w-auto"
+        >
+          <Plus size={16} />
+          {isServices ? "Add Service" : "Add Category"}
+        </Button>
       )}
     </>
   );

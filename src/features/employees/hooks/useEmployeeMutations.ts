@@ -139,8 +139,12 @@ export function useAssignStaffService() {
   return useMutation({
     mutationFn: ({ id, serviceId }: { id: string; serviceId: string }) => assignStaffService(id, { serviceId }),
     onSuccess: (_, variables) => {
+      // Invalidate specific staff-services query for the current branch scope
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-services", [variables.id]) });
+      // Invalidate fuzzy/prefix staff-services so cross-branch / dialog queries immediately refetch
+      queryClient.invalidateQueries({ queryKey: ["staff-services"] });
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("employees") });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });
 }
@@ -158,7 +162,9 @@ export function useAssignMultipleStaffServices() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-services", [variables.id]) });
+      queryClient.invalidateQueries({ queryKey: ["staff-services"] });
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("employees") });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });
 }
@@ -171,7 +177,9 @@ export function useRemoveStaffService() {
     mutationFn: ({ id, serviceId }: { id: string; serviceId: string }) => removeStaffService(id, serviceId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-services", [variables.id]) });
+      queryClient.invalidateQueries({ queryKey: ["staff-services"] });
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("employees") });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });
 }

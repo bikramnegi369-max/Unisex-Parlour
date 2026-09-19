@@ -4,6 +4,7 @@ import type { Employee } from "../types/employee.types";
 import { Badge } from "@/components/ui/badge";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { EMPLOYEES_CONFIG } from "../config/employees.config";
+import { getEmployeeBranchNames } from "../utils/employeeBranchUtils";
 
 interface EmployeeColumnOptions {
   onView: (employee: Employee) => void;
@@ -19,6 +20,7 @@ export const buildEmployeeColumns = ({
   onEdit,
   onDelete,
   onReactivate,
+  getBranchName,
 }: EmployeeColumnOptions): ColumnDef<Employee>[] => [
   {
     accessorKey: "name",
@@ -27,7 +29,10 @@ export const buildEmployeeColumns = ({
       const employee = info.row.original;
       const fullName = employee.name || "";
       const nameParts = fullName.trim().split(/\s+/);
-      const initials = nameParts.map(part => part.charAt(0).toUpperCase()).slice(0, 2).join("");
+      const initials = nameParts
+        .map((part) => part.charAt(0).toUpperCase())
+        .slice(0, 2)
+        .join("");
       return (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
@@ -35,7 +40,9 @@ export const buildEmployeeColumns = ({
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-foreground truncate">{fullName}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{employee.email}</p>
+            <p className="text-[10px] text-muted-foreground truncate">
+              {employee.email}
+            </p>
           </div>
         </div>
       );
@@ -47,7 +54,10 @@ export const buildEmployeeColumns = ({
     cell: (info) => {
       const phoneStr = (info.getValue() as string) || info.row.original.phone;
       return phoneStr ? (
-        <a href={`tel:${phoneStr}`} className="font-medium text-foreground hover:underline">
+        <a
+          href={`tel:${phoneStr}`}
+          className="font-medium text-foreground hover:underline"
+        >
           {phoneStr}
         </a>
       ) : (
@@ -59,11 +69,45 @@ export const buildEmployeeColumns = ({
     accessorKey: "designation",
     header: "Designation",
     cell: (info) => {
-      const designationStr = (info.getValue() as string) || info.row.original.designation;
+      const designationStr =
+        (info.getValue() as string) || info.row.original.designation;
       return (
-        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 font-semibold">
+        <Badge
+          variant="outline"
+          className="bg-primary/5 text-primary border-primary/10 font-semibold"
+        >
           {designationStr}
         </Badge>
+      );
+    },
+  },
+  {
+    id: "branches",
+    header: "Branches",
+    cell: (info) => {
+      const employee = info.row.original;
+      const uniqueBranches = getEmployeeBranchNames(employee, getBranchName);
+
+      if (uniqueBranches.length === 0) {
+        return (
+          <span className="text-xs text-muted-foreground italic">
+            Not assigned
+          </span>
+        );
+      }
+
+      return (
+        <div className="flex flex-wrap gap-1 max-w-55">
+          {uniqueBranches.map((name) => (
+            <Badge
+              key={name}
+              variant="outline"
+              className="text-[11px] font-medium bg-muted/40 text-foreground border-border/70"
+            >
+              {name}
+            </Badge>
+          ))}
+        </div>
       );
     },
   },
@@ -71,7 +115,8 @@ export const buildEmployeeColumns = ({
     accessorKey: "status",
     header: "Status",
     cell: (info) => {
-      const status = (info.getValue() as string) || info.row.original.status || "active";
+      const status =
+        (info.getValue() as string) || info.row.original.status || "active";
       return (
         <Badge variant={status === "active" ? "success" : "muted"}>
           <span className="capitalize">{status}</span>

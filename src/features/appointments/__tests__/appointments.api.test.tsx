@@ -9,8 +9,23 @@ import {
 import { formatInBranchTimezone } from "@/lib/formatters";
 
 describe("Appointment Schema & API Contract Validation", () => {
-  it("validates advance and walk-in appointment creation schemas", () => {
-    const advanceValid = createAppointmentSchema.safeParse({
+  it("validates advance and walk-in appointment creation schemas with services and custom pricing", () => {
+    const advanceWithCustomPricing = createAppointmentSchema.safeParse({
+      branchId: "br_1",
+      customerId: "cust_1",
+      services: [
+        { serviceId: "srv_1", customPrice: 400 },
+        { serviceId: "srv_2" },
+      ],
+      date: "2026-08-20",
+      startTime: "14:30",
+      bookingType: "advance",
+      notes: "Customer prefers window seat",
+      reminder: { enabled: true, channel: "both", offsetMinutes: 60 },
+    });
+    expect(advanceWithCustomPricing.success).toBe(true);
+
+    const advanceBackwardCompat = createAppointmentSchema.safeParse({
       branchId: "br_1",
       customerId: "cust_1",
       serviceIds: ["srv_1", "srv_2"],
@@ -20,17 +35,27 @@ describe("Appointment Schema & API Contract Validation", () => {
       notes: "Customer prefers window seat",
       reminder: { enabled: true, channel: "both", offsetMinutes: 60 },
     });
-    expect(advanceValid.success).toBe(true);
+    expect(advanceBackwardCompat.success).toBe(true);
 
     const walkInValid = createAppointmentSchema.safeParse({
       branchId: "br_1",
       customerId: "cust_2",
-      serviceIds: ["srv_1"],
+      services: [{ serviceId: "srv_1", customPrice: 500 }],
       date: "2026-08-13",
       startTime: "11:00",
       bookingType: "walk_in",
     });
     expect(walkInValid.success).toBe(true);
+
+    const missingServices = createAppointmentSchema.safeParse({
+      branchId: "br_1",
+      customerId: "cust_2",
+      services: [],
+      date: "2026-08-13",
+      startTime: "11:00",
+      bookingType: "walk_in",
+    });
+    expect(missingServices.success).toBe(false);
   });
 
   it("rejects invalid time formats", () => {

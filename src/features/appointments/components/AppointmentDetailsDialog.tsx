@@ -294,10 +294,10 @@ export function AppointmentDetailsDialog({
             <span>Subtotal</span>
             <span>{formatCurrency(appointment.pricing?.subtotal ?? totalPricing)}</span>
           </div>
-          {appointment.pricing?.tax ? (
+          {appointment.pricing?.discount ? (
             <div className="flex items-center justify-between text-muted-foreground">
-              <span>Tax</span>
-              <span>{formatCurrency(appointment.pricing.tax)}</span>
+              <span>Discount</span>
+              <span>-{formatCurrency(appointment.pricing.discount)}</span>
             </div>
           ) : null}
           <div className="flex items-center justify-between font-bold text-foreground pt-1 border-t border-border/60">

@@ -36,8 +36,7 @@ export default function ServicesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { currentBranch, isAllBranchesSelected, getBranchName } =
-    useBranchContext();
+  const { currentBranch, isAllBranchesSelected } = useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -186,10 +185,8 @@ export default function ServicesList() {
           setIsServiceReactivateOpen(true);
         },
         getCategoryName,
-        getBranchName,
-        isAllBranches: isAllBranchesSelected,
       }),
-    [router, getCategoryName, getBranchName, isAllBranchesSelected],
+    [router, getCategoryName],
   );
 
   // Form submit handlers
@@ -281,8 +278,6 @@ export default function ServicesList() {
       }}
       canEdit={canEdit}
       canDelete={canDelete}
-      isAllBranches={isAllBranchesSelected}
-      getBranchName={getBranchName}
     />
   );
 
@@ -333,7 +328,7 @@ export default function ServicesList() {
               title={SERVICES_CONFIG.labels.service.emptyStateTitle}
               description={SERVICES_CONFIG.labels.service.emptyStateDescription}
               action={
-                canCreate && !isAllBranchesSelected
+                canCreate
                   ? {
                       label: "Create Service",
                       onClick: () => setIsServiceCreateOpen(true),
@@ -390,8 +385,6 @@ export default function ServicesList() {
                   : (activeService.categoryId as { _id: string })?._id || "",
               duration: activeService.duration,
               basePrice: activeService.pricing?.basePrice ?? 0,
-              taxable: activeService.taxable,
-              taxRate: activeService.taxRate ?? 0,
               displayOrder: activeService.displayOrder,
             }}
             onSubmit={handleServiceEditSubmit}
