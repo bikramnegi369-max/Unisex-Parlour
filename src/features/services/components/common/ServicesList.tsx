@@ -36,7 +36,7 @@ export default function ServicesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { currentBranch, isAllBranchesSelected } = useBranchContext();
+  const { currentBranch } = useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -287,7 +287,6 @@ export default function ServicesList() {
         viewMode="services"
         onAddClick={() => setIsServiceCreateOpen(true)}
         canCreate={canCreate}
-        isAllBranchesSelected={isAllBranchesSelected}
         isSyncing={servicesQuery.isRefetching}
         onSync={handleSync}
       />

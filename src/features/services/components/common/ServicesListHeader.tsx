@@ -8,7 +8,6 @@ import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { SyncButton } from "@/components/ui/sync-button";
 
 interface ServicesListHeaderProps {
-  isAllBranchesSelected: boolean;
   canCreate: boolean;
   onAddClick: () => void;
   viewMode: "services" | "categories";

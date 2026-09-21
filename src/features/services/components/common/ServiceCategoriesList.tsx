@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { toast } from "sonner";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { useServiceCategories } from "../../hooks/categories/useServiceCategories";
@@ -35,7 +34,6 @@ export default function ServiceCategoriesList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { isAllBranchesSelected } = useBranchContext();
 
   const canCreate = hasPermission(user, SERVICES_CONFIG.permissions.create);
   const canEdit = hasPermission(user, SERVICES_CONFIG.permissions.edit);
@@ -238,7 +236,6 @@ export default function ServiceCategoriesList() {
         viewMode="categories"
         onAddClick={() => setIsCategoryCreateOpen(true)}
         canCreate={canCreate}
-        isAllBranchesSelected={isAllBranchesSelected}
         isSyncing={categoriesQuery.isRefetching}
         onSync={handleSync}
       />

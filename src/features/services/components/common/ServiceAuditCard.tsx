@@ -6,7 +6,6 @@ import { formatDateTime } from "@/lib/formatters";
 
 interface ServiceAuditCardProps {
   service: Service;
-  branchName?: string;
 }
 
 export function ServiceAuditCard({ service }: ServiceAuditCardProps) {
