@@ -181,6 +181,8 @@ export interface AppointmentListQuery {
   bookingType?: BookingType | "all";
   customerId?: string;
   staffId?: string;
+  serviceId?: string;
+  serviceIds?: string[];
   date?: string;
   startDate?: string;
   endDate?: string;

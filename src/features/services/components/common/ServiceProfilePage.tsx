@@ -32,6 +32,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Calendar, Package, Gift } from "lucide-react";
 import { capitalizeWords } from "@/lib/formatters";
 import { ServiceCertifiedStaffTab } from "../services/ServiceCertifiedStaffTab";
+import { ServiceAppointmentsTab } from "../services/ServiceAppointmentsTab";
 
 interface ServiceProfilePageProps {
   serviceId: string;
@@ -214,10 +215,9 @@ export default function ServiceProfilePage({
         )}
 
         {activeTab === "appointments" && (
-          <EmptyState
-            icon={Calendar}
-            title="No Bookings Yet"
-            description="Appointment booking statistics for this treatment will appear here."
+          <ServiceAppointmentsTab
+            serviceId={serviceId}
+            serviceName={service.name}
           />
         )}
 

@@ -33,3 +33,10 @@ export type ServicePayload = {
   status?: "active" | "inactive";
   displayOrder?: number;
 };
+
+export interface ServiceAppointmentStats {
+  total: number;
+  completed: number;
+  upcoming: number;
+  totalRevenue: number;
+}
