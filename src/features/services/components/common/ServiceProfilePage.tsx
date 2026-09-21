@@ -15,7 +15,10 @@ import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import Unauthorized from "@/components/layout/Unauthorized";
 import { ServiceProfileHeader } from "./ServiceProfileHeader";
-import { EntityProfileLayout, type ProfileTabItem } from "@/components/entity/EntityProfileLayout";
+import {
+  EntityProfileLayout,
+  type ProfileTabItem,
+} from "@/components/entity/EntityProfileLayout";
 import { ServiceOverviewCard } from "./ServiceOverviewCard";
 import { ServicePricingCard } from "./ServicePricingCard";
 import { ServiceAuditCard } from "./ServiceAuditCard";
@@ -26,15 +29,17 @@ import type { ServicePayload } from "../../types/service.types";
 import type { ServiceCategory } from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Users, Calendar, Package, Gift } from "lucide-react";
+import { Calendar, Package, Gift } from "lucide-react";
 import { capitalizeWords } from "@/lib/formatters";
-
+import { ServiceCertifiedStaffTab } from "../services/ServiceCertifiedStaffTab";
 
 interface ServiceProfilePageProps {
   serviceId: string;
 }
 
-export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProps) {
+export default function ServiceProfilePage({
+  serviceId,
+}: ServiceProfilePageProps) {
   const router = useRouter();
   const { user } = useAuth();
 
@@ -48,7 +53,14 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
   const canView = hasPermission(user, SERVICES_CONFIG.permissions.view);
 
   // Queries
-  const { data: service, isLoading, isError, error, refetch, isRefetching } = useService(serviceId);
+  const {
+    data: service,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = useService(serviceId);
   const categoriesQuery = useServiceCategories({ limit: 100 });
 
   // Mutations
@@ -67,7 +79,7 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
         onError: (err) => {
           toast.error(getErrorMessage(err) || "Failed to update service.");
         },
-      }
+      },
     );
   };
 
@@ -131,7 +143,9 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
   if (isError || !service) {
     const errorObj = error as Record<string, unknown> | null;
     const responseObj = errorObj?.response as Record<string, unknown> | null;
-    const status = (responseObj?.status as number | undefined) || (errorObj?.status as number | undefined);
+    const status =
+      (responseObj?.status as number | undefined) ||
+      (errorObj?.status as number | undefined);
 
     if (status === 403) {
       return <Unauthorized />;
@@ -149,8 +163,13 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
     );
   }
 
-  const catId = typeof service.categoryId === "string" ? service.categoryId : (service.categoryId as { _id: string })?._id || "";
-  const categoryName = categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === catId)?.name || catId;
+  const catId =
+    typeof service.categoryId === "string"
+      ? service.categoryId
+      : (service.categoryId as { _id: string })?._id || "";
+  const categoryName =
+    categoriesQuery.data?.data?.find((c: ServiceCategory) => c.id === catId)
+      ?.name || catId;
 
   // Declarative Tab Schema Definition
   const tabs: ProfileTabItem[] = [
@@ -163,7 +182,6 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
 
   return (
     <div className="space-y-6">
-
       <ServiceProfileHeader
         service={service}
         canEdit={canEdit}
@@ -182,18 +200,17 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
       >
         {activeTab === "overview" && (
           <div className="space-y-6">
-            <ServiceOverviewCard service={service} categoryName={categoryName} />
+            <ServiceOverviewCard
+              service={service}
+              categoryName={categoryName}
+            />
             <ServicePricingCard service={service} />
             <ServiceAuditCard service={service} />
           </div>
         )}
 
         {activeTab === "employees" && (
-          <EmptyState
-            icon={Users}
-            title="No Certified Staff Linked"
-            description="Employees and treatment certifications will be linked here in future updates."
-          />
+          <ServiceCertifiedStaffTab serviceId={serviceId} />
         )}
 
         {activeTab === "appointments" && (
@@ -222,7 +239,11 @@ export default function ServiceProfilePage({ serviceId }: ServiceProfilePageProp
       </EntityProfileLayout>
 
       {/* Edit Dialog Modal */}
-      <Dialog isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title="Update Service Details">
+      <Dialog
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        title="Update Service Details"
+      >
         <ServiceForm
           categories={categoriesQuery.data?.data || []}
           initialService={{
