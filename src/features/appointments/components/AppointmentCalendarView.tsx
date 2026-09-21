@@ -311,8 +311,11 @@ export function AppointmentCalendarView({
   onStaffFilterChange,
   onDropAppointment,
 }: AppointmentCalendarViewProps) {
-  const [internalStaffFilter, setInternalStaffFilter] = useState<string | "all">("all");
-  const activeStaffFilter = staffFilter !== undefined ? staffFilter : internalStaffFilter;
+  const [internalStaffFilter, setInternalStaffFilter] = useState<
+    string | "all"
+  >("all");
+  const activeStaffFilter =
+    staffFilter !== undefined ? staffFilter : internalStaffFilter;
 
   const handleStaffFilterChange = (newStaffId: string | "all") => {
     if (onStaffFilterChange) {
@@ -349,7 +352,10 @@ export function AppointmentCalendarView({
     if (e.button !== 0) return;
     // Do NOT pan if user clicked an interactive child (appointment card, button, input, select)
     const target = e.target as HTMLElement;
-    if (target.closest('[data-no-pan="true"]') || target.closest('button, input, select, a, [role="button"]')) {
+    if (
+      target.closest('[data-no-pan="true"]') ||
+      target.closest('button, input, select, a, [role="button"]')
+    ) {
       return;
     }
 
@@ -382,7 +388,9 @@ export function AppointmentCalendarView({
   // Drag-and-Drop State (Card movement across lanes and time slots)
   // ---------------------------------------------------------------------------
   const [draggingApptId, setDraggingApptId] = useState<string | null>(null);
-  const [dragOverLaneId, setDragOverLaneId] = useState<string | null | "unassigned">(null);
+  const [dragOverLaneId, setDragOverLaneId] = useState<
+    string | null | "unassigned"
+  >(null);
   const [dragHoverTime, setDragHoverTime] = useState<string | null>(null);
   const [dragHoverTopPx, setDragHoverTopPx] = useState<number | null>(null);
 
@@ -768,7 +776,7 @@ export function AppointmentCalendarView({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUpOrLeave}
             onMouseLeave={handleMouseUpOrLeave}
-            className={`overflow-auto max-h-[calc(100vh-280px)] min-h-[500px] relative select-none ${
+            className={`overflow-auto max-h-[calc(100vh-280px)] min-h-125 relative select-none ${
               isPanning ? "cursor-grabbing" : "cursor-grab"
             }`}
             title="Click and drag horizontally to pan across staff lanes, or scroll vertically for time"
@@ -822,7 +830,7 @@ export function AppointmentCalendarView({
                   const laneMinWidthPx = Math.max(270, maxConcurrentCols * 270);
                   const laneMinWidthStyle = { minWidth: `${laneMinWidthPx}px` };
                   const isCurrentLaneDragOver =
-                    (dragOverLaneId === lane.id) ||
+                    dragOverLaneId === lane.id ||
                     (dragOverLaneId === "unassigned" && lane.id === null);
 
                   return (
@@ -831,7 +839,9 @@ export function AppointmentCalendarView({
                       data-testid={`lane-${lane.id || "unassigned"}`}
                       style={laneMinWidthStyle}
                       className={`flex-1 border-r border-border/60 last:border-r-0 relative transition-colors ${
-                        isCurrentLaneDragOver ? "bg-primary/5 ring-2 ring-primary/40" : ""
+                        isCurrentLaneDragOver
+                          ? "bg-primary/5 ring-2 ring-primary/40"
+                          : ""
                       }`}
                     >
                       {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
@@ -863,13 +873,19 @@ export function AppointmentCalendarView({
                           e.dataTransfer.dropEffect = "move";
 
                           const rect = e.currentTarget.getBoundingClientRect();
-                          const clientY = typeof e.clientY === "number" && !Number.isNaN(e.clientY) ? e.clientY : rect.top;
+                          const clientY =
+                            typeof e.clientY === "number" &&
+                            !Number.isNaN(e.clientY)
+                              ? e.clientY
+                              : rect.top;
                           const offsetY = Math.max(0, clientY - rect.top);
                           // Calculate minutes from VIEWPORT_START_HOUR
                           const minsFromStart = (offsetY / hourScale) * 60;
                           // Snap to 15-minute intervals
-                          const snappedMins = Math.round(minsFromStart / 15) * 15;
-                          const totalMinutes = VIEWPORT_START_HOUR * 60 + snappedMins;
+                          const snappedMins =
+                            Math.round(minsFromStart / 15) * 15;
+                          const totalMinutes =
+                            VIEWPORT_START_HOUR * 60 + snappedMins;
                           // Clamp between 08:00 and 19:45
                           const clampedMins = Math.min(
                             VIEWPORT_END_HOUR * 60 - 15,
@@ -879,15 +895,21 @@ export function AppointmentCalendarView({
                           const h = Math.floor(clampedMins / 60);
                           const m = clampedMins % 60;
                           const timeStr = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-                          const topPx = ((clampedMins - VIEWPORT_START_HOUR * 60) / 60) * hourScale;
+                          const topPx =
+                            ((clampedMins - VIEWPORT_START_HOUR * 60) / 60) *
+                            hourScale;
 
-                          setDragOverLaneId(lane.id === null ? "unassigned" : lane.id);
+                          setDragOverLaneId(
+                            lane.id === null ? "unassigned" : lane.id,
+                          );
                           setDragHoverTime(timeStr);
                           setDragHoverTopPx(topPx);
                         }}
                         onDragLeave={(e) => {
                           // Only clear if leaving the lane body itself
-                          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          if (
+                            !e.currentTarget.contains(e.relatedTarget as Node)
+                          ) {
                             setDragOverLaneId(null);
                             setDragHoverTime(null);
                             setDragHoverTopPx(null);
@@ -895,7 +917,8 @@ export function AppointmentCalendarView({
                         }}
                         onDrop={async (e) => {
                           e.preventDefault();
-                          const rawData = e.dataTransfer.getData("application/json");
+                          const rawData =
+                            e.dataTransfer.getData("application/json");
                           setDragOverLaneId(null);
                           setDragHoverTime(null);
                           setDragHoverTopPx(null);
@@ -907,12 +930,19 @@ export function AppointmentCalendarView({
                             const apptId = parsed.appointmentId as string;
                             if (!apptId) return;
 
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const clientY = typeof e.clientY === "number" && !Number.isNaN(e.clientY) ? e.clientY : rect.top;
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
+                            const clientY =
+                              typeof e.clientY === "number" &&
+                              !Number.isNaN(e.clientY)
+                                ? e.clientY
+                                : rect.top;
                             const offsetY = Math.max(0, clientY - rect.top);
                             const minsFromStart = (offsetY / hourScale) * 60;
-                            const snappedMins = Math.round(minsFromStart / 15) * 15;
-                            const totalMinutes = VIEWPORT_START_HOUR * 60 + snappedMins;
+                            const snappedMins =
+                              Math.round(minsFromStart / 15) * 15;
+                            const totalMinutes =
+                              VIEWPORT_START_HOUR * 60 + snappedMins;
                             const clampedMins = Math.min(
                               VIEWPORT_END_HOUR * 60 - 15,
                               Math.max(VIEWPORT_START_HOUR * 60, totalMinutes),
@@ -921,10 +951,18 @@ export function AppointmentCalendarView({
                             const h = Math.floor(clampedMins / 60);
                             const m = clampedMins % 60;
                             const targetTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-                            const targetDate = format(selectedDate, "yyyy-MM-dd");
+                            const targetDate = format(
+                              selectedDate,
+                              "yyyy-MM-dd",
+                            );
                             const targetStaffId = lane.id;
 
-                            await onDropAppointment(apptId, targetDate, targetTime, targetStaffId);
+                            await onDropAppointment(
+                              apptId,
+                              targetDate,
+                              targetTime,
+                              targetStaffId,
+                            );
                           } catch {
                             // Ignore invalid drops
                           }
@@ -1025,7 +1063,11 @@ export function AppointmentCalendarView({
                                 ? "bg-muted border-border/80 opacity-70 hover:opacity-100 hover:border-border hover:shadow-md"
                                 : "bg-card border-primary/50 hover:border-primary shadow-xs hover:shadow-md";
 
-                            const isDraggable = canEdit && !isPanning && !isCompleted && !isCancelled;
+                            const isDraggable =
+                              canEdit &&
+                              !isPanning &&
+                              !isCompleted &&
+                              !isCancelled;
 
                             return (
                               <div
@@ -1072,7 +1114,9 @@ export function AppointmentCalendarView({
                                   width: `${widthPct}%`,
                                 }}
                                 className={`absolute rounded-lg border p-1.5 text-xs transition-all select-none overflow-hidden flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary ${cardZIndex} ${cardBgBorder} ${
-                                  isBeingDragged ? "opacity-40 scale-95 ring-2 ring-primary" : ""
+                                  isBeingDragged
+                                    ? "opacity-40 scale-95 ring-2 ring-primary"
+                                    : ""
                                 } ${isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
                               >
                                 {/* Clipping indicators */}
@@ -1092,7 +1136,9 @@ export function AppointmentCalendarView({
                                       )}
                                       <span className="truncate">
                                         {appt.startTime}
-                                        {appt.endTime ? ` - ${appt.endTime}` : ""}
+                                        {appt.endTime
+                                          ? ` - ${appt.endTime}`
+                                          : ""}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
