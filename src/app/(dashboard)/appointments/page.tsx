@@ -15,6 +15,7 @@ import {
 } from "@/features/appointments/hooks/useAppointments";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import type { Employee } from "@/features/employees/types/employee.types";
+import { useDebounce } from "@/hooks/useDebounce";
 import { AppointmentCalendarView } from "@/features/appointments/components/AppointmentCalendarView";
 import { AppointmentListView } from "@/features/appointments/components/AppointmentListView";
 import { CreateAppointmentDialog } from "@/features/appointments/components/CreateAppointmentDialog";
@@ -73,6 +74,7 @@ export default function AppointmentsPage() {
   >("all");
   const [staffFilter, setStaffFilter] = useState<string | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearch = useDebounce(searchQuery.trim(), 400);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [page, setPage] = useState(1);
@@ -123,7 +125,7 @@ export default function AppointmentsPage() {
       viewMode === "calendar" && calendarViewMode === "week";
 
     return {
-      search: searchQuery.trim() || undefined,
+      search: debouncedSearch || undefined,
       status: statusFilter === "all" ? undefined : statusFilter,
       bookingType: bookingTypeFilter === "all" ? undefined : bookingTypeFilter,
       staffId: staffFilter === "all" ? undefined : staffFilter,
@@ -146,7 +148,7 @@ export default function AppointmentsPage() {
     selectedDate,
     weekStart,
     weekEnd,
-    searchQuery,
+    debouncedSearch,
     statusFilter,
     bookingTypeFilter,
     staffFilter,
@@ -164,8 +166,68 @@ export default function AppointmentsPage() {
     error,
     refetch,
   } = useAppointments(queryFilters);
-  const appointments = appointmentsData?.data || [];
+  const rawAppointments = appointmentsData?.data || [];
   const meta = appointmentsData?.meta;
+
+  // Comprehensive client-side filter pipeline:
+  // Guarantees reactive filtering across status, booking type, staff, and search query
+  // regardless of date-scoping or backend query nuances.
+  const filteredAppointments = useMemo(() => {
+    return rawAppointments.filter((appt) => {
+      // 1. Status Filter
+      if (statusFilter !== "all" && appt.status !== statusFilter) {
+        return false;
+      }
+
+      // 2. Booking Type Filter
+      if (
+        bookingTypeFilter !== "all" &&
+        appt.bookingType !== bookingTypeFilter
+      ) {
+        return false;
+      }
+
+      // 3. Staff Filter
+      if (staffFilter !== "all") {
+        if (staffFilter === "unassigned") {
+          if (appt.staffId) return false;
+        } else if (appt.staffId !== staffFilter) {
+          return false;
+        }
+      }
+
+      // 4. Search Query Filter (Customer Name, Phone, Code, Services)
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
+        const customerName = (appt.customer?.name || "").toLowerCase();
+        const customerPhone = (appt.customer?.phone || "").toLowerCase();
+        const code = (appt.appointmentCode || "").toLowerCase();
+        const id = appt.id.toLowerCase();
+        const services = (appt.services || [])
+          .map((s) => s?.name?.toLowerCase() || "")
+          .join(" ");
+
+        const matches =
+          customerName.includes(q) ||
+          customerPhone.includes(q) ||
+          code.includes(q) ||
+          id.includes(q) ||
+          services.includes(q);
+
+        if (!matches) return false;
+      }
+
+      return true;
+    });
+  }, [
+    rawAppointments,
+    statusFilter,
+    bookingTypeFilter,
+    staffFilter,
+    debouncedSearch,
+  ]);
+
+  const appointments = filteredAppointments;
 
   const handleSync = async () => {
     try {
@@ -286,9 +348,9 @@ export default function AppointmentsPage() {
       {/* Multi-Field Filter Controls Bar */}
       <div className="space-y-3 bg-card p-3 rounded-lg border border-border">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          {/* Search Input */}
+          {/* Search Input with Clear Button */}
           <div className="relative flex-1 max-w-sm">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground pointer-events-none" />
             <Input
               type="text"
               placeholder="Search customer, phone, notes..."
@@ -297,8 +359,22 @@ export default function AppointmentsPage() {
                 setSearchQuery(e.target.value);
                 setPage(1);
               }}
-              className="h-8 text-xs pl-8"
+              className="h-8 text-xs pl-8 pr-7"
+              aria-label="Search appointments"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setPage(1);
+                }}
+                className="absolute right-2 top-2 text-muted-foreground hover:text-foreground focus:outline-none"
+                aria-label="Clear search"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
 
           {/* View Switcher (Calendar vs List) */}
@@ -526,6 +602,47 @@ export default function AppointmentsPage() {
           onSelectDate={setSelectedDate}
           onSelectAppointment={handleOpenDetails}
           isAllBranches={isAllBranchesSelected}
+          canEdit={canEdit}
+          staffFilter={staffFilter}
+          onStaffFilterChange={setStaffFilter}
+          onDropAppointment={async (apptId, newDate, newStartTime, newStaffId) => {
+            const targetAppt = rawAppointments.find((a) => a.id === apptId);
+            if (!targetAppt) return;
+
+            const timeChanged = targetAppt.startTime !== newStartTime || targetAppt.date !== newDate;
+            const staffChanged = (targetAppt.staffId || null) !== (newStaffId || null);
+
+            try {
+              if (timeChanged) {
+                await rescheduleMutation.mutateAsync({
+                  id: apptId,
+                  payload: {
+                    branchId: targetAppt.branchId,
+                    date: newDate,
+                    startTime: newStartTime,
+                    reason: "Rescheduled via calendar drag & drop",
+                  },
+                });
+              }
+              if (staffChanged) {
+                if (newStaffId) {
+                  await assignStaffMutation.mutateAsync({
+                    id: apptId,
+                    payload: {
+                      branchId: targetAppt.branchId,
+                      staffId: newStaffId,
+                    },
+                  });
+                }
+              }
+              if (!timeChanged && !staffChanged) {
+                toast.info("Appointment was dropped at its current time and staff.");
+              }
+            } catch (err: unknown) {
+              const msg = (err as Error)?.message || "Failed to update appointment position";
+              toast.error(msg);
+            }
+          }}
         />
       ) : (
         <div className="space-y-4">
