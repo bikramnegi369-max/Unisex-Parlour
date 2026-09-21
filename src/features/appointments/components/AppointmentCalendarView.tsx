@@ -328,13 +328,20 @@ export function AppointmentCalendarView({
     (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
 
   // ---------------------------------------------------------------------------
-  // Grabbable Canvas (Mouse Drag / Pan-Scroll)
+  // Grabbable Canvas (Mouse Drag / Pan-Scroll across both X & Y axes)
   // ---------------------------------------------------------------------------
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const [isPanning, setIsPanning] = useState(false);
-  const panStartRef = React.useRef<{ x: number; scrollLeft: number }>({
+  const panStartRef = React.useRef<{
+    x: number;
+    y: number;
+    scrollLeft: number;
+    scrollTop: number;
+  }>({
     x: 0,
+    y: 0,
     scrollLeft: 0,
+    scrollTop: 0,
   });
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -350,7 +357,9 @@ export function AppointmentCalendarView({
     setIsPanning(true);
     panStartRef.current = {
       x: e.clientX,
+      y: e.clientY,
       scrollLeft: scrollContainerRef.current.scrollLeft,
+      scrollTop: scrollContainerRef.current.scrollTop,
     };
   };
 
@@ -358,7 +367,9 @@ export function AppointmentCalendarView({
     if (!isPanning || !scrollContainerRef.current) return;
     e.preventDefault();
     const dx = e.clientX - panStartRef.current.x;
+    const dy = e.clientY - panStartRef.current.y;
     scrollContainerRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+    scrollContainerRef.current.scrollTop = panStartRef.current.scrollTop - dy;
   };
 
   const handleMouseUpOrLeave = () => {
@@ -757,10 +768,10 @@ export function AppointmentCalendarView({
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUpOrLeave}
             onMouseLeave={handleMouseUpOrLeave}
-            className={`overflow-x-auto relative select-none ${
+            className={`overflow-auto max-h-[calc(100vh-280px)] min-h-[500px] relative select-none ${
               isPanning ? "cursor-grabbing" : "cursor-grab"
             }`}
-            title="Click and drag horizontally to pan across staff lanes"
+            title="Click and drag horizontally to pan across staff lanes, or scroll vertically for time"
           >
             <div className="min-w-200 flex">
               {/* Sticky Left Time Column Axis */}
@@ -768,7 +779,7 @@ export function AppointmentCalendarView({
                 data-no-pan="true"
                 className="w-20 shrink-0 border-r border-border bg-card z-30 sticky left-0 shadow-sm cursor-default select-none"
               >
-                <div className="h-10 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center">
+                <div className="h-10 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-40 shadow-xs">
                   Time
                 </div>
                 <div
@@ -823,8 +834,8 @@ export function AppointmentCalendarView({
                         isCurrentLaneDragOver ? "bg-primary/5 ring-2 ring-primary/40" : ""
                       }`}
                     >
-                      {/* Lane Header */}
-                      <div className="h-10 border-b border-border bg-muted/30 px-3 py-1.5 flex items-center justify-between pointer-events-none select-none">
+                      {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
+                      <div className="h-10 border-b border-border bg-muted/95 backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-20 shadow-xs">
                         <div className="truncate">
                           <span className="text-xs font-bold text-foreground block truncate">
                             {lane.name}

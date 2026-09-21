@@ -239,7 +239,7 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
     rectSpy.mockRestore();
   });
 
-  it("handles mouse pan drag on the timetable background without throwing", () => {
+  it("handles mouse pan drag on the timetable background across both X and Y axes without throwing", () => {
     const { container } = render(
       <AppointmentCalendarView
         appointments={[mockAppt1]}
@@ -257,16 +257,46 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
     expect(scrollContainer).not.toBeNull();
 
     if (scrollContainer) {
-      // Mouse down on background
-      fireEvent.mouseDown(scrollContainer, { clientX: 300, button: 0 });
+      // Mouse down on background with both X and Y
+      fireEvent.mouseDown(scrollContainer, { clientX: 300, clientY: 250, button: 0 });
       expect(scrollContainer.className).toContain("cursor-grabbing");
 
-      // Mouse move to pan
-      fireEvent.mouseMove(scrollContainer, { clientX: 200 });
+      // Mouse move to pan horizontally and vertically
+      fireEvent.mouseMove(scrollContainer, { clientX: 200, clientY: 150 });
 
       // Mouse up to stop panning
       fireEvent.mouseUp(scrollContainer);
       expect(scrollContainer.className).toContain("cursor-grab");
     }
+  });
+
+  it("renders sticky headers for time column and staff lanes to preserve column identity during vertical scrolling", () => {
+    const { container } = render(
+      <AppointmentCalendarView
+        appointments={[mockAppt1]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    // Time corner header should be sticky top-0 z-40
+    const timeHeader = screen.getByText("Time");
+    expect(timeHeader.className).toContain("sticky");
+    expect(timeHeader.className).toContain("top-0");
+    expect(timeHeader.className).toContain("z-40");
+
+    // Staff lane headers should be sticky top-0 z-20
+    const laneBodies = container.querySelectorAll("[data-testid^='lane-']");
+    expect(laneBodies.length).toBeGreaterThan(0);
+
+    const firstLaneHeader = laneBodies[0].querySelector("div");
+    expect(firstLaneHeader?.className).toContain("sticky");
+    expect(firstLaneHeader?.className).toContain("top-0");
+    expect(firstLaneHeader?.className).toContain("z-20");
   });
 });
