@@ -52,7 +52,8 @@ export type PermissionType =
   | "branches.create"
   | "branches.update"
   | "branches.delete"
-  | "activity-logs.view";
+  | "activity-logs.view"
+  | "logs.view";
 
 export interface UserSession {
   id: string;

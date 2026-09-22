@@ -96,7 +96,7 @@ const navGroups: SidebarGroup[] = [
       { name: "Users", href: "/users", icon: Users },
       { name: "Roles & Permissions", href: "/roles", icon: ShieldCheck },
       { name: "Branches", href: "/branches", icon: GitBranch },
-      { name: "Activity Logs", href: "/activity-logs", icon: ClipboardList },
+      { name: "Audit Logs", href: "/audit-logs", icon: ClipboardList },
       { name: "Settings", href: "/settings", icon: Settings },
     ],
   },

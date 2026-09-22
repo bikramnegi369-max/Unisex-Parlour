@@ -29,7 +29,7 @@ import type { ServicePayload } from "../../types/service.types";
 import type { ServiceCategory } from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Calendar, Package, Gift } from "lucide-react";
+import { Package, Gift } from "lucide-react";
 import { capitalizeWords } from "@/lib/formatters";
 import { ServiceCertifiedStaffTab } from "../services/ServiceCertifiedStaffTab";
 import { ServiceAppointmentsTab } from "../services/ServiceAppointmentsTab";

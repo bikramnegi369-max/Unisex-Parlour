@@ -25,6 +25,7 @@ export const routePermissions = {
   "/inventory": "inventory.view",
   "/suppliers": "inventory.view",
   "/activity-logs": "activity-logs.view",
+  "/audit-logs": "logs.view",
   "/settings": "settings.view",
 } as const satisfies Record<string, PermissionType | null>;
 
