@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { CreditCard, ExternalLink, Calendar, Plus, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SyncButton } from "@/components/ui/sync-button";
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -40,7 +41,7 @@ export function CustomerSubscriptionsTab({
   const [redeemSubscriptionTarget, setRedeemSubscriptionTarget] =
     useState<Subscription | null>(null);
 
-  const { data, isLoading, isError, refetch } = useSubscriptions({
+  const { data, isLoading, isFetching, isError, refetch } = useSubscriptions({
     customerId,
     limit: 50,
   });
@@ -78,12 +79,70 @@ export function CustomerSubscriptionsTab({
 
   const subscriptions = data?.data || [];
 
+  const isSyncing = isFetching && !isLoading;
+
   if (isLoading) {
     return (
-      <div className="space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="h-20 bg-muted/40 rounded-xl animate-pulse" />
-        ))}
+      <div className="space-y-4">
+        {/* Toolbar Header Shimmer */}
+        <div className="flex items-center justify-between p-3 bg-card border border-border/80 rounded-xl shadow-2xs">
+          <div className="space-y-1.5">
+            <div className="h-4 w-36 bg-muted/60 rounded animate-pulse" />
+            <div className="h-3 w-64 bg-muted/40 rounded animate-pulse" />
+          </div>
+          <div className="h-8 w-28 bg-muted/60 rounded-md animate-pulse" />
+        </div>
+
+        {/* Subscription Cards Shimmer Skeletons */}
+        <div className="space-y-4">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div
+              key={i}
+              className="p-4 rounded-xl border border-border/80 bg-card shadow-xs space-y-3.5"
+            >
+              {/* Card Header Shimmer */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-28 bg-muted/60 rounded animate-pulse" />
+                    <div className="h-5 w-16 bg-muted/50 rounded-full animate-pulse" />
+                  </div>
+                  <div className="h-3 w-48 bg-muted/40 rounded animate-pulse" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-24 bg-muted/60 rounded-md animate-pulse" />
+                  <div className="h-8 w-24 bg-muted/40 rounded-md animate-pulse" />
+                </div>
+              </div>
+
+              {/* Progress Bar Shimmer */}
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <div className="h-3 w-32 bg-muted/40 rounded animate-pulse" />
+                  <div className="h-3 w-28 bg-muted/50 rounded animate-pulse" />
+                </div>
+                <div className="h-2 w-full bg-muted/40 rounded-full animate-pulse" />
+              </div>
+
+              {/* Entitlement Chips Shimmer */}
+              <div className="space-y-2 pt-1">
+                <div className="h-3 w-36 bg-muted/40 rounded animate-pulse" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {Array.from({ length: 3 }).map((_, j) => (
+                    <div
+                      key={j}
+                      className="p-2.5 rounded-lg border border-border/60 bg-muted/20 space-y-1.5"
+                    >
+                      <div className="h-3.5 w-24 bg-muted/60 rounded animate-pulse" />
+                      <div className="h-2 w-full bg-muted/40 rounded-full animate-pulse" />
+                      <div className="h-2.5 w-16 bg-muted/50 rounded animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -104,7 +163,7 @@ export function CustomerSubscriptionsTab({
   return (
     <div className="space-y-4">
       {/* Action Toolbar Header */}
-      <div className="flex items-center justify-between p-3 bg-card border border-border/80 rounded-xl shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card border border-border/80 rounded-xl shadow-2xs">
         <div>
           <h3 className="text-xs font-bold text-foreground">
             Customer Subscriptions
@@ -114,17 +173,27 @@ export function CustomerSubscriptionsTab({
             customer.
           </p>
         </div>
-        {canSell && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => setIsCreateOpen(true)}
-            className="h-8 text-xs gap-1.5 font-semibold cursor-pointer"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Sell Subscription
-          </Button>
-        )}
+
+        <div className="flex items-center gap-2 self-end sm:self-center">
+          <SyncButton
+            isSyncing={isSyncing}
+            onSync={() => refetch()}
+            label="Refresh"
+            className="h-8 text-xs"
+          />
+
+          {canSell && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setIsCreateOpen(true)}
+              className="h-8 text-xs gap-1.5 font-semibold cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Sell Subscription
+            </Button>
+          )}
+        </div>
       </div>
 
       {subscriptions.length === 0 ? (
@@ -143,7 +212,7 @@ export function CustomerSubscriptionsTab({
           }
         />
       ) : (
-        <div className="space-y-4">
+        <div className={`space-y-4 transition-opacity duration-200 ${isSyncing ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
           {subscriptions.map((sub: Subscription) => {
             const totalRemaining = (sub.entitlements || []).reduce(
               (sum: number, e: { remainingQuantity: number }) =>
