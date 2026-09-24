@@ -35,6 +35,7 @@ import {
   GitBranch,
   X,
   Sparkles,
+  Layers,
 } from "lucide-react";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -63,6 +64,7 @@ const navGroups: SidebarGroup[] = [
     title: "Operations",
     items: [
       { name: "Customers", href: "/customers", icon: Users },
+      { name: "Subscriptions", href: "/subscriptions", icon: Layers },
       { name: "Employees", href: "/employees", icon: UserCheck },
       { name: "Leaves", href: "/leaves", icon: CalendarOff },
       { name: "Services", href: "/services", icon: Scissors },

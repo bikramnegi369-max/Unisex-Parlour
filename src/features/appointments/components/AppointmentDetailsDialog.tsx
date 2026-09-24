@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { AppointmentStatusBadge, BookingTypeBadge } from "./AppointmentStatusBadge";
 import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { formatDate, formatCurrency, formatInBranchTimezone } from "@/lib/formatters";
-import { Calendar, Clock, User, Scissors, MapPin, Send, AlertCircle, Loader2 } from "lucide-react";
+import { Calendar, Clock, User, Scissors, MapPin, Send, AlertCircle, Loader2, Layers } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { useAppointment, useTriggerAppointmentReminder } from "../hooks/useAppointments";
+import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
+import { RedeemSubscriptionModal } from "@/features/subscriptions/components/RedeemSubscriptionModal";
+import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 import { toast } from "sonner";
 import type { Appointment, AppointmentServiceSnapshot } from "../types/appointment.types";
 
@@ -40,6 +43,7 @@ export function AppointmentDetailsDialog({
 }: AppointmentDetailsDialogProps) {
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
+  const [selectedSubForRedemption, setSelectedSubForRedemption] = useState<Subscription | null>(null);
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -50,11 +54,19 @@ export function AppointmentDetailsDialog({
   // Use fresh fetched single appointment data, falling back to initial list item snapshot
   const appointment = fetchedAppointment || initialAppointment;
 
+  // Query active subscriptions for this appointment's customer
+  const { data: subsData, refetch: refetchSubs } = useSubscriptions(
+    { customerId: appointment?.customerId, status: "active" },
+    { enabled: Boolean(isOpen && appointment?.customerId) }
+  );
+  const customerSubscriptions = subsData?.data || [];
+
   const triggerReminderMutation = useTriggerAppointmentReminder();
 
   if (!appointment) return null;
 
   const canSendReminder = hasPermission(user, "appointments.reminders.send");
+  const canRedeemSubscription = hasPermission(user, "subscriptions.redeem");
   const isTerminal = ["completed", "cancelled", "no_show"].includes(appointment.status);
   const totalPricing =
     appointment.pricing?.total ??
@@ -187,6 +199,58 @@ export function AppointmentDetailsDialog({
             ))}
           </div>
         </div>
+
+        {/* Customer Subscriptions Badge & Direct Redeem Banner */}
+        {customerSubscriptions.length > 0 && !isTerminal && (
+          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <Layers className="h-4 w-4 text-primary" />
+                Customer Active Subscriptions ({customerSubscriptions.length})
+              </div>
+              <span className="text-[10px] text-primary font-semibold uppercase tracking-wider">
+                Prepaid Entitlements
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {customerSubscriptions.map((sub: Subscription) => {
+                const totalRem = (sub.entitlements || []).reduce(
+                  (sum: number, e) => sum + e.remainingQuantity,
+                  0
+                );
+                return (
+                  <div
+                    key={sub.id}
+                    className="flex items-center justify-between bg-card p-2 rounded border border-border text-xs"
+                  >
+                    <div>
+                      <div className="font-mono font-bold text-primary text-[11px]">
+                        {sub.subscriptionCode}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {totalRem} sessions remaining across {sub.entitlements?.length || 0} services
+                      </div>
+                    </div>
+
+                    {canRedeemSubscription && totalRem > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setSelectedSubForRedemption(sub)}
+                        className="h-7 text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1 cursor-pointer"
+                      >
+                        <Layers className="h-3 w-3" />
+                        Redeem For This Visit
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Section A: Automated Scheduled Reminder */}
         <div className="space-y-2 border-t border-border pt-3">
@@ -361,6 +425,26 @@ export function AppointmentDetailsDialog({
           </div>
         </div>
       </div>
+
+      {/* Redemption Dialog */}
+      {selectedSubForRedemption && (
+        <Dialog
+          isOpen={Boolean(selectedSubForRedemption)}
+          onClose={() => setSelectedSubForRedemption(null)}
+          title="Redeem Subscription For This Appointment"
+        >
+          <RedeemSubscriptionModal
+            subscription={selectedSubForRedemption}
+            isOpen={Boolean(selectedSubForRedemption)}
+            onClose={() => setSelectedSubForRedemption(null)}
+            initialAppointmentId={appointment.id}
+            onSuccess={() => {
+              setSelectedSubForRedemption(null);
+              refetchSubs();
+            }}
+          />
+        </Dialog>
+      )}
     </Dialog>
   );
 }

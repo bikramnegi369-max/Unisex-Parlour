@@ -23,6 +23,7 @@ import { CustomerOverview } from "./CustomerOverview";
 import { CustomerPreferences } from "./CustomerPreferences";
 import { CustomerNotes } from "./CustomerNotes";
 import { CustomerActivityLog } from "./CustomerActivityLog";
+import { CustomerSubscriptionsTab } from "./CustomerSubscriptionsTab";
 import {
   EntityProfileLayout,
   type ProfileTabItem,
@@ -204,6 +205,7 @@ export default function CustomerDetailsPage({
 
   const tabs: ProfileTabItem[] = [
     { id: "overview", label: "Overview" },
+    { id: "subscriptions", label: "Subscriptions" },
     { id: "preferences", label: "Preferences" },
     { id: "notes", label: "Internal Notes" },
     { id: "activity", label: "Activity Log" },
@@ -234,6 +236,10 @@ export default function CustomerDetailsPage({
             customer={customer}
             visitedBranchNames={visitedBranchNames}
           />
+        )}
+
+        {activeTab === "subscriptions" && (
+          <CustomerSubscriptionsTab customerId={customerId} />
         )}
 
         {activeTab === "preferences" && (

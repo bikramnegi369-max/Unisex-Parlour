@@ -53,7 +53,11 @@ export type PermissionType =
   | "branches.update"
   | "branches.delete"
   | "activity-logs.view"
-  | "logs.view";
+  | "logs.view"
+  | "subscriptions.view"
+  | "subscriptions.sell"
+  | "subscriptions.configure"
+  | "subscriptions.redeem";
 
 export interface UserSession {
   id: string;

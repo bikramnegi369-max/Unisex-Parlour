@@ -33,7 +33,11 @@ import {
   MapPin,
   Loader2,
   Sparkles,
+  Layers,
+  CheckCircle2,
 } from "lucide-react";
+import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
+import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 
 const EMPTY_SERVICES: Service[] = [];
 const EMPTY_EMPLOYEES: Employee[] = [];
@@ -98,6 +102,7 @@ export function CreateAppointmentDialog({
   });
 
   const bookingType = useWatch({ control, name: "bookingType" });
+  const watchedCustomerId = useWatch({ control, name: "customerId" });
   const watchedServices = useWatch({ control, name: "services" });
   const selectedServices = useMemo(
     () => watchedServices || [],
@@ -110,6 +115,33 @@ export function CreateAppointmentDialog({
   const reminderEnabled = useWatch({ control, name: "reminder.enabled" });
   const selectedBranchId = useWatch({ control, name: "branchId" });
   const selectedStaffId = useWatch({ control, name: "staffId" });
+
+  // Fetch customer subscriptions if customer is selected
+  const { data: customerSubsData } = useSubscriptions(
+    { customerId: watchedCustomerId, status: "active" },
+    { enabled: Boolean(watchedCustomerId) }
+  );
+  const activeSubscriptions: Subscription[] = useMemo(
+    () => customerSubsData?.data || [],
+    [customerSubsData?.data]
+  );
+
+  // Map of serviceId -> available remaining subscription quota across active subscriptions
+  const subscriptionQuotaByService = useMemo(() => {
+    const map = new Map<string, { remaining: number; subscriptionCode: string }>();
+    for (const sub of activeSubscriptions) {
+      for (const ent of sub.entitlements || []) {
+        if (ent.remainingQuantity > 0) {
+          const prev = map.get(ent.serviceId);
+          map.set(ent.serviceId, {
+            remaining: (prev?.remaining || 0) + ent.remainingQuantity,
+            subscriptionCode: sub.subscriptionCode,
+          });
+        }
+      }
+    }
+    return map;
+  }, [activeSubscriptions]);
 
   const effectiveBranchTimezone = useMemo(() => {
     if (selectedBranchId) {
@@ -528,27 +560,52 @@ export function CreateAppointmentDialog({
                     Custom price applies only to this appointment
                   </span>
                 </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                   {selectedServices.map((selectedItem) => {
                     const srv = services.find(
                       (s: Service) => s.id === selectedItem.serviceId,
                     );
                     const catalogPrice = srv?.pricing?.basePrice ?? 0;
+                    const subQuota = subscriptionQuotaByService.get(selectedItem.serviceId);
+                    const isCoveredBySub = Boolean(subQuota && subQuota.remaining > 0);
+                    const isZeroPriced = selectedItem.customPrice === 0;
+
                     return (
                       <div
                         key={selectedItem.serviceId}
-                        className="flex items-center justify-between gap-3 p-2 bg-muted/40 rounded-md border border-border text-xs"
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-md border text-xs transition-colors ${
+                          isCoveredBySub
+                            ? "bg-primary/5 border-primary/30"
+                            : "bg-muted/40 border-border"
+                        }`}
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-foreground truncate">
-                            {srv?.name || "Selected Service"}
+                          <div className="flex items-center gap-1.5 font-semibold text-foreground truncate">
+                            <span>{srv?.name || "Selected Service"}</span>
+                            {isCoveredBySub && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/15 px-1.5 py-0.2 rounded border border-primary/25">
+                                <Layers className="h-3 w-3" />
+                                Subscription ({subQuota?.remaining} left)
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
-                            Base: {formatCurrency(catalogPrice)} •{" "}
-                            {srv?.duration || 0} mins
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                            <span>Base: {formatCurrency(catalogPrice)}</span>
+                            <span>•</span>
+                            <span>{srv?.duration || 0} mins</span>
+                            {isCoveredBySub && !isZeroPriced && (
+                              <button
+                                type="button"
+                                onClick={() => handleCustomPriceChange(selectedItem.serviceId, 0)}
+                                className="text-primary hover:underline font-semibold cursor-pointer"
+                              >
+                                [Apply ₹0 Subscription Benefit]
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                           <label
                             htmlFor={`appt-price-${selectedItem.serviceId}`}
                             className="text-[11px] font-medium text-muted-foreground whitespace-nowrap"
@@ -573,7 +630,11 @@ export function CreateAppointmentDialog({
                                     : Number(e.target.value),
                                 )
                               }
-                              className="h-7 text-xs pl-5 py-0 font-semibold"
+                              className={`h-7 text-xs pl-5 py-0 font-semibold ${
+                                isZeroPriced
+                                  ? "border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20"
+                                  : ""
+                              }`}
                             />
                           </div>
                         </div>
