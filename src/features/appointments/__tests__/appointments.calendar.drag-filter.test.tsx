@@ -91,6 +91,12 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
     // Both appointments should be rendered
     expect(screen.getAllByText("John Doe").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Jane Smith").length).toBeGreaterThan(0);
+
+    // Time column should be sticky left-0 and fixed with z-index
+    const timeColumn = screen.getByTestId("calendar-time-column");
+    expect(timeColumn).toBeDefined();
+    expect(timeColumn.className).toContain("sticky");
+    expect(timeColumn.className).toContain("left-0");
   });
 
   it("filters calendar appointments when staffFilter prop is provided", () => {

@@ -781,10 +781,11 @@ export function AppointmentCalendarView({
             }`}
             title="Click and drag horizontally to pan across staff lanes, or scroll vertically for time"
           >
-            <div className="min-w-200 flex">
+            <div className="min-w-full w-max flex">
               {/* Sticky Left Time Column Axis */}
               <div
                 data-no-pan="true"
+                data-testid="calendar-time-column"
                 className="w-20 shrink-0 border-r border-border bg-card z-30 sticky left-0 shadow-sm cursor-default select-none"
               >
                 <div className="h-10 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-40 shadow-xs">
