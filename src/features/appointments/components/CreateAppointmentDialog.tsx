@@ -47,6 +47,7 @@ import {
   Check,
   ShieldCheck,
   X,
+  Trash2,
   UserCheck,
   ChevronDown,
   ChevronRight,
@@ -600,6 +601,18 @@ export function CreateAppointmentDialog({
             serviceIds: formattedServices.map((s) => s.serviceId),
           };
 
+    // Validate that the appointment does not spill past calendar midnight (1440 minutes)
+    if (data.startTime && selectedServicesSummary.totalDuration > 0) {
+      const startMin = timeToMinutes(data.startTime);
+      const endMin = startMin + selectedServicesSummary.totalDuration;
+      if (endMin > 1440) {
+        toast.error(
+          `Overnight appointments across calendar midnight are not supported. This booking starts at ${data.startTime} and takes ${selectedServicesSummary.totalDuration} mins (ends past midnight at ${minutesToTime(endMin)}). Please adjust the start time or split into multiple appointments.`
+        );
+        return;
+      }
+    }
+
     try {
       await onSubmit(payload);
       onClose();
@@ -621,36 +634,47 @@ export function CreateAppointmentDialog({
     }
   };
 
-  const handleServiceToggle = (service: Service) => {
-    const isSelected = selectedServices.some((s) => s.serviceId === service.id);
-    let updatedSelectedServiceIds: string[] = [];
+  // Measure available height inside the Summary Card so the services list fills the entire card down to the action buttons before scrolling
+  const summaryCardRef = useRef<HTMLDivElement>(null);
+  const [servicesMaxHeight, setServicesMaxHeight] = useState<number | null>(null);
 
-    if (isSelected) {
-      const updated = selectedServices.filter(
-        (s) => s.serviceId !== service.id,
-      );
-      updatedSelectedServiceIds = updated.map((s) => s.serviceId);
-      setValue("services", updated, { shouldValidate: true });
-      setValue("serviceIds", updatedSelectedServiceIds);
-    } else {
-      const defaultPrice = service.pricing?.basePrice ?? 0;
-      // Auto-attach active subscription entitlement if available for this customer
-      const subQuota = subscriptionQuotaByService.get(service.id);
-      const appliedSubscriptionId =
-        subQuota && subQuota.remaining > 0 ? subQuota.subscriptionId : null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const cardEl = summaryCardRef.current;
+    if (!cardEl) return;
 
-      const updated = [
-        ...selectedServices,
-        {
-          serviceId: service.id,
-          customPrice: defaultPrice,
-          appliedSubscriptionId,
-        },
-      ];
-      updatedSelectedServiceIds = updated.map((s) => s.serviceId);
-      setValue("services", updated, { shouldValidate: true });
-      setValue("serviceIds", updatedSelectedServiceIds);
-    }
+    const measureCardSpace = () => {
+      // The card's rendered height (stretched by flex-1 to fill the column)
+      const cardHeight = cardEl.clientHeight;
+      if (cardHeight > 100) {
+        // Find header and discount elements inside the card to compute exact remaining height
+        const headerEl = cardEl.querySelector(".booking-summary-header");
+        const discountEl = cardEl.querySelector(".booking-summary-discount");
+        const headerHeight = headerEl ? (headerEl as HTMLElement).offsetHeight : 60;
+        const discountHeight = discountEl ? (discountEl as HTMLElement).offsetHeight : 0;
+        // Total internal padding (p-4 is 16px top + 16px bottom = 32px) + flex gap (gap-3 is 12px)
+        const innerPaddingAndGaps = 32 + 16;
+        const exactAvailable = cardHeight - headerHeight - discountHeight - innerPaddingAndGaps;
+        setServicesMaxHeight(Math.max(160, exactAvailable));
+      }
+    };
+
+    // Run initial measurement
+    measureCardSpace();
+
+    const observer = new ResizeObserver(() => {
+      measureCardSpace();
+    });
+
+    observer.observe(cardEl);
+    return () => observer.disconnect();
+  }, [isOpen, selectedServicesSummary.coveredCount]);
+
+  const handleRemoveService = (serviceId: string) => {
+    const updated = selectedServices.filter((s) => s.serviceId !== serviceId);
+    const updatedSelectedServiceIds = updated.map((s) => s.serviceId);
+    setValue("services", updated, { shouldValidate: true });
+    setValue("serviceIds", updatedSelectedServiceIds);
 
     // Verify assigned staff capability
     if (selectedStaffId && updatedSelectedServiceIds.length > 0) {
@@ -666,6 +690,49 @@ export function CreateAppointmentDialog({
         toast.info(
           `${assignedStaffObj?.name || "Selected staff"} was unassigned because they do not offer all selected services.`,
         );
+      }
+    }
+  };
+
+  const handleServiceToggle = (service: Service) => {
+    const isSelected = selectedServices.some((s) => s.serviceId === service.id);
+
+    if (isSelected) {
+      handleRemoveService(service.id);
+    } else {
+      const defaultPrice = service.pricing?.basePrice ?? 0;
+      // Auto-attach active subscription entitlement if available for this customer
+      const subQuota = subscriptionQuotaByService.get(service.id);
+      const appliedSubscriptionId =
+        subQuota && subQuota.remaining > 0 ? subQuota.subscriptionId : null;
+
+      const updated = [
+        ...selectedServices,
+        {
+          serviceId: service.id,
+          customPrice: defaultPrice,
+          appliedSubscriptionId,
+        },
+      ];
+      const updatedSelectedServiceIds = updated.map((s) => s.serviceId);
+      setValue("services", updated, { shouldValidate: true });
+      setValue("serviceIds", updatedSelectedServiceIds);
+
+      // Verify assigned staff capability
+      if (selectedStaffId && updatedSelectedServiceIds.length > 0) {
+        const staffServices = staffServicesMap[selectedStaffId] || [];
+        const isStillQualified = updatedSelectedServiceIds.every((srvId) =>
+          staffServices.includes(srvId),
+        );
+        if (!isStillQualified) {
+          setValue("staffId", null);
+          const assignedStaffObj = employees.find(
+            (e: Employee) => e.id === selectedStaffId,
+          );
+          toast.info(
+            `${assignedStaffObj?.name || "Selected staff"} was unassigned because they do not offer all selected services.`,
+          );
+        }
       }
     }
   };
@@ -711,9 +778,9 @@ export function CreateAppointmentDialog({
       onClose={onClose}
       title={dialogTitle}
       maxWidth="4xl"
-      className="max-h-[94vh] w-full flex flex-col p-0 overflow-hidden"
+      className="h-[92vh] max-h-[92vh] w-full flex flex-col p-0 overflow-hidden"
     >
-      <div className="flex flex-col h-full text-left">
+      <div className="flex flex-col h-full min-h-0 text-left">
         {/* Top Control Bar: Booking Type Selector & Branch / Timezone Context */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-muted/30">
           <div className="flex items-center gap-1.5 p-1 bg-muted rounded-lg border border-border">
@@ -827,10 +894,10 @@ export function CreateAppointmentDialog({
         {/* 2-Column Responsive Body with balanced 6/6 width ratio */}
         <form
           onSubmit={handleSubmit(handleFormSubmit)}
-          className="flex-1 overflow-y-auto px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-7"
+          className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-7 items-stretch"
         >
           {/* LEFT COLUMN: Customer Selection, Catalog Browser & Scheduling (6 Cols) */}
-          <div className="lg:col-span-6 space-y-5">
+          <div className="lg:col-span-6 space-y-5 flex flex-col justify-start lg:overflow-y-auto lg:pr-2 min-h-0">
             {/* Step 1: Customer Card & Selector */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -1275,6 +1342,27 @@ export function CreateAppointmentDialog({
                   {...register("startTime")}
                   className="h-8 text-xs bg-background"
                 />
+                {/* Calculated End Time & Midnight Spillage Warning */}
+                {selectedStartTime && selectedServicesSummary.totalDuration > 0 && (() => {
+                  const startMin = timeToMinutes(selectedStartTime);
+                  const endMin = startMin + selectedServicesSummary.totalDuration;
+                  const isPastMidnight = endMin > 1440;
+                  return isPastMidnight ? (
+                    <div className="flex items-center gap-1.5 p-2 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-[11px] font-medium leading-tight">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Ends at {minutesToTime(endMin)} (+1 day). Salons cannot book across midnight. Please pick an earlier time or fewer services.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                      <span>Est. End Time:</span>
+                      <span className="font-semibold text-foreground">
+                        {minutesToTime(endMin)} ({selectedServicesSummary.totalDuration} mins)
+                      </span>
+                    </div>
+                  );
+                })()}
                 {errors.startTime && (
                   <span className="text-[11px] text-destructive">
                     {errors.startTime.message}
@@ -1379,11 +1467,11 @@ export function CreateAppointmentDialog({
           </div>
 
           {/* RIGHT COLUMN: Reminders & Live Ledger Summary (6 Cols) */}
-          <div className="lg:col-span-6 space-y-5 flex flex-col justify-between">
-            <div className="space-y-4">
+          <div className="lg:col-span-6 flex flex-col h-full min-h-0">
+            <div className="flex-1 flex flex-col min-h-0 space-y-4">
               {/* Step 5: Notification Reminders */}
               {bookingType === "advance" ? (
-                <div className="p-3.5 bg-muted/30 rounded-xl border border-border space-y-2.5 text-xs">
+                <div className="p-3.5 bg-muted/30 rounded-xl border border-border space-y-2.5 text-xs shrink-0">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Bell className="h-4 w-4 text-primary" />
@@ -1463,7 +1551,7 @@ export function CreateAppointmentDialog({
               ) : null}
 
               {/* Step 6: Notes */}
-              <div className="space-y-1">
+              <div className="space-y-1 shrink-0">
                 <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
                   Internal Notes
                 </label>
@@ -1474,10 +1562,13 @@ export function CreateAppointmentDialog({
                 />
               </div>
 
-              {/* Order Ledger & Summary Card - Spacious, Non-Congested, Full Height without internal scroll */}
-              <div className="p-4 bg-card rounded-xl border border-border shadow-xs space-y-3 text-xs">
+              {/* Order Ledger & Summary Card - Takes Full Height Available Matching Left Column */}
+              <div
+                ref={summaryCardRef}
+                className="flex-1 min-h-0 p-4 bg-card rounded-xl border border-border shadow-xs flex flex-col gap-3 text-xs"
+              >
                 {/* Header: Net Payable & Duration Overview */}
-                <div className="flex items-center justify-between pb-3 border-b border-border">
+                <div className="booking-summary-header flex items-center justify-between pb-3 border-b border-border shrink-0">
                   <div>
                     <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
                       Booking Summary
@@ -1505,14 +1596,21 @@ export function CreateAppointmentDialog({
                   </div>
                 </div>
 
-                {/* Itemized Service Lines - Clean, Spacious Cards without Internal Scrollbar */}
+                {/* Itemized Service Lines - Stretches to Fill Available Card Height, Then Scrolls */}
                 {selectedServices.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg bg-muted/20">
+                  <div className="flex-1 min-h-35 flex items-center justify-center p-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg bg-muted/20">
                     No services selected yet. Pick services from the left
                     catalog to itemize pricing and plan coverage.
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div
+                    style={
+                      servicesMaxHeight
+                        ? { maxHeight: `${servicesMaxHeight}px` }
+                        : undefined
+                    }
+                    className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"
+                  >
                     {selectedServices.map((item) => {
                       const srv = services.find(
                         (s: Service) => s.id === item.serviceId,
@@ -1542,44 +1640,58 @@ export function CreateAppointmentDialog({
                           }`}
                         >
                           {/* Row 1: Name, Duration & Custom Price Input */}
-                          <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-foreground text-xs truncate">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
                                   {srvName}
                                 </span>
                                 {hasSub && (
-                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 shrink-0">
+                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 shrink-0 whitespace-nowrap">
                                     Covered by Plan
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[11px] text-muted-foreground block">
+                              <span className="text-[11px] text-muted-foreground block pt-0.5">
                                 {srv?.duration || 0} mins • Standard:{" "}
                                 {formatCurrency(basePrice)}
                               </span>
                             </div>
 
-                            {/* Compact Custom Price Input */}
-                            <div className="flex items-center gap-1 shrink-0 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
-                              <span className="text-[11px] font-semibold text-muted-foreground">
-                                ₹
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={item.customPrice ?? ""}
-                                placeholder={String(basePrice)}
-                                onChange={(e) =>
-                                  handleCustomPriceChange(
-                                    item.serviceId,
-                                    e.target.value,
-                                  )
+                            {/* Compact Custom Price Input & Remove Action */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
+                                <span className="text-[11px] font-semibold text-muted-foreground">
+                                  ₹
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={item.customPrice ?? ""}
+                                  placeholder={String(basePrice)}
+                                  onChange={(e) =>
+                                    handleCustomPriceChange(
+                                      item.serviceId,
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
+                                  title="Custom price for this appointment"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRemoveService(item.serviceId)
                                 }
-                                className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
-                                title="Custom price for this appointment"
-                              />
+                                className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
+                                title="Remove service from booking"
+                                aria-label={`Remove ${srvName}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
                             </div>
                           </div>
 
@@ -1658,7 +1770,7 @@ export function CreateAppointmentDialog({
 
                 {/* Plan Total Discount Callout - Upgraded Savings Card UI/UX */}
                 {selectedServicesSummary.coveredCount > 0 && (
-                  <div className="relative overflow-hidden p-3 rounded-xl bg-linear-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/10 border border-emerald-500/30 shadow-xs">
+                  <div className="booking-summary-discount relative overflow-hidden p-3 rounded-xl bg-linear-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/10 border border-emerald-500/30 shadow-xs shrink-0">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className="h-8 w-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
@@ -1705,24 +1817,41 @@ export function CreateAppointmentDialog({
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                size="sm"
-                disabled={isLoading || selectedServices.length === 0}
-                className="text-xs h-8 px-4 gap-1.5 font-bold"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Creating Booking...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Book Appointment
-                  </>
-                )}
-              </Button>
+              {/* Midnight boundary spill validation flag */}
+              {(() => {
+                const startMin = selectedStartTime ? timeToMinutes(selectedStartTime) : 0;
+                const endMin = startMin + selectedServicesSummary.totalDuration;
+                const isOvernightSpill = Boolean(
+                  selectedStartTime &&
+                  selectedServicesSummary.totalDuration > 0 &&
+                  endMin > 1440
+                );
+
+                return (
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={
+                      isLoading ||
+                      selectedServices.length === 0 ||
+                      isOvernightSpill
+                    }
+                    className="text-xs h-8 px-4 gap-1.5 font-bold"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Creating Booking...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Book Appointment
+                      </>
+                    )}
+                  </Button>
+                );
+              })()}
             </div>
           </div>
         </form>
