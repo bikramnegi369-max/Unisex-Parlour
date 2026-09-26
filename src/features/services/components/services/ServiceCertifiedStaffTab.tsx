@@ -10,7 +10,6 @@ import { useBranches } from "@/features/branches/hooks/useBranches";
 import { EMPLOYEES_CONFIG } from "@/features/employees/config/employees.config";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Users,

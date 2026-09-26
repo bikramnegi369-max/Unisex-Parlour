@@ -118,6 +118,40 @@ vi.mock("@/hooks/useBranchContext", () => ({
   }),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+  }),
+  usePathname: () => "/appointments",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock("@/features/auth/hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: {
+      id: "u_1",
+      role: "admin",
+      permissions: ["appointments.create", "services.view", "categories.view", "customers.view"],
+    },
+    isAuthenticated: true,
+  }),
+}));
+
+vi.mock("@/features/services/hooks/categories/useServiceCategories", () => ({
+  useServiceCategories: () => ({
+    data: {
+      data: [
+        { id: "cat_hair", name: "Hair", isActive: true },
+        { id: "cat_skin", name: "Skin", isActive: true },
+      ],
+    },
+    isLoading: false,
+  }),
+}));
+
 vi.mock("@/features/customers/components/CustomerSelector", () => ({
   CustomerSelector: ({ value, onChange }: { value: string; onChange: (id: string) => void }) => (
     <div data-testid="customer-selector">
@@ -175,6 +209,12 @@ describe("Staff Filtering by Service Capabilities", () => {
       />
     );
 
+    // Open the "Hair" category accordion (all categories start collapsed by default)
+    const hairCategoryBtn = screen.getByRole("button", {
+      name: "Toggle category Hair",
+    });
+    fireEvent.click(hairCategoryBtn);
+
     // Select Classic Haircut
     const haircutCheckbox = screen.getAllByRole("checkbox")[0];
     fireEvent.click(haircutCheckbox);
@@ -195,10 +235,19 @@ describe("Staff Filtering by Service Capabilities", () => {
       />
     );
 
-    // Select Classic Haircut (index 0) and Gold Facial (index 1)
-    const checkboxes = screen.getAllByRole("checkbox");
-    fireEvent.click(checkboxes[0]);
-    fireEvent.click(checkboxes[1]);
+    // Open "Hair" and "Skin" categories
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle category Hair" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle category Skin" }),
+    );
+
+    // Select Classic Haircut and Gold Facial
+    const haircutItem = screen.getByRole("checkbox", { name: /Classic Haircut/i });
+    const facialItem = screen.getByRole("checkbox", { name: /Gold Facial/i });
+    fireEvent.click(haircutItem);
+    fireEvent.click(facialItem);
 
     // Only Maria offers BOTH haircut and facial
     expect(screen.queryByText("Maria All Rounder (Senior Stylist)")).not.toBeNull();

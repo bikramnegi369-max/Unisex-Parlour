@@ -99,14 +99,23 @@ export function SubscriptionOverviewTab({
           <div className="text-xs">
             {subscription.permittedBranchIds && subscription.permittedBranchIds.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
-                {subscription.permittedBranchIds.map((bId) => (
-                  <span
-                    key={bId}
-                    className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md font-medium"
-                  >
-                    {getBranchName(bId)}
-                  </span>
-                ))}
+                {subscription.permittedBranchIds.map((b, idx) => {
+                  const rawBranch = b as unknown;
+                  const bObj = typeof rawBranch === "object" && rawBranch !== null
+                    ? (rawBranch as { _id?: string; id?: string; name?: string })
+                    : undefined;
+                  const branchId = bObj ? (bObj._id || bObj.id || "") : typeof b === "string" ? b : "";
+                  const label = bObj?.name || (branchId ? getBranchName(branchId) : `Branch ${idx + 1}`);
+
+                  return (
+                    <span
+                      key={branchId || idx}
+                      className="text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-md font-medium"
+                    >
+                      {label}
+                    </span>
+                  );
+                })}
               </div>
             ) : (
               <span className="text-muted-foreground font-medium flex items-center gap-1.5">

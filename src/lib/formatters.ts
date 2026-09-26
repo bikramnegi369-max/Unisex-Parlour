@@ -129,3 +129,15 @@ export function capitalizeWords(str: string): string {
     .join(" ");
 }
 
+/**
+ * Masks a phone number showing only the last 2 digits, formatted per project convention (e.g. "••••••42").
+ */
+export function maskPhoneNumber(phone?: string | null): string {
+  if (!phone) return "••••••";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 2) return "••••••";
+  const last2 = digits.slice(-2);
+  return `••••••${last2}`;
+}
+
+

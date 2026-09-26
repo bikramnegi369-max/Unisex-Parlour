@@ -39,6 +39,9 @@ export interface AppointmentServiceSnapshot {
   duration: number; // in minutes
   price: number;
   category?: string;
+  appliedSubscriptionId?: string | null;
+  isRedeemedViaSubscription?: boolean;
+  subscriptionUsageId?: string | null;
 }
 
 export interface AppointmentPricing {
@@ -120,6 +123,7 @@ export interface Appointment {
 export interface CreateAppointmentServiceItem {
   serviceId: string;
   customPrice?: number;
+  appliedSubscriptionId?: string | null;
 }
 
 export interface CreateAppointmentPayload {
@@ -202,4 +206,24 @@ export interface AppointmentMutateResponse {
   status: string;
   message: string;
   data: Appointment;
+}
+
+export interface RequestConsumptionOtpPayload {
+  branchId: string;
+}
+
+export interface RequestConsumptionOtpData {
+  expiresIn: number;
+  resendAfter: number;
+}
+
+export interface RequestConsumptionOtpResponse {
+  success: boolean;
+  message: string;
+  data: RequestConsumptionOtpData;
+}
+
+export interface CompleteWithSubscriptionPayload {
+  branchId: string;
+  otp: string;
 }

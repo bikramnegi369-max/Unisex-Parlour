@@ -7,6 +7,8 @@ import {
   updateAppointmentStatus,
   deleteAppointment,
   triggerAppointmentReminder,
+  requestConsumptionOtp,
+  completeWithSubscription,
 } from "../api/appointments.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { getScopeQueryKey } from "@/lib/api/queryKeys";
@@ -17,6 +19,8 @@ import type {
   AssignStaffPayload,
   UpdateAppointmentStatusPayload,
   TriggerReminderPayload,
+  RequestConsumptionOtpPayload,
+  CompleteWithSubscriptionPayload,
 } from "../types/appointment.types";
 
 export function useCreateAppointment() {
@@ -133,3 +137,58 @@ export function useTriggerAppointmentReminder() {
     },
   });
 }
+
+export function useRequestConsumptionOtp() {
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: RequestConsumptionOtpPayload }) =>
+      requestConsumptionOtp(id, payload),
+  });
+}
+
+export function useCompleteWithSubscription() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: CompleteWithSubscriptionPayload }) =>
+      completeWithSubscription(id, payload),
+    onSuccess: (data) => {
+      // Invalidate appointment queries
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+      queryClient.invalidateQueries({
+        queryKey: getBranchQueryKey("appointment", [data.id]),
+      });
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("appointments", null) });
+      queryClient.invalidateQueries({
+        queryKey: getScopeQueryKey("appointment", null, [data.id]),
+      });
+
+      // Targeted subscription queries invalidation for affected customer entitlements
+      if (data.customerId) {
+        queryClient.invalidateQueries({
+          queryKey: ["subscriptions", "customer", data.customerId],
+        });
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["subscriptions", "list"],
+      });
+
+      // If any service had appliedSubscriptionId, invalidate its detail & usage
+      const subIds = new Set<string>();
+      (data.services || []).forEach((srv) => {
+        if (srv.appliedSubscriptionId) {
+          subIds.add(srv.appliedSubscriptionId);
+        }
+      });
+      subIds.forEach((subId) => {
+        queryClient.invalidateQueries({
+          queryKey: ["subscriptions", "detail", subId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["subscriptions", "usage", subId],
+        });
+      });
+    },
+  });
+}
+

@@ -24,6 +24,8 @@ import { RescheduleAppointmentDialog } from "@/features/appointments/components/
 import { AssignStaffDialog } from "@/features/appointments/components/AssignStaffDialog";
 import { AppointmentStatusDialog } from "@/features/appointments/components/AppointmentStatusDialog";
 import { DeleteAppointmentDialog } from "@/features/appointments/components/DeleteAppointmentDialog";
+import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
+import { requiresSubscriptionVerification } from "@/features/appointments/utils/appointmentSubscription";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { SyncButton } from "@/components/ui/sync-button";
 import { Button } from "@/components/ui/button";
@@ -92,6 +94,8 @@ export default function AppointmentsPage() {
   const [isAssignStaffOpen, setIsAssignStaffOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isSubscriptionVerificationOpen, setIsSubscriptionVerificationOpen] =
+    useState(false);
 
   const { currentBranchId } = useBranchContext();
 
@@ -292,6 +296,32 @@ export default function AppointmentsPage() {
   const handleOpenDelete = (appt: Appointment) => {
     setSelectedAppointment(appt);
     setIsDeleteOpen(true);
+  };
+
+  const handleCompleteAppointment = async (appt: Appointment) => {
+    if (requiresSubscriptionVerification(appt)) {
+      setSelectedAppointment(appt);
+      setIsDetailsOpen(false);
+      setIsStatusOpen(false);
+      setIsSubscriptionVerificationOpen(true);
+    } else {
+      try {
+        await updateStatusMutation.mutateAsync({
+          id: appt.id,
+          payload: {
+            branchId: appt.branchId,
+            status: "completed",
+          },
+        });
+        toast.success("Appointment completed successfully.");
+        setIsDetailsOpen(false);
+      } catch (err: unknown) {
+        const axiosError = err as { response?: { data?: { message?: string } } };
+        toast.error(
+          axiosError.response?.data?.message || "Failed to complete appointment."
+        );
+      }
+    }
   };
 
   return (
@@ -708,6 +738,9 @@ export default function AppointmentsPage() {
           setIsDetailsOpen(false);
           setIsDeleteOpen(true);
         }}
+        onCompleteAppointment={(appt) => {
+          handleCompleteAppointment(appt);
+        }}
         canEdit={canEdit}
         canStatus={canStatus}
         canDelete={canDelete}
@@ -740,7 +773,22 @@ export default function AppointmentsPage() {
         onSubmit={async (id, payload) => {
           await updateStatusMutation.mutateAsync({ id, payload });
         }}
+        onRequireSubscriptionVerification={(appt) => {
+          setSelectedAppointment(appt);
+          setIsStatusOpen(false);
+          setIsSubscriptionVerificationOpen(true);
+        }}
         isLoading={updateStatusMutation.isPending}
+      />
+
+      <SubscriptionVerificationModal
+        appointment={selectedAppointment}
+        isOpen={isSubscriptionVerificationOpen}
+        onClose={() => setIsSubscriptionVerificationOpen(false)}
+        onSuccess={() => {
+          setIsSubscriptionVerificationOpen(false);
+          refetch();
+        }}
       />
 
       <DeleteAppointmentDialog

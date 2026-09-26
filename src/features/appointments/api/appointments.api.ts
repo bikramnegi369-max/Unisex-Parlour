@@ -18,6 +18,9 @@ import type {
   CustomerSummary,
   StaffSummary,
   BranchSummary,
+  RequestConsumptionOtpPayload,
+  RequestConsumptionOtpResponse,
+  CompleteWithSubscriptionPayload,
 } from "../types/appointment.types";
 
 // ---------------------------------------------------------------------------
@@ -99,6 +102,15 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
     duration: (s.duration as number) || 0,
     price: (s.price as number) || 0,
     category: s.category as string | undefined,
+    appliedSubscriptionId:
+      (s.appliedSubscriptionId as string) ||
+      (toFlatId(s.appliedSubscriptionId) ? toFlatId(s.appliedSubscriptionId) : null) ||
+      null,
+    isRedeemedViaSubscription: Boolean(s.isRedeemedViaSubscription),
+    subscriptionUsageId:
+      (s.subscriptionUsageId as string) ||
+      (toFlatId(s.subscriptionUsageId) ? toFlatId(s.subscriptionUsageId) : null) ||
+      null,
   }));
 
   // 7. Cancellation normalization (object → flat reason + structured object)
@@ -276,3 +288,38 @@ export const triggerAppointmentReminder = async (
   );
   return normalizeAppointment(data.data);
 };
+
+export const requestConsumptionOtp = async (
+  id: string,
+  payload: RequestConsumptionOtpPayload
+): Promise<RequestConsumptionOtpResponse> => {
+  if (!payload.branchId || payload.branchId === "all") {
+    throw new Error("Authoritative branch ID is required to request consumption OTP.");
+  }
+  const { data } = await apiClient.post<RequestConsumptionOtpResponse>(
+    `/appointments/${id}/request-consumption-otp`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+  return data;
+};
+
+export const completeWithSubscription = async (
+  id: string,
+  payload: CompleteWithSubscriptionPayload
+): Promise<Appointment> => {
+  if (!payload.branchId || payload.branchId === "all") {
+    throw new Error("Authoritative branch ID is required to complete appointment with subscription.");
+  }
+  const { data } = await apiClient.post<{ success: boolean; data: Record<string, unknown> }>(
+    `/appointments/${id}/complete-with-subscription`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+  return normalizeAppointment(data.data);
+};
+

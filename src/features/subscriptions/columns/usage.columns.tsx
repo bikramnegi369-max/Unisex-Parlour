@@ -22,11 +22,24 @@ export const getSubscriptionUsageColumns = ({
   {
     accessorKey: "serviceName",
     header: "Service",
-    cell: ({ row }) => (
-      <span className="text-xs font-semibold text-foreground">
-        {row.original.serviceName || row.original.serviceId}
-      </span>
-    ),
+    cell: ({ row }) => {
+      const u = row.original;
+      const rawService = u.serviceName || (u.serviceId as unknown);
+      let displayName = "Service";
+      if (typeof rawService === "string") {
+        displayName = rawService;
+      } else if (typeof rawService === "object" && rawService !== null) {
+        displayName =
+          (rawService as { name?: string; _id?: string }).name ||
+          (rawService as { name?: string; _id?: string })._id ||
+          "Service";
+      }
+      return (
+        <span className="text-xs font-semibold text-foreground">
+          {displayName}
+        </span>
+      );
+    },
   },
   {
     accessorKey: "quantity",
@@ -42,9 +55,21 @@ export const getSubscriptionUsageColumns = ({
     header: "Branch",
     cell: ({ row }) => {
       const u = row.original;
+      const rawBranch = (u.branchId as unknown);
+      let branchIdStr = "";
+      let directName: string | undefined = u.branchName;
+
+      if (typeof rawBranch === "string") {
+        branchIdStr = rawBranch;
+      } else if (typeof rawBranch === "object" && rawBranch !== null) {
+        const bObj = rawBranch as { _id?: string; id?: string; name?: string };
+        branchIdStr = bObj._id || bObj.id || "";
+        directName = directName || bObj.name;
+      }
+
       return (
         <span className="text-xs text-muted-foreground">
-          {u.branchName || getBranchName(u.branchId)}
+          {directName || getBranchName(branchIdStr)}
         </span>
       );
     },
@@ -53,11 +78,24 @@ export const getSubscriptionUsageColumns = ({
     accessorKey: "appointmentId",
     header: "Appointment",
     cell: ({ row }) => {
-      const aptId = row.original.appointmentId;
-      if (!aptId) return <span className="text-xs text-muted-foreground">-</span>;
+      const apt = row.original.appointmentId as unknown;
+      if (!apt) return <span className="text-xs text-muted-foreground">-</span>;
+      let displayApt = "-";
+      if (typeof apt === "string") {
+        displayApt = apt;
+      } else if (typeof apt === "object" && apt !== null) {
+        displayApt =
+          (apt as { appointmentCode?: string; _id?: string; id?: string })
+            .appointmentCode ||
+          (apt as { appointmentCode?: string; _id?: string; id?: string })
+            ._id ||
+          (apt as { appointmentCode?: string; _id?: string; id?: string })
+            .id ||
+          "-";
+      }
       return (
         <span className="text-xs font-mono text-muted-foreground">
-          {aptId}
+          {displayApt}
         </span>
       );
     },
@@ -66,8 +104,13 @@ export const getSubscriptionUsageColumns = ({
     accessorKey: "redeemedBy",
     header: "Redeemed By",
     cell: ({ row }) => {
-      const by = row.original.redeemedBy;
-      const label = typeof by === "object" && by !== null ? by.name : by || "Staff";
+      const by = row.original.redeemedBy as unknown;
+      let label = "Staff";
+      if (typeof by === "string") {
+        label = by;
+      } else if (typeof by === "object" && by !== null) {
+        label = (by as { name?: string; _id?: string }).name || "Staff";
+      }
       return <span className="text-xs text-muted-foreground">{label}</span>;
     },
   },

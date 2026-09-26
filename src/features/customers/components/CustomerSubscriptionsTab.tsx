@@ -46,7 +46,7 @@ export function CustomerSubscriptionsTab({
     limit: 50,
   });
 
-  const { data: servicesData } = useServices({ limit: 100 });
+  const { data: servicesData } = useServices({ limit: "all" });
   const services: Service[] = servicesData?.data || [];
 
   const createMutation = useCreateSubscription();

@@ -7,9 +7,18 @@ interface DialogProps {
   onClose: () => void;
   children: React.ReactNode;
   title?: string;
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  className?: string;
 }
 
-export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
+export function Dialog({
+  isOpen,
+  onClose,
+  children,
+  title,
+  maxWidth = "lg",
+  className = "",
+}: DialogProps) {
   const mounted = React.useSyncExternalStore(
     () => () => {},
     () => true,
@@ -104,7 +113,21 @@ export function Dialog({ isOpen, onClose, children, title }: DialogProps) {
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
         tabIndex={-1}
-        className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-popover text-popover-foreground p-6 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 outline-none"
+        className={`relative w-full ${
+          maxWidth === "sm"
+            ? "max-w-sm"
+            : maxWidth === "md"
+            ? "max-w-md"
+            : maxWidth === "xl"
+            ? "max-w-xl"
+            : maxWidth === "2xl"
+            ? "max-w-2xl"
+            : maxWidth === "3xl"
+            ? "max-w-3xl"
+            : maxWidth === "4xl"
+            ? "max-w-4xl"
+            : "max-w-lg"
+        } max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-popover text-popover-foreground p-6 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 outline-none ${className}`}
       >
         <button
           onClick={onClose}

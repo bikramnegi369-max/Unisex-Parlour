@@ -20,7 +20,6 @@ describe("ServiceForm Pre-filling", () => {
       isActive: true,
       displayOrder: 0,
       organizationId: "6a674eeb35f4849a26cab307",
-      branchId: "6a674eeb35f4849a26cab309",
       createdAt: "",
       updatedAt: "",
     },

@@ -73,7 +73,7 @@ export default function ServicesList() {
 
   // Queries (Simple query for categories lookup list, and main services query)
   const categoriesQuery = useServiceCategories({
-    limit: 100,
+    limit: "all",
   });
   const servicesQuery = useServices({
     search: searchVal || undefined,

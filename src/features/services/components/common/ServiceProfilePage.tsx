@@ -62,7 +62,7 @@ export default function ServiceProfilePage({
     refetch,
     isRefetching,
   } = useService(serviceId);
-  const categoriesQuery = useServiceCategories({ limit: 100 });
+  const categoriesQuery = useServiceCategories({ limit: "all" });
 
   // Mutations
   const updateMutation = useUpdateService();

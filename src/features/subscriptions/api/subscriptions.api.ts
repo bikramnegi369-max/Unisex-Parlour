@@ -69,7 +69,14 @@ export const mapSubscriptionKeys = (s: RawSubscriptionDTO): Subscription => {
     id: s._id || s.id || "",
     customerId,
     customer,
-    permittedBranchIds: s.permittedBranchIds || [],
+    permittedBranchIds: (s.permittedBranchIds || []).map((b) => {
+      if (typeof b === "string") return b;
+      if (typeof b === "object" && b !== null) {
+        const bObj = b as { _id?: string; id?: string };
+        return bObj._id || bObj.id || "";
+      }
+      return "";
+    }).filter(Boolean),
     entitlements: (s.entitlements || []).map((e) => {
       const rawSrv = e.serviceId as unknown;
       const isPopulated = typeof rawSrv === "object" && rawSrv !== null;
@@ -96,10 +103,50 @@ export const mapSubscriptionKeys = (s: RawSubscriptionDTO): Subscription => {
   };
 };
 
-export const mapUsageKeys = (u: RawUsageDTO): SubscriptionUsageRecord => ({
-  ...(u as SubscriptionUsageRecord),
-  id: u._id || u.id || "",
-});
+export const mapUsageKeys = (u: RawUsageDTO): SubscriptionUsageRecord => {
+  const rawService = u.serviceId as unknown;
+  const isPopulatedService = typeof rawService === "object" && rawService !== null;
+  const serviceObj = isPopulatedService
+    ? (rawService as { _id?: string; id?: string; name?: string })
+    : undefined;
+
+  const serviceId = serviceObj
+    ? serviceObj._id || serviceObj.id || ""
+    : typeof u.serviceId === "string"
+    ? u.serviceId
+    : "";
+
+  const serviceName =
+    typeof u.serviceName === "string" && u.serviceName
+      ? u.serviceName
+      : serviceObj?.name || "";
+
+  const rawBranch = u.branchId as unknown;
+  const isPopulatedBranch = typeof rawBranch === "object" && rawBranch !== null;
+  const branchObj = isPopulatedBranch
+    ? (rawBranch as { _id?: string; id?: string; name?: string })
+    : undefined;
+
+  const branchId = branchObj
+    ? branchObj._id || branchObj.id || ""
+    : typeof u.branchId === "string"
+    ? u.branchId
+    : "";
+
+  const branchName =
+    typeof u.branchName === "string" && u.branchName
+      ? u.branchName
+      : branchObj?.name;
+
+  return {
+    ...(u as SubscriptionUsageRecord),
+    id: u._id || u.id || "",
+    serviceId,
+    serviceName,
+    branchId,
+    branchName,
+  };
+};
 
 /**
  * Organization-scoped list of subscriptions.

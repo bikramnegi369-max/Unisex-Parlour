@@ -23,7 +23,11 @@ import ReactivateDialog from "@/components/entity/ReactivateDialog";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
+import type {
+  ServiceCategory,
+  ServiceCategoryCreatePayload,
+  ServiceCategoryUpdatePayload,
+} from "../../types/category.types";
 import { getErrorMessage } from "@/lib/api/errors";
 import { capitalizeWords } from "@/lib/formatters";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -147,7 +151,7 @@ export default function ServiceCategoriesList() {
   );
 
   // Service Category CRUD Handlers
-  const handleCategoryCreateSubmit = (values: ServiceCategoryPayload) => {
+  const handleCategoryCreateSubmit = (values: ServiceCategoryCreatePayload) => {
     createCategoryMutation.mutate(values, {
       onSuccess: () => {
         setIsCategoryCreateOpen(false);
@@ -159,7 +163,7 @@ export default function ServiceCategoriesList() {
     });
   };
 
-  const handleCategoryEditSubmit = (values: ServiceCategoryPayload) => {
+  const handleCategoryEditSubmit = (values: ServiceCategoryUpdatePayload) => {
     if (!activeCategory) return;
     updateCategoryMutation.mutate(
       { id: activeCategory.id, payload: values },

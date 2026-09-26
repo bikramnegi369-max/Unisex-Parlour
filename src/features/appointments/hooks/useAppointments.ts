@@ -11,4 +11,6 @@ export {
   useUpdateAppointmentStatus,
   useDeleteAppointment,
   useTriggerAppointmentReminder,
+  useRequestConsumptionOtp,
+  useCompleteWithSubscription,
 } from "./useAppointmentMutations";

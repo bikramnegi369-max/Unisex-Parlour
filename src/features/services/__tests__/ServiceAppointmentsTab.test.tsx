@@ -115,7 +115,7 @@ const mockAppointments: Appointment[] = [
 ];
 
 let mockIsLoading = false;
-let customMockResponse: { data: typeof mockAppointments; meta?: any } | null = null;
+let customMockResponse: { data: typeof mockAppointments; meta?: unknown } | null = null;
 
 vi.mock("@/features/appointments/hooks/useAppointments", () => ({
   useAppointments: (params?: { serviceId?: string; search?: string; status?: string }) => {

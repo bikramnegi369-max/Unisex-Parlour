@@ -42,7 +42,7 @@ export function PlanFormDialog({
   const [serviceError, setServiceError] = useState<string | null>(null);
 
   const { data: servicesData, isLoading: isLoadingServices } = useServices({
-    limit: 100,
+    limit: "all",
   });
   const allServices: Service[] = servicesData?.data || [];
   const activeServices = allServices.filter((s) => s.isActive);

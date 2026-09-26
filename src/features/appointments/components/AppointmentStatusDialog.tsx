@@ -12,6 +12,8 @@ import {
   type UpdateStatusSchemaType,
 } from "../schemas/appointment.schema";
 import { toast } from "sonner";
+import { requiresSubscriptionVerification } from "../utils/appointmentSubscription";
+import { ShieldCheck } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
 
 interface AppointmentStatusDialogProps {
@@ -19,6 +21,7 @@ interface AppointmentStatusDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (id: string, payload: UpdateStatusSchemaType) => Promise<void>;
+  onRequireSubscriptionVerification?: (appointment: Appointment) => void;
   isLoading: boolean;
 }
 
@@ -27,6 +30,7 @@ export function AppointmentStatusDialog({
   isOpen,
   onClose,
   onSubmit,
+  onRequireSubscriptionVerification,
   isLoading,
 }: AppointmentStatusDialogProps) {
   const {
@@ -60,6 +64,18 @@ export function AppointmentStatusDialog({
 
   const handleFormSubmit = async (data: UpdateStatusSchemaType) => {
     if (!appointment) return;
+
+    // Check if transitioning to completed requires subscription OTP verification
+    if (
+      data.status === "completed" &&
+      requiresSubscriptionVerification(appointment) &&
+      onRequireSubscriptionVerification
+    ) {
+      onClose();
+      onRequireSubscriptionVerification(appointment);
+      return;
+    }
+
     try {
       await onSubmit(appointment.id, data);
       toast.success("Appointment status updated successfully.");
@@ -125,6 +141,17 @@ export function AppointmentStatusDialog({
                 This appointment is in a terminal state ({appointment.status})
                 and cannot transition status further.
               </p>
+            )}
+            {selectedStatus === "completed" && requiresSubscriptionVerification(appointment) && (
+              <div className="flex items-start gap-2 p-2 bg-primary/10 border border-primary/20 rounded-md text-xs text-foreground">
+                <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-primary">Customer verification required</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    This appointment includes prepaid subscription services. Clicking update will open customer OTP verification.
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 

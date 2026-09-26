@@ -3,7 +3,7 @@ export interface ServiceFilters {
   status?: string;
   categoryId?: string;
   page?: number;
-  limit?: number;
+  limit?: number | "all";
   sort?: string;
   order?: "asc" | "desc";
 }
@@ -12,5 +12,5 @@ export interface ServiceCategoryFilters {
   search?: string;
   status?: string;
   page?: number;
-  limit?: number;
+  limit?: number | "all";
 }

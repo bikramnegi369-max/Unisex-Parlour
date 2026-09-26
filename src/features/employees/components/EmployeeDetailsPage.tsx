@@ -84,7 +84,7 @@ export default function EmployeeDetailsPage({
   const { branches: allBranches, isLoading: isLoadingAllBranches } =
     useBranches();
   const { data: allServicesData, isLoading: isLoadingAllServices } =
-    useServices({ limit: 100 });
+    useServices({ limit: "all" });
   const allServices = useMemo(
     () => allServicesData?.data || [],
     [allServicesData],

@@ -50,7 +50,7 @@ export function CreateSubscriptionDialog({
 
   // Fetch organization-global services
   const { data: servicesData, isLoading: isLoadingServices } = useServices({
-    limit: 100,
+    limit: "all",
   });
   const allServices: Service[] = servicesData?.data || [];
   const activeServices = allServices.filter((s) => s.isActive);

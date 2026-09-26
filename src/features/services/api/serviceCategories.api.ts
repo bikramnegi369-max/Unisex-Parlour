@@ -1,6 +1,10 @@
 import { apiClient } from "@/lib/api/axios";
 import type { ApiResponse, PaginatedResponse } from "@/types/api.types";
-import type { ServiceCategory, ServiceCategoryPayload } from "../types/category.types";
+import type {
+  ServiceCategory,
+  ServiceCategoryCreatePayload,
+  ServiceCategoryUpdatePayload,
+} from "../types/category.types";
 import type { ServiceCategoryFilters } from "../types/filters.types";
 
 export interface RawServiceCategoryDTO extends Partial<ServiceCategory> {
@@ -38,14 +42,14 @@ export const getServiceCategory = async (id: string): Promise<ServiceCategory> =
   return mapIdKey(data.data);
 };
 
-export const createServiceCategory = async (payload: ServiceCategoryPayload): Promise<ServiceCategory> => {
+export const createServiceCategory = async (payload: ServiceCategoryCreatePayload): Promise<ServiceCategory> => {
   const { data } = await apiClient.post<ApiResponse<ServiceCategory>>("/services/categories", payload, {
     branchScope: "none",
   });
   return mapIdKey(data.data);
 };
 
-export const updateServiceCategory = async (id: string, payload: ServiceCategoryPayload): Promise<ServiceCategory> => {
+export const updateServiceCategory = async (id: string, payload: ServiceCategoryUpdatePayload): Promise<ServiceCategory> => {
   const { data } = await apiClient.put<ApiResponse<ServiceCategory>>(`/services/categories/${id}`, payload, {
     branchScope: "none",
   });
@@ -59,7 +63,7 @@ export const deleteServiceCategory = async (id: string): Promise<void> => {
 };
 
 export const reactivateServiceCategory = async (id: string): Promise<ServiceCategory> => {
-  const { data } = await apiClient.put<ApiResponse<ServiceCategory>>(`/services/categories/${id}/reactivate`, {}, {
+  const { data } = await apiClient.patch<ApiResponse<ServiceCategory>>(`/services/categories/${id}/reactivate`, {}, {
     branchScope: "none",
   });
   return mapIdKey(data.data);

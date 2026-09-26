@@ -2,11 +2,11 @@ import { useEntityMutation } from "@/lib/api/mutations";
 import { updateServiceCategory } from "../../api/serviceCategories.api";
 import { useQueryClient } from "@tanstack/react-query";
 import { getScopeQueryKey } from "@/lib/api/queryKeys";
-import type { ServiceCategory, ServiceCategoryPayload } from "../../types/category.types";
+import type { ServiceCategory, ServiceCategoryUpdatePayload } from "../../types/category.types";
 
 interface UpdateServiceCategoryParams {
   id: string;
-  payload: ServiceCategoryPayload;
+  payload: ServiceCategoryUpdatePayload;
 }
 
 export function useUpdateServiceCategory() {

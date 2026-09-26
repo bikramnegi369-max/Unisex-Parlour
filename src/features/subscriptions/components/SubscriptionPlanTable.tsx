@@ -3,6 +3,7 @@ import { formatCurrency } from "@/lib/formatters";
 import { Layers, Edit3, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useServices } from "@/features/services/hooks/services/useServices";
+import type { Service } from "@/features/services/types/service.types";
 import type { SubscriptionPlan } from "../types/plan.types";
 
 interface SubscriptionPlanTableProps {
@@ -22,7 +23,7 @@ export function SubscriptionPlanTable({
   onSelectForCustomer,
   canConfigure,
 }: SubscriptionPlanTableProps) {
-  const { data: servicesData } = useServices({ limit: 100 });
+  const { data: servicesData } = useServices({ limit: "all" });
   const services = servicesData?.data || [];
 
   if (isLoading) {
@@ -100,7 +101,7 @@ export function SubscriptionPlanTable({
 
                 <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                   {plan.entitlements?.map((ent, idx) => {
-                    const srv = services.find((s) => s.id === ent.serviceId);
+                    const srv = services.find((s: Service) => s.id === ent.serviceId);
                     return (
                       <div
                         key={idx}
