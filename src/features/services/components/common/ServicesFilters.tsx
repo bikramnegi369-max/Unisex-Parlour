@@ -76,15 +76,15 @@ export function ServicesFilters({
             <option value="">Sort by (Default)</option>
             <option value="name">Name (A-Z)</option>
             <option value="-name">Name (Z-A)</option>
-            <option value="basePrice">Price (Lowest)</option>
-            <option value="-basePrice">Price (Highest)</option>
-            <option value="duration">Duration (Shortest)</option>
-            <option value="-duration">Duration (Longest)</option>
+            <option value="-basePrice">Price (Lowest)</option>
+            <option value="basePrice">Price (Highest)</option>
+            <option value="-duration">Duration (Shortest)</option>
+            <option value="duration">Duration (Longest)</option>
           </Select>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 justify-between sm:justify-start">
+      <div className="flex items-center gap-3 justify-between sm:justify-start flex-wrap">
         {hasActiveFilters && (
           <Button
             variant="ghost"
