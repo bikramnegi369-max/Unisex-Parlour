@@ -58,13 +58,25 @@ export function CreateSubscriptionDialog({
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const sixMonthsLaterStr = format(addMonths(new Date(), 6), "yyyy-MM-dd");
 
+  // The backend may populate `serviceId` in plan entitlements as a full service
+  // object { _id, name, pricing, duration } instead of a plain string ID.
+  // This helper always returns a safe string ID.
+  const resolveServiceId = (raw: unknown, idx: number): string => {
+    if (typeof raw === "string" && raw.trim() !== "") return raw;
+    if (typeof raw === "object" && raw !== null) {
+      const obj = raw as { _id?: string; id?: string };
+      return obj._id || obj.id || `unknown-${idx}`;
+    }
+    return `unknown-${idx}`;
+  };
+
   const defaultPrice = initialPlan?.suggestedPrice ?? 0;
   const defaultEndDate = initialPlan?.validityMonths
     ? format(addMonths(new Date(), initialPlan.validityMonths), "yyyy-MM-dd")
     : sixMonthsLaterStr;
   const defaultEntitlements = initialPlan?.entitlements
-    ? initialPlan.entitlements.map((e) => ({
-        serviceId: e.serviceId,
+    ? initialPlan.entitlements.map((e, idx) => ({
+        serviceId: resolveServiceId(e.serviceId, idx),
         quantity: e.quantity,
       }))
     : [];
@@ -141,11 +153,12 @@ export function CreateSubscriptionDialog({
     const end = format(addMonths(new Date(), match.validityMonths || 6), "yyyy-MM-dd");
     setValue("endDate", end, { shouldValidate: true });
 
-    // Clear and append entitlements from template
+    // Clear and append entitlements from template, resolving any populated
+    // service objects back to their string IDs before storing in the form.
     setValue(
       "entitlements",
-      match.entitlements.map((e) => ({
-        serviceId: e.serviceId,
+      match.entitlements.map((e, idx) => ({
+        serviceId: resolveServiceId(e.serviceId, idx),
         quantity: e.quantity,
       })),
       { shouldValidate: true }
@@ -254,7 +267,8 @@ export function CreateSubscriptionDialog({
         </div>
 
         {/* Add Row Controls */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        {/* Grid: select takes remaining space, qty is fixed, button is icon-only */}
+        <div className="grid grid-cols-[1fr_5rem_auto] gap-2 w-full min-w-0">
           <select
             value={selectedServiceId}
             onChange={(e) => {
@@ -262,9 +276,9 @@ export function CreateSubscriptionDialog({
               setServiceAddError(null);
             }}
             disabled={isLoading || isLoadingServices}
-            className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            className="min-w-0 w-full h-9 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring truncate"
           >
-            <option value="">-- Choose Organization Service --</option>
+            <option value="">-- Choose a service --</option>
             {activeServices.map((service) => (
               <option
                 key={service.id}
@@ -276,18 +290,18 @@ export function CreateSubscriptionDialog({
             ))}
           </select>
 
-          <div className="w-24">
-            <Input
-              type="number"
-              min="1"
-              step="1"
-              value={selectedQuantity}
-              onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-              placeholder="Qty"
-              disabled={isLoading}
-              className="h-9 text-xs"
-            />
-          </div>
+          <Input
+            type="number"
+            min="1"
+            step="1"
+            value={selectedQuantity}
+            onChange={(e) =>
+              setSelectedQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))
+            }
+            placeholder="Qty"
+            disabled={isLoading}
+            className="h-9 text-xs w-full"
+          />
 
           <Button
             type="button"
@@ -295,10 +309,10 @@ export function CreateSubscriptionDialog({
             size="sm"
             onClick={handleAddServiceRow}
             disabled={isLoading || isLoadingServices}
-            className="h-9 text-xs gap-1 cursor-pointer shrink-0"
+            className="h-9 text-xs gap-1 cursor-pointer shrink-0 px-3"
           >
             <Plus className="h-3.5 w-3.5" />
-            Add
+            <span className="hidden sm:inline">Add</span>
           </Button>
         </div>
 
@@ -313,7 +327,10 @@ export function CreateSubscriptionDialog({
         {fields.length > 0 ? (
           <div className="space-y-1.5 mt-2">
             {fields.map((fieldItem, index) => {
-              const matchedService = allServices.find((s) => s.id === fieldItem.serviceId);
+              // fieldItem.serviceId should already be a plain string (resolved
+              // in resolveServiceId above), but guard here too for safety.
+              const safeServiceId = resolveServiceId(fieldItem.serviceId, index);
+              const matchedService = allServices.find((s) => s.id === safeServiceId);
               return (
                 <div
                   key={fieldItem.id}
@@ -321,7 +338,7 @@ export function CreateSubscriptionDialog({
                 >
                   <div className="flex items-center gap-2 truncate">
                     <span className="font-semibold text-foreground truncate">
-                      {matchedService?.name || fieldItem.serviceId}
+                      {matchedService?.name || safeServiceId}
                     </span>
                     {matchedService?.code && (
                       <span className="text-[10px] text-muted-foreground">

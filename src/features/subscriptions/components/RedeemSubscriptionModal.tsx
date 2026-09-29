@@ -31,6 +31,29 @@ export function RedeemSubscriptionModal({
   initialAppointmentId,
 }: RedeemSubscriptionModalProps) {
   // Step 1: select quantities for entitlements with remainingQuantity > 0
+  // NOTE: The backend may populate `serviceId` as a service object instead of a
+  // plain string ID. We defensively resolve the string ID and display name here.
+  type PopulatedService = { _id?: string; id?: string; name?: string };
+
+  const resolveEntitlement = (
+    ent: (typeof subscription.entitlements)[number],
+    idx: number,
+  ) => {
+    const raw = ent.serviceId as unknown;
+    const srvObj =
+      typeof raw === "object" && raw !== null
+        ? (raw as PopulatedService)
+        : undefined;
+    const resolvedId =
+      srvObj?._id ||
+      srvObj?.id ||
+      (typeof ent.serviceId === "string" ? ent.serviceId : "") ||
+      `ent-${idx}`;
+    const resolvedName =
+      ent.serviceName || srvObj?.name || `Service #${idx + 1}`;
+    return { resolvedId, resolvedName };
+  };
+
   const usableEntitlements = (subscription.entitlements || []).filter(
     (e) => e.remainingQuantity > 0,
   );
@@ -156,16 +179,17 @@ export function RedeemSubscriptionModal({
           </div>
         ) : (
           <div className="space-y-2 max-h-56 overflow-y-auto p-1 scrollbar-thin">
-            {usableEntitlements.map((ent) => {
-              const currentQty = quantities[ent.serviceId] || 0;
+            {usableEntitlements.map((ent, idx) => {
+              const { resolvedId, resolvedName } = resolveEntitlement(ent, idx);
+              const currentQty = quantities[resolvedId] || 0;
               return (
                 <div
-                  key={ent.serviceId}
+                  key={resolvedId}
                   className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-card text-xs"
                 >
                   <div className="flex flex-col min-w-0 pr-2">
                     <span className="font-semibold text-foreground truncate">
-                      {ent.serviceName || ent.serviceId}
+                      {resolvedName}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       Remaining:{" "}
@@ -186,7 +210,7 @@ export function RedeemSubscriptionModal({
                         aria-label="Decrease quantity"
                         onClick={() =>
                           handleQuantityChange(
-                            ent.serviceId,
+                            resolvedId,
                             currentQty - 1,
                             ent.remainingQuantity,
                           )
@@ -204,7 +228,7 @@ export function RedeemSubscriptionModal({
                         aria-label="Increase quantity"
                         onClick={() =>
                           handleQuantityChange(
-                            ent.serviceId,
+                            resolvedId,
                             currentQty + 1,
                             ent.remainingQuantity,
                           )
