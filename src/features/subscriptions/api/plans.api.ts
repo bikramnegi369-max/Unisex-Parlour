@@ -37,7 +37,7 @@ export const subscriptionPlansApi = {
     try {
       const response = await apiClient.get<SubscriptionPlanListResponse>("/subscription-plans", {
         params,
-        headers: { "x-branch-scope": "none" },
+        branchScope: "none",
       });
       return {
         ...response.data,
@@ -74,7 +74,7 @@ export const subscriptionPlansApi = {
   getPlanById: async (id: string): Promise<SubscriptionPlanDetailsResponse> => {
     try {
       const response = await apiClient.get<SubscriptionPlanDetailsResponse>(`/subscription-plans/${id}`, {
-        headers: { "x-branch-scope": "none" },
+        branchScope: "none",
       });
       const data = response.data.data;
       return {
@@ -98,7 +98,7 @@ export const subscriptionPlansApi = {
   createPlan: async (payload: CreateSubscriptionPlanPayload): Promise<SubscriptionPlanMutateResponse> => {
     try {
       const response = await apiClient.post<SubscriptionPlanMutateResponse>("/subscription-plans", payload, {
-        headers: { "x-branch-scope": "none" },
+        branchScope: "none",
       });
       const data = response.data.data;
       const normalized = {
@@ -142,7 +142,7 @@ export const subscriptionPlansApi = {
   updatePlan: async (id: string, payload: UpdateSubscriptionPlanPayload): Promise<SubscriptionPlanMutateResponse> => {
     try {
       const response = await apiClient.put<SubscriptionPlanMutateResponse>(`/subscription-plans/${id}`, payload, {
-        headers: { "x-branch-scope": "none" },
+        branchScope: "none",
       });
       const data = response.data.data;
       const normalized = {
@@ -179,7 +179,7 @@ export const subscriptionPlansApi = {
   deletePlan: async (id: string): Promise<ApiResponse<{ message?: string }>> => {
     try {
       const response = await apiClient.delete<ApiResponse<{ message?: string }>>(`/subscription-plans/${id}`, {
-        headers: { "x-branch-scope": "none" },
+        branchScope: "none",
       });
       const current = getLocalPlans();
       saveLocalPlans(current.filter((p: SubscriptionPlan) => p.id !== id));
