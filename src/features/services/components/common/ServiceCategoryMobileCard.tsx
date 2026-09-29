@@ -34,13 +34,15 @@ export function ServiceCategoryMobileCard({
           </div>
           <div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <h4 className="font-semibold text-foreground text-sm">{formattedName}</h4>
+              <h4 className="font-semibold text-foreground text-sm">
+                {formattedName}
+              </h4>
               <Badge variant={category.isActive ? "success" : "muted"}>
                 {category.isActive ? "Active" : "Inactive"}
               </Badge>
             </div>
             {category.description && (
-              <p className="text-xs text-muted-foreground mt-1 max-w-xs line-clamp-2">
+              <p className="text-xs text-muted-foreground mt-1 whitespace-normal wrap-break-word">
                 {category.description}
               </p>
             )}
@@ -93,7 +95,9 @@ export function ServiceCategoryMobileCard({
       <div className="text-xs space-y-1.5 pt-2.5 border-t border-border/50 text-muted-foreground">
         <div className="flex justify-between">
           <span>Display Order:</span>
-          <span className="font-semibold text-foreground">{category.displayOrder}</span>
+          <span className="font-semibold text-foreground">
+            {category.displayOrder}
+          </span>
         </div>
       </div>
     </div>

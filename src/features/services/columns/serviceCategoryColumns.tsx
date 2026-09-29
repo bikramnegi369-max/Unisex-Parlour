@@ -32,7 +32,7 @@ export const buildServiceCategoryColumns = ({
           <div>
             <p className="font-semibold text-foreground">{formattedName}</p>
             {category.description && (
-              <p className="text-xs text-muted-foreground truncate max-w-xs mt-0.5">
+              <p className="text-xs text-muted-foreground whitespace-normal break-words mt-0.5 max-w-md">
                 {category.description}
               </p>
             )}
