@@ -7,6 +7,7 @@ import { useEmployees, useMultipleStaffServices } from "@/features/employees/hoo
 import type { Employee } from "@/features/employees/types/employee.types";
 import { getEmployeeBranchNames } from "@/features/employees/utils/employeeBranchUtils";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import type { Branch } from "@/types/branch";
 import { EMPLOYEES_CONFIG } from "@/features/employees/config/employees.config";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -36,8 +37,10 @@ export function ServiceCertifiedStaffTab({ serviceId }: ServiceCertifiedStaffTab
   const { branches } = useBranches();
 
   const getBranchName = useMemo(() => {
-    const branchMap = new Map((branches || []).map((b) => [b.id, b.name]));
-    return (id: string) => branchMap.get(id) || id;
+    const branchMap = new Map<string, string>(
+      (branches || []).map((b: Branch) => [b.id, b.name])
+    );
+    return (id: string): string => branchMap.get(id) || id;
   }, [branches]);
 
   const employees: Employee[] = useMemo(
