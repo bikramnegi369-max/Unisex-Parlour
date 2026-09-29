@@ -287,9 +287,22 @@ export function PlanFormDialog({
         {fields.length > 0 ? (
           <div className="border border-border rounded-md divide-y divide-border overflow-hidden bg-background">
             {fields.map((field, idx) => {
-              const matchedService = allServices.find(
-                (s) => s.id === field.serviceId,
-              );
+              const rawSrv = field.serviceId as unknown;
+              const srvObj =
+                typeof rawSrv === "object" && rawSrv !== null
+                  ? (rawSrv as { _id?: string; id?: string; name?: string })
+                  : undefined;
+              const resolvedId =
+                srvObj?._id ||
+                srvObj?.id ||
+                (typeof field.serviceId === "string" ? field.serviceId : "");
+
+              const matchedService = allServices.find((s) => s.id === resolvedId);
+              const displayName =
+                matchedService?.name ||
+                srvObj?.name ||
+                (resolvedId ? `Service #${resolvedId.slice(-6)}` : `Service #${idx + 1}`);
+
               return (
                 <div
                   key={field.id}
@@ -301,8 +314,7 @@ export function PlanFormDialog({
                     </span>
                     <div>
                       <span className="font-semibold text-foreground">
-                        {matchedService?.name ||
-                          "Service #" + field.serviceId.slice(-6)}
+                        {displayName}
                       </span>
                       <span className="text-[10px] text-muted-foreground ml-2">
                         Catalog: ₹{matchedService?.pricing?.basePrice ?? 0}

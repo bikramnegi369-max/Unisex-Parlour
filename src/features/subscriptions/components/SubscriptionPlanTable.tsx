@@ -101,18 +101,40 @@ export function SubscriptionPlanTable({
 
                 <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
                   {plan.entitlements?.map((ent, idx) => {
-                    const srv = services.find((s: Service) => s.id === ent.serviceId);
+                    const rawSrv = ent.serviceId as unknown;
+                    const srvObj =
+                      typeof rawSrv === "object" && rawSrv !== null
+                        ? (rawSrv as {
+                            _id?: string;
+                            id?: string;
+                            name?: string;
+                          })
+                        : undefined;
+                    const resolvedId =
+                      srvObj?._id ||
+                      srvObj?.id ||
+                      (typeof ent.serviceId === "string" ? ent.serviceId : "");
+
+                    const srv = services.find(
+                      (s: Service) => s.id === resolvedId,
+                    );
+                    const displayName =
+                      srv?.name ||
+                      ent.serviceName ||
+                      srvObj?.name ||
+                      (resolvedId
+                        ? `Service #${resolvedId.slice(-4)}`
+                        : `Service #${idx + 1}`);
+
                     return (
                       <div
                         key={idx}
-                        className="flex items-center justify-between text-[11px] bg-muted/40 px-2 py-1 rounded border border-border/40"
+                        className="flex items-start justify-between gap-2 text-[11px] bg-muted/40 px-2 py-1.5 rounded border border-border/40"
                       >
-                        <span className="text-foreground font-medium truncate max-w-40">
-                          {srv?.name ||
-                            ent.serviceName ||
-                            "Service #" + ent.serviceId.slice(-4)}
+                        <span className="text-foreground font-medium wrap-break-word leading-tight flex-1">
+                          {displayName}
                         </span>
-                        <span className="font-mono font-semibold text-muted-foreground">
+                        <span className="font-mono font-semibold text-muted-foreground shrink-0 self-center">
                           × {ent.quantity}
                         </span>
                       </div>
