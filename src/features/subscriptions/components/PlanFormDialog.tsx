@@ -47,6 +47,15 @@ export function PlanFormDialog({
   const allServices: Service[] = servicesData?.data || [];
   const activeServices = allServices.filter((s) => s.isActive);
 
+  const resolveInitialServiceId = (serviceId: unknown): string => {
+    if (typeof serviceId === "string") return serviceId;
+    if (serviceId && typeof serviceId === "object") {
+      const obj = serviceId as { _id?: string; id?: string };
+      return obj._id || obj.id || "";
+    }
+    return "";
+  };
+
   const {
     register,
     handleSubmit,
@@ -64,7 +73,7 @@ export function PlanFormDialog({
       validityMonths: initialPlan?.validityMonths || 6,
       entitlements:
         initialPlan?.entitlements?.map((e) => ({
-          serviceId: e.serviceId,
+          serviceId: resolveInitialServiceId(e.serviceId),
           quantity: e.quantity,
         })) || [],
       isActive: initialPlan?.isActive ?? true,
@@ -98,7 +107,7 @@ export function PlanFormDialog({
         validityMonths: initialPlan?.validityMonths || 6,
         entitlements:
           initialPlan?.entitlements?.map((e) => ({
-            serviceId: e.serviceId,
+            serviceId: resolveInitialServiceId(e.serviceId),
             quantity: e.quantity,
           })) || [],
         isActive: initialPlan?.isActive ?? true,

@@ -3,7 +3,14 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, CreditCard, Sparkles, HelpCircle, Layers, Users } from "lucide-react";
+import {
+  Plus,
+  CreditCard,
+  Sparkles,
+  HelpCircle,
+  Layers,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Pagination } from "@/components/ui/pagination";
@@ -48,10 +55,14 @@ export function SubscriptionList() {
   const { user } = useAuth();
   const { getBranchName } = useBranchContext();
 
-  const [activeTab, setActiveTab] = useState<"subscriptions" | "plans">("subscriptions");
+  const [activeTab, setActiveTab] = useState<"subscriptions" | "plans">(
+    "subscriptions",
+  );
 
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(SUBSCRIPTIONS_CONFIG.defaults.pageSize);
+  const [pageSize, setPageSize] = useState<number>(
+    SUBSCRIPTIONS_CONFIG.defaults.pageSize,
+  );
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
 
@@ -59,11 +70,13 @@ export function SubscriptionList() {
 
   // Modal states for customer subscriptions
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [activeSubscription, setActiveSubscription] = useState<Subscription | null>(null);
+  const [activeSubscription, setActiveSubscription] =
+    useState<Subscription | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
   const [isRedeemOpen, setIsRedeemOpen] = useState(false);
-  const [selectedPlanForCustomer, setSelectedPlanForCustomer] = useState<SubscriptionPlan | null>(null);
+  const [selectedPlanForCustomer, setSelectedPlanForCustomer] =
+    useState<SubscriptionPlan | null>(null);
 
   // Modal states for plans
   const [isPlanFormOpen, setIsPlanFormOpen] = useState(false);
@@ -72,8 +85,14 @@ export function SubscriptionList() {
   // Permissions
   const canView = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.view);
   const canSell = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.sell);
-  const canConfigure = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.configure);
-  const canRedeem = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.redeem);
+  const canConfigure = hasPermission(
+    user,
+    SUBSCRIPTIONS_CONFIG.permissions.configure,
+  );
+  const canRedeem = hasPermission(
+    user,
+    SUBSCRIPTIONS_CONFIG.permissions.redeem,
+  );
 
   const { data, isLoading, isError, refetch } = useSubscriptions({
     page,
@@ -107,7 +126,7 @@ export function SubscriptionList() {
     (sub: Subscription) => {
       router.push(SUBSCRIPTIONS_CONFIG.routes.subscriptions.detail(sub.id));
     },
-    [router]
+    [router],
   );
 
   const handleEdit = React.useCallback((sub: Subscription) => {
@@ -142,7 +161,8 @@ export function SubscriptionList() {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
       const msg =
-        ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+        ((responseObj?.data as Record<string, unknown> | null)
+          ?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to create subscription.";
       toast.error(msg);
@@ -163,7 +183,8 @@ export function SubscriptionList() {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
       const msg =
-        ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+        ((responseObj?.data as Record<string, unknown> | null)
+          ?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to update subscription.";
       toast.error(msg);
@@ -184,7 +205,8 @@ export function SubscriptionList() {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
       const msg =
-        ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+        ((responseObj?.data as Record<string, unknown> | null)
+          ?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to cancel subscription.";
       toast.error(msg);
@@ -213,14 +235,17 @@ export function SubscriptionList() {
       canConfigure,
       canRedeem,
       getBranchName,
-    ]
+    ],
   );
 
-  const handleCreatePlanSubmit = async (values: CreateSubscriptionPlanFormValues) => {
+  const handleCreatePlanSubmit = async (
+    values: CreateSubscriptionPlanFormValues,
+  ) => {
     try {
-      if (activePlan) {
+      const planId = activePlan?.id || (activePlan as unknown as { _id?: string })?._id;
+      if (activePlan && planId) {
         await updatePlanMutation.mutateAsync({
-          id: activePlan.id,
+          id: planId,
           payload: values,
         });
         toast.success("Subscription plan updated successfully.");
@@ -234,7 +259,8 @@ export function SubscriptionList() {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
       const msg =
-        ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+        ((responseObj?.data as Record<string, unknown> | null)
+          ?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to save subscription plan.";
       toast.error(msg);
@@ -242,17 +268,24 @@ export function SubscriptionList() {
   };
 
   const handleDeletePlan = async (plan: SubscriptionPlan) => {
-    if (!window.confirm(`Are you sure you want to delete the plan "${plan.name}"?`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the plan "${plan.name}"?`,
+      )
+    ) {
       return;
     }
     try {
-      await deletePlanMutation.mutateAsync(plan.id);
+      const planId = plan.id || (plan as unknown as { _id?: string })?._id;
+      if (!planId) throw new Error("Plan ID is missing");
+      await deletePlanMutation.mutateAsync(planId);
       toast.success(`Plan "${plan.name}" deleted.`);
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
       const msg =
-        ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+        ((responseObj?.data as Record<string, unknown> | null)
+          ?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to delete plan.";
       toast.error(msg);
@@ -458,7 +491,9 @@ export function SubscriptionList() {
         <div className="space-y-4">
           <div className="flex items-center justify-between text-xs text-muted-foreground pb-1">
             <span>
-              Pre-defined subscription packages with session quotas and default pricing. Staff can select these templates to quickly sell to customers with negotiated pricing.
+              Pre-defined subscription packages with session quotas and default
+              pricing. Staff can select these templates to quickly sell to
+              customers with negotiated pricing.
             </span>
           </div>
 
@@ -498,7 +533,9 @@ export function SubscriptionList() {
                 setIsPlanFormOpen(true);
               }}
               onDelete={handleDeletePlan}
-              onSelectForCustomer={canSell ? handleSelectPlanForCustomer : undefined}
+              onSelectForCustomer={
+                canSell ? handleSelectPlanForCustomer : undefined
+              }
               canConfigure={canConfigure}
             />
           )}
@@ -513,7 +550,11 @@ export function SubscriptionList() {
             setIsPlanFormOpen(false);
             setActivePlan(null);
           }}
-          title={activePlan ? "Edit Subscription Plan Template" : "New Subscription Plan Template"}
+          title={
+            activePlan
+              ? "Edit Subscription Plan Template"
+              : "New Subscription Plan Template"
+          }
         >
           <PlanFormDialog
             isOpen={isPlanFormOpen}
@@ -522,7 +563,9 @@ export function SubscriptionList() {
               setActivePlan(null);
             }}
             onSubmit={handleCreatePlanSubmit}
-            isLoading={createPlanMutation.isPending || updatePlanMutation.isPending}
+            isLoading={
+              createPlanMutation.isPending || updatePlanMutation.isPending
+            }
             initialPlan={activePlan}
           />
         </Dialog>
