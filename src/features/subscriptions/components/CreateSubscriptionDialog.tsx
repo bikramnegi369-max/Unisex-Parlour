@@ -41,7 +41,7 @@ export function CreateSubscriptionDialog({
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [serviceAddError, setServiceAddError] = useState<string | null>(null);
   const [selectedPlanTemplateId, setSelectedPlanTemplateId] = useState<string>(
-    initialPlan?.id || ""
+    initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || ""
   );
 
   // Fetch plan templates
@@ -70,6 +70,7 @@ export function CreateSubscriptionDialog({
     return `unknown-${idx}`;
   };
 
+  const initialPlanId = initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || "";
   const defaultPrice = initialPlan?.suggestedPrice ?? 0;
   const defaultEndDate = initialPlan?.validityMonths
     ? format(addMonths(new Date(), initialPlan.validityMonths), "yyyy-MM-dd")
@@ -93,6 +94,7 @@ export function CreateSubscriptionDialog({
     resolver: zodResolver(createSubscriptionSchema) as unknown as Resolver<CreateSubscriptionFormValues>,
     defaultValues: {
       customerId: initialCustomerId || "",
+      planId: initialPlanId || undefined,
       price: defaultPrice,
       entitlements: defaultEntitlements,
       permittedBranchIds: [],
@@ -142,9 +144,18 @@ export function CreateSubscriptionDialog({
 
   const handleApplyPlanTemplate = (planId: string) => {
     setSelectedPlanTemplateId(planId);
-    if (!planId) return;
-    const match = planTemplates.find((p: SubscriptionPlan) => p.id === planId);
+    if (!planId) {
+      setValue("planId", undefined, { shouldValidate: true });
+      return;
+    }
+    const match = planTemplates.find(
+      (p: SubscriptionPlan) =>
+        p.id === planId || (p as unknown as { _id?: string })._id === planId
+    );
     if (!match) return;
+
+    // Set planId in form state
+    setValue("planId", planId, { shouldValidate: true });
 
     // Autofill suggested price (can be modified)
     setValue("price", match.suggestedPrice, { shouldValidate: true });

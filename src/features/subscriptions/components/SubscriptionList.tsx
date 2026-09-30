@@ -148,6 +148,7 @@ export function SubscriptionList() {
     try {
       await createMutation.mutateAsync({
         customerId: values.customerId,
+        planId: values.planId,
         price: values.price,
         entitlements: values.entitlements,
         permittedBranchIds: values.permittedBranchIds,

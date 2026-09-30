@@ -11,6 +11,7 @@ export const entitlementItemSchema = z.object({
 export const createSubscriptionSchema = z
   .object({
     customerId: z.string().min(1, "Customer is required"),
+    planId: z.string().trim().optional(),
     price: z.coerce
       .number()
       .min(0, "Price must be greater than or equal to 0"),

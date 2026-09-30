@@ -17,10 +17,17 @@ export interface SubscriptionEntitlement {
   remainingQuantity: number;
 }
 
+export interface SubscriptionPlanSummary {
+  _id?: string;
+  id?: string;
+  name: string;
+}
+
 export interface Subscription {
   id: string;
   _id?: string;
   organizationId: string;
+  planId?: string | SubscriptionPlanSummary;
   customerId: string;
   customer?: SubscriptionCustomerSummary;
   subscriptionCode: string;
@@ -52,6 +59,7 @@ export interface SubscriptionUsageRecord {
 
 export interface CreateSubscriptionPayload {
   customerId: string;
+  planId?: string;
   price: number;
   entitlements: Array<{ serviceId: string; quantity: number }>;
   permittedBranchIds: string[];

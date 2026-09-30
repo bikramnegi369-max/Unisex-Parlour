@@ -68,6 +68,16 @@ export function SubscriptionOverviewTab({
               <span className="text-muted-foreground">Pricing Nature:</span>
               <span className="text-muted-foreground">Custom Customer-Agreed</span>
             </div>
+            {subscription.planId && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Plan Template:</span>
+                <span className="font-medium text-foreground">
+                  {typeof subscription.planId === "object"
+                    ? subscription.planId.name
+                    : "Linked Template"}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

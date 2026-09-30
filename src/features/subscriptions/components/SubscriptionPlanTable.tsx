@@ -72,7 +72,7 @@ export function SubscriptionPlanTable({
                     {plan.name}
                   </h3>
                   {plan.description && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground whitespace-pre-wrap mt-0.5">
                       {plan.description}
                     </p>
                   )}
