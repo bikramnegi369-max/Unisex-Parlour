@@ -54,10 +54,13 @@ import {
 } from "lucide-react";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
+import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
+import type { Leave } from "@/features/leaves/types/leaves.types";
 
 const EMPTY_SERVICES: Service[] = [];
 const EMPTY_EMPLOYEES: Employee[] = [];
 const EMPTY_APPOINTMENTS: Appointment[] = [];
+const EMPTY_LEAVES: Leave[] = [];
 
 // Pre-defined quick start time chips for high-velocity front desk booking
 const POPULAR_SLOTS = [
@@ -306,20 +309,68 @@ export function CreateAppointmentDialog({
     }, 0);
   }, [selectedServices, services]);
 
-  // Map of staffId -> availability info for the chosen slot & duration
+  // Fetch approved leaves on the selected date to evaluate staff availability
+  const appointmentDate = selectedDate || format(new Date(), "yyyy-MM-dd");
+  const { data: leavesData } = useLeaves({
+    startDate: appointmentDate,
+    endDate: appointmentDate,
+    status: "approved",
+  });
+
+  const dayLeaves: Leave[] = useMemo(() => {
+    return leavesData?.data || EMPTY_LEAVES;
+  }, [leavesData?.data]);
+
+  // Quick lookup map: staffId -> active leave on selected date
+  const staffLeaveMap = useMemo(() => {
+    const map = new Map<string, Leave>();
+    for (const leave of dayLeaves) {
+      if (leave.status === "approved" && leave.staffId) {
+        // Double-check date range inclusion: leave.startDate <= appointmentDate <= leave.endDate
+        const start = leave.startDate;
+        const end = leave.endDate || leave.startDate;
+        if (appointmentDate >= start && appointmentDate <= end) {
+          map.set(leave.staffId, leave);
+        }
+      }
+    }
+    return map;
+  }, [dayLeaves, appointmentDate]);
+
+  // Map of staffId -> availability info for the chosen slot, duration & leave status
   const staffAvailabilityMap = useMemo(() => {
     const map = new Map<
       string,
-      { isAvailable: boolean; conflictSlot?: string }
+      {
+        isAvailable: boolean;
+        isOnLeave: boolean;
+        leaveReason?: string;
+        conflictSlot?: string;
+      }
     >();
-    if (!selectedStartTime) return map;
-
-    const requestedStart = timeToMinutes(selectedStartTime);
-    const duration = requestedDuration > 0 ? requestedDuration : 30;
-    const requestedEnd = requestedStart + duration;
 
     for (const emp of employees) {
-      // Find any overlapping appointment for this employee
+      // 1. Check if employee is on approved leave today
+      const leave = staffLeaveMap.get(emp.id);
+      if (leave) {
+        map.set(emp.id, {
+          isAvailable: false,
+          isOnLeave: true,
+          leaveReason: leave.leaveType || leave.reason || "On Leave",
+        });
+        continue;
+      }
+
+      if (!selectedStartTime) {
+        map.set(emp.id, { isAvailable: true, isOnLeave: false });
+        continue;
+      }
+
+      const requestedStart = timeToMinutes(selectedStartTime);
+      const duration = requestedDuration > 0 ? requestedDuration : 30;
+      const requestedEnd = requestedStart + duration;
+
+      // 2. Check any overlapping appointment for this employee
       const conflict = dayAppointments.find((app) => {
         if (!app.staffId || app.staffId !== emp.id) return false;
         const appStart = timeToMinutes(app.startTime);
@@ -342,15 +393,22 @@ export function CreateAppointmentDialog({
           minutesToTime(timeToMinutes(appStart) + appDuration);
         map.set(emp.id, {
           isAvailable: false,
+          isOnLeave: false,
           conflictSlot: `${appStart} - ${appEnd}`,
         });
       } else {
-        map.set(emp.id, { isAvailable: true });
+        map.set(emp.id, { isAvailable: true, isOnLeave: false });
       }
     }
 
     return map;
-  }, [employees, dayAppointments, selectedStartTime, requestedDuration]);
+  }, [
+    employees,
+    staffLeaveMap,
+    dayAppointments,
+    selectedStartTime,
+    requestedDuration,
+  ]);
 
   // Filter services by category pill + search text + selected filter
   const filteredServices = useMemo<Service[]>(() => {
@@ -607,8 +665,19 @@ export function CreateAppointmentDialog({
       const endMin = startMin + selectedServicesSummary.totalDuration;
       if (endMin > 1440) {
         toast.error(
-          `Overnight appointments across calendar midnight are not supported. This booking starts at ${data.startTime} and takes ${selectedServicesSummary.totalDuration} mins (ends past midnight at ${minutesToTime(endMin)}). Please adjust the start time or split into multiple appointments.`
+          `Overnight appointments across calendar midnight are not supported. This booking starts at ${data.startTime} and takes ${selectedServicesSummary.totalDuration} mins (ends past midnight at ${minutesToTime(endMin)}). Please adjust the start time or split into multiple appointments.`,
         );
+        return;
+      }
+    }
+
+    // Validate that the selected staff is not on approved leave
+    if (data.staffId) {
+      const avail = staffAvailabilityMap.get(data.staffId);
+      if (avail?.isOnLeave) {
+        const msg = `Selected staff member is on approved leave (${avail.leaveReason || "On Leave"}). Please reassign to another staff member.`;
+        setConflictError(msg);
+        toast.error(msg);
         return;
       }
     }
@@ -636,7 +705,9 @@ export function CreateAppointmentDialog({
 
   // Measure available height inside the Summary Card so the services list fills the entire card down to the action buttons before scrolling
   const summaryCardRef = useRef<HTMLDivElement>(null);
-  const [servicesMaxHeight, setServicesMaxHeight] = useState<number | null>(null);
+  const [servicesMaxHeight, setServicesMaxHeight] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -650,11 +721,16 @@ export function CreateAppointmentDialog({
         // Find header and discount elements inside the card to compute exact remaining height
         const headerEl = cardEl.querySelector(".booking-summary-header");
         const discountEl = cardEl.querySelector(".booking-summary-discount");
-        const headerHeight = headerEl ? (headerEl as HTMLElement).offsetHeight : 60;
-        const discountHeight = discountEl ? (discountEl as HTMLElement).offsetHeight : 0;
+        const headerHeight = headerEl
+          ? (headerEl as HTMLElement).offsetHeight
+          : 60;
+        const discountHeight = discountEl
+          ? (discountEl as HTMLElement).offsetHeight
+          : 0;
         // Total internal padding (p-4 is 16px top + 16px bottom = 32px) + flex gap (gap-3 is 12px)
         const innerPaddingAndGaps = 32 + 16;
-        const exactAvailable = cardHeight - headerHeight - discountHeight - innerPaddingAndGaps;
+        const exactAvailable =
+          cardHeight - headerHeight - discountHeight - innerPaddingAndGaps;
         setServicesMaxHeight(Math.max(160, exactAvailable));
       }
     };
@@ -1343,26 +1419,32 @@ export function CreateAppointmentDialog({
                   className="h-8 text-xs bg-background"
                 />
                 {/* Calculated End Time & Midnight Spillage Warning */}
-                {selectedStartTime && selectedServicesSummary.totalDuration > 0 && (() => {
-                  const startMin = timeToMinutes(selectedStartTime);
-                  const endMin = startMin + selectedServicesSummary.totalDuration;
-                  const isPastMidnight = endMin > 1440;
-                  return isPastMidnight ? (
-                    <div className="flex items-center gap-1.5 p-2 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-[11px] font-medium leading-tight">
-                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                      <span>
-                        Ends at {minutesToTime(endMin)} (+1 day). Salons cannot book across midnight. Please pick an earlier time or fewer services.
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
-                      <span>Est. End Time:</span>
-                      <span className="font-semibold text-foreground">
-                        {minutesToTime(endMin)} ({selectedServicesSummary.totalDuration} mins)
-                      </span>
-                    </div>
-                  );
-                })()}
+                {selectedStartTime &&
+                  selectedServicesSummary.totalDuration > 0 &&
+                  (() => {
+                    const startMin = timeToMinutes(selectedStartTime);
+                    const endMin =
+                      startMin + selectedServicesSummary.totalDuration;
+                    const isPastMidnight = endMin > 1440;
+                    return isPastMidnight ? (
+                      <div className="flex items-center gap-1.5 p-2 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-[11px] font-medium leading-tight">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                        <span>
+                          Ends at {minutesToTime(endMin)} (+1 day). Salons
+                          cannot book across midnight. Please pick an earlier
+                          time or fewer services.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                        <span>Est. End Time:</span>
+                        <span className="font-semibold text-foreground">
+                          {minutesToTime(endMin)} (
+                          {selectedServicesSummary.totalDuration} mins)
+                        </span>
+                      </div>
+                    );
+                  })()}
                 {errors.startTime && (
                   <span className="text-[11px] text-destructive">
                     {errors.startTime.message}
@@ -1449,20 +1531,42 @@ export function CreateAppointmentDialog({
                   </option>
                   {qualifiedEmployees.map((e: Employee) => {
                     const avail = staffAvailabilityMap.get(e.id);
-                    const isBusy = avail ? !avail.isAvailable : false;
-                    const busyTag = isBusy
-                      ? ` [Busy: ${avail?.conflictSlot || "Conflict"}]`
-                      : "";
+                    const isOnLeave = avail?.isOnLeave;
+                    const isBusy = avail && !avail.isAvailable && !isOnLeave;
+
+                    let statusTag = "";
+                    if (isOnLeave) {
+                      statusTag = ` 🏖️ [On Leave: ${avail?.leaveReason || "Approved Leave"}]`;
+                    } else if (isBusy) {
+                      statusTag = ` ⏳ [Busy: ${avail?.conflictSlot || "Conflict"}]`;
+                    }
 
                     return (
-                      <option key={e.id} value={e.id}>
+                      <option
+                        key={e.id}
+                        value={e.id}
+                        disabled={isOnLeave}
+                        className={
+                          isOnLeave
+                            ? "text-muted-foreground bg-muted/40 italic"
+                            : ""
+                        }
+                      >
                         {e.name} {e.designation ? `(${e.designation})` : ""}
-                        {busyTag}
+                        {statusTag}
                       </option>
                     );
                   })}
                 </Select>
               )}
+              {selectedStaffId &&
+                staffAvailabilityMap.get(selectedStaffId)?.isOnLeave && (
+                  <p className="text-[11px] text-destructive flex items-center gap-1 font-medium mt-1">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    Selected staff member is on approved leave for this date.
+                    Please reassign to available staff.
+                  </p>
+                )}
             </div>
           </div>
 
@@ -1819,12 +1923,14 @@ export function CreateAppointmentDialog({
               </Button>
               {/* Midnight boundary spill validation flag */}
               {(() => {
-                const startMin = selectedStartTime ? timeToMinutes(selectedStartTime) : 0;
+                const startMin = selectedStartTime
+                  ? timeToMinutes(selectedStartTime)
+                  : 0;
                 const endMin = startMin + selectedServicesSummary.totalDuration;
                 const isOvernightSpill = Boolean(
                   selectedStartTime &&
                   selectedServicesSummary.totalDuration > 0 &&
-                  endMin > 1440
+                  endMin > 1440,
                 );
 
                 return (

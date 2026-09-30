@@ -108,7 +108,6 @@ export default function CustomerList() {
     setIsReactivateOpen(true);
   }, []);
 
-
   // Sync debounced search with URL
   useEffect(() => {
     const currentQuery = searchParams.get("search") || "";

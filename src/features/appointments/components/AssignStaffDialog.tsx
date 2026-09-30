@@ -21,6 +21,8 @@ import { toast } from "sonner";
 import { AlertTriangle, Clock, Play, Sparkles } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
 import type { Employee } from "@/features/employees/types/employee.types";
+import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
+import type { Leave } from "@/features/leaves/types/leaves.types";
 
 interface AssignStaffDialogProps {
   appointment: Appointment | null;
@@ -88,6 +90,29 @@ export function AssignStaffDialog({
       );
     });
   }, [employees, appointmentServiceIds, staffServicesMap]);
+
+  // Fetch approved leaves on the appointment date
+  const appointmentDate = appointment?.date;
+  const { data: leavesData } = useLeaves({
+    startDate: appointmentDate || undefined,
+    endDate: appointmentDate || undefined,
+    status: "approved",
+  });
+
+  const staffLeaveMap = useMemo(() => {
+    const map = new Map<string, Leave>();
+    if (!appointmentDate || !leavesData?.data) return map;
+    for (const leave of leavesData.data) {
+      if (leave.status === "approved" && leave.staffId) {
+        const start = leave.startDate;
+        const end = leave.endDate || leave.startDate;
+        if (appointmentDate >= start && appointmentDate <= end) {
+          map.set(leave.staffId, leave);
+        }
+      }
+    }
+    return map;
+  }, [leavesData, appointmentDate]);
   const { register, handleSubmit, setValue, control, reset } =
     useForm<AssignStaffSchemaType>({
       resolver: zodResolver(assignStaffSchema),
@@ -193,6 +218,17 @@ export function AssignStaffDialog({
   const handleFormSubmit = async (data: AssignStaffSchemaType) => {
     if (!appointment) return;
     setConflictError(null);
+
+    // Validate that assigned staff is not on approved leave on appointment date
+    if (data.staffId) {
+      const leave = staffLeaveMap.get(data.staffId);
+      if (leave) {
+        const msg = `Staff member is on approved leave (${leave.leaveType || leave.reason || "On Leave"}) on ${appointment.date}. Cannot assign to this appointment.`;
+        setConflictError(msg);
+        toast.error(msg);
+        return;
+      }
+    }
 
     try {
       // If user chose to start service immediately or scheduled time has elapsed with sync enabled,
@@ -393,12 +429,32 @@ export function AssignStaffDialog({
                     (Currently Assigned)
                   </option>
                 )}
-              {qualifiedEmployees.map((e: Employee) => (
-                <option key={e.id} value={e.id}>
-                  {e.name} {e.designation ? `(${e.designation})` : ""}
-                </option>
-              ))}
+              {qualifiedEmployees.map((e: Employee) => {
+                const leave = staffLeaveMap.get(e.id);
+                const isOnLeave = Boolean(leave);
+                const statusTag = isOnLeave
+                  ? ` 🏖️ [On Leave: ${leave?.leaveType || leave?.reason || "Approved Leave"}]`
+                  : "";
+
+                return (
+                  <option
+                    key={e.id}
+                    value={e.id}
+                    disabled={isOnLeave}
+                    className={isOnLeave ? "text-muted-foreground bg-muted/40 italic" : ""}
+                  >
+                    {e.name} {e.designation ? `(${e.designation})` : ""}
+                    {statusTag}
+                  </option>
+                );
+              })}
             </Select>
+            {selectedStaffId && staffLeaveMap.get(selectedStaffId) && (
+              <p className="text-[11px] text-destructive flex items-center gap-1 font-medium mt-1">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                Staff member is on approved leave for this date ({staffLeaveMap.get(selectedStaffId)?.leaveType || "Leave"}).
+              </p>
+            )}
             {appointmentServiceIds.length > 0 &&
               qualifiedEmployees.length === 0 && (
                 <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">

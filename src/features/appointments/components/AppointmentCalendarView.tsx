@@ -22,6 +22,10 @@ import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { formatCurrency } from "@/lib/formatters";
+import { toast } from "sonner";
+import { CalendarOff } from "lucide-react";
+import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
+import type { Leave } from "@/features/leaves/types/leaves.types";
 import type { Appointment } from "../types/appointment.types";
 
 interface AppointmentCalendarViewProps {
@@ -548,25 +552,60 @@ export function AppointmentCalendarView({
     return Array.from(laneMap.values());
   }, [currentViewAppointments, isAllBranches, currentBranchId]);
 
+  // Fetch approved leaves on the selected date for staff lanes
+  const { data: leavesData } = useLeaves({
+    startDate: selectedDateStr,
+    endDate: selectedDateStr,
+    status: "approved",
+  });
+
+  const staffLeaveMap = useMemo(() => {
+    const map = new Map<string, Leave>();
+    if (!leavesData?.data) return map;
+    for (const leave of leavesData.data) {
+      if (leave.status === "approved" && leave.staffId) {
+        const start = leave.startDate;
+        const end = leave.endDate || leave.startDate;
+        if (selectedDateStr >= start && selectedDateStr <= end) {
+          map.set(leave.staffId, leave);
+        }
+      }
+    }
+    return map;
+  }, [leavesData, selectedDateStr]);
+
   // Merge employee lanes with derived lanes (dedupe by id)
   const resourceLanes = useMemo(() => {
     const merged = new Map<
       string,
-      { id: string; name: string; designation?: string; branchName?: string }
+      {
+        id: string;
+        name: string;
+        designation?: string;
+        branchName?: string;
+        isOnLeave?: boolean;
+        leaveInfo?: Leave;
+      }
     >();
     for (const emp of employees) {
+      const leave = staffLeaveMap.get(emp.id);
       merged.set(emp.id, {
         id: emp.id,
         name: emp.name,
         designation: emp.designation,
+        isOnLeave: Boolean(leave),
+        leaveInfo: leave,
       });
     }
     for (const lane of derivedStaffLanes) {
       if (!merged.has(lane.id)) {
+        const leave = staffLeaveMap.get(lane.id);
         merged.set(lane.id, {
           id: lane.id,
           name: lane.name,
           branchName: lane.branchName,
+          isOnLeave: Boolean(leave),
+          leaveInfo: leave,
         });
       }
     }
@@ -576,10 +615,12 @@ export function AppointmentCalendarView({
         name: "Unassigned Staff",
         designation: "General Queue",
         branchName: undefined,
+        isOnLeave: false,
+        leaveInfo: undefined,
       },
       ...Array.from(merged.values()),
     ];
-  }, [employees, derivedStaffLanes]);
+  }, [employees, derivedStaffLanes, staffLeaveMap]);
 
   // Filter lanes by active staff filter
   const visibleLanes = useMemo(() => {
@@ -654,12 +695,18 @@ export function AppointmentCalendarView({
                 <option value="unassigned">Unassigned Only</option>
                 {resourceLanes
                   .filter((l) => l.id !== null)
-                  .map((l) => (
-                    <option key={l.id} value={l.id!}>
-                      {l.name}
-                      {l.branchName ? ` (${l.branchName})` : ""}
-                    </option>
-                  ))}
+                  .map((l) => {
+                    const statusTag = l.isOnLeave
+                      ? ` 🏖️ [On Leave: ${l.leaveInfo?.leaveType || l.leaveInfo?.reason || "Leave"}]`
+                      : "";
+                    return (
+                      <option key={l.id} value={l.id!}>
+                        {l.name}
+                        {l.branchName ? ` (${l.branchName})` : ""}
+                        {statusTag}
+                      </option>
+                    );
+                  })}
               </Select>
             </div>
           </div>
@@ -846,19 +893,41 @@ export function AppointmentCalendarView({
                       }`}
                     >
                       {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
-                      <div className="h-10 border-b border-border bg-muted/95 backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-20 shadow-xs">
+                      <div
+                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-20 shadow-xs ${
+                          lane.isOnLeave
+                            ? "bg-amber-500/15 dark:bg-amber-950/40 border-b-amber-500/30"
+                            : "bg-muted/95"
+                        }`}
+                      >
                         <div className="truncate">
-                          <span className="text-xs font-bold text-foreground block truncate">
-                            {lane.name}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-foreground block truncate">
+                              {lane.name}
+                            </span>
+                            {lane.isOnLeave && (
+                              <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/40 shrink-0">
+                                <CalendarOff className="h-2.5 w-2.5" />
+                                On Leave
+                              </span>
+                            )}
+                          </div>
                           <span className="text-[9px] text-muted-foreground block truncate">
-                            {lane.branchName
-                              ? `Branch: ${lane.branchName}`
-                              : lane.designation ||
-                                (lane.id === null ? "Queue" : "Staff")}
+                            {lane.isOnLeave
+                              ? `${lane.leaveInfo?.leaveType || "Leave"} • ${lane.leaveInfo?.reason || "Approved leave"}`
+                              : lane.branchName
+                                ? `Branch: ${lane.branchName}`
+                                : lane.designation ||
+                                  (lane.id === null ? "Queue" : "Staff")}
                           </span>
                         </div>
-                        <span className="text-[10px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">
+                        <span
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                            lane.isOnLeave
+                              ? "bg-amber-500/20 text-amber-800 dark:text-amber-200"
+                              : "bg-primary/10 text-primary"
+                          }`}
+                        >
                           {laneAppointments.length}
                         </span>
                       </div>
@@ -866,10 +935,18 @@ export function AppointmentCalendarView({
                       {/* Lane Body Grid Slots with Drop Target Support */}
                       <div
                         data-testid={`lane-body-${lane.id || "unassigned"}`}
-                        className="relative bg-card/40 transition-colors"
+                        className={`relative transition-colors ${
+                          lane.isOnLeave
+                            ? "bg-muted/20 cursor-not-allowed"
+                            : "bg-card/40"
+                        }`}
                         style={{ height: `${viewportHeightPx}px` }}
                         onDragOver={(e) => {
                           if (!canEdit) return;
+                          if (lane.isOnLeave) {
+                            e.dataTransfer.dropEffect = "none";
+                            return;
+                          }
                           e.preventDefault();
                           e.dataTransfer.dropEffect = "move";
 
@@ -926,6 +1003,15 @@ export function AppointmentCalendarView({
                           setDraggingApptId(null);
 
                           if (!rawData || !onDropAppointment) return;
+
+                          // Prevent dropping onto a staff lane who is on approved leave
+                          if (lane.isOnLeave) {
+                            toast.error(
+                              `Cannot assign appointment: ${lane.name} is on approved leave (${lane.leaveInfo?.leaveType || "Leave"}).`,
+                            );
+                            return;
+                          }
+
                           try {
                             const parsed = JSON.parse(rawData);
                             const apptId = parsed.appointmentId as string;
@@ -1004,6 +1090,19 @@ export function AppointmentCalendarView({
                             }}
                           />
                         ))}
+
+                        {/* On Leave Watermark Overlay across entire lane height */}
+                        {lane.isOnLeave && (
+                          <div className="absolute inset-0 pointer-events-none z-10 flex flex-col items-center justify-start pt-12 select-none opacity-40 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(245,158,11,0.06)_10px,rgba(245,158,11,0.06)_20px)]">
+                            <div className="sticky top-16 bg-background/80 dark:bg-card/85 backdrop-blur-xs px-3 py-1.5 rounded-full border border-amber-500/30 flex items-center gap-1.5 shadow-xs">
+                              <CalendarOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                              <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300">
+                                Staff on leave (
+                                {lane.leaveInfo?.leaveType || "Leave"})
+                              </span>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Render Appointment Blocks (collision-aware & draggable) */}
                         {positioned.map(
