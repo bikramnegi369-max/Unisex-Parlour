@@ -198,10 +198,13 @@ export function CustomerOverview({
             </div>
             <div>
               <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
-                Referred By ID
+                Referred By
               </p>
               <p className="text-sm font-medium mt-1.5 truncate">
-                {customer.referredByCustomerId || "—"}
+                {typeof customer?.referredByCustomerId === "object" &&
+                customer.referredByCustomerId !== null
+                  ? customer.referredByCustomerId.name
+                  : customer?.referredByCustomerId || "—"}
               </p>
             </div>
           </div>

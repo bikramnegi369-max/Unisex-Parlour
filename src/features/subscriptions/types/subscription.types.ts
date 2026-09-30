@@ -46,7 +46,8 @@ export interface SubscriptionUsageRecord {
   branchName?: string;
   appointmentId?: string;
   redeemedAt: string;
-  redeemedBy?: { id: string; name: string } | string;
+  verifiedBy?: { id?: string; _id?: string; name: string } | string;
+  redeemedBy?: { id?: string; _id?: string; name: string } | string;
 }
 
 export interface CreateSubscriptionPayload {

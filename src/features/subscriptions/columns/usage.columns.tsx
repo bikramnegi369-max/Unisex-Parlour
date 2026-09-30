@@ -101,10 +101,11 @@ export const getSubscriptionUsageColumns = ({
     },
   },
   {
-    accessorKey: "redeemedBy",
-    header: "Redeemed By",
+    id: "verifiedBy",
+    accessorFn: (row) => row.verifiedBy || row.redeemedBy,
+    header: "Verified By",
     cell: ({ row }) => {
-      const by = row.original.redeemedBy as unknown;
+      const by = (row.original.verifiedBy || row.original.redeemedBy) as unknown;
       let label = "Staff";
       if (typeof by === "string") {
         label = by;

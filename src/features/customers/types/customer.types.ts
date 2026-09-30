@@ -86,7 +86,7 @@ export interface Customer {
   marketingPreferences?: MarketingPreferences;
   doNotContact?: boolean;
   acquisitionSource?: AcquisitionSource;
-  referredByCustomerId?: string | null;
+  referredByCustomerId?: string | { _id: string; name: string } | null;
   tags?: string[];
   allergies?: string[];
   sensitivities?: string[];

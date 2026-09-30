@@ -1,5 +1,11 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
-import { useForm, type Path, type Resolver } from "react-hook-form";
+import React, {
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
+import { useForm, useWatch, type Path, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   customerSchema,
@@ -11,8 +17,14 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Loader2, X, Search, Check } from "lucide-react";
 import { getCustomers } from "../api/customers.api";
+import { getEmployees } from "@/features/employees/api/employees.api";
+import { getServices } from "@/features/services/api/services.api";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
 import { useDebounce } from "@/hooks/useDebounce";
+import {
+  MultiSelectCombobox,
+  type ComboboxOption,
+} from "@/components/forms/MultiSelectCombobox";
 
 interface CustomerFormProps {
   initialCustomer?: Customer;
@@ -34,6 +46,18 @@ export default function CustomerForm({
   // Local state for Tag Chips
   const [tags, setTags] = useState<string[]>(initialCustomer?.tags || []);
   const [tagInput, setTagInput] = useState("");
+
+  // Local state for Preferred Staff & Services pickers
+  const [staffOptions, setStaffOptions] = useState<ComboboxOption[]>([]);
+  const [serviceOptions, setServiceOptions] = useState<ComboboxOption[]>([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(true);
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
+  const [selectedStaff, setSelectedStaff] = useState<string[]>(
+    initialCustomer?.preferences?.preferredStaff ?? [],
+  );
+  const [selectedServices, setSelectedServices] = useState<string[]>(
+    initialCustomer?.preferences?.preferredServices ?? [],
+  );
 
   // Local state for Searchable Referrer Autocomplete
   const [referrerSearch, setReferrerSearch] = useState("");
@@ -63,6 +87,8 @@ export default function CustomerForm({
           country: "",
         },
         preferences: {
+          preferredStaff: [],
+          preferredServices: [],
           drinkPreference: "",
           preferredContactTime: "",
           language: "",
@@ -83,7 +109,7 @@ export default function CustomerForm({
         sensitivities: "",
         tags: "",
         loyaltyPoints: 0,
-      };
+      } satisfies CustomerFormValues;
     }
 
     return {
@@ -105,6 +131,8 @@ export default function CustomerForm({
         country: initialCustomer.address?.country || "",
       },
       preferences: {
+        preferredStaff: initialCustomer.preferences?.preferredStaff ?? [],
+        preferredServices: initialCustomer.preferences?.preferredServices ?? [],
         drinkPreference: initialCustomer.preferences?.drinkPreference || "",
         preferredContactTime:
           initialCustomer.preferences?.preferredContactTime || "",
@@ -122,7 +150,11 @@ export default function CustomerForm({
       doNotContact: !!initialCustomer.doNotContact,
       acquisitionSource: (initialCustomer.acquisitionSource ||
         "walk_in") as CustomerFormValues["acquisitionSource"],
-      referredByCustomerId: initialCustomer.referredByCustomerId || "",
+      referredByCustomerId:
+        typeof initialCustomer.referredByCustomerId === "object" &&
+        initialCustomer.referredByCustomerId !== null
+          ? (initialCustomer.referredByCustomerId as { _id: string })._id || ""
+          : (initialCustomer.referredByCustomerId as string) || "",
       status: (initialCustomer.status ||
         "active") as CustomerFormValues["status"],
       allergies: Array.isArray(initialCustomer.allergies)
@@ -144,6 +176,7 @@ export default function CustomerForm({
     setValue,
     setError,
     reset,
+    control,
     formState: { errors },
   } = useForm<CustomerFormValues>({
     resolver: zodResolver(
@@ -152,6 +185,65 @@ export default function CustomerForm({
     defaultValues,
   });
 
+  const isDoNotContact = useWatch({ control, name: "doNotContact" });
+  const isReferral =
+    useWatch({ control, name: "acquisitionSource" }) === "referral";
+
+  const handleClearReferrer = useCallback(() => {
+    setSelectedReferrer(null);
+    setReferrerSearch("");
+    setReferrerResults([]);
+    setValue("referredByCustomerId", "");
+  }, [setValue]);
+
+  // Fetch staff options once on mount
+  useEffect(() => {
+    let isCurrent = true;
+    getEmployees({ limit: 200, status: "active" })
+      .then((res) => {
+        if (!isCurrent) return;
+        setStaffOptions(
+          res.data.map((e) => ({
+            value: e.id,
+            label: e.name,
+            sublabel: e.designation,
+          })),
+        );
+      })
+      .catch((err) => console.error("Failed to load staff options:", err))
+      .finally(() => {
+        if (isCurrent) setIsLoadingStaff(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
+  // Fetch service options once on mount
+  useEffect(() => {
+    let isCurrent = true;
+    getServices({ limit: "all" })
+      .then((res) => {
+        if (!isCurrent) return;
+        setServiceOptions(
+          res.data
+            .filter((s) => s.isActive)
+            .map((s) => ({
+              value: s.id,
+              label: s.name,
+              sublabel: `${s.duration} min · ₹${s.basePrice}`,
+            })),
+        );
+      })
+      .catch((err) => console.error("Failed to load service options:", err))
+      .finally(() => {
+        if (isCurrent) setIsLoadingServices(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
   // Track previous initialCustomer to adjust local state during render without cascading renders
   const [prevCustomer, setPrevCustomer] = useState<Customer | undefined>(
     initialCustomer,
@@ -159,6 +251,8 @@ export default function CustomerForm({
   if (initialCustomer !== prevCustomer) {
     setPrevCustomer(initialCustomer);
     setTags(initialCustomer?.tags || []);
+    setSelectedStaff(initialCustomer?.preferences?.preferredStaff ?? []);
+    setSelectedServices(initialCustomer?.preferences?.preferredServices ?? []);
     if (!initialCustomer?.referredByCustomerId) {
       setSelectedReferrer(null);
       setReferrerSearch("");
@@ -293,13 +387,6 @@ export default function CustomerForm({
     setShowReferrerDropdown(false);
   };
 
-  const handleClearReferrer = () => {
-    setSelectedReferrer(null);
-    setReferrerSearch("");
-    setReferrerResults([]);
-    setValue("referredByCustomerId", "");
-  };
-
   const handleFormSubmit = (values: CustomerFormValues) => {
     // Explicitly omit loyaltyPoints from submit payload to secure it server-side
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -323,7 +410,11 @@ export default function CustomerForm({
       // Ensure email is null if empty as per backend schema default
       email: values.email || null,
       alternatePhone: values.alternatePhone || null,
-      referredByCustomerId: values.referredByCustomerId || null,
+      // Only send referredByCustomerId when acquisition source is referral
+      referredByCustomerId:
+        values.acquisitionSource === "referral"
+          ? values.referredByCustomerId || null
+          : null,
     };
     onSubmit(formattedPayload);
   };
@@ -586,6 +677,40 @@ export default function CustomerForm({
           Preferences
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Preferred Staff multi-select */}
+          <div className="md:col-span-2">
+            <MultiSelectCombobox
+              id="preferredStaff"
+              label="Preferred Staff"
+              options={staffOptions}
+              selected={selectedStaff}
+              onChange={(ids) => {
+                setSelectedStaff(ids);
+                setValue("preferences.preferredStaff", ids);
+              }}
+              placeholder="Search staff by name or designation..."
+              isLoading={isLoadingStaff}
+              disabled={isSubmitting}
+            />
+          </div>
+
+          {/* Preferred Services multi-select */}
+          <div className="md:col-span-2">
+            <MultiSelectCombobox
+              id="preferredServices"
+              label="Preferred Services"
+              options={serviceOptions}
+              selected={selectedServices}
+              onChange={(ids) => {
+                setSelectedServices(ids);
+                setValue("preferences.preferredServices", ids);
+              }}
+              placeholder="Search services by name..."
+              isLoading={isLoadingServices}
+              disabled={isSubmitting}
+            />
+          </div>
+
           <div>
             <label
               htmlFor="drinkPreference"
@@ -691,13 +816,17 @@ export default function CustomerForm({
                 <input
                   id={channel.id}
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                  disabled={isSubmitting}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer disabled:cursor-not-allowed"
+                  disabled={isSubmitting || isDoNotContact}
                   {...register(channel.id as Path<CustomerFormValues>)}
                 />
                 <label
                   htmlFor={channel.id}
-                  className="text-sm font-medium text-foreground cursor-pointer"
+                  className={`text-sm font-medium cursor-pointer ${
+                    isDoNotContact
+                      ? "text-muted-foreground line-through"
+                      : "text-foreground"
+                  }`}
                 >
                   {channel.label}
                 </label>
@@ -723,7 +852,13 @@ export default function CustomerForm({
             <Select
               id="acquisitionSource"
               disabled={isSubmitting}
-              {...register("acquisitionSource")}
+              {...register("acquisitionSource", {
+                onChange: (e) => {
+                  if (e.target.value !== "referral") {
+                    handleClearReferrer();
+                  }
+                },
+              })}
             >
               <option value="walk_in">Walk-in</option>
               <option value="instagram">Instagram</option>
@@ -750,79 +885,92 @@ export default function CustomerForm({
             </Select>
           </div>
 
-          {/* Searchable Referrer Autocomplete */}
-          <div className="relative" ref={dropdownRef}>
-            <label
-              htmlFor="referredBySearch"
-              className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
-            >
-              Referred By Customer
-            </label>
-            <div className="relative flex items-center">
-              <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="referredBySearch"
-                placeholder="Search referrer by name..."
-                value={referrerSearch}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setReferrerSearch(val);
-                  if (!val.trim()) {
-                    setReferrerResults([]);
-                  }
-                  setShowReferrerDropdown(true);
-                }}
-                onFocus={() => setShowReferrerDropdown(true)}
-                disabled={isSubmitting}
-                className="pl-9 pr-8"
-              />
-              {referrerSearch && (
-                <button
-                  type="button"
-                  onClick={handleClearReferrer}
-                  className="absolute right-3 text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-            {/* hidden field to bind form values */}
-            <input type="hidden" {...register("referredByCustomerId")} />
+          {/* Searchable Referrer Autocomplete — visible only when acquisition source is "referral" */}
+          {isReferral && (
+            <div className="relative md:col-span-2" ref={dropdownRef}>
+              <label
+                htmlFor="referredBySearch"
+                className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1"
+              >
+                Referred By Customer <span className="text-destructive">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="referredBySearch"
+                  placeholder="Search referrer by name..."
+                  value={referrerSearch}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setReferrerSearch(val);
+                    if (!val.trim()) {
+                      setReferrerResults([]);
+                    }
+                    setShowReferrerDropdown(true);
+                  }}
+                  onFocus={() => setShowReferrerDropdown(true)}
+                  disabled={isSubmitting}
+                  className={[
+                    "pl-9 pr-8",
+                    errors.referredByCustomerId
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : "",
+                  ].join(" ")}
+                />
+                {referrerSearch && (
+                  <button
+                    type="button"
+                    onClick={handleClearReferrer}
+                    className="absolute right-3 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {/* hidden field to bind form values */}
+              <input type="hidden" {...register("referredByCustomerId")} />
 
-            {showReferrerDropdown &&
-              (referrerResults.length > 0 || isSearchingReferrer) && (
-                <div className="absolute z-10 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
-                  {isSearchingReferrer ? (
-                    <div className="p-3 text-xs text-muted-foreground flex items-center justify-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Searching...
-                    </div>
-                  ) : (
-                    <ul className="py-1">
-                      {referrerResults.map((customer) => (
-                        <li key={customer.id}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectReferrer(customer)}
-                            className="flex items-center justify-between w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
-                          >
-                            <div>
-                              <p className="font-medium">{customer.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {customer.phone}
-                              </p>
-                            </div>
-                            {selectedReferrer?.id === customer.id && (
-                              <Check className="h-4 w-4 text-primary" />
-                            )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+              {errors.referredByCustomerId && (
+                <p className="mt-1 text-xs font-medium text-destructive">
+                  {errors.referredByCustomerId.message}
+                </p>
               )}
-          </div>
+
+              {showReferrerDropdown &&
+                (referrerResults.length > 0 || isSearchingReferrer) && (
+                  <div className="absolute z-10 w-full mt-1 bg-popover text-popover-foreground border border-border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {isSearchingReferrer ? (
+                      <div className="p-3 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Searching...
+                      </div>
+                    ) : (
+                      <ul className="py-1">
+                        {referrerResults.map((customer) => (
+                          <li key={customer.id}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectReferrer(customer)}
+                              className="flex items-center justify-between w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                            >
+                              <div>
+                                <p className="font-medium">{customer.name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {customer.phone}
+                                </p>
+                              </div>
+                              {selectedReferrer?.id === customer.id && (
+                                <Check className="h-4 w-4 text-primary" />
+                              )}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+            </div>
+          )}
 
           <div>
             <label

@@ -60,11 +60,15 @@ export const customerSchema = z.object({
     country: "",
   }),
   preferences: z.object({
+    preferredStaff: z.array(z.string()).default([]),
+    preferredServices: z.array(z.string()).default([]),
     drinkPreference: z.string().trim().default(""),
     preferredContactTime: z.string().trim().default(""),
     language: z.string().trim().default(""),
     remarks: z.string().trim().default(""),
   }).default({
+    preferredStaff: [],
+    preferredServices: [],
     drinkPreference: "",
     preferredContactTime: "",
     language: "",
@@ -87,12 +91,20 @@ export const customerSchema = z.object({
   acquisitionSource: z
     .enum(["walk_in", "instagram", "facebook", "google", "website", "advertisement", "referral", "other"])
     .default("walk_in"),
-  referredByCustomerId: z.string().trim().optional().or(z.literal("")),
+  referredByCustomerId: z.string().trim().default(""),
   status: z.enum(["active", "inactive", "blocked"]).default("active"),
   allergies: z.string().trim().default(""),
   sensitivities: z.string().trim().default(""),
   tags: z.string().trim().default(""),
   loyaltyPoints: z.coerce.number().min(0).default(0),
+}).superRefine((data, ctx) => {
+  if (data.acquisitionSource === "referral" && !data.referredByCustomerId) {
+    ctx.addIssue({
+      code: "custom" as const,
+      path: ["referredByCustomerId"],
+      message: "Please select the customer who referred this person.",
+    });
+  }
 });
 
 export type CustomerFormValues = {
@@ -111,6 +123,8 @@ export type CustomerFormValues = {
     country: string;
   };
   preferences: {
+    preferredStaff: string[];
+    preferredServices: string[];
     drinkPreference: string;
     preferredContactTime: string;
     language: string;

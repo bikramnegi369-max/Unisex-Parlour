@@ -1,10 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import type { Customer, MarketingPreferencesObject } from "../types/customer.types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Heart, Bell } from "lucide-react";
+import { getEmployees } from "@/features/employees/api/employees.api";
+import { getServices } from "@/features/services/api/services.api";
 
 interface CustomerPreferencesProps {
   preferences?: Customer["preferences"];
@@ -20,9 +22,80 @@ export function CustomerPreferences({ preferences, marketingPreferences }: Custo
     { key: "appointmentReminders", label: "Appointment Reminders" },
   ];
 
+  const preferredStaff = preferences?.preferredStaff ?? [];
+  const preferredServices = preferences?.preferredServices ?? [];
+  const needsResolution = preferredStaff.length > 0 || preferredServices.length > 0;
+
+  const [staffNameMap, setStaffNameMap] = useState<Record<string, string>>({});
+  const [serviceNameMap, setServiceNameMap] = useState<Record<string, string>>({});
+  // Initialise to true when there are IDs to resolve so we never need a
+  // synchronous setState inside the effect body (which triggers a cascade).
+  const [isResolvingNames, setIsResolvingNames] = useState(needsResolution);
+
+  useEffect(() => {
+    if (!needsResolution) return;
+
+    let isCurrent = true;
+
+    Promise.all([
+      preferredStaff.length > 0
+        ? getEmployees({ limit: 200 }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+      preferredServices.length > 0
+        ? getServices({ limit: 200 }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+    ]).then(([empRes, svcRes]) => {
+      if (!isCurrent) return;
+
+      const staffSet = new Set(preferredStaff);
+      const svcSet = new Set(preferredServices);
+
+      const sMap: Record<string, string> = {};
+      empRes.data.forEach((e) => {
+        if (staffSet.has(e.id)) sMap[e.id] = e.name;
+      });
+
+      const svMap: Record<string, string> = {};
+      svcRes.data.forEach((s) => {
+        if (svcSet.has(s.id)) svMap[s.id] = s.name;
+      });
+
+      setStaffNameMap(sMap);
+      setServiceNameMap(svMap);
+    }).finally(() => {
+      if (isCurrent) setIsResolvingNames(false);
+    });
+
+    return () => { isCurrent = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsResolution]);
+
+  function renderPills(ids: string[], nameMap: Record<string, string>) {
+    if (ids.length === 0) {
+      return <p className="text-sm text-muted-foreground italic">None specified</p>;
+    }
+    if (isResolvingNames) {
+      return (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {ids.map((id) => (
+            <span key={id} className="inline-flex h-5 w-24 rounded-full bg-muted animate-pulse" />
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-wrap gap-1.5 mt-2">
+        {ids.map((id) => (
+          <Badge key={id} variant="outline" className="bg-primary/5 text-primary border-primary/10">
+            {nameMap[id] ?? id}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      {/* 1. Service & Salon Preferences */}
       <Card className="border border-border/80 shadow-sm">
         <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -34,44 +107,16 @@ export function CustomerPreferences({ preferences, marketingPreferences }: Custo
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
               <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
-                Preferred Staff (ID/System Refs)
+                Preferred Staff
               </p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {preferences?.preferredStaff && preferences.preferredStaff.length > 0 ? (
-                  preferences.preferredStaff.map((staff, idx) => (
-                    <Badge
-                      key={idx}
-                      variant="outline"
-                      className="bg-primary/5 text-primary border-primary/10"
-                    >
-                      {staff}
-                    </Badge>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">None specified</p>
-                )}
-              </div>
+              {renderPills(preferredStaff, staffNameMap)}
             </div>
 
             <div>
               <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
-                Preferred Services (Refs)
+                Preferred Services
               </p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {preferences?.preferredServices && preferences.preferredServices.length > 0 ? (
-                  preferences.preferredServices.map((service, idx) => (
-                    <Badge
-                      key={idx}
-                      variant="outline"
-                      className="bg-primary/5 text-primary border-primary/10"
-                    >
-                      {service}
-                    </Badge>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">None specified</p>
-                )}
-              </div>
+              {renderPills(preferredServices, serviceNameMap)}
             </div>
 
             <div>
@@ -107,7 +152,6 @@ export function CustomerPreferences({ preferences, marketingPreferences }: Custo
         </CardContent>
       </Card>
 
-      {/* 2. Marketing & Notifications Subscriptions */}
       <Card className="border border-border/80 shadow-sm">
         <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">

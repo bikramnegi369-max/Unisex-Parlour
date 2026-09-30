@@ -138,6 +138,8 @@ export const mapUsageKeys = (u: RawUsageDTO): SubscriptionUsageRecord => {
       ? u.branchName
       : branchObj?.name;
 
+  const rawVerifier = (u as Record<string, unknown>).verifiedBy || u.redeemedBy;
+
   return {
     ...(u as SubscriptionUsageRecord),
     id: u._id || u.id || "",
@@ -145,6 +147,8 @@ export const mapUsageKeys = (u: RawUsageDTO): SubscriptionUsageRecord => {
     serviceName,
     branchId,
     branchName,
+    verifiedBy: rawVerifier as SubscriptionUsageRecord["verifiedBy"],
+    redeemedBy: rawVerifier as SubscriptionUsageRecord["redeemedBy"],
   };
 };
 
