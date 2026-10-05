@@ -107,6 +107,16 @@ export default function LeaveTable({
           const leave = info.row.original;
           const isPending = leave.status === "pending";
           const isApproved = leave.status === "approved";
+          const isOwnLeave = Boolean(
+            (user?.id && (leave.submittedById === user.id || leave.submittedBy === user.id || leave.staffId === user.id)) ||
+            (user?.name && leave.submittedBy === user.name)
+          );
+          const canApproveOrReject = canManage && !isOwnLeave;
+
+          // An approved leave can only be cancelled if it hasn't ended in the past
+          const todayDateStr = new Date().toISOString().split("T")[0];
+          const isPastLeave = Boolean(leave.endDate && leave.endDate < todayDateStr);
+          const canCancel = isPending || (isApproved && !isPastLeave);
 
           return (
             <div className="flex justify-end gap-1.5">
@@ -132,7 +142,7 @@ export default function LeaveTable({
                 </Button>
               )}
 
-              {isPending && canManage && (
+              {isPending && canApproveOrReject && (
                 <>
                   <Button
                     variant="outline"
@@ -155,7 +165,7 @@ export default function LeaveTable({
                 </>
               )}
 
-              {(isPending || isApproved) && (
+              {canCancel && (
                 <Button
                   variant="outline"
                   size="icon"
@@ -171,13 +181,22 @@ export default function LeaveTable({
         },
       },
     ],
-    [onView, onEdit, onApprove, onReject, onCancel, canManage]
+    [onView, onEdit, onApprove, onReject, onCancel, canManage, user]
   );
 
   const renderMobileRow = (leave: Leave) => {
     const isPending = leave.status === "pending";
     const isApproved = leave.status === "approved";
     const staffName = leave.name || "Self Service";
+    const isOwnLeave = Boolean(
+      (user?.id && (leave.submittedById === user.id || leave.submittedBy === user.id || leave.staffId === user.id)) ||
+      (user?.name && leave.submittedBy === user.name)
+    );
+    const canApproveOrReject = canManage && !isOwnLeave;
+
+    const todayDateStr = new Date().toISOString().split("T")[0];
+    const isPastLeave = Boolean(leave.endDate && leave.endDate < todayDateStr);
+    const canCancel = isPending || (isApproved && !isPastLeave);
 
     return (
       <div key={leave.id} className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-sm text-left">
@@ -216,7 +235,7 @@ export default function LeaveTable({
                 <Edit size={14} />
               </Button>
             )}
-            {isPending && canManage && (
+            {isPending && canApproveOrReject && (
               <>
                 <Button
                   variant="outline"
@@ -238,7 +257,7 @@ export default function LeaveTable({
                 </Button>
               </>
             )}
-            {(isPending || isApproved) && (
+            {canCancel && (
               <Button
                 variant="outline"
                 size="icon"

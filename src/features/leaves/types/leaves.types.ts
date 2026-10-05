@@ -14,6 +14,7 @@ export interface Leave {
   reason: string;
   status: LeaveStatus;
   submittedBy: string;
+  submittedById?: string;
   submittedFor: LeaveSubmittedFor;
   reviewedBy?: string | null;
   reviewedAt?: string | null;

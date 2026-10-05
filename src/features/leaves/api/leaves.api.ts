@@ -20,7 +20,8 @@ interface BackendLeaveDTO {
   endDate?: string;
   reason?: string;
   status?: LeaveStatus;
-  submittedBy?: string;
+  submittedBy?: string | { _id?: string; id?: string; name?: string };
+  submittedById?: string;
   submittedFor?: string;
   reviewedBy?: string | null;
   reviewedAt?: string | null;
@@ -54,7 +55,7 @@ interface BackendLeaveSingleResponse {
 
 const normalizeLeave = (raw: BackendLeaveDTO): Leave => {
   const staffObj = typeof raw.staffId === "object" ? (raw.staffId as unknown as { _id?: string; name?: string }) : null;
-  const submittedByObj = typeof raw.submittedBy === "object" ? (raw.submittedBy as unknown as { name?: string }) : null;
+  const submittedByObj = typeof raw.submittedBy === "object" ? (raw.submittedBy as unknown as { _id?: string; id?: string; name?: string }) : null;
   const submittedForObj = typeof raw.submittedFor === "object" ? (raw.submittedFor as unknown as { name?: string }) : null;
   const reviewedByObj = typeof raw.reviewedBy === "object" ? (raw.reviewedBy as unknown as { name?: string }) : null;
   const cancelledByObj = typeof raw.cancelledBy === "object" ? (raw.cancelledBy as unknown as { name?: string }) : null;
@@ -71,6 +72,7 @@ const normalizeLeave = (raw: BackendLeaveDTO): Leave => {
     reason: raw.reason || "",
     status: raw.status || "pending",
     submittedBy: typeof raw.submittedBy === "string" ? raw.submittedBy : submittedByObj?.name || "",
+    submittedById: raw.submittedById || submittedByObj?._id || submittedByObj?.id || (typeof raw.submittedBy === "string" ? raw.submittedBy : undefined),
     submittedFor: typeof raw.submittedFor === "string" ? raw.submittedFor : submittedForObj?.name || "self",
     reviewedBy: typeof raw.reviewedBy === "string" ? raw.reviewedBy : reviewedByObj?.name || (raw.reviewedBy as string | null) || null,
     reviewedAt: raw.reviewedAt || null,

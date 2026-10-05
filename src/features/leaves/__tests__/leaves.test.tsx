@@ -225,6 +225,7 @@ describe("Leaves Feature Module", () => {
       expect(result.data[0].id).toBe("leave-101");
       expect(result.data[0].name).toBe("John Doe");
       expect(result.data[0].submittedBy).toBe("Manager User");
+      expect(result.data[0].submittedById).toBe("Manager User");
       expect(result.data[0].submittedFor).toBe("John Doe");
     });
 

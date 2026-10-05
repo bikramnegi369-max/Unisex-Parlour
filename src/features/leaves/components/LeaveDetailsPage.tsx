@@ -160,6 +160,15 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
   const isPending = leave.status === "pending";
   const isApproved = leave.status === "approved";
   const staffName = leave.name || "Self Service";
+  const isOwnLeave = Boolean(
+    (user?.id && (leave.submittedById === user.id || leave.submittedBy === user.id || leave.staffId === user.id)) ||
+    (user?.name && leave.submittedBy === user.name)
+  );
+  const canApproveOrReject = canManage && !isOwnLeave;
+
+  const todayDateStr = new Date().toISOString().split("T")[0];
+  const isPastLeave = Boolean(leave.endDate && leave.endDate < todayDateStr);
+  const canCancel = isPending || (isApproved && !isPastLeave);
 
   return (
     <div className="space-y-6 text-left max-w-4xl mx-auto">
@@ -184,7 +193,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
             </Button>
           )}
 
-          {isPending && canManage && (
+          {isPending && canApproveOrReject && (
             <>
               <Button
                 variant="outline"
@@ -203,7 +212,7 @@ export default function LeaveDetailsPage({ leaveId }: LeaveDetailsPageProps) {
             </>
           )}
 
-          {(isPending || isApproved) && (
+          {canCancel && (
             <Button
               variant="outline"
               onClick={() => setIsCancelOpen(true)}
