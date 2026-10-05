@@ -156,7 +156,12 @@ export default function EmployeeForm({
   };
 
   return (
-    <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6 max-h-[70vh] overflow-y-auto px-1 py-1 text-left">
+    <form
+      onSubmit={(e) => {
+        handleSubmit(handleFormSubmit)(e);
+      }}
+      className="space-y-6 max-h-[70vh] overflow-y-auto px-1 py-1 text-left"
+    >
       {/* Section 1: Personal Information */}
       <div className="space-y-4">
         <div>
