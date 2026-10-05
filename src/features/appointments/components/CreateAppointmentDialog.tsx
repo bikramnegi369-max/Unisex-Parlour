@@ -309,13 +309,16 @@ export function CreateAppointmentDialog({
     }, 0);
   }, [selectedServices, services]);
 
-  // Fetch approved leaves on the selected date to evaluate staff availability
+  // Fetch approved leaves on the selected date to evaluate staff availability (only when dialog is open)
   const appointmentDate = selectedDate || format(new Date(), "yyyy-MM-dd");
-  const { data: leavesData } = useLeaves({
-    startDate: appointmentDate,
-    endDate: appointmentDate,
-    status: "approved",
-  });
+  const { data: leavesData } = useLeaves(
+    {
+      startDate: appointmentDate,
+      endDate: appointmentDate,
+      status: "approved",
+    },
+    { enabled: isOpen }
+  );
 
   const dayLeaves: Leave[] = useMemo(() => {
     return leavesData?.data || EMPTY_LEAVES;

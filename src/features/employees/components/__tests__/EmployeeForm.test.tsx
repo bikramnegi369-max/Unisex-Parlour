@@ -34,7 +34,7 @@ describe("EmployeeForm", () => {
 
     fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: "Rahul Sharma" } });
     fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "rahul@salon.com" } });
-    fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: "+919876543210" } });
+    fireEvent.change(screen.getByLabelText(/phone number/i), { target: { value: "9876543210" } });
     fireEvent.change(screen.getByLabelText(/designation/i), { target: { value: "Stylist" } });
     fireEvent.change(screen.getByLabelText(/joining date/i), { target: { value: "2026-01-01" } });
 

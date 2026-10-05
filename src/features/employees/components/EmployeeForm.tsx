@@ -1,5 +1,5 @@
-import React, { useMemo, useEffect } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import React, { useMemo, useEffect, useRef } from "react";
+import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { employeeSchema, type EmployeeFormValues } from "../schemas/employee.schema";
 import type { Employee, EmployeePayload } from "../types/employee.types";
@@ -10,6 +10,8 @@ import UserSelector from "./UserSelector";
 import { useUser } from "@/features/users/hooks/useUser";
 import type { UserSummary } from "@/features/users/types/users.types";
 import { Loader2 } from "lucide-react";
+import ImageUpload from "@/components/forms/ImageUpload";
+import { cleanupUploadedAsset } from "@/lib/api/upload.api";
 
 interface EmployeeFormProps {
   initialEmployee?: Employee;
@@ -67,10 +69,16 @@ export default function EmployeeForm({
     setError,
     setValue,
     reset,
+    control,
     formState: { errors },
   } = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema) as unknown as Resolver<EmployeeFormValues>,
     defaultValues,
+  });
+
+  const currentAvatarUrl = useWatch({
+    control,
+    name: "avatarUrl",
   });
 
   // Re-synchronize form values when initialEmployee or defaultValues changes
@@ -113,8 +121,30 @@ export default function EmployeeForm({
     return null;
   }, [initialEmployee, linkedUser]);
 
+  // Track fresh upload during this form session to clean up if modal is closed without submitting
+  const freshUploadUrlRef = useRef<string | null>(null);
+  const isSubmittedRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    return () => {
+      // If an image was uploaded but form was never successfully submitted, proactively delete from Cloudinary
+      if (freshUploadUrlRef.current && !isSubmittedRef.current) {
+        cleanupUploadedAsset(freshUploadUrlRef.current);
+      }
+    };
+  }, []);
+
   const handleFormSubmit = (values: EmployeeFormValues) => {
+    isSubmittedRef.current = true;
     onSubmit(values);
+  };
+
+  const handleCancel = () => {
+    if (freshUploadUrlRef.current) {
+      cleanupUploadedAsset(freshUploadUrlRef.current);
+      freshUploadUrlRef.current = null;
+    }
+    onCancel();
   };
 
   const handleUserSelect = (user: UserSummary) => {
@@ -134,6 +164,29 @@ export default function EmployeeForm({
           <p className="text-xs text-muted-foreground">General identity and contact details of the employee.</p>
         </div>
         <hr className="border-border/60" />
+
+        {/* Avatar Upload prominently positioned at the top */}
+        <div className="pb-2">
+          <ImageUpload
+            value={currentAvatarUrl || null}
+            onChange={(url) => {
+              setValue("avatarUrl", url || "", { shouldDirty: true, shouldValidate: true });
+            }}
+            onUploaded={(url) => {
+              // If replacing a previous fresh upload in this session, clean up the prior one
+              if (freshUploadUrlRef.current && freshUploadUrlRef.current !== url) {
+                cleanupUploadedAsset(freshUploadUrlRef.current);
+              }
+              freshUploadUrlRef.current = url;
+            }}
+            disabled={isSubmitting}
+            folder="employees/avatars"
+            label="Avatar Photo"
+            helperText="Upload employee profile image (PNG, JPG, or WEBP up to 5MB)"
+          />
+          <input type="hidden" {...register("avatarUrl")} />
+          {errors.avatarUrl && <p className="mt-1.5 text-xs font-medium text-destructive">{errors.avatarUrl.message}</p>}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -183,32 +236,15 @@ export default function EmployeeForm({
             </label>
             <Input
               id="phone"
-              placeholder="e.g. +919876543210"
+              placeholder="e.g. 9876543210"
               className={errors.phone ? "border-destructive focus-visible:ring-destructive" : ""}
               disabled={isSubmitting}
               {...register("phone")}
             />
             <p className="mt-1.5 text-[10px] text-muted-foreground">
-              Must be in international E.164 format (e.g., +919876543210).
+              Enter phone number without country code (e.g. 9876543210).
             </p>
             {errors.phone && <p className="mt-1.5 text-xs font-medium text-destructive">{errors.phone.message}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="avatarUrl" className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5">
-              Avatar Image URL
-            </label>
-            <Input
-              id="avatarUrl"
-              placeholder="e.g. https://domain.com/avatar.jpg"
-              className={errors.avatarUrl ? "border-destructive focus-visible:ring-destructive" : ""}
-              disabled={isSubmitting}
-              {...register("avatarUrl")}
-            />
-            <p className="mt-1.5 text-[10px] text-muted-foreground">
-              Optional link to a public image hosting URL.
-            </p>
-            {errors.avatarUrl && <p className="mt-1.5 text-xs font-medium text-destructive">{errors.avatarUrl.message}</p>}
           </div>
         </div>
       </div>
@@ -276,7 +312,7 @@ export default function EmployeeForm({
         <Button
           type="button"
           variant="outline"
-          onClick={onCancel}
+          onClick={handleCancel}
           disabled={isSubmitting}
           className="h-10 px-4 cursor-pointer font-semibold"
         >

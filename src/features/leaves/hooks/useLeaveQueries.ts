@@ -5,14 +5,19 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import type { LeaveListQuery } from "../types/leaves.types";
 
-export function useLeaves(params: LeaveListQuery = {}) {
+export function useLeaves(
+  params: LeaveListQuery = {},
+  options?: { enabled?: boolean }
+) {
   const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "employees.leaves.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
+  const isBaseEnabled =
+    isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
+  const isEnabled = isBaseEnabled && (options?.enabled !== false);
 
   const queryKey = getBranchQueryKey("leaves", [params]);
 

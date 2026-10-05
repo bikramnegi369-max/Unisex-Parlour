@@ -91,13 +91,16 @@ export function AssignStaffDialog({
     });
   }, [employees, appointmentServiceIds, staffServicesMap]);
 
-  // Fetch approved leaves on the appointment date
+  // Fetch approved leaves on the appointment date (only when dialog is open and appointment date is present)
   const appointmentDate = appointment?.date;
-  const { data: leavesData } = useLeaves({
-    startDate: appointmentDate || undefined,
-    endDate: appointmentDate || undefined,
-    status: "approved",
-  });
+  const { data: leavesData } = useLeaves(
+    {
+      startDate: appointmentDate || undefined,
+      endDate: appointmentDate || undefined,
+      status: "approved",
+    },
+    { enabled: isOpen && Boolean(appointmentDate) }
+  );
 
   const staffLeaveMap = useMemo(() => {
     const map = new Map<string, Leave>();

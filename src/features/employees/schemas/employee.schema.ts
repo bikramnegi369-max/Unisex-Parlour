@@ -1,7 +1,5 @@
 import { z } from "zod";
 
-const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-
 export const employeeSchema = z.object({
   name: z
     .string()
@@ -17,7 +15,7 @@ export const employeeSchema = z.object({
     .string()
     .trim()
     .min(1, "Phone number is required")
-    .regex(phoneRegex, "Please enter a valid E.164 phone number (e.g. +919876543210)"),
+    .regex(/^\d{7,15}$/, "Please enter a valid phone number (digits only, e.g. 9876543210)"),
   designation: z
     .string()
     .trim()

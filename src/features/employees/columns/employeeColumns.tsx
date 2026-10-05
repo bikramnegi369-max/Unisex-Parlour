@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { type ColumnDef } from "@tanstack/react-table";
 import type { Employee } from "../types/employee.types";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +36,21 @@ export const buildEmployeeColumns = ({
         .join("");
       return (
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
-            {initials || "ST"}
+          <div className="relative h-9 w-9 shrink-0">
+            {employee.avatarUrl ? (
+              <Image
+                src={employee.avatarUrl}
+                alt={fullName}
+                width={36}
+                height={36}
+                unoptimized
+                className="h-9 w-9 rounded-full object-cover ring-1 ring-border shadow-xs"
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                {initials || "ST"}
+              </div>
+            )}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-foreground truncate">{fullName}</p>
