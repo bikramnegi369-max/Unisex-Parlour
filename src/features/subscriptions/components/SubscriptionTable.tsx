@@ -112,9 +112,9 @@ export function SubscriptionTable({
             <button
               type="button"
               onClick={() => onRedeem(sub)}
-              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+              className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
-              <Gift className="h-3.5 w-3.5" /> Redeem
+              <Gift className="h-3.5 w-3.5" /> Manual Redeem
             </button>
           )}
           {canEdit && (

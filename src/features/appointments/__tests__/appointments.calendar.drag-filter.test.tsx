@@ -20,6 +20,10 @@ vi.mock("@/features/employees/hooks/useEmployees", () => ({
   }),
 }));
 
+vi.mock("@/features/leaves/hooks/useLeaveQueries", () => ({
+  useLeaves: () => ({ data: { data: [] }, isLoading: false }),
+}));
+
 vi.mock("@/hooks/useBranchContext", () => ({
   useBranchContext: () => ({
     currentBranch: { id: "br_1", name: "Main Salon", timezone: "Asia/Kolkata" },

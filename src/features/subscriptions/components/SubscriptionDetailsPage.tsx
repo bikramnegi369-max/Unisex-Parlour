@@ -170,12 +170,14 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
             {canRedeem && isActive && (
               <Button
                 type="button"
+                variant="outline"
                 size="sm"
                 onClick={() => setIsRedeemOpen(true)}
-                className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                className="h-9 text-xs gap-1.5 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
+                title="Manual redemption for non-appointment sessions or administrative adjustments"
               >
                 <Gift className="h-4 w-4" />
-                Redeem Entitlements
+                Manual Redemption
               </Button>
             )}
 
@@ -271,7 +273,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
         <Dialog
           isOpen={isRedeemOpen}
           onClose={() => setIsRedeemOpen(false)}
-          title="Redeem Subscription Entitlements"
+          title="Manual Subscription Redemption"
         >
           <RedeemSubscriptionModal
             subscription={subscription}

@@ -147,6 +147,8 @@ export const mapUsageKeys = (u: RawUsageDTO): SubscriptionUsageRecord => {
     serviceName,
     branchId,
     branchName,
+    verificationMethod: u.verificationMethod || "otp",
+    reason: u.reason || null,
     verifiedBy: rawVerifier as SubscriptionUsageRecord["verifiedBy"],
     redeemedBy: rawVerifier as SubscriptionUsageRecord["redeemedBy"],
   };

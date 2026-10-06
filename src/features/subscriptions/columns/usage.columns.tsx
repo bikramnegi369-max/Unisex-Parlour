@@ -14,7 +14,7 @@ export const getSubscriptionUsageColumns = ({
     accessorKey: "redeemedAt",
     header: "Date & Time",
     cell: ({ row }) => (
-      <span className="text-xs font-medium text-foreground">
+      <span className="text-xs font-medium text-foreground whitespace-nowrap">
         {formatDateTime(row.original.redeemedAt)}
       </span>
     ),
@@ -35,7 +35,10 @@ export const getSubscriptionUsageColumns = ({
           "Service";
       }
       return (
-        <span className="text-xs font-semibold text-foreground">
+        <span
+          className="text-xs font-semibold text-foreground whitespace-nowrap"
+          title={displayName}
+        >
           {displayName}
         </span>
       );
@@ -55,7 +58,7 @@ export const getSubscriptionUsageColumns = ({
     header: "Branch",
     cell: ({ row }) => {
       const u = row.original;
-      const rawBranch = (u.branchId as unknown);
+      const rawBranch = u.branchId as unknown;
       let branchIdStr = "";
       let directName: string | undefined = u.branchName;
 
@@ -89,8 +92,7 @@ export const getSubscriptionUsageColumns = ({
             .appointmentCode ||
           (apt as { appointmentCode?: string; _id?: string; id?: string })
             ._id ||
-          (apt as { appointmentCode?: string; _id?: string; id?: string })
-            .id ||
+          (apt as { appointmentCode?: string; _id?: string; id?: string }).id ||
           "-";
       }
       return (
@@ -101,11 +103,42 @@ export const getSubscriptionUsageColumns = ({
     },
   },
   {
+    id: "verificationMethod",
+    header: "Method",
+    cell: ({ row }) => {
+      const method = row.original.verificationMethod || "otp";
+      const isManual = method === "manual";
+      const reason = row.original.reason;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold w-fit ${
+              isManual
+                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20"
+            }`}
+          >
+            {isManual ? "Manual" : "OTP"}
+          </span>
+          {reason && (
+            <span
+              className="text-[10px] text-muted-foreground"
+              title={reason}
+            >
+              {reason}
+            </span>
+          )}
+        </div>
+      );
+    },
+  },
+  {
     id: "verifiedBy",
     accessorFn: (row) => row.verifiedBy || row.redeemedBy,
     header: "Verified By",
     cell: ({ row }) => {
-      const by = (row.original.verifiedBy || row.original.redeemedBy) as unknown;
+      const by = (row.original.verifiedBy ||
+        row.original.redeemedBy) as unknown;
       let label = "Staff";
       if (typeof by === "string") {
         label = by;

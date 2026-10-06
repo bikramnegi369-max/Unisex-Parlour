@@ -8,7 +8,7 @@ export function useRedeemSubscription() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: RedeemSubscriptionPayload }) =>
       redeemSubscription(id, payload),
-    onSuccess: (_, { id }) => {
+    onSuccess: (_, { id, payload }) => {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "detail", id],
       });
@@ -18,6 +18,15 @@ export function useRedeemSubscription() {
       queryClient.invalidateQueries({
         queryKey: ["subscriptions", "list"],
       });
+      // Invalidate appointments if linked
+      if (payload.appointmentId) {
+        queryClient.invalidateQueries({
+          queryKey: ["appointments"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["appointment", payload.appointmentId],
+        });
+      }
     },
   });
 }

@@ -198,7 +198,48 @@ export function CreateAppointmentDialog({
     [customerSubsData?.data],
   );
 
-  // Map of serviceId -> available remaining subscription quota across active subscriptions
+  // Map of serviceId -> list of eligible active subscriptions covering this service (sorted by earliest expiration FIFO)
+  const subscriptionsByService = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{
+        subscriptionId: string;
+        subscriptionCode: string;
+        remaining: number;
+        total: number;
+        endDate?: string;
+      }>
+    >();
+
+    for (const sub of activeSubscriptions) {
+      for (const ent of sub.entitlements || []) {
+        if (ent.remainingQuantity > 0) {
+          const list = map.get(ent.serviceId) || [];
+          list.push({
+            subscriptionId: sub.id,
+            subscriptionCode: sub.subscriptionCode,
+            remaining: ent.remainingQuantity,
+            total: ent.totalQuantity,
+            endDate: sub.endDate,
+          });
+          map.set(ent.serviceId, list);
+        }
+      }
+    }
+
+    // Sort each list deterministically by earliest expiration date (FIFO)
+    map.forEach((list) => {
+      list.sort((a, b) => {
+        const timeA = a.endDate ? new Date(a.endDate).getTime() : Infinity;
+        const timeB = b.endDate ? new Date(b.endDate).getTime() : Infinity;
+        return timeA - timeB;
+      });
+    });
+
+    return map;
+  }, [activeSubscriptions]);
+
+  // Aggregate quota helper for backward compatibility
   const subscriptionQuotaByService = useMemo(() => {
     const map = new Map<
       string,
@@ -208,24 +249,34 @@ export function CreateAppointmentDialog({
         remaining: number;
         total: number;
         endDate?: string;
+        candidates: Array<{
+          subscriptionId: string;
+          subscriptionCode: string;
+          remaining: number;
+          total: number;
+          endDate?: string;
+        }>;
       }
     >();
-    for (const sub of activeSubscriptions) {
-      for (const ent of sub.entitlements || []) {
-        if (ent.remainingQuantity > 0) {
-          const existing = map.get(ent.serviceId);
-          map.set(ent.serviceId, {
-            subscriptionId: sub.id,
-            subscriptionCode: sub.subscriptionCode,
-            remaining: (existing?.remaining || 0) + ent.remainingQuantity,
-            total: (existing?.total || 0) + ent.totalQuantity,
-            endDate: sub.endDate,
-          });
-        }
+
+    subscriptionsByService.forEach((candidates, serviceId) => {
+      if (candidates.length > 0) {
+        const primary = candidates[0]; // Earliest expiring
+        const totalRemaining = candidates.reduce((s, c) => s + c.remaining, 0);
+        const totalAllocated = candidates.reduce((s, c) => s + c.total, 0);
+        map.set(serviceId, {
+          subscriptionId: primary.subscriptionId,
+          subscriptionCode: primary.subscriptionCode,
+          remaining: totalRemaining,
+          total: totalAllocated,
+          endDate: primary.endDate,
+          candidates,
+        });
       }
-    }
+    });
+
     return map;
-  }, [activeSubscriptions]);
+  }, [subscriptionsByService]);
 
   const effectiveBranchTimezone = useMemo(() => {
     if (selectedBranchId) {
@@ -741,12 +792,14 @@ export function CreateAppointmentDialog({
     // Run initial measurement
     measureCardSpace();
 
-    const observer = new ResizeObserver(() => {
-      measureCardSpace();
-    });
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(() => {
+        measureCardSpace();
+      });
 
-    observer.observe(cardEl);
-    return () => observer.disconnect();
+      observer.observe(cardEl);
+      return () => observer.disconnect();
+    }
   }, [isOpen, selectedServicesSummary.coveredCount]);
 
   const handleRemoveService = (serviceId: string) => {
@@ -1803,47 +1856,87 @@ export function CreateAppointmentDialog({
                           </div>
 
                           {/* Row 2: Customer Plan Quota Row or Standard Billing */}
-                          <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px]">
+                          <div className="flex items-start justify-between pt-2 mt-2 border-t border-border/40 text-[11px] gap-2">
                             {canRedeemPlan ? (
-                              <div className="flex flex-col items-start gap-1 min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleToggleSubscriptionCoverage(
-                                      item.serviceId,
-                                      subQuota!.subscriptionId,
-                                    )
-                                  }
-                                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
-                                    hasSub
-                                      ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
-                                      : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
-                                  }`}
-                                >
-                                  {hasSub ? (
-                                    <>
-                                      <Check className="h-3 w-3 stroke-3" />
-                                      <span>
-                                        Covered ({subQuota!.subscriptionCode})
+                              <div className="flex flex-col items-start gap-1.5 min-w-0 flex-1">
+                                {subQuota!.candidates.length > 1 ? (
+                                  <div className="space-y-1 w-full">
+                                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                        Multiple Subscriptions Available ({subQuota!.candidates.length})
                                       </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="h-3 w-3" />
-                                      <span>Apply Plan Quota</span>
-                                    </>
-                                  )}
-                                </button>
-                                <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
-                                  <span>
-                                    (
-                                    {hasSub
-                                      ? Math.max(0, subQuota!.remaining - 1)
-                                      : subQuota!.remaining}{" "}
-                                    of {subQuota!.total} left
-                                    {hasSub ? " after this booking" : ""})
-                                  </span>
-                                </span>
+                                      <span>Total: {subQuota!.remaining} units left</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {subQuota!.candidates.map((cand) => {
+                                        const isThisApplied = item.appliedSubscriptionId === cand.subscriptionId;
+                                        return (
+                                          <button
+                                            key={cand.subscriptionId}
+                                            type="button"
+                                            onClick={() =>
+                                              handleToggleSubscriptionCoverage(
+                                                item.serviceId,
+                                                cand.subscriptionId,
+                                              )
+                                            }
+                                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer ${
+                                              isThisApplied
+                                                ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                                            }`}
+                                            title={`Expires: ${cand.endDate ? cand.endDate.slice(0, 10) : "N/A"}`}
+                                          >
+                                            {isThisApplied ? "✓ " : ""}
+                                            {cand.subscriptionCode} ({cand.remaining} left • Exp:{" "}
+                                            {cand.endDate ? cand.endDate.slice(0, 10) : "No expiry"})
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-start gap-1 min-w-0">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleToggleSubscriptionCoverage(
+                                          item.serviceId,
+                                          subQuota!.subscriptionId,
+                                        )
+                                      }
+                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
+                                        hasSub
+                                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
+                                          : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
+                                      }`}
+                                    >
+                                      {hasSub ? (
+                                        <>
+                                          <Check className="h-3 w-3 stroke-3" />
+                                          <span>
+                                            Covered ({subQuota!.subscriptionCode})
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="h-3 w-3" />
+                                          <span>Apply Plan Quota</span>
+                                        </>
+                                      )}
+                                    </button>
+                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
+                                      <span>
+                                        (
+                                        {hasSub
+                                          ? Math.max(0, subQuota!.remaining - 1)
+                                          : subQuota!.remaining}{" "}
+                                        of {subQuota!.total} left
+                                        {hasSub ? " after this booking" : ""})
+                                      </span>
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               <span className="text-[11px] text-muted-foreground">

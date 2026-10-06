@@ -192,8 +192,8 @@ export const getSubscriptionColumns = ({
             <button
               type="button"
               onClick={() => onRedeem(sub)}
-              className="cursor-pointer h-8 w-8 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-600 flex items-center justify-center transition-colors text-emerald-600 dark:text-emerald-400"
-              title="Redeem Entitlements"
+              className="cursor-pointer h-8 w-8 rounded-lg hover:bg-amber-500/10 hover:text-amber-600 flex items-center justify-center transition-colors text-amber-600 dark:text-amber-400"
+              title="Manual Redemption"
             >
               <Gift className="h-4 w-4" />
             </button>

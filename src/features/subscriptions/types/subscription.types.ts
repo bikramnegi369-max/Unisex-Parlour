@@ -52,6 +52,8 @@ export interface SubscriptionUsageRecord {
   branchId: string;
   branchName?: string;
   appointmentId?: string;
+  verificationMethod?: "otp" | "manual";
+  reason?: string | null;
   redeemedAt: string;
   verifiedBy?: { id?: string; _id?: string; name: string } | string;
   redeemedBy?: { id?: string; _id?: string; name: string } | string;
@@ -84,7 +86,10 @@ export interface RedeemServiceItem {
 }
 
 export interface RedeemSubscriptionPayload {
-  otp: string;
+  otp?: string;
+  isManual?: boolean;
+  reason?: string;
+  idempotencyKey?: string;
   services: RedeemServiceItem[];
   appointmentId?: string;
 }

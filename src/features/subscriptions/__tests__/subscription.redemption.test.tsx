@@ -44,6 +44,13 @@ const mockSubscription: Subscription = {
 const mockSendOtp = vi.fn();
 const mockRedeem = vi.fn();
 
+vi.mock("@/features/appointments/hooks/useAppointmentQueries", () => ({
+  useAppointments: () => ({
+    data: { data: [] },
+    isLoading: false,
+  }),
+}));
+
 vi.mock("../hooks/useSendSubscriptionOtp", () => ({
   useSendSubscriptionOtp: () => ({
     mutateAsync: mockSendOtp,
@@ -136,14 +143,66 @@ describe("RedeemSubscriptionModal", () => {
     fireEvent.click(redeemButton);
 
     await waitFor(() => {
-      expect(mockRedeem).toHaveBeenCalledWith({
-        id: "sub_1",
-        payload: {
-          otp: "654321",
-          services: [{ serviceId: "srv_1", quantity: 1 }],
-          appointmentId: undefined,
-        },
-      });
+      expect(mockRedeem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "sub_1",
+          payload: expect.objectContaining({
+            isManual: false,
+            otp: "654321",
+            services: [{ serviceId: "srv_1", quantity: 1 }],
+          }),
+        }),
+      );
+      expect(onSuccess).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("handles manual redemption without OTP when reason is provided", async () => {
+    mockRedeem.mockResolvedValueOnce({
+      subscription: mockSubscription,
+      usageRecords: [],
+    });
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    renderModal({ isOpen: true, onClose, onSuccess });
+
+    // Select 1 unit of Haircut
+    const plusButton = screen.getByRole("button", { name: "Increase quantity" });
+    fireEvent.click(plusButton);
+
+    // Switch to Staff Override (Manual)
+    const manualRadio = screen.getByLabelText("Staff Override (Manual)");
+    fireEvent.click(manualRadio);
+
+    // Verify warning notice
+    expect(screen.getByText(/Manual redemption bypasses OTP and requires justification/i)).not.toBeNull();
+
+    // Type mandatory reason
+    const reasonTextarea = screen.getByPlaceholderText(/Explain why manual override is being performed/i);
+    fireEvent.change(reasonTextarea, {
+      target: { value: "Customer phone battery died, manager approved verbally." },
+    });
+
+    // Submit manual redemption
+    const submitBtn = screen.getByRole("button", { name: "Submit Manual Redemption" });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockRedeem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "sub_1",
+          payload: expect.objectContaining({
+            isManual: true,
+            reason: "Customer phone battery died, manager approved verbally.",
+            otp: undefined,
+            services: [{ serviceId: "srv_1", quantity: 1 }],
+            idempotencyKey: expect.stringContaining("manual-redeem-sub_1"),
+          }),
+        }),
+      );
       expect(onSuccess).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
     });

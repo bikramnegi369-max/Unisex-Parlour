@@ -157,8 +157,11 @@ export function CreateSubscriptionDialog({
     // Set planId in form state
     setValue("planId", planId, { shouldValidate: true });
 
-    // Autofill suggested price (can be modified)
-    setValue("price", match.suggestedPrice, { shouldValidate: true });
+    // Autofill suggested price ONLY if user hasn't already entered a custom agreed price
+    const currentPrice = getValues("price");
+    if (currentPrice === undefined || currentPrice === null || isNaN(currentPrice) || currentPrice === 0) {
+      setValue("price", match.suggestedPrice, { shouldValidate: true });
+    }
 
     // Autofill validity dates
     const end = format(addMonths(new Date(), match.validityMonths || 6), "yyyy-MM-dd");

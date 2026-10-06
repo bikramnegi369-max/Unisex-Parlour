@@ -39,9 +39,14 @@ src/
   features/
     auth/             # useAuth hook, login mutation, session query
     branches/         # useBranches hook, branches API service
-    customers/        # (planned)
-    appointments/     # (planned)
-    dashboard/        # (planned)
+    customers/        # Customer profiles, history & membership management
+    appointments/     # Booking calendar, walk-in/advance booking, OTP completion
+    services/         # Master catalog, categories, base pricing
+    subscriptions/    # Plans, customer subscriptions, redemptions & ledgers
+    employees/        # Staff management, roles, service assignments
+    leaves/           # Staff leave requests & approvals
+    dashboard/        # Analytics, revenue, metrics & activity logs
+    audit/            # Comprehensive immutable security audit logs
   lib/
     api/              # axios.ts — centralized Axios client
     auth/             # token.ts — access/refresh token storage

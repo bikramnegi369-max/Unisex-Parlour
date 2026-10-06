@@ -75,16 +75,48 @@ export const redeemServiceItemSchema = z.object({
     .positive("Quantity must be at least 1"),
 });
 
-export const redeemSubscriptionSchema = z.object({
-  otp: z
-    .string()
-    .trim()
-    .min(4, "OTP must be at least 4 digits")
-    .max(10, "OTP must not exceed 10 digits"),
-  services: z
-    .array(redeemServiceItemSchema)
-    .min(1, "Please select at least one service to redeem"),
-  appointmentId: z.string().trim().optional(),
-});
+export const redeemSubscriptionSchema = z
+  .object({
+    isManual: z.boolean().default(false),
+    reason: z
+      .string()
+      .trim()
+      .max(1000, "Reason must not exceed 1000 characters")
+      .optional(),
+    idempotencyKey: z.string().trim().max(255).optional(),
+    otp: z
+      .string()
+      .trim()
+      .max(10, "OTP must not exceed 10 digits")
+      .optional(),
+    services: z
+      .array(redeemServiceItemSchema)
+      .min(1, "Please select at least one service to redeem"),
+    appointmentId: z.string().trim().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.isManual) {
+        return !!data.reason && data.reason.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Reason is required for manual redemption",
+      path: ["reason"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.isManual) {
+        return !!data.otp && data.otp.trim().length >= 4;
+      }
+      return true;
+    },
+    {
+      message: "Customer OTP must be at least 4 digits",
+      path: ["otp"],
+    }
+  );
 
 export type RedeemSubscriptionFormValues = z.infer<typeof redeemSubscriptionSchema>;

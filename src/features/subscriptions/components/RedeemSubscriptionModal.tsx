@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useId } from "react";
 import { toast } from "sonner";
 import {
   KeyRound,
@@ -8,11 +8,16 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
+  AlertTriangle,
+  Info,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSendSubscriptionOtp } from "../hooks/useSendSubscriptionOtp";
 import { useRedeemSubscription } from "../hooks/useRedeemSubscription";
+import { useAppointments } from "@/features/appointments/hooks/useAppointmentQueries";
+import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type { Subscription } from "../types/subscription.types";
 
 interface RedeemSubscriptionModalProps {
@@ -30,9 +35,9 @@ export function RedeemSubscriptionModal({
   onSuccess,
   initialAppointmentId,
 }: RedeemSubscriptionModalProps) {
+  const componentInstanceId = useId();
   // Step 1: select quantities for entitlements with remainingQuantity > 0
-  // NOTE: The backend may populate `serviceId` as a service object instead of a
-  // plain string ID. We defensively resolve the string ID and display name here.
+  // Defensively resolve string ID and display name whether populated or string.
   type PopulatedService = { _id?: string; id?: string; name?: string };
 
   const resolveEntitlement = (
@@ -59,8 +64,10 @@ export function RedeemSubscriptionModal({
   );
 
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [isManual, setIsManual] = useState(false);
+  const [reason, setReason] = useState("");
   const [otp, setOtp] = useState("");
-  const [appointmentId, setAppointmentId] = useState(
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState(
     initialAppointmentId || "",
   );
   const [otpSent, setOtpSent] = useState(false);
@@ -68,6 +75,17 @@ export function RedeemSubscriptionModal({
 
   const sendOtpMutation = useSendSubscriptionOtp();
   const redeemMutation = useRedeemSubscription();
+
+  // Load customer appointments for convenient association rather than typing opaque IDs
+  const customerId =
+    typeof subscription.customerId === "string"
+      ? subscription.customerId
+      : subscription.customer?.id || "";
+
+  const { data: appointmentsData } = useAppointments(
+    customerId ? { customerId, limit: 10 } : { limit: 10 },
+  );
+  const appointmentsList = appointmentsData?.data || [];
 
   if (!isOpen) return null;
 
@@ -117,7 +135,7 @@ export function RedeemSubscriptionModal({
     }
   };
 
-  const handleRedeem = async (e: React.FormEvent) => {
+  const handleRedeem = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -126,22 +144,39 @@ export function RedeemSubscriptionModal({
       return;
     }
 
-    if (!otp.trim()) {
-      setValidationError("Please enter the customer OTP");
-      return;
+    if (isManual) {
+      if (!reason.trim()) {
+        setValidationError("A reason is mandatory for manual redemptions.");
+        return;
+      }
+    } else {
+      if (!otp.trim()) {
+        setValidationError("Please enter the customer OTP");
+        return;
+      }
     }
+
+    // Generate unique idempotency key to prevent double submissions
+    const idempotencyKey = `manual-redeem-${subscription.id}-${Date.now()}-${componentInstanceId}`;
 
     try {
       await redeemMutation.mutateAsync({
         id: subscription.id,
         payload: {
-          otp: otp.trim(),
+          isManual,
+          reason: isManual ? reason.trim() : undefined,
+          otp: isManual ? undefined : otp.trim(),
           services: selectedServices,
-          appointmentId: appointmentId.trim() || undefined,
+          appointmentId: selectedAppointmentId.trim() || undefined,
+          idempotencyKey,
         },
       });
 
-      toast.success("Subscription entitlements redeemed successfully!");
+      toast.success(
+        isManual
+          ? "Manual redemption recorded and audited successfully!"
+          : "Subscription entitlements redeemed successfully via OTP!",
+      );
       onSuccess();
       onClose();
     } catch (err: unknown) {
@@ -151,7 +186,7 @@ export function RedeemSubscriptionModal({
         ((responseObj?.data as Record<string, unknown> | null)
           ?.message as string) ||
         (errorObj?.message as string) ||
-        "Redemption failed. Please verify the OTP and try again.";
+        "Redemption failed. Please verify input and try again.";
       setValidationError(msg);
       toast.error(msg);
     }
@@ -159,6 +194,18 @@ export function RedeemSubscriptionModal({
 
   return (
     <form onSubmit={handleRedeem} className="space-y-4">
+      {/* Important Workflow Notice */}
+      <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs space-y-1">
+        <div className="flex items-center gap-1.5 font-bold">
+          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+          <span>Manual / Recovery Redemption Workflow</span>
+        </div>
+        <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+          Normal subscription usage occurs automatically when completing a scheduled appointment.
+          Use this modal only for walk-in adjustments, non-appointment sessions, or administrative recovery.
+        </p>
+      </div>
+
       {/* Step 1: Select services & quantity */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
@@ -250,74 +297,162 @@ export function RedeemSubscriptionModal({
         )}
       </div>
 
-      {/* Optional Appointment ID linkage */}
-      <div className="space-y-1">
+      {/* Appointment Association (Searchable Selector + Custom input fallback) */}
+      <div className="space-y-1.5">
         <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Appointment ID (Optional)
+          Link to Appointment (Optional)
         </label>
-        <Input
-          type="text"
-          placeholder="e.g. apt_12345 (if linking to an appointment session)"
-          value={appointmentId}
-          onChange={(e) => setAppointmentId(e.target.value)}
-          disabled={redeemMutation.isPending}
-          className="h-9 text-xs"
-        />
+        {appointmentsList.length > 0 ? (
+          <select
+            value={selectedAppointmentId}
+            onChange={(e) => setSelectedAppointmentId(e.target.value)}
+            disabled={redeemMutation.isPending}
+            className="w-full h-9 text-xs rounded-md border border-input bg-background px-2 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          >
+            <option value="">-- No linked appointment (Standalone session) --</option>
+            {appointmentsList.map((apt: Appointment) => (
+              <option key={apt.id} value={apt.id}>
+                {apt.appointmentCode || apt.id} • {apt.date} {apt.startTime} ({apt.status})
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div className="relative">
+            <Input
+              type="text"
+              placeholder="e.g. apt_12345 (if linking to an appointment session)"
+              value={selectedAppointmentId}
+              onChange={(e) => setSelectedAppointmentId(e.target.value)}
+              disabled={redeemMutation.isPending}
+              className="h-9 text-xs pl-8"
+            />
+            <Calendar className="h-4 w-4 text-muted-foreground absolute left-2.5 top-2.5" />
+          </div>
+        )}
       </div>
 
-      {/* Step 2 & 3: OTP Verification */}
-      <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+      {/* Verification Mode Selector */}
+      <div className="p-3 rounded-xl border border-border bg-muted/30 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-primary" />
-            <span className="text-xs font-bold text-foreground">
-              Customer SMS Verification
-            </span>
+          <label className="text-xs font-bold text-foreground">
+            Redemption Method
+          </label>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+              <input
+                type="radio"
+                name="verificationMode"
+                checked={!isManual}
+                onChange={() => {
+                  setIsManual(false);
+                  setValidationError(null);
+                }}
+                disabled={redeemMutation.isPending}
+                className="text-primary"
+              />
+              <span>Customer SMS OTP</span>
+            </label>
+            <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+              <input
+                type="radio"
+                name="verificationMode"
+                checked={isManual}
+                onChange={() => {
+                  setIsManual(true);
+                  setValidationError(null);
+                }}
+                disabled={redeemMutation.isPending}
+                className="text-amber-600"
+              />
+              <span className="font-semibold text-amber-700 dark:text-amber-400">
+                Staff Override (Manual)
+              </span>
+            </label>
           </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleSendOtp}
-            disabled={sendOtpMutation.isPending || totalSelectedUnits === 0}
-            className="h-8 text-xs gap-1 border-primary/30 hover:bg-primary/10 text-primary cursor-pointer"
-          >
-            {sendOtpMutation.isPending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Send className="h-3 w-3" />
-            )}
-            {otpSent ? "Resend OTP" : "Send Customer OTP"}
-          </Button>
         </div>
 
-        {otpSent && (
-          <div className="space-y-2 animate-in fade-in duration-200">
-            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              OTP has been sent to customer{" "}
-              {subscription.customer?.phone
-                ? `(${subscription.customer.phone})`
-                : ""}
-              .
+        {/* Branch 1: Manual Reason Input */}
+        {isManual ? (
+          <div className="space-y-2 pt-2 border-t border-border/60">
+            <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              <span className="font-semibold">
+                Audit Trail Notice: Manual redemption bypasses OTP and requires justification.
+              </span>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Reason / Note <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                placeholder="Explain why manual override is being performed (e.g. customer phone unavailable, network outage, manager approved)..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={1000}
+                rows={3}
+                disabled={redeemMutation.isPending}
+                className="w-full text-xs rounded-md border border-input bg-background p-2 text-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+              />
+              <span className="text-[10px] text-muted-foreground block text-right">
+                {reason.length} / 1000 chars
+              </span>
+            </div>
+          </div>
+        ) : (
+          /* Branch 2: Standard OTP Flow */
+          <div className="space-y-3 pt-2 border-t border-border/60">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-primary" />
+                <span className="text-xs font-medium text-foreground">
+                  Send one-time password to customer
+                </span>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSendOtp}
+                disabled={sendOtpMutation.isPending || totalSelectedUnits === 0}
+                className="h-8 text-xs gap-1 border-primary/30 hover:bg-primary/10 text-primary cursor-pointer"
+              >
+                {sendOtpMutation.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Send className="h-3 w-3" />
+                )}
+                {otpSent ? "Resend OTP" : "Send Customer OTP"}
+              </Button>
             </div>
 
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Enter Verification OTP{" "}
-                <span className="text-destructive">*</span>
-              </label>
-              <Input
-                type="text"
-                placeholder="Enter 4-6 digit SMS OTP..."
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                maxLength={8}
-                disabled={redeemMutation.isPending}
-                className="h-9 text-xs font-mono tracking-widest"
-              />
-            </div>
+            {otpSent && (
+              <div className="space-y-2 animate-in fade-in duration-200">
+                <div className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  OTP has been sent to customer{" "}
+                  {subscription.customer?.phone
+                    ? `(${subscription.customer.phone})`
+                    : ""}
+                  .
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Enter Verification OTP <span className="text-destructive">*</span>
+                  </label>
+                  <Input
+                    type="text"
+                    placeholder="Enter 4-6 digit SMS OTP..."
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    maxLength={8}
+                    disabled={redeemMutation.isPending}
+                    className="h-9 text-xs font-mono tracking-widest"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -347,15 +482,18 @@ export function RedeemSubscriptionModal({
           disabled={
             redeemMutation.isPending ||
             totalSelectedUnits === 0 ||
-            !otpSent ||
-            !otp.trim()
+            (isManual ? !reason.trim() : !otpSent || !otp.trim())
           }
-          className="h-9 text-xs cursor-pointer gap-1.5"
+          className={`h-9 text-xs cursor-pointer gap-1.5 ${
+            isManual
+              ? "bg-amber-600 hover:bg-amber-700 text-white"
+              : ""
+          }`}
         >
           {redeemMutation.isPending && (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           )}
-          Complete Redemption
+          {isManual ? "Submit Manual Redemption" : "Complete Redemption"}
         </Button>
       </div>
     </form>
