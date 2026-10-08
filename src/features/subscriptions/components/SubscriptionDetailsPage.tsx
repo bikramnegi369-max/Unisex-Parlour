@@ -23,6 +23,7 @@ import { EditSubscriptionDialog } from "./EditSubscriptionDialog";
 import { CancelSubscriptionDialog } from "./CancelSubscriptionDialog";
 import { RedeemSubscriptionModal } from "./RedeemSubscriptionModal";
 import type { UpdateSubscriptionFormValues, CancelSubscriptionFormValues } from "../schemas/subscription.schema";
+import type { SubscriptionEntitlement } from "../types/subscription.types";
 
 interface SubscriptionDetailsPageProps {
   id: string;
@@ -103,7 +104,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
 
   const isActive = subscription.status === "active";
   const remainingCount = (subscription.entitlements || []).reduce(
-    (sum, e) => sum + e.remainingQuantity,
+    (sum: number, e: SubscriptionEntitlement) => sum + e.remainingQuantity,
     0
   );
 

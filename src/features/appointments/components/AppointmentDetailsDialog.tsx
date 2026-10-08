@@ -28,14 +28,19 @@ import {
   CalendarClock,
   UserCheck,
   RefreshCw,
+  Receipt,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import {
   useAppointment,
   useTriggerAppointmentReminder,
 } from "../hooks/useAppointments";
+import Link from "next/link";
 import { toast } from "sonner";
+import { CreateInvoiceDialog } from "@/features/billing/components/CreateInvoiceDialog";
+import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import type {
   Appointment,
   AppointmentServiceSnapshot,
@@ -68,8 +73,11 @@ export function AppointmentDetailsDialog({
   canStatus,
   canDelete,
 }: AppointmentDetailsDialogProps) {
+  const router = useRouter();
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
+  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
+  const canCheckout = hasPermission(user, "billing.checkout");
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -80,6 +88,25 @@ export function AppointmentDetailsDialog({
   const appointment = fetchedAppointment || initialAppointment;
 
   const triggerReminderMutation = useTriggerAppointmentReminder();
+
+  // MUST be called unconditionally at top level to satisfy React Rules of Hooks
+  const customerId = appointment?.customerId || appointment?.customer?.id;
+  const { data: customerSubsData } = useSubscriptions(
+    { customerId: customerId || undefined, limit: 50 },
+    { enabled: Boolean(isOpen && customerId) },
+  );
+
+  const subsList = customerSubsData?.data;
+  const subscriptionMap = React.useMemo(() => {
+    const map = new Map<string, { code: string; planName?: string; id: string }>();
+    if (subsList) {
+      for (const sub of subsList) {
+        const planName = typeof sub.planId === "object" ? sub.planId?.name : undefined;
+        map.set(sub.id, { code: sub.subscriptionCode, planName, id: sub.id });
+      }
+    }
+    return map;
+  }, [subsList]);
 
   if (!appointment) return null;
 
@@ -266,23 +293,47 @@ export function AppointmentDetailsDialog({
                           <span className="font-semibold text-foreground">
                             {srv.name}
                           </span>
-                          {isCoveredBySub && (
-                            <span
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border flex items-center gap-1 ${
-                                isRedeemed
-                                  ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
-                                  : "bg-primary/10 text-primary border-primary/20"
-                              }`}
-                            >
-                              <ShieldCheck className="h-3 w-3" />
-                              {isRedeemed
-                                ? "Subscription Redeemed"
-                                : "Subscription Covered"}
-                            </span>
-                          )}
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {srv.duration} mins
+                        <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-0.5">
+                          <span>{srv.duration} mins</span>
+                          {isCoveredBySub && (
+                            (() => {
+                              const subInfo = srv.appliedSubscriptionId
+                                ? subscriptionMap.get(srv.appliedSubscriptionId)
+                                : undefined;
+                              const displayCode =
+                                srv.subscriptionCode ||
+                                subInfo?.code ||
+                                (srv.appliedSubscriptionId !== "auto" && srv.appliedSubscriptionId
+                                  ? `#${srv.appliedSubscriptionId.slice(-6)}`
+                                  : null);
+                              const subTargetId =
+                                subInfo?.id ||
+                                (srv.appliedSubscriptionId !== "auto" ? srv.appliedSubscriptionId : null);
+
+                              return (
+                                <div className="whitespace-nowrap text-[11px] font-medium flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                  <ShieldCheck className="h-3 w-3 shrink-0" />
+                                  <span>
+                                    {isRedeemed ? "Redeemed:" : "Covered:"}
+                                  </span>
+                                  {displayCode && subTargetId ? (
+                                    <Link
+                                      href={`/subscriptions/${subTargetId}`}
+                                      className="font-bold underline hover:opacity-85"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      [{displayCode}]
+                                    </Link>
+                                  ) : (
+                                    <span className="font-bold">
+                                      [{displayCode || "Subscription"}]
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()
+                          )}
                         </div>
                       </div>
                     </div>
@@ -539,6 +590,20 @@ export function AppointmentDetailsDialog({
               </>
             )}
 
+            {/* Billing / Invoice Generation Flow: Restrict strictly to completed appointments only */}
+            {canCheckout && appointment.status === "completed" && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setIsCreateInvoiceOpen(true)}
+                className="text-xs h-8 gap-1.5 font-semibold bg-primary text-primary-foreground shadow-xs"
+                title="Generate final invoice for completed appointment"
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                <span>Create Invoice</span>
+              </Button>
+            )}
+
             {canStatus && !isTerminal && (
               <>
                 {appointment.status === "in_progress" &&
@@ -569,6 +634,16 @@ export function AppointmentDetailsDialog({
           </div>
         </div>
       </div>
+
+      <CreateInvoiceDialog
+        isOpen={isCreateInvoiceOpen}
+        onClose={() => setIsCreateInvoiceOpen(false)}
+        appointment={appointment}
+        onSuccess={(invoiceId) => {
+          onClose();
+          router.push(`/billing/${invoiceId}`);
+        }}
+      />
     </Dialog>
   );
 }

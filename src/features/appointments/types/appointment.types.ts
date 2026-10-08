@@ -40,6 +40,8 @@ export interface AppointmentServiceSnapshot {
   price: number;
   category?: string;
   appliedSubscriptionId?: string | null;
+  subscriptionCode?: string | null;
+  subscriptionPlanName?: string | null;
   isRedeemedViaSubscription?: boolean;
   subscriptionUsageId?: string | null;
 }

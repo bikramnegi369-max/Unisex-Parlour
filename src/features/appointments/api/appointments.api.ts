@@ -106,6 +106,8 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
       (s.appliedSubscriptionId as string) ||
       (toFlatId(s.appliedSubscriptionId) ? toFlatId(s.appliedSubscriptionId) : null) ||
       null,
+    subscriptionCode: typeof s.subscriptionCode === "string" ? s.subscriptionCode : null,
+    subscriptionPlanName: typeof s.subscriptionPlanName === "string" ? s.subscriptionPlanName : null,
     isRedeemedViaSubscription: Boolean(s.isRedeemedViaSubscription),
     subscriptionUsageId:
       (s.subscriptionUsageId as string) ||
