@@ -832,17 +832,16 @@ export function CreateAppointmentDialog({
     if (isSelected) {
       handleRemoveService(service.id);
     } else {
-      const defaultPrice = service.pricing?.basePrice ?? 0;
-      // Auto-attach active subscription entitlement if available for this customer
+      // Auto-attach active subscription entitlement if available for this customer ("auto" lets backend deterministically resolve earliest-expiring)
       const subQuota = subscriptionQuotaByService.get(service.id);
       const appliedSubscriptionId =
-        subQuota && subQuota.remaining > 0 ? subQuota.subscriptionId : null;
+        subQuota && subQuota.remaining > 0 ? "auto" : null;
 
       const updated = [
         ...selectedServices,
         {
           serviceId: service.id,
-          customPrice: defaultPrice,
+          customPrice: undefined,
           appliedSubscriptionId,
         },
       ];
@@ -890,7 +889,9 @@ export function CreateAppointmentDialog({
   ) => {
     const updated = selectedServices.map((s) => {
       if (s.serviceId !== serviceId) return s;
-      const currentlyApplied = s.appliedSubscriptionId === subId;
+      const currentlyApplied =
+        s.appliedSubscriptionId === subId ||
+        (s.appliedSubscriptionId === "auto" && subId === "auto");
       return {
         ...s,
         appliedSubscriptionId: currentlyApplied ? null : subId,
@@ -1072,42 +1073,51 @@ export function CreateAppointmentDialog({
                   )}
                 />
               ) : (
-                <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between shadow-xs">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm border border-primary/20">
+                <div className="p-3 bg-card border border-border rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                  {/* Left: Unobstructed Customer Data */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="h-10 w-10 shrink-0 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-sm border border-primary/20">
                       {selectedCustomer?.name
                         ? selectedCustomer.name.slice(0, 2).toUpperCase()
                         : "CU"}
                     </div>
-                    <div>
-                      <div className="font-bold text-foreground text-xs flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-foreground text-xs leading-snug wrap-break-word">
                         {selectedCustomer?.name || "Selected Customer"}
-                        {activeSubscriptions.length > 0 && (
-                          <span className="text-[10px] bg-primary/15 text-primary font-bold px-1.5 py-0.5 rounded border border-primary/25 flex items-center gap-1">
-                            <Layers className="h-3 w-3" />
-                            {activeSubscriptions.length}{" "}
-                            {activeSubscriptions.length === 1
-                              ? "Active Plan"
-                              : "Active Plans"}
-                          </span>
-                        )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {selectedCustomer?.phone || "No phone registered"}{" "}
-                        {selectedCustomer?.email
-                          ? `• ${selectedCustomer.email}`
-                          : ""}
+                      <div className="text-[11px] text-muted-foreground pt-0.5 space-y-0.5">
+                        <div className="font-medium text-foreground/80 wrap-break-word">
+                          {selectedCustomer?.phone || "No phone registered"}
+                        </div>
+                        {selectedCustomer?.email && (
+                          <div className="text-muted-foreground wrap-break-word">
+                            {selectedCustomer.email}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Right Column: Badges stacked neatly one above each other */}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {/* 1. Active Plan */}
+                    {activeSubscriptions.length > 0 && (
+                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md border border-primary/25 inline-flex items-center gap-1 shadow-2xs whitespace-nowrap">
+                        <Layers className="h-3 w-3 text-primary shrink-0" />
+                        {activeSubscriptions.length}{" "}
+                        {activeSubscriptions.length === 1
+                          ? "Active Plan"
+                          : "Active Plans"}
+                      </span>
+                    )}
+
+                    {/* 2. Client Branch Status */}
                     {selectedCustomer?.homeBranchId && effectiveBranchId && (
                       <span
-                        className={`text-[10px] px-2 py-0.5 rounded font-semibold border ${
+                        className={`text-[10px] px-2 py-0.5 rounded-md font-semibold border whitespace-nowrap ${
                           selectedCustomer.homeBranchId === effectiveBranchId
-                            ? "text-blue-600 bg-blue-500/10 border-blue-500/20"
-                            : "text-amber-600 bg-amber-500/10 border-amber-500/20"
+                            ? "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20"
+                            : "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20"
                         }`}
                         title={
                           selectedCustomer.homeBranchId === effectiveBranchId
@@ -1120,7 +1130,10 @@ export function CreateAppointmentDialog({
                           : "Visiting Client"}
                       </span>
                     )}
-                    <span className="text-[10px] text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded font-semibold border border-emerald-500/20">
+
+                    {/* 3. Verified Status */}
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md font-semibold border border-emerald-500/20 inline-flex items-center gap-1 whitespace-nowrap">
+                      <Check className="h-2.5 w-2.5 stroke-3 shrink-0" />
                       Verified
                     </span>
                   </div>
@@ -1868,6 +1881,24 @@ export function CreateAppointmentDialog({
                                       <span>Total: {subQuota!.remaining} units left</span>
                                     </div>
                                     <div className="flex items-center gap-1.5 flex-wrap">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleToggleSubscriptionCoverage(
+                                            item.serviceId,
+                                            "auto",
+                                          )
+                                        }
+                                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer ${
+                                          item.appliedSubscriptionId === "auto"
+                                            ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
+                                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
+                                        }`}
+                                        title="Auto-select earliest expiring subscription"
+                                      >
+                                        {item.appliedSubscriptionId === "auto" ? "✓ " : ""}
+                                        Auto (Earliest Expiring)
+                                      </button>
                                       {subQuota!.candidates.map((cand) => {
                                         const isThisApplied = item.appliedSubscriptionId === cand.subscriptionId;
                                         return (
@@ -1902,7 +1933,7 @@ export function CreateAppointmentDialog({
                                       onClick={() =>
                                         handleToggleSubscriptionCoverage(
                                           item.serviceId,
-                                          subQuota!.subscriptionId,
+                                          "auto",
                                         )
                                       }
                                       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${

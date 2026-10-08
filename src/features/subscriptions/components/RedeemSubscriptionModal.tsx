@@ -17,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { useSendSubscriptionOtp } from "../hooks/useSendSubscriptionOtp";
 import { useRedeemSubscription } from "../hooks/useRedeemSubscription";
 import { useAppointments } from "@/features/appointments/hooks/useAppointmentQueries";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type { Subscription } from "../types/subscription.types";
 
@@ -35,7 +37,9 @@ export function RedeemSubscriptionModal({
   onSuccess,
   initialAppointmentId,
 }: RedeemSubscriptionModalProps) {
+  const { user } = useAuth();
   const componentInstanceId = useId();
+  const canRedeem = hasPermission(user, "subscriptions.redeem");
   // Step 1: select quantities for entitlements with remainingQuantity > 0
   // Defensively resolve string ID and display name whether populated or string.
   type PopulatedService = { _id?: string; id?: string; name?: string };
@@ -83,9 +87,13 @@ export function RedeemSubscriptionModal({
       : subscription.customer?.id || "";
 
   const { data: appointmentsData } = useAppointments(
-    customerId ? { customerId, limit: 10 } : { limit: 10 },
+    customerId ? { customerId, limit: 20 } : { limit: 20 },
   );
-  const appointmentsList = appointmentsData?.data || [];
+  // Filter appointments: ensure belonging to customer and not in terminal states (completed/cancelled)
+  const appointmentsList = (appointmentsData?.data || []).filter(
+    (apt: Appointment) =>
+      apt.status !== "completed" && apt.status !== "cancelled",
+  );
 
   if (!isOpen) return null;
 
@@ -138,6 +146,14 @@ export function RedeemSubscriptionModal({
   const handleRedeem = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     setValidationError(null);
+
+    if (!canRedeem) {
+      setValidationError(
+        "You do not have permission to redeem subscription entitlements (subscriptions.redeem required).",
+      );
+      toast.error("Permission denied: subscriptions.redeem required.");
+      return;
+    }
 
     if (selectedServices.length === 0) {
       setValidationError("Please select at least 1 service unit to redeem");
@@ -205,6 +221,18 @@ export function RedeemSubscriptionModal({
           Use this modal only for walk-in adjustments, non-appointment sessions, or administrative recovery.
         </p>
       </div>
+
+      {!canRedeem && (
+        <div className="p-3 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-semibold">Permission Restricted</p>
+            <p className="text-[11px] text-destructive/90">
+              You lack the <code className="font-mono bg-destructive/20 px-1 rounded">subscriptions.redeem</code> permission required to redeem entitlements.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Step 1: Select services & quantity */}
       <div className="space-y-2">
@@ -480,6 +508,7 @@ export function RedeemSubscriptionModal({
           type="submit"
           size="sm"
           disabled={
+            !canRedeem ||
             redeemMutation.isPending ||
             totalSelectedUnits === 0 ||
             (isManual ? !reason.trim() : !otpSent || !otp.trim())

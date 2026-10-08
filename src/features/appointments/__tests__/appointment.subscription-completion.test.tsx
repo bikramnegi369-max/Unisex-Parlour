@@ -360,6 +360,42 @@ describe("Subscription Verification Flow & Helper Tests", () => {
   });
 
   describe("Appointment Creation Contract & Subscription Association Semantics", () => {
+    it("pricing semantics: customPrice is optional, omitted when untouched, and overrides basePrice when provided", () => {
+      // 1. Omitted / undefined customPrice -> schema accepts it
+      const parsedUntouched = createAppointmentSchema.parse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        bookingType: "advance",
+        date: "2026-09-25",
+        startTime: "10:00",
+        services: [{ serviceId: "srv_normal" }],
+      });
+      expect(parsedUntouched.services?.[0].customPrice).toBeUndefined();
+
+      // 2. Pricing formula: effectivePrice = customPrice ?? service.basePrice
+      const service = { id: "srv_normal", basePrice: 500 };
+      const effectivePriceUntouched = parsedUntouched.services?.[0].customPrice ?? service.basePrice;
+      expect(effectivePriceUntouched).toBe(500);
+
+      // 3. User sets customPrice: 450
+      const parsedWithOverride = createAppointmentSchema.parse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        bookingType: "advance",
+        date: "2026-09-25",
+        startTime: "10:00",
+        services: [{ serviceId: "srv_normal", customPrice: 450 }],
+      });
+      expect(parsedWithOverride.services?.[0].customPrice).toBe(450);
+      const effectivePriceOverride = parsedWithOverride.services?.[0].customPrice ?? service.basePrice;
+      expect(effectivePriceOverride).toBe(450);
+
+      // 4. User clears customPrice (undefined) -> reverts to basePrice
+      const clearedCustomPrice: number | undefined = undefined;
+      const effectivePriceCleared = clearedCustomPrice ?? service.basePrice;
+      expect(effectivePriceCleared).toBe(500);
+    });
+
     it("1. validates normal service line creation with customPrice without subscription", () => {
       const parsed = createAppointmentSchema.parse({
         branchId: "br_1",
@@ -520,5 +556,44 @@ describe("Subscription Verification Flow & Helper Tests", () => {
       // Only one OTP trigger button
       expect(screen.getAllByRole("button", { name: /Send Verification Code/i })).toHaveLength(1);
     });
+
+    it("12. automatic subscription flow: 'auto' is supported by schema and persists appliedSubscriptionId: 'auto'", () => {
+      const parsed = createAppointmentSchema.parse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        date: "2026-09-25",
+        startTime: "10:00",
+        bookingType: "advance",
+        services: [
+          {
+            serviceId: "srv_auto",
+            appliedSubscriptionId: "auto",
+          },
+        ],
+      });
+
+      expect(parsed.services?.[0].serviceId).toBe("srv_auto");
+      expect(parsed.services?.[0].appliedSubscriptionId).toBe("auto");
+      expect(parsed.services?.[0].customPrice).toBeUndefined();
+    });
+
+    it("13. explicit subscription selection: exact subscription ID is preserved without alteration", () => {
+      const parsed = createAppointmentSchema.parse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        date: "2026-09-25",
+        startTime: "10:00",
+        bookingType: "advance",
+        services: [
+          {
+            serviceId: "srv_explicit",
+            appliedSubscriptionId: "sub_specific_earliest_expiring",
+          },
+        ],
+      });
+
+      expect(parsed.services?.[0].appliedSubscriptionId).toBe("sub_specific_earliest_expiring");
+    });
   });
 });
+

@@ -44,6 +44,16 @@ const mockSubscription: Subscription = {
 const mockSendOtp = vi.fn();
 const mockRedeem = vi.fn();
 
+vi.mock("@/features/auth/hooks/useAuth", () => ({
+  useAuth: () => ({
+    user: {
+      id: "u_1",
+      role: "admin",
+      permissions: ["subscriptions.redeem"],
+    },
+  }),
+}));
+
 vi.mock("@/features/appointments/hooks/useAppointmentQueries", () => ({
   useAppointments: () => ({
     data: { data: [] },
@@ -205,6 +215,44 @@ describe("RedeemSubscriptionModal", () => {
       );
       expect(onSuccess).toHaveBeenCalled();
       expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("does not call onSuccess or close modal when backend redemption fails", async () => {
+    mockRedeem.mockRejectedValueOnce({
+      response: { data: { message: "Entitlement balance insufficient" } },
+    });
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    renderModal({ isOpen: true, onClose, onSuccess });
+
+    // Select 1 unit of Haircut
+    const plusButton = screen.getByRole("button", { name: "Increase quantity" });
+    fireEvent.click(plusButton);
+
+    // Switch to Staff Override (Manual)
+    const manualRadio = screen.getByLabelText("Staff Override (Manual)");
+    fireEvent.click(manualRadio);
+
+    // Enter reason
+    const reasonTextarea = screen.getByPlaceholderText(/Explain why manual override is being performed/i);
+    fireEvent.change(reasonTextarea, {
+      target: { value: "Manager override" },
+    });
+
+    // Submit
+    const submitBtn = screen.getByRole("button", { name: "Submit Manual Redemption" });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(mockRedeem).toHaveBeenCalled();
+      // Error message surfaced in UI
+      expect(screen.getByText("Entitlement balance insufficient")).not.toBeNull();
+      // Modal should NOT close or trigger success
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
     });
   });
 });

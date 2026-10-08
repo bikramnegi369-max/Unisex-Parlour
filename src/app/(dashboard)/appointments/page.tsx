@@ -170,14 +170,17 @@ export default function AppointmentsPage() {
     error,
     refetch,
   } = useAppointments(queryFilters);
-  const rawAppointments = appointmentsData?.data || [];
+  const rawAppointments = useMemo<Appointment[]>(
+    () => appointmentsData?.data || [],
+    [appointmentsData?.data]
+  );
   const meta = appointmentsData?.meta;
 
   // Comprehensive client-side filter pipeline:
   // Guarantees reactive filtering across status, booking type, staff, and search query
   // regardless of date-scoping or backend query nuances.
   const filteredAppointments = useMemo(() => {
-    return rawAppointments.filter((appt) => {
+    return rawAppointments.filter((appt: Appointment) => {
       // 1. Status Filter
       if (statusFilter !== "all" && appt.status !== statusFilter) {
         return false;
@@ -636,7 +639,7 @@ export default function AppointmentsPage() {
           staffFilter={staffFilter}
           onStaffFilterChange={setStaffFilter}
           onDropAppointment={async (apptId, newDate, newStartTime, newStaffId) => {
-            const targetAppt = rawAppointments.find((a) => a.id === apptId);
+            const targetAppt = rawAppointments.find((a: Appointment) => a.id === apptId);
             if (!targetAppt) return;
 
             const timeChanged = targetAppt.startTime !== newStartTime || targetAppt.date !== newDate;
