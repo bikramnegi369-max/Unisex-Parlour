@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   Receipt,
@@ -10,7 +9,6 @@ import {
   Eye,
   Building,
   CreditCard,
-  Plus,
   RefreshCw,
   Sparkles,
   CheckCircle2,
@@ -35,21 +33,14 @@ import type {
   InvoiceStatus,
   PaymentStatus,
 } from "@/features/billing/types/billing.types";
-import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasPermission } from "@/lib/permissions";
-
 import { useCustomer } from "../hooks/useCustomer";
-import type { CustomerBillingSummary } from "@/features/billing/types/billing.types";
 
 interface CustomerBillingTabProps {
   customerId: string;
 }
 
 export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
-  const router = useRouter();
-  const { user } = useAuth();
   const { isAllBranchesSelected, getBranchName } = useBranchContext();
-  const canCreateInvoice = hasPermission(user, "billing.create");
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -78,12 +69,12 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
   });
 
   const invoices = response?.data || [];
-  const meta = response?.meta as
-    | ({ total: number; totalPages?: number; summary?: CustomerBillingSummary })
-    | undefined;
-  const totalPages = meta?.totalPages ?? (meta ? Math.ceil(Number(meta.total) / limit) : 1);
+  const meta = response?.meta;
+  const totalPages =
+    meta?.totalPages ??
+    (meta ? Math.ceil(Number(meta.total) / limit) : 1);
 
-  // If backend returns true database aggregate in meta.summary, use it; otherwise show truthful global count and account stats
+  // Authoritative database aggregate from backend
   const backendSummary = meta?.summary;
 
   const columns: ColumnDef<Invoice>[] = [
@@ -190,28 +181,58 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Banner & Quick Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="border border-border/80 shadow-sm bg-card">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
-              <Receipt className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[11px] uppercase font-semibold text-muted-foreground">
-                Lifetime Invoices
-              </p>
-              <p className="text-lg font-bold text-foreground">
-                {meta?.total ?? invoices.length}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {backendSummary ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {isLoading ? (
+          <>
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <Card key={idx} className="border border-border/80 shadow-sm bg-card">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-muted/60 animate-pulse shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <div className="h-3 w-20 bg-muted/60 animate-pulse rounded" />
+                    <div className="h-5 w-28 bg-muted/60 animate-pulse rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </>
+        ) : backendSummary ? (
           <>
             <Card className="border border-border/80 shadow-sm bg-card">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                  <Receipt className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase font-semibold text-muted-foreground">
+                    Lifetime Invoices
+                  </p>
+                  <p className="text-lg font-bold text-foreground">
+                    {backendSummary.totalInvoices}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border/80 shadow-sm bg-card">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                  <CreditCard className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase font-semibold text-muted-foreground">
+                    Total Billed
+                  </p>
+                  <p className="text-lg font-bold text-foreground">
+                    {formatCurrency(backendSummary.totalBilled)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border/80 shadow-sm bg-card">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                   <CreditCard className="h-5 w-5" />
                 </div>
                 <div>
@@ -227,12 +248,12 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
 
             <Card className="border border-border/80 shadow-sm bg-card">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                <div className="p-2.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 shrink-0">
                   <Receipt className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-[11px] uppercase font-semibold text-muted-foreground">
-                    Total Due Balance
+                    Outstanding Balance
                   </p>
                   <p className="text-lg font-bold text-rose-600 dark:text-rose-400">
                     {formatCurrency(backendSummary.totalOutstanding)}
@@ -245,7 +266,23 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
           <>
             <Card className="border border-border/80 shadow-sm bg-card">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                  <Receipt className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase font-semibold text-muted-foreground">
+                    Lifetime Invoices
+                  </p>
+                  <p className="text-lg font-bold text-foreground">
+                    {meta?.total ?? invoices.length}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-border/80 shadow-sm bg-card">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
                   <Sparkles className="h-5 w-5" />
                 </div>
                 <div>
@@ -259,9 +296,9 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
               </CardContent>
             </Card>
 
-            <Card className="border border-border/80 shadow-sm bg-card">
+            <Card className="border border-border/80 shadow-sm bg-card sm:col-span-2 lg:col-span-2">
               <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">
                   <CheckCircle2 className="h-5 w-5" />
                 </div>
                 <div>
@@ -298,14 +335,6 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
               />
               Refresh
             </Button>
-            {canCreateInvoice && (
-              <Link href="/billing">
-                <Button size="sm" className="h-8 gap-1.5 text-xs">
-                  <Plus className="h-3.5 w-3.5" />
-                  New POS Bill
-                </Button>
-              </Link>
-            )}
           </div>
         </CardHeader>
         <CardContent className="p-6 space-y-4">
@@ -377,15 +406,6 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
                 search || statusFilter !== "all" || paymentStatusFilter !== "all"
                   ? "No invoices matched the active filters."
                   : "This customer has no recorded invoices or billing transactions."
-              }
-              action={
-                canCreateInvoice
-                  ? {
-                      label: "Create First Bill",
-                      onClick: () => router.push("/billing"),
-                      icon: Plus,
-                    }
-                  : undefined
               }
             />
           ) : (

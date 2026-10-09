@@ -104,6 +104,7 @@ export interface PaymentRecord {
   } | string | null;
   createdAt: string;
   updatedAt: string;
+  isIdempotentReplay?: boolean;
 }
 
 export interface CreateInvoicePayload {
@@ -122,6 +123,7 @@ export interface RecordPaymentPayload {
   amount: number;
   paymentMethod: PaymentMethod;
   referenceNote?: string;
+  idempotencyKey?: string;
 }
 
 export interface VoidPaymentPayload {

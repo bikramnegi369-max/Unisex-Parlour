@@ -7,6 +7,7 @@ import {
   finalizeInvoice,
   recordPayment,
   voidPayment,
+  downloadInvoicePdf,
   normalizeInvoice,
   normalizePayment,
 } from "../api/billing.api";
@@ -214,6 +215,95 @@ describe("Billing API Integration & Contract Verification", () => {
       expect(res.data[0].id).toBe("inv-1");
     });
 
+    it("getInvoices correctly exposes and normalizes meta.summary for customer billing", async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: [{ _id: "inv-1", invoiceNumber: "INV-1", payableAmount: 500, amountPaid: 300, amountDue: 200 }],
+          meta: {
+            total: 25,
+            page: 1,
+            limit: 10,
+            totalPages: 3,
+            summary: {
+              totalInvoices: 25,
+              totalBilled: 12500,
+              totalPaid: 9500,
+              totalOutstanding: 3000,
+            },
+          },
+        },
+      });
+
+      const res = await getInvoices({ customerId: "cust-1", page: 1, limit: 10 });
+
+      expect(res.data[0].id).toBe("inv-1");
+      expect(res.meta).toBeDefined();
+      expect(res.meta?.total).toBe(25);
+      expect(res.meta?.totalPages).toBe(3);
+      expect(res.meta?.summary).toEqual({
+        totalInvoices: 25,
+        totalBilled: 12500,
+        totalPaid: 9500,
+        totalOutstanding: 3000,
+      });
+    });
+
+    it("getInvoices safely handles missing or non-finite summary fields without producing NaN", async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: [],
+          meta: {
+            total: "10",
+            page: "2",
+            limit: "5",
+            totalPages: "2",
+            summary: {
+              totalInvoices: "10",
+              totalBilled: 5000,
+              totalPaid: null,
+              totalOutstanding: undefined,
+            },
+          },
+        },
+      });
+
+      const res = await getInvoices({ customerId: "cust-2" });
+
+      expect(res.meta?.total).toBe(10);
+      expect(res.meta?.totalPages).toBe(2);
+      expect(res.meta?.summary).toEqual({
+        totalInvoices: 10,
+        totalBilled: 5000,
+        totalPaid: 0,
+        totalOutstanding: 0,
+      });
+    });
+
+    it("getInvoices leaves summary undefined when backend response does not include it", async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: [{ _id: "inv-1", invoiceNumber: "INV-1" }],
+          meta: {
+            total: 1,
+            page: 1,
+            limit: 10,
+            totalPages: 1,
+          },
+        },
+      });
+
+      const res = await getInvoices({ page: 1 });
+
+      expect(res.meta?.summary).toBeUndefined();
+      expect(res.meta?.total).toBe(1);
+    });
+
     it("getInvoice fetches single invoice with branchScope: current", async () => {
       vi.mocked(apiClient.get).mockResolvedValueOnce({
         data: {
@@ -277,7 +367,7 @@ describe("Billing API Integration & Contract Verification", () => {
       expect(res.status).toBe("finalized");
     });
 
-    it("recordPayment calls POST /billing/invoices/:id/payments", async () => {
+    it("recordPayment calls POST /billing/invoices/:id/payments with idempotency headers when provided and handles flat response", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         data: {
           success: true,
@@ -289,15 +379,104 @@ describe("Billing API Integration & Contract Verification", () => {
       const res = await recordPayment("inv-1", {
         amount: 700,
         paymentMethod: "cash",
+        idempotencyKey: "idem-key-12345",
       });
 
       expect(apiClient.post).toHaveBeenCalledWith(
         "/billing/invoices/inv-1/payments",
-        { amount: 700, paymentMethod: "cash" },
-        { branchScope: "current" }
+        {
+          amount: 700,
+          paymentMethod: "cash",
+          idempotencyKey: "idem-key-12345",
+        },
+        {
+          branchScope: "current",
+          headers: {
+            "Idempotency-Key": "idem-key-12345",
+            "X-Idempotency-Key": "idem-key-12345",
+          },
+        }
       );
       expect(res.id).toBe("pay-1");
       expect(res.amount).toBe(700);
+      expect(res.isIdempotentReplay).toBeUndefined();
+    });
+
+    it("recordPayment correctly unpacks authoritative nested response with isIdempotentReplay: true", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          message: "Payment replayed successfully",
+          data: {
+            payment: {
+              _id: "pay-authoritative-101",
+              paymentNumber: "PAY-2026-0001",
+              invoiceId: "inv-1",
+              amount: 1500,
+              paymentMethod: "upi",
+              status: "recorded",
+              referenceNote: "GPay-TXN-999",
+            },
+            invoice: {
+              _id: "inv-1",
+              amountDue: 0,
+            },
+            isIdempotentReplay: true,
+          },
+        },
+      });
+
+      const res = await recordPayment("inv-1", {
+        amount: 1500,
+        paymentMethod: "upi",
+        idempotencyKey: "key-uuid-101",
+      });
+
+      expect(res.id).toBe("pay-authoritative-101");
+      expect(res.paymentNumber).toBe("PAY-2026-0001");
+      expect(res.amount).toBe(1500);
+      expect(res.paymentMethod).toBe("upi");
+      expect(res.status).toBe("recorded");
+      expect(res.referenceNote).toBe("GPay-TXN-999");
+      expect(res.isIdempotentReplay).toBe(true);
+    });
+
+    it("recordPayment correctly unpacks authoritative nested response without replay flag for new payment", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          message: "Payment recorded successfully",
+          data: {
+            payment: {
+              _id: "pay-new-202",
+              paymentNumber: "PAY-2026-0002",
+              invoiceId: "inv-1",
+              amount: 2000,
+              paymentMethod: "card",
+              status: "recorded",
+            },
+            invoice: {
+              _id: "inv-1",
+              amountDue: 0,
+            },
+          },
+        },
+      });
+
+      const res = await recordPayment("inv-1", {
+        amount: 2000,
+        paymentMethod: "card",
+        idempotencyKey: "key-uuid-202",
+      });
+
+      expect(res.id).toBe("pay-new-202");
+      expect(res.paymentNumber).toBe("PAY-2026-0002");
+      expect(res.amount).toBe(2000);
+      expect(res.paymentMethod).toBe("card");
+      expect(res.status).toBe("recorded");
+      expect(res.isIdempotentReplay).toBeUndefined();
     });
 
     it("voidPayment calls POST /billing/payments/:paymentId/void", async () => {
@@ -320,6 +499,32 @@ describe("Billing API Integration & Contract Verification", () => {
       );
       expect(res.status).toBe("voided");
       expect(res.voidReason).toBe("Wrong entry");
+    });
+
+    it("downloadInvoicePdf calls GET /billing/invoices/:id/pdf with blob responseType", async () => {
+      const mockBlob = new Blob(["fake-pdf"], { type: "application/pdf" });
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: mockBlob,
+      });
+
+      // Mock URL.createObjectURL and URL.revokeObjectURL
+      const originalCreateObjectURL = window.URL.createObjectURL;
+      const originalRevokeObjectURL = window.URL.revokeObjectURL;
+      window.URL.createObjectURL = vi.fn().mockReturnValue("blob:http://localhost/fake-pdf");
+      window.URL.revokeObjectURL = vi.fn();
+      const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+
+      await downloadInvoicePdf("inv-1", "INV-100", "open");
+
+      expect(apiClient.get).toHaveBeenCalledWith("/billing/invoices/inv-1/pdf", {
+        responseType: "blob",
+        branchScope: "current",
+      });
+      expect(window.URL.createObjectURL).toHaveBeenCalled();
+
+      window.URL.createObjectURL = originalCreateObjectURL;
+      window.URL.revokeObjectURL = originalRevokeObjectURL;
+      openSpy.mockRestore();
     });
   });
 });

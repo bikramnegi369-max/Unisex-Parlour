@@ -30,12 +30,40 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: React.ReactNode
   { id: "other", label: "Other", icon: <MoreHorizontal className="h-4 w-4" /> },
 ];
 
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `pay_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
 export function RecordPaymentDialog({
   isOpen,
   onClose,
   invoice,
 }: RecordPaymentDialogProps) {
   const recordPaymentMutation = useRecordPayment();
+
+  // Stable idempotency key for the current logical payment attempt
+  const idempotencyKeyRef = React.useRef<string | null>(null);
+  // Track the payload submitted with the active idempotency key
+  const lastSubmittedPayloadRef = React.useRef<{
+    amount: number;
+    paymentMethod: PaymentMethod;
+    invoiceId: string;
+  } | null>(null);
+
+  // Initialize or reset idempotency key when dialog opens
+  React.useEffect(() => {
+    if (isOpen) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = generateIdempotencyKey();
+      }
+    } else {
+      idempotencyKeyRef.current = null;
+      lastSubmittedPayloadRef.current = null;
+    }
+  }, [isOpen]);
 
   const {
     register,
@@ -65,28 +93,84 @@ export function RecordPaymentDialog({
     name: "paymentMethod",
   });
 
-  const onSubmit = async (values: RecordPaymentFormValues) => {
+  const handleFormSubmit = async (values: RecordPaymentFormValues) => {
     if (!invoice) return;
+
+    // Check if the user materially changed the payload compared to previous attempt
+    if (
+      lastSubmittedPayloadRef.current &&
+      (lastSubmittedPayloadRef.current.amount !== values.amount ||
+        lastSubmittedPayloadRef.current.paymentMethod !== values.paymentMethod ||
+        lastSubmittedPayloadRef.current.invoiceId !== invoice.id)
+    ) {
+      // Different payload constitutes a genuinely new logical payment attempt
+      idempotencyKeyRef.current = generateIdempotencyKey();
+    }
+
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = generateIdempotencyKey();
+    }
+
+    const currentKey = idempotencyKeyRef.current;
+    lastSubmittedPayloadRef.current = {
+      amount: values.amount,
+      paymentMethod: values.paymentMethod,
+      invoiceId: invoice.id,
+    };
+
     try {
-      await recordPaymentMutation.mutateAsync({
+      const result = await recordPaymentMutation.mutateAsync({
         invoiceId: invoice.id,
         payload: {
           amount: values.amount,
           paymentMethod: values.paymentMethod,
           referenceNote: values.referenceNote,
+          idempotencyKey: currentKey,
         },
       });
 
-      toast.success(
-        `Manual payment of ${formatCurrency(values.amount)} recorded successfully.`
-      );
+      if (result?.isIdempotentReplay) {
+        toast.info(
+          `Existing payment of ${formatCurrency(values.amount)} replayed successfully (idempotent submission).`
+        );
+      } else {
+        toast.success(
+          `Manual payment of ${formatCurrency(values.amount)} recorded successfully.`
+        );
+      }
+      idempotencyKeyRef.current = null;
+      lastSubmittedPayloadRef.current = null;
       reset();
       onClose();
     } catch (err: unknown) {
       const axiosError = err as {
-        response?: { data?: { message?: string } };
+        response?: { status?: number; data?: { message?: string } };
+        code?: string;
         message?: string;
       };
+
+      if (axiosError.response?.status === 409) {
+        toast.error(
+          axiosError.response?.data?.message ||
+            "Payment conflict: This transaction was already processed or submitted with conflicting details."
+        );
+        return;
+      }
+
+      // Check for timeout or network uncertainty where transaction might have been received by backend
+      const isNetworkUncertainty =
+        axiosError.code === "ECONNABORTED" ||
+        axiosError.code === "ERR_NETWORK" ||
+        !axiosError.response;
+
+      if (isNetworkUncertainty) {
+        toast.error(
+          "Network connectivity error. The payment status may be uncertain. Please verify payment history before retrying.",
+          { duration: 6000 }
+        );
+        return;
+      }
+
       const msg =
         axiosError.response?.data?.message ||
         axiosError.message ||
@@ -108,7 +192,12 @@ export function RecordPaymentDialog({
         <p className="text-xs text-muted-foreground">
           Record manual receipt of payment for Invoice {invoice.invoiceNumber}.
         </p>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form
+          onSubmit={(e) => {
+            handleSubmit(handleFormSubmit)(e);
+          }}
+          className="space-y-4"
+        >
         {/* Outstanding summary */}
         <div className="p-3 bg-muted/40 rounded-xl border border-border flex items-center justify-between text-xs">
           <div>

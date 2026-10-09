@@ -10,6 +10,8 @@ import type {
   CancelInvoicePayload,
   InvoiceListQuery,
   InvoiceLineItem,
+  InvoiceListResponseMeta,
+  CustomerBillingSummary,
 } from "../types/billing.types";
 
 const toFlatId = (val: unknown): string => {
@@ -198,6 +200,39 @@ export const normalizePayment = (raw: Record<string, unknown>): PaymentRecord =>
     voidedBy: (raw.voidedBy as PaymentRecord["voidedBy"]) || null,
     createdAt: (raw.createdAt as string) || new Date().toISOString(),
     updatedAt: (raw.updatedAt as string) || new Date().toISOString(),
+    isIdempotentReplay:
+      typeof raw.isIdempotentReplay === "boolean"
+        ? raw.isIdempotentReplay
+        : raw.isIdempotentReplay
+        ? Boolean(raw.isIdempotentReplay)
+        : undefined,
+  };
+};
+
+export interface InvoicesResponse extends PaginatedResponse<Invoice> {
+  meta?: InvoiceListResponseMeta;
+}
+
+export const normalizeBillingSummary = (
+  raw?: unknown
+): CustomerBillingSummary | undefined => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const s = raw as Record<string, unknown>;
+
+  const toSafeNum = (val: unknown): number => {
+    if (typeof val === "number" && Number.isFinite(val)) return val;
+    if (typeof val === "string") {
+      const parsed = Number(val);
+      if (Number.isFinite(parsed)) return parsed;
+    }
+    return 0;
+  };
+
+  return {
+    totalInvoices: toSafeNum(s.totalInvoices),
+    totalBilled: toSafeNum(s.totalBilled),
+    totalPaid: toSafeNum(s.totalPaid),
+    totalOutstanding: toSafeNum(s.totalOutstanding),
   };
 };
 
@@ -206,7 +241,7 @@ export const normalizePayment = (raw: Record<string, unknown>): PaymentRecord =>
  */
 export async function getInvoices(
   query: InvoiceListQuery = {}
-): Promise<PaginatedResponse<Invoice>> {
+): Promise<InvoicesResponse> {
   const sanitizedParams = { ...query };
   if (sanitizedParams.branchId === "all") {
     delete sanitizedParams.branchId;
@@ -217,18 +252,33 @@ export async function getInvoices(
     status: string;
     message?: string;
     data: Record<string, unknown>[];
-    meta?: PaginatedResponse<Invoice>["meta"];
+    meta?: Record<string, unknown>;
   }>("/billing/invoices", {
     params: sanitizedParams,
     branchScope: "current",
   });
+
+  let meta: InvoiceListResponseMeta | undefined = undefined;
+  if (data.meta) {
+    const rawMeta = data.meta;
+    meta = {
+      total: typeof rawMeta.total === "number" ? rawMeta.total : Number(rawMeta.total) || 0,
+      page: (rawMeta.page as string | number) ?? 1,
+      limit: (rawMeta.limit as string | number) ?? 10,
+      totalPages:
+        typeof rawMeta.totalPages === "number"
+          ? rawMeta.totalPages
+          : Number(rawMeta.totalPages) || 1,
+      summary: normalizeBillingSummary(rawMeta.summary),
+    };
+  }
 
   return {
     success: data.success,
     status: data.status,
     message: data.message,
     data: (data.data || []).map(normalizeInvoice),
-    meta: data.meta,
+    meta,
   };
 }
 
@@ -335,15 +385,44 @@ export async function recordPayment(
   invoiceId: string,
   payload: RecordPaymentPayload
 ): Promise<PaymentRecord> {
+  const headers: Record<string, string> = {};
+  if (payload.idempotencyKey) {
+    headers["Idempotency-Key"] = payload.idempotencyKey;
+    headers["X-Idempotency-Key"] = payload.idempotencyKey;
+  }
+
   const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
     `/billing/invoices/${invoiceId}/payments`,
     payload,
     {
       branchScope: "current",
+      headers,
     }
   );
 
-  return normalizePayment(data.data);
+  const rawEnvelope = data.data || {};
+  // Handle authoritative backend envelope { payment: {...}, invoice: {...}, isIdempotentReplay?: boolean }
+  // while preserving backward compatibility if rawEnvelope is a flat payment object.
+  const rawPayment =
+    rawEnvelope.payment && typeof rawEnvelope.payment === "object"
+      ? (rawEnvelope.payment as Record<string, unknown>)
+      : rawEnvelope;
+
+  const normalized = normalizePayment(rawPayment);
+
+  // Preserve isIdempotentReplay from the envelope root or nested payment
+  const isReplay =
+    typeof rawEnvelope.isIdempotentReplay === "boolean"
+      ? rawEnvelope.isIdempotentReplay
+      : typeof rawPayment.isIdempotentReplay === "boolean"
+      ? Boolean(rawPayment.isIdempotentReplay)
+      : undefined;
+
+  if (isReplay !== undefined) {
+    normalized.isIdempotentReplay = isReplay;
+  }
+
+  return normalized;
 }
 
 /**
