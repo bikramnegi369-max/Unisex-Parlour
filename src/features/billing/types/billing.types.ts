@@ -139,6 +139,22 @@ export interface InvoiceListQuery {
   status?: InvoiceStatus;
   paymentStatus?: PaymentStatus;
   branchId?: string;
+  customerId?: string;
   startDate?: string;
   endDate?: string;
+}
+
+export interface CustomerBillingSummary {
+  totalInvoices: number;
+  totalBilled: number;
+  totalPaid: number;
+  totalOutstanding: number;
+}
+
+export interface InvoiceListResponseMeta {
+  total: number;
+  page: string | number;
+  limit: string | number;
+  totalPages: number;
+  summary?: CustomerBillingSummary;
 }

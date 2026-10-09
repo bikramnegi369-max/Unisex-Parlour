@@ -24,6 +24,7 @@ import { CustomerPreferences } from "./CustomerPreferences";
 import { CustomerNotes } from "./CustomerNotes";
 import { CustomerActivityLog } from "./CustomerActivityLog";
 import { CustomerSubscriptionsTab } from "./CustomerSubscriptionsTab";
+import { CustomerBillingTab } from "./CustomerBillingTab";
 import {
   EntityProfileLayout,
   type ProfileTabItem,
@@ -205,6 +206,7 @@ export default function CustomerDetailsPage({
 
   const tabs: ProfileTabItem[] = [
     { id: "overview", label: "Overview" },
+    { id: "billing", label: "Billing & Invoices" },
     { id: "subscriptions", label: "Subscriptions" },
     { id: "preferences", label: "Preferences" },
     { id: "notes", label: "Internal Notes" },
@@ -235,7 +237,12 @@ export default function CustomerDetailsPage({
           <CustomerOverview
             customer={customer}
             visitedBranchNames={visitedBranchNames}
+            onNavigateToBilling={() => setActiveTab("billing")}
           />
+        )}
+
+        {activeTab === "billing" && (
+          <CustomerBillingTab customerId={customerId} />
         )}
 
         {activeTab === "subscriptions" && (

@@ -16,17 +16,39 @@ import {
   MapPin,
   AlertTriangle,
   ShieldAlert,
+  Receipt,
+  ArrowRight,
+  CreditCard,
 } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/formatters";
+import { useInvoices } from "@/features/billing/hooks/useBillingQueries";
+import {
+  InvoiceStatusBadge,
+  PaymentStatusBadge,
+} from "@/features/billing/components/InvoiceStatusBadge";
+import type { Invoice } from "@/features/billing/types/billing.types";
 
 interface CustomerOverviewProps {
   customer: Customer;
   visitedBranchNames: string;
+  onNavigateToBilling?: () => void;
 }
 
 export function CustomerOverview({
   customer,
   visitedBranchNames,
+  onNavigateToBilling,
 }: CustomerOverviewProps) {
+  const { data: invoicesData, isLoading: isLoadingInvoices } = useInvoices({
+    customerId: customer.id,
+    limit: 5,
+  });
+
+  const recentInvoices = invoicesData?.data || [];
+  const totalInvoicesCount = invoicesData?.meta?.total ?? recentInvoices.length;
+
   const formatDOB = (dob?: string | null) => {
     if (!dob) return "Not provided";
     return formatDate(dob, "dd MMMM yyyy"); // Outputs format like "31 July 2026"
@@ -162,7 +184,101 @@ export function CustomerOverview({
         </CardContent>
       </Card>
 
-      {/* 3. Loyalty Program & CRM */}
+      {/* 3. Recent Billing & Invoices Summary */}
+      <Card className="border border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/85 bg-muted/5 py-3 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Receipt size={16} className="text-primary" />
+            Recent Billing & Invoices
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {onNavigateToBilling && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onNavigateToBilling}
+                className="h-7 text-xs text-primary hover:text-primary gap-1 px-2"
+              >
+                View all ({totalInvoicesCount})
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6">
+          {isLoadingInvoices ? (
+            <div className="space-y-2 py-2">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div key={idx} className="h-10 bg-muted/60 animate-pulse rounded-md" />
+              ))}
+            </div>
+          ) : recentInvoices.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center">
+              <div className="p-2.5 rounded-full bg-muted/50 text-muted-foreground mb-2">
+                <Receipt className="h-5 w-5" />
+              </div>
+              <p className="text-xs font-medium text-foreground">No invoices generated yet</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Billing records created at POS checkout will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60">
+              {recentInvoices.map((inv: Invoice) => (
+                <div
+                  key={inv.id}
+                  className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-lg bg-muted text-foreground shrink-0">
+                      <CreditCard className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">
+                          {inv.invoiceNumber}
+                        </span>
+                        <InvoiceStatusBadge status={inv.status} />
+                        <PaymentStatusBadge status={inv.paymentStatus} />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {formatDate(inv.createdAt, "dd MMM yyyy, hh:mm a")}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
+                    <div className="text-right">
+                      <p className="font-bold text-foreground">
+                        {formatCurrency(inv.payableAmount)}
+                      </p>
+                      {inv.amountDue > 0 ? (
+                        <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                          Due: {formatCurrency(inv.amountDue)}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                          Paid
+                        </p>
+                      )}
+                    </div>
+                    <Link href={`/billing/${inv.id}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                      >
+                        View
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 4. Loyalty Program & CRM */}
       <Card className="border border-border/80 shadow-sm">
         <CardHeader className="border-b border-border/85 bg-muted/5 py-4">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
