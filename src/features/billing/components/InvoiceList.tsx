@@ -1,189 +1,154 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  type ColumnDef,
-} from "@tanstack/react-table";
-import {
-  Receipt,
-  Search,
-  Eye,
-  Building,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Receipt, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SyncButton } from "@/components/ui/sync-button";
 import { useBranchContext } from "@/hooks/useBranchContext";
-import { formatCurrency, formatDate } from "@/lib/formatters";
+import { useDebounce } from "@/hooks/useDebounce";
+import { formatCurrency } from "@/lib/formatters";
 import { useInvoices } from "../hooks/useBillingQueries";
+import { getInvoiceColumns } from "../columns/invoice.columns";
 import { InvoiceStatusBadge, PaymentStatusBadge } from "./InvoiceStatusBadge";
-import type { Invoice, InvoiceStatus, PaymentStatus } from "../types/billing.types";
+import type {
+  Invoice,
+  InvoiceStatus,
+  PaymentStatus,
+} from "../types/billing.types";
 
 export function InvoiceList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { isAllBranchesSelected, getBranchName } = useBranchContext();
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all");
-  const [page, setPage] = useState(1);
-  const limit = 15;
+  // Read URL search parameters
+  const pageParam = searchParams.get("page");
+  const page = pageParam ? Math.max(1, parseInt(pageParam, 10)) : 1;
 
-  const { data: response, isLoading, isError, refetch } = useInvoices({
+  const limitParam = searchParams.get("limit");
+  const pageSize = limitParam ? Math.max(1, parseInt(limitParam, 10)) : 15;
+
+  const searchQueryParam = searchParams.get("search") || "";
+  const statusFilter = searchParams.get("status") || "all";
+  const paymentStatusFilter = searchParams.get("paymentStatus") || "all";
+
+  // Local state for immediate typing responsiveness
+  const [search, setSearch] = useState(searchQueryParam);
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
+
+  const debouncedSearch = useDebounce(search, 350);
+
+  // Sync state when URL query changes (e.g. Back/Forward browser navigation)
+  if (searchQueryParam !== prevSearchQuery) {
+    setPrevSearchQuery(searchQueryParam);
+    setSearch(searchQueryParam);
+  }
+
+  // Sync debounced search to URL
+  useEffect(() => {
+    const currentQuery = searchParams.get("search") || "";
+    if (debouncedSearch !== currentQuery) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (debouncedSearch.trim()) {
+        params.set("search", debouncedSearch.trim());
+      } else {
+        params.delete("search");
+      }
+      params.set("page", "1"); // Reset to page 1 on new search
+      router.push(`${pathname}?${params.toString()}`);
+    }
+  }, [debouncedSearch, router, pathname, searchParams]);
+
+  const updateParam = (key: string, value: string | null, resetPage = true) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value && value !== "all") {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+    if (resetPage) {
+      params.set("page", "1");
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(newPage));
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("limit", String(newSize));
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const {
+    data: response,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useInvoices({
     page,
-    limit,
-    search: search.trim() || undefined,
-    status: statusFilter !== "all" ? (statusFilter as InvoiceStatus) : undefined,
+    limit: pageSize,
+    search: searchQueryParam.trim() || undefined,
+    status:
+      statusFilter !== "all" ? (statusFilter as InvoiceStatus) : undefined,
     paymentStatus:
-      paymentStatusFilter !== "all" ? (paymentStatusFilter as PaymentStatus) : undefined,
+      paymentStatusFilter !== "all"
+        ? (paymentStatusFilter as PaymentStatus)
+        : undefined,
   });
 
   const invoices = response?.data || [];
   const meta = response?.meta;
-  const totalPages = meta ? Math.ceil(Number(meta.total) / limit) : 1;
+  const totalPages =
+    meta?.totalPages ?? (meta ? Math.ceil(Number(meta.total) / pageSize) : 1);
 
-  const columns: ColumnDef<Invoice>[] = [
-    {
-      accessorKey: "invoiceNumber",
-      header: "Invoice #",
-      cell: ({ row }) => {
-        const inv = row.original;
-        return (
-          <div className="flex flex-col">
-            <span className="font-bold text-foreground text-xs">
-              {inv.invoiceNumber}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              {formatDate(inv.createdAt, "dd MMM yyyy, hh:mm a")}
-            </span>
-          </div>
-        );
-      },
+  const handleView = useCallback(
+    (inv: Invoice) => {
+      router.push(`/billing/${inv.id}`);
     },
-    {
-      accessorKey: "customer",
-      header: "Customer",
-      cell: ({ row }) => {
-        const cust = row.original.customer;
-        return (
-          <div className="flex flex-col text-xs">
-            <span className="font-medium text-foreground">
-              {cust?.name || "Customer"}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              {cust?.phone || "—"}
-            </span>
-          </div>
-        );
-      },
-    },
-    ...(isAllBranchesSelected
-      ? [
-          {
-            accessorKey: "branchId",
-            header: "Branch",
-            cell: ({ row }: { row: { original: Invoice } }) => {
-              return (
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Building className="h-3 w-3" />
-                  {getBranchName(row.original.branchId)}
-                </span>
-              );
-            },
-          },
-        ]
-      : []),
-    {
-      accessorKey: "payableAmount",
-      header: "Payable Total",
-      cell: ({ row }) => {
-        const inv = row.original;
-        return (
-          <div className="flex flex-col text-xs">
-            <span className="font-bold text-foreground">
-              {formatCurrency(inv.payableAmount)}
-            </span>
-            {inv.subscriptionCoveredAmount > 0 && (
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
-                Plan waived: {formatCurrency(inv.subscriptionCoveredAmount)}
-              </span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "amountDue",
-      header: "Due / Paid",
-      cell: ({ row }) => {
-        const inv = row.original;
-        return (
-          <div className="flex flex-col text-xs">
-            <span className={`font-semibold ${inv.amountDue > 0 ? "text-primary" : "text-emerald-600 dark:text-emerald-400"}`}>
-              Due: {formatCurrency(inv.amountDue)}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              Paid: {formatCurrency(inv.amountPaid)}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Lifecycle",
-      cell: ({ row }) => {
-        return <InvoiceStatusBadge status={row.original.status} />;
-      },
-    },
-    {
-      accessorKey: "paymentStatus",
-      header: "Payment",
-      cell: ({ row }) => {
-        return <PaymentStatusBadge status={row.original.paymentStatus} />;
-      },
-    },
-    {
-      id: "actions",
-      header: () => <span className="sr-only">Actions</span>,
-      cell: ({ row }) => {
-        const inv = row.original;
-        return (
-          <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push(`/billing/${inv.id}`)}
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-              title="View Invoice"
-            >
-              <Eye className="h-4 w-4" />
-            </Button>
-          </div>
-        );
-      },
-    },
-  ];
+    [router],
+  );
+
+  const columns = useMemo(
+    () =>
+      getInvoiceColumns({
+        onView: handleView,
+        getBranchName,
+        isAllBranchesSelected,
+      }),
+    [handleView, getBranchName, isAllBranchesSelected],
+  );
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Receipt className="h-5 w-5 text-primary" />
-            Billing & POS
-          </h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Manage checkout invoices, record customer payments, and review transaction histories.
-          </p>
-        </div>
-      </div>
+      {/* Header Banner */}
+      <PageHeaderBanner
+        title="Billing & Invoices"
+        description="Manage checkout invoices, record customer payments, and review transaction histories."
+        icon={Receipt}
+        actions={
+          <SyncButton
+            isSyncing={isFetching}
+            onSync={() => refetch()}
+            label="Refresh Invoices"
+            className="w-full sm:w-auto"
+          />
+        }
+      />
 
       {/* Filters Card */}
       <div className="bg-card border border-border/80 rounded-xl p-3.5 shadow-2xs space-y-3">
@@ -194,10 +159,7 @@ export function InvoiceList() {
             <Input
               placeholder="Search invoice #, customer name, phone..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               className="pl-9 text-xs"
             />
           </div>
@@ -206,10 +168,7 @@ export function InvoiceList() {
           <div>
             <Select
               value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => updateParam("status", e.target.value)}
               className="text-xs h-9"
             >
               <option value="all">All Lifecycle Statuses</option>
@@ -223,10 +182,7 @@ export function InvoiceList() {
           <div>
             <Select
               value={paymentStatusFilter}
-              onChange={(e) => {
-                setPaymentStatusFilter(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => updateParam("paymentStatus", e.target.value)}
               className="text-xs h-9"
             >
               <option value="all">All Payment Statuses</option>
@@ -259,7 +215,9 @@ export function InvoiceList() {
                 icon={Receipt}
                 title="No Invoices Found"
                 description={
-                  search || statusFilter !== "all" || paymentStatusFilter !== "all"
+                  searchQueryParam ||
+                  statusFilter !== "all" ||
+                  paymentStatusFilter !== "all"
                     ? "No invoices match the applied filters."
                     : "No invoices have been generated for this branch yet. Invoices are generated from billable appointments."
                 }
@@ -296,7 +254,9 @@ export function InvoiceList() {
                   </div>
                   <div className="flex justify-between text-muted-foreground">
                     <span>Amount Due:</span>
-                    <span className={`font-semibold ${inv.amountDue > 0 ? "text-primary" : "text-emerald-600"}`}>
+                    <span
+                      className={`font-semibold ${inv.amountDue > 0 ? "text-primary" : "text-emerald-600"}`}
+                    >
                       {formatCurrency(inv.amountDue)}
                     </span>
                   </div>
@@ -305,13 +265,16 @@ export function InvoiceList() {
             )}
           />
 
-          {meta && totalPages > 1 && (
+          {meta && (
             <Pagination
               currentPage={page}
               totalPages={totalPages}
               totalItems={Number(meta.total) || 0}
               itemLabel="invoices"
-              onPageChange={setPage}
+              onPageChange={handlePageChange}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 15, 25, 50, 100]}
+              onPageSizeChange={handlePageSizeChange}
             />
           )}
         </div>
