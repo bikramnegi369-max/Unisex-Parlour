@@ -103,6 +103,7 @@ interface PositionedAppointment {
   heightPx: number;
   leftPct: number;
   widthPct: number;
+  actualCompletedTimeStr?: string | null;
   isOutsideViewport: boolean;
   isClippedTop: boolean;
   isClippedBottom: boolean;
@@ -130,6 +131,8 @@ function layoutAppointments(
     effectiveStart: number;
     effectiveEnd: number;
     durationMins: number;
+    actualCompletedTimeStr: string | null;
+    isCompletedAppt: boolean;
     column: number;
     totalColumnsInCluster: number;
   }[] = [];
@@ -153,38 +156,49 @@ function layoutAppointments(
     const effectiveStart = startMin ?? 0;
     let effectiveEnd = effectiveStart + durationMins;
 
-    // Early-completion handling:
-    // If appointment is completed early and completedAt is available, compute the actual
-    // completion time in the branch's timezone. Truncate effectiveEnd so that subsequent
-    // bookings scheduled after actual completion do not collide or split lane columns needlessly.
-    if (appt.status === "completed" && appt.completedAt) {
-      try {
-        const compDate = new Date(appt.completedAt);
-        if (!isNaN(compDate.getTime())) {
-          const compParts = new Intl.DateTimeFormat("en-US", {
-            timeZone: branchTimezone,
-            hour: "numeric",
-            minute: "numeric",
-            hour12: false,
-          }).formatToParts(compDate);
-          const compH = parseInt(
-            compParts.find((p) => p.type === "hour")?.value || "0",
-            10,
-          );
-          const compM = parseInt(
-            compParts.find((p) => p.type === "minute")?.value || "0",
-            10,
-          );
-          const compMinutes = compH * 60 + compM;
+    // Completed appointment handling:
+    // If an appointment is completed, it should NOT occupy the full scheduled duration block
+    // or block the staff calendar. Instead, its height reflects only the actual time from start
+    // to completion (using completedAt in branch timezone, or minimal slot if completed immediately).
+    let actualCompletedTimeStr: string | null = null;
+    const isCompletedAppt = appt.status === "completed";
 
-          // If it completed earlier than scheduled endTime and after start time, collapse to actual end
-          if (compMinutes > effectiveStart && compMinutes < effectiveEnd) {
-            effectiveEnd = compMinutes;
-            durationMins = effectiveEnd - effectiveStart;
+    if (isCompletedAppt) {
+      let actualEndMin: number | null = null;
+      if (appt.completedAt) {
+        try {
+          const compDate = new Date(appt.completedAt);
+          if (!isNaN(compDate.getTime())) {
+            const compParts = new Intl.DateTimeFormat("en-US", {
+              timeZone: branchTimezone,
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+              hourCycle: "h23",
+            }).formatToParts(compDate);
+            const compHStr =
+              compParts.find((p) => p.type === "hour")?.value || "00";
+            const compMStr =
+              compParts.find((p) => p.type === "minute")?.value || "00";
+            const compH = parseInt(compHStr, 10);
+            const compM = parseInt(compMStr, 10);
+            actualEndMin = compH * 60 + compM;
+            actualCompletedTimeStr = `${compHStr}:${compMStr}`;
           }
+        } catch {
+          // Fallback if parsing fails
         }
-      } catch {
-        // Fallback safely to scheduled duration
+      }
+
+      if (actualEndMin !== null && actualEndMin > effectiveStart) {
+        // Service completed at actualEndMin: span only from start to completion
+        effectiveEnd = actualEndMin;
+        durationMins = effectiveEnd - effectiveStart;
+      } else {
+        // If completed without completedAt or completed at/before start time (e.g. instant walk-in checkout),
+        // keep duration to minimal 15 min block so it marks completion without monopolizing the lane.
+        durationMins = Math.min(durationMins, 15);
+        effectiveEnd = effectiveStart + durationMins;
       }
     }
 
@@ -193,6 +207,8 @@ function layoutAppointments(
       effectiveStart,
       effectiveEnd,
       durationMins,
+      actualCompletedTimeStr,
+      isCompletedAppt,
       column: 0,
       totalColumnsInCluster: 1,
     });
@@ -265,14 +281,17 @@ function layoutAppointments(
       effectiveStart,
       effectiveEnd,
       durationMins,
+      actualCompletedTimeStr,
+      isCompletedAppt,
       column,
       totalColumnsInCluster,
     } = item;
 
     const startFromViewport = effectiveStart - VIEWPORT_START_HOUR * 60;
     const topPx = Math.max(0, (startFromViewport / 60) * hourPx);
-    // Ensure generous minimum block height of 68px so cards never squish details
-    const heightPx = Math.max(68, (durationMins / 60) * hourPx);
+    // Dynamic height based on actual duration: completed cards can scale compactly down to 48px
+    const minCardHeight = isCompletedAppt ? 48 : 68;
+    const heightPx = Math.max(minCardHeight, (durationMins / 60) * hourPx);
 
     // Clamp height to viewport for rendering, but track clipping
     const isClippedTop = startFromViewport < 0;
@@ -287,9 +306,10 @@ function layoutAppointments(
     positioned.push({
       appt,
       topPx,
-      heightPx: Math.max(68, clampedHeightPx),
+      heightPx: Math.max(minCardHeight, clampedHeightPx),
       leftPct,
       widthPct,
+      actualCompletedTimeStr,
       isOutsideViewport:
         effectiveStart >= VIEWPORT_END_HOUR * 60 ||
         effectiveEnd <= VIEWPORT_START_HOUR * 60,
@@ -1112,6 +1132,7 @@ export function AppointmentCalendarView({
                             heightPx,
                             leftPct,
                             widthPct,
+                            actualCompletedTimeStr,
                             isOutsideViewport,
                             isClippedTop,
                             isClippedBottom,
@@ -1236,9 +1257,11 @@ export function AppointmentCalendarView({
                                       )}
                                       <span className="truncate">
                                         {appt.startTime}
-                                        {appt.endTime
-                                          ? ` - ${appt.endTime}`
-                                          : ""}
+                                        {isCompleted && actualCompletedTimeStr
+                                          ? ` - ${actualCompletedTimeStr}`
+                                          : appt.endTime
+                                            ? ` - ${appt.endTime}`
+                                            : ""}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">

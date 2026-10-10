@@ -309,4 +309,33 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
     expect(firstLaneHeader?.className).toContain("top-0");
     expect(firstLaneHeader?.className).toContain("z-20");
   });
+
+  it("truncates duration for completed appointments to reflect actual completion time and displays actual completion", () => {
+    // Scheduled 10:00 - 12:00 (120 mins), but completed early at 10:25 (25 mins)
+    const completedAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_completed_1",
+      status: "completed",
+      startTime: "10:00",
+      endTime: "12:00",
+      totalDuration: 120,
+      completedAt: "2026-08-10T04:55:00.000Z", // 10:25 AM in Asia/Kolkata (+05:30)
+    };
+
+    render(
+      <AppointmentCalendarView
+        appointments={[completedAppt]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    // Displays the actual completion time (10:00 - 10:25) rather than the scheduled 10:00 - 12:00
+    expect(screen.getByText("10:00 - 10:25")).toBeDefined();
+  });
 });
