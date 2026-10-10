@@ -1,6 +1,6 @@
 import React from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Eye, Building } from "lucide-react";
+import { Eye, Building, Printer, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { InvoiceStatusBadge, PaymentStatusBadge } from "../components/InvoiceStatusBadge";
@@ -10,12 +10,18 @@ interface InvoiceColumnsOptions {
   onView: (invoice: Invoice) => void;
   getBranchName: (branchId: string) => string;
   isAllBranchesSelected: boolean;
+  onDownloadPdf?: (invoice: Invoice) => void;
+  onPrintReceipt?: (invoice: Invoice) => void;
+  onQuickPay?: (invoice: Invoice) => void;
 }
 
 export const getInvoiceColumns = ({
   onView,
   getBranchName,
   isAllBranchesSelected,
+  onDownloadPdf,
+  onPrintReceipt,
+  onQuickPay,
 }: InvoiceColumnsOptions): ColumnDef<Invoice>[] => [
   {
     accessorKey: "invoiceNumber",
@@ -24,7 +30,7 @@ export const getInvoiceColumns = ({
       const inv = row.original;
       return (
         <div className="flex flex-col">
-          <span className="font-bold text-foreground text-xs">
+          <span className="font-bold text-foreground text-xs hover:text-primary cursor-pointer" onClick={() => onView(inv)}>
             {inv.invoiceNumber}
           </span>
           <span className="text-[11px] text-muted-foreground">
@@ -124,16 +130,50 @@ export const getInvoiceColumns = ({
     header: () => <span className="sr-only">Actions</span>,
     cell: ({ row }) => {
       const inv = row.original;
+      const canPay = inv.status === "finalized" && inv.amountDue > 0;
       return (
-        <div className="flex justify-end gap-1">
+        <div className="flex items-center justify-end gap-1">
+          {canPay && onQuickPay && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onQuickPay(inv)}
+              className="h-7 px-2 text-[11px] font-semibold text-primary border-primary/30 hover:bg-primary/10 gap-1"
+              title="Record Payment"
+            >
+              Pay
+            </Button>
+          )}
+          {onPrintReceipt && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onPrintReceipt(inv)}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              title="Quick Print Receipt"
+            >
+              <Printer className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {onDownloadPdf && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDownloadPdf(inv)}
+              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+              title="Official PDF"
+            >
+              <FileText className="h-3.5 w-3.5" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onView(inv)}
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-            title="View Invoice"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+            title="View Invoice Details"
           >
-            <Eye className="h-4 w-4" />
+            <Eye className="h-3.5 w-3.5" />
           </Button>
         </div>
       );

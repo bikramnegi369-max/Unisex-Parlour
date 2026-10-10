@@ -388,7 +388,7 @@ describe("Billing UI Components & Financial Rules", () => {
       const firstKey = mockMutateAsync.mock.calls[0][0].payload.idempotencyKey;
 
       // Change amount from 1000 to 500 (material payload change)
-      const amountInput = screen.getByDisplayValue("1000");
+      const amountInput = screen.getByLabelText(/Amount Received/i);
       fireEvent.change(amountInput, { target: { value: "500" } });
 
       fireEvent.click(submitButton);
@@ -784,6 +784,45 @@ describe("Billing UI Components & Financial Rules", () => {
           payload: { reason: "Customer requested reversal due to double charge" },
         });
       });
+    });
+  });
+
+  describe("POS Upgrade Enhancements", () => {
+    it("renders Quick Cash preset buttons and updates cash change calculator in RecordPaymentDialog", () => {
+      const mockFinalizedInvoice: Invoice = {
+        id: "inv-pos-1",
+        invoiceNumber: "INV-POS-001",
+        organizationId: "org-1",
+        branchId: "branch-1",
+        customerId: "cust-1",
+        appointmentId: "apt-1",
+        status: "finalized",
+        paymentStatus: "unpaid",
+        items: [],
+        subtotal: 1500,
+        discountTotal: 0,
+        grossPayable: 1500,
+        subscriptionCoveredAmount: 0,
+        payableAmount: 1500,
+        amountPaid: 0,
+        amountDue: 1500,
+        createdAt: "2026-10-10",
+        updatedAt: "2026-10-10",
+      };
+
+      renderWithProviders(
+        <RecordPaymentDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          invoice={mockFinalizedInvoice}
+        />
+      );
+
+      // Verify preset cash buttons are present
+      expect(screen.getByText("Exact")).toBeDefined();
+      expect(screen.getByText("+₹500")).toBeDefined();
+      expect(screen.getByText("₹1,000")).toBeDefined();
+      expect(screen.getByText("Customer Tendered (₹):")).toBeDefined();
     });
   });
 });

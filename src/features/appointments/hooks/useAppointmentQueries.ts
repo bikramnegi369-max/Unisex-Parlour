@@ -6,22 +6,33 @@ import {
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import type { AppointmentListQuery } from "../types/appointment.types";
+import type { PaginatedResponse } from "@/types/api.types";
+import type { Appointment, AppointmentListQuery } from "../types/appointment.types";
 
-export function useAppointments(params: AppointmentListQuery = {}) {
+import type { UseQueryOptions } from "@tanstack/react-query";
+
+export function useAppointments(
+  params: AppointmentListQuery = {},
+  options?: Omit<UseQueryOptions<PaginatedResponse<Appointment>>, "queryKey" | "queryFn">,
+) {
   const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "appointments.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && (currentBranchId !== null || isOrgWide);
+  const isEnabled =
+    isAuthenticated &&
+    hasViewPermission &&
+    (currentBranchId !== null || isOrgWide) &&
+    (options?.enabled !== false);
 
   const queryKey = getBranchQueryKey("appointments", [params]);
 
   return useQuery({
     queryKey,
     queryFn: () => getAppointments(params),
+    ...options,
     enabled: isEnabled,
   });
 }

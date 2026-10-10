@@ -121,10 +121,28 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
   const items: InvoiceLineItem[] = rawItems.map((itemRaw) => {
     const item = itemRaw as Record<string, unknown>;
     const srvName = (item.name as string) || (item.serviceName as string) || "Service";
+    const rawAppliedSub = item.appliedSubscriptionId ? toFlatId(item.appliedSubscriptionId) : null;
     const isCovered =
       Boolean(item.isCoveredBySubscription) ||
       Boolean(item.isRedeemedViaSubscription) ||
-      Boolean(item.appliedSubscriptionId);
+      Boolean(rawAppliedSub);
+
+    const unitPrice = typeof item.unitPrice === "number" ? item.unitPrice : Number(item.price) || 0;
+    const quantity = typeof item.quantity === "number" ? item.quantity : 1;
+    const lineTotal = typeof item.lineTotal === "number" ? item.lineTotal : unitPrice * quantity;
+
+    // If item has an applied subscription but backend returned 0 for subscriptionCoveredAmount, resolve it from unitPrice
+    let subCoveredAmount =
+      typeof item.subscriptionCoveredAmount === "number" ? item.subscriptionCoveredAmount : 0;
+    if (isCovered && subCoveredAmount === 0) {
+      subCoveredAmount = lineTotal;
+    }
+
+    const calculatedPayable = Math.max(0, lineTotal - subCoveredAmount);
+    const customerPayable =
+      typeof item.customerPayable === "number" && !isCovered
+        ? item.customerPayable
+        : calculatedPayable;
 
     return {
       id: toFlatId(item._id || item.id),
@@ -132,19 +150,47 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
       serviceName: srvName,
       name: srvName,
       duration: typeof item.duration === "number" ? item.duration : undefined,
-      unitPrice: typeof item.unitPrice === "number" ? item.unitPrice : Number(item.price) || 0,
-      quantity: typeof item.quantity === "number" ? item.quantity : 1,
-      lineTotal: typeof item.lineTotal === "number" ? item.lineTotal : Number(item.unitPrice || 0),
+      unitPrice,
+      quantity,
+      lineTotal,
       isCoveredBySubscription: isCovered,
       isRedeemedViaSubscription: isCovered,
-      appliedSubscriptionId: item.appliedSubscriptionId ? toFlatId(item.appliedSubscriptionId) : null,
+      appliedSubscriptionId: rawAppliedSub,
       subscriptionCode: typeof item.subscriptionCode === "string" ? item.subscriptionCode : null,
       subscriptionPlanName: typeof item.subscriptionPlanName === "string" ? item.subscriptionPlanName : null,
       subscriptionUsageId: item.subscriptionUsageId ? toFlatId(item.subscriptionUsageId) : null,
-      subscriptionCoveredAmount: typeof item.subscriptionCoveredAmount === "number" ? item.subscriptionCoveredAmount : 0,
-      customerPayable: typeof item.customerPayable === "number" ? item.customerPayable : undefined,
+      subscriptionCoveredAmount: subCoveredAmount,
+      customerPayable,
     };
   });
+
+  const rawSubtotal = typeof raw.subtotal === "number" ? raw.subtotal : 0;
+  const rawDiscount = typeof raw.discountTotal === "number" ? raw.discountTotal : 0;
+  const rawGross = typeof raw.grossPayable === "number" ? raw.grossPayable : Math.max(0, rawSubtotal - rawDiscount);
+
+  // If top-level subscriptionCoveredAmount is 0 or missing, calculate sum of line-level subscription coverage
+  const lineSubscriptionCoverage = items.reduce(
+    (sum, item) => sum + (item.subscriptionCoveredAmount || 0),
+    0,
+  );
+  const resolvedSubscriptionCovered =
+    typeof raw.subscriptionCoveredAmount === "number" && raw.subscriptionCoveredAmount > 0
+      ? raw.subscriptionCoveredAmount
+      : lineSubscriptionCoverage;
+
+  // Resolve payableAmount: if raw.payableAmount equals raw.grossPayable or raw.subtotal but subscription coverage exists, deduct it
+  let resolvedPayable = typeof raw.payableAmount === "number" ? raw.payableAmount : 0;
+  if (resolvedSubscriptionCovered > 0) {
+    if (resolvedPayable === 0 || resolvedPayable >= rawGross) {
+      resolvedPayable = Math.max(0, rawGross - resolvedSubscriptionCovered);
+    }
+  }
+
+  const resolvedAmountPaid = typeof raw.amountPaid === "number" ? raw.amountPaid : 0;
+  const resolvedAmountDue =
+    typeof raw.amountDue === "number" && raw.amountDue !== (typeof raw.payableAmount === "number" ? raw.payableAmount : 0)
+      ? raw.amountDue
+      : Math.max(0, resolvedPayable - resolvedAmountPaid);
 
   return {
     id,
@@ -158,13 +204,13 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
     paymentStatus: (raw.paymentStatus as Invoice["paymentStatus"]) || "unpaid",
     items,
     lines: items,
-    subtotal: typeof raw.subtotal === "number" ? raw.subtotal : 0,
-    discountTotal: typeof raw.discountTotal === "number" ? raw.discountTotal : 0,
-    grossPayable: typeof raw.grossPayable === "number" ? raw.grossPayable : 0,
-    subscriptionCoveredAmount: typeof raw.subscriptionCoveredAmount === "number" ? raw.subscriptionCoveredAmount : 0,
-    payableAmount: typeof raw.payableAmount === "number" ? raw.payableAmount : 0,
-    amountPaid: typeof raw.amountPaid === "number" ? raw.amountPaid : 0,
-    amountDue: typeof raw.amountDue === "number" ? raw.amountDue : 0,
+    subtotal: rawSubtotal,
+    discountTotal: rawDiscount,
+    grossPayable: rawGross,
+    subscriptionCoveredAmount: resolvedSubscriptionCovered,
+    payableAmount: resolvedPayable,
+    amountPaid: resolvedAmountPaid,
+    amountDue: resolvedAmountDue,
     notes: (raw.notes as string) || "",
     finalizedAt: (raw.finalizedAt as string) || null,
     cancelledAt: (raw.cancelledAt as string) || null,
@@ -233,6 +279,7 @@ export const normalizeBillingSummary = (
     totalBilled: toSafeNum(s.totalBilled),
     totalPaid: toSafeNum(s.totalPaid),
     totalOutstanding: toSafeNum(s.totalOutstanding),
+    ...(s.totalPlanWaived !== undefined ? { totalPlanWaived: toSafeNum(s.totalPlanWaived) } : {}),
   };
 };
 

@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Receipt, Search } from "lucide-react";
+import { Receipt, Search, Calendar, CreditCard, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -15,8 +16,17 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatCurrency } from "@/lib/formatters";
 import { useInvoices } from "../hooks/useBillingQueries";
+import { downloadInvoicePdf } from "../api/billing.api";
 import { getInvoiceColumns } from "../columns/invoice.columns";
 import { InvoiceStatusBadge, PaymentStatusBadge } from "./InvoiceStatusBadge";
+import { BillingStatsCards } from "./BillingStatsCards";
+import { ReadyToBillQueue } from "./ReadyToBillQueue";
+import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
+import { RecordPaymentDialog } from "./RecordPaymentDialog";
+import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
+import { useAppointments } from "@/features/appointments/hooks/useAppointments";
+import { toast } from "sonner";
+import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type {
   Invoice,
   InvoiceStatus,
@@ -27,7 +37,8 @@ export function InvoiceList() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  const { isAllBranchesSelected, getBranchName } = useBranchContext();
+  const { currentBranchId, isAllBranchesSelected, getBranchName } =
+    useBranchContext();
 
   // Read URL search parameters
   const pageParam = searchParams.get("page");
@@ -39,10 +50,21 @@ export function InvoiceList() {
   const searchQueryParam = searchParams.get("search") || "";
   const statusFilter = searchParams.get("status") || "all";
   const paymentStatusFilter = searchParams.get("paymentStatus") || "all";
+  const datePresetFilter = searchParams.get("datePreset") || "all";
+  const startDateParam = searchParams.get("startDate") || "";
+  const endDateParam = searchParams.get("endDate") || "";
 
   // Local state for immediate typing responsiveness
   const [search, setSearch] = useState(searchQueryParam);
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
+
+  // Modal states for POS quick actions
+  const [selectedAppointmentForBill, setSelectedAppointmentForBill] =
+    useState<Appointment | null>(null);
+  const [selectedInvoiceForPay, setSelectedInvoiceForPay] =
+    useState<Invoice | null>(null);
+  const [receiptInvoiceToPrint, setReceiptInvoiceToPrint] =
+    useState<Invoice | null>(null);
 
   const debouncedSearch = useDebounce(search, 350);
 
@@ -51,6 +73,37 @@ export function InvoiceList() {
     setPrevSearchQuery(searchQueryParam);
     setSearch(searchQueryParam);
   }
+
+  // Calculate start/end dates for date range presets, or use explicit custom range
+  const { startDate, endDate } = useMemo(() => {
+    if (startDateParam || endDateParam) {
+      return {
+        startDate: startDateParam || undefined,
+        endDate: endDateParam || undefined,
+      };
+    }
+    if (datePresetFilter === "today") {
+      const today = new Date().toISOString().split("T")[0];
+      return { startDate: today, endDate: today };
+    }
+    if (datePresetFilter === "week") {
+      const now = new Date();
+      const firstDay = new Date(now.setDate(now.getDate() - now.getDay()));
+      return {
+        startDate: firstDay.toISOString().split("T")[0],
+        endDate: new Date().toISOString().split("T")[0],
+      };
+    }
+    if (datePresetFilter === "month") {
+      const now = new Date();
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      return {
+        startDate: firstDay.toISOString().split("T")[0],
+        endDate: new Date().toISOString().split("T")[0],
+      };
+    }
+    return { startDate: undefined, endDate: undefined };
+  }, [datePresetFilter, startDateParam, endDateParam]);
 
   // Sync debounced search to URL
   useEffect(() => {
@@ -77,6 +130,37 @@ export function InvoiceList() {
     if (resetPage) {
       params.set("page", "1");
     }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleCustomDateRangeChange = (start: string, end: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("datePreset"); // Clear preset when choosing explicit dates
+    if (start) {
+      params.set("startDate", start);
+    } else {
+      params.delete("startDate");
+    }
+    if (end) {
+      params.set("endDate", end);
+    } else {
+      params.delete("endDate");
+    }
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleSelectPreset = (presetId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    // Clear explicit custom dates when selecting a quick preset
+    params.delete("startDate");
+    params.delete("endDate");
+    if (presetId && presetId !== "all") {
+      params.set("datePreset", presetId);
+    } else {
+      params.delete("datePreset");
+    }
+    params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -109,12 +193,56 @@ export function InvoiceList() {
       paymentStatusFilter !== "all"
         ? (paymentStatusFilter as PaymentStatus)
         : undefined,
+    startDate,
+    endDate,
   });
 
-  const invoices = response?.data || [];
+  const invoices = useMemo(() => response?.data || [], [response?.data]);
   const meta = response?.meta;
   const totalPages =
     meta?.totalPages ?? (meta ? Math.ceil(Number(meta.total) / pageSize) : 1);
+
+  // Fetch appointments for POS Ready to Bill Queue
+  // Scoped to today's date and current branch, revalidated on mutation, cross-tab events, or window focus
+  const {
+    data: appointmentsData,
+    isLoading: isAppointmentsLoading,
+    isFetching: isAppointmentsFetching,
+    refetch: refetchAppointments,
+  } = useAppointments(
+    {
+      branchId:
+        isAllBranchesSelected || !currentBranchId ? undefined : currentBranchId,
+      date: new Date().toISOString().split("T")[0],
+    },
+    {
+      refetchOnWindowFocus: true,
+    },
+  );
+
+  // Query today's invoices separately for the POS Ready to Bill Queue
+  // This guarantees that table filters (status, paymentStatus, datePresets, search) NEVER leak into or alter the live checkout queue
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+  const { data: todayInvoicesResponse } = useInvoices({
+    startDate: todayStr,
+    endDate: todayStr,
+    limit: 100,
+  });
+
+  // Filter out appointments that already have an invoice today
+  const invoicedAppointmentIds = useMemo(() => {
+    const list = todayInvoicesResponse?.data || [];
+    return new Set(list.map((inv: Invoice) => inv.appointmentId).filter(Boolean));
+  }, [todayInvoicesResponse?.data]);
+
+  const readyToBillAppointments = useMemo(() => {
+    if (!appointmentsData?.data) return [];
+    return appointmentsData.data.filter(
+      (apt: Appointment) =>
+        (apt.status === "completed" || apt.status === "in_progress") &&
+        !invoicedAppointmentIds.has(apt.id),
+    );
+  }, [appointmentsData, invoicedAppointmentIds]);
 
   const handleView = useCallback(
     (inv: Invoice) => {
@@ -123,35 +251,166 @@ export function InvoiceList() {
     [router],
   );
 
+  const handleDownloadPdf = useCallback(async (inv: Invoice) => {
+    try {
+      toast.info(`Generating official PDF for invoice ${inv.invoiceNumber}...`);
+      await downloadInvoicePdf(inv.id, inv.invoiceNumber, "open");
+      toast.success("PDF opened successfully.");
+    } catch {
+      toast.error("Failed to download PDF document.");
+    }
+  }, []);
+
+  const handlePrintReceipt = useCallback((inv: Invoice) => {
+    setReceiptInvoiceToPrint(inv);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  }, []);
+
+  const handleQuickPay = useCallback((inv: Invoice) => {
+    setSelectedInvoiceForPay(inv);
+  }, []);
+
   const columns = useMemo(
     () =>
       getInvoiceColumns({
         onView: handleView,
         getBranchName,
         isAllBranchesSelected,
+        onDownloadPdf: handleDownloadPdf,
+        onPrintReceipt: handlePrintReceipt,
+        onQuickPay: handleQuickPay,
       }),
-    [handleView, getBranchName, isAllBranchesSelected],
+    [
+      handleView,
+      getBranchName,
+      isAllBranchesSelected,
+      handleDownloadPdf,
+      handlePrintReceipt,
+      handleQuickPay,
+    ],
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header Banner */}
       <PageHeaderBanner
-        title="Billing & Invoices"
-        description="Manage checkout invoices, record customer payments, and review transaction histories."
+        title="Billing / POS"
+        description="Streamlined salon point-of-sale: fast checkout, payments, receipt generation, and ledger audit."
         icon={Receipt}
         actions={
-          <SyncButton
-            isSyncing={isFetching}
-            onSync={() => refetch()}
-            label="Refresh Invoices"
-            className="w-full sm:w-auto"
-          />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <SyncButton
+              isSyncing={isFetching || isAppointmentsFetching}
+              onSync={() => {
+                refetch();
+                refetchAppointments();
+              }}
+              label="Sync Register"
+              className="w-full sm:w-auto"
+            />
+          </div>
         }
       />
 
-      {/* Filters Card */}
+      {/* Financial KPI Summary Cards (Global Situational Awareness) */}
+      <BillingStatsCards
+        invoices={invoices}
+        summary={meta?.summary}
+        totalRecords={meta?.total ? Number(meta.total) : undefined}
+        isLoading={isLoading || isFetching}
+        isRefreshing={isFetching}
+      />
+
+      {/* POS Ready to Bill Queue (Real-Time Counter Action Center) */}
+      <ReadyToBillQueue
+        appointments={readyToBillAppointments}
+        isLoading={isAppointmentsLoading || isAppointmentsFetching}
+        isRefreshing={isFetching || isAppointmentsFetching}
+        onCheckout={(apt) => setSelectedAppointmentForBill(apt)}
+      />
+
+      {/* Filters & Presets Card */}
       <div className="bg-card border border-border/80 rounded-xl p-3.5 shadow-2xs space-y-3">
+        {/* Date presets and custom range row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-border/60">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5 text-primary" />
+              <span className="font-semibold">Quick Timeframes:</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { id: "all", label: "All Time" },
+                { id: "today", label: "Today" },
+                { id: "week", label: "This Week" },
+                { id: "month", label: "This Month" },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => handleSelectPreset(preset.id)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                    !startDateParam && !endDateParam && datePresetFilter === preset.id
+                      ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                      : "bg-muted/40 text-muted-foreground border-border/80 hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Custom Date Range Filter */}
+          <div className="flex flex-wrap items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-border/80 text-xs">
+            {/* From Date Input */}
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground font-medium text-[11px]">
+                From:
+              </span>
+              <Input
+                type="date"
+                value={startDateParam}
+                max={endDateParam || undefined}
+                onChange={(e) => handleCustomDateRangeChange(e.target.value, endDateParam)}
+                className="h-7 text-xs w-35 px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+              />
+            </div>
+
+            {/* To Date Input */}
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground font-medium text-[11px]">
+                To:
+              </span>
+              <Input
+                type="date"
+                value={endDateParam}
+                min={startDateParam || undefined}
+                onChange={(e) => handleCustomDateRangeChange(startDateParam, e.target.value)}
+                className="h-7 text-xs w-35 px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
+              />
+            </div>
+
+            {/* Clear Custom Range Button */}
+            {(startDateParam || endDateParam) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCustomDateRangeChange("", "")}
+                className="h-7 px-1.5 text-xs text-muted-foreground hover:text-destructive"
+                title="Clear date range filter"
+              >
+                <X className="h-3 w-3 mr-0.5" />
+                Clear
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Search & dropdown filters */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Search */}
           <div className="relative">
@@ -209,7 +468,7 @@ export function InvoiceList() {
           <DataTable
             columns={columns}
             data={invoices}
-            isLoading={isLoading}
+            isLoading={isLoading || isFetching}
             emptyState={
               <EmptyState
                 icon={Receipt}
@@ -217,7 +476,8 @@ export function InvoiceList() {
                 description={
                   searchQueryParam ||
                   statusFilter !== "all" ||
-                  paymentStatusFilter !== "all"
+                  paymentStatusFilter !== "all" ||
+                  datePresetFilter !== "all"
                     ? "No invoices match the applied filters."
                     : "No invoices have been generated for this branch yet. Invoices are generated from billable appointments."
                 }
@@ -261,6 +521,45 @@ export function InvoiceList() {
                     </span>
                   </div>
                 </div>
+
+                {/* Mobile action shortcuts */}
+                <div className="pt-2 border-t border-border/60 flex items-center justify-end gap-2">
+                  {inv.status === "finalized" && inv.amountDue > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedInvoiceForPay(inv);
+                      }}
+                      className="h-7 text-xs font-semibold px-2.5 gap-1"
+                    >
+                      <CreditCard className="h-3 w-3" />
+                      <span>Pay</span>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrintReceipt(inv);
+                    }}
+                    className="h-7 text-xs px-2 text-muted-foreground"
+                  >
+                    Print
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownloadPdf(inv);
+                    }}
+                    className="h-7 text-xs px-2 text-muted-foreground"
+                  >
+                    PDF
+                  </Button>
+                </div>
               </div>
             )}
           />
@@ -278,6 +577,36 @@ export function InvoiceList() {
             />
           )}
         </div>
+      )}
+
+      {/* POS Quick Bill Creation Dialog */}
+      {selectedAppointmentForBill && (
+        <CreateInvoiceDialog
+          isOpen={Boolean(selectedAppointmentForBill)}
+          onClose={() => setSelectedAppointmentForBill(null)}
+          appointment={selectedAppointmentForBill}
+          onSuccess={(invoiceId) => {
+            setSelectedAppointmentForBill(null);
+            router.push(`/billing/${invoiceId}`);
+          }}
+        />
+      )}
+
+      {/* POS Quick Payment Dialog */}
+      {selectedInvoiceForPay && (
+        <RecordPaymentDialog
+          isOpen={Boolean(selectedInvoiceForPay)}
+          onClose={() => setSelectedInvoiceForPay(null)}
+          invoice={selectedInvoiceForPay}
+        />
+      )}
+
+      {/* Quick Print Receipt Thermal Target */}
+      {receiptInvoiceToPrint && (
+        <PrintableInvoiceReceipt
+          invoice={receiptInvoiceToPrint}
+          branchName={getBranchName(receiptInvoiceToPrint.branchId)}
+        />
       )}
     </div>
   );

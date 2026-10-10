@@ -12,6 +12,7 @@ import {
 } from "../api/appointments.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { getScopeQueryKey } from "@/lib/api/queryKeys";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import type {
   CreateAppointmentPayload,
   UpdateAppointmentPayload,
@@ -25,91 +26,104 @@ import type {
 
 export function useCreateAppointment() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: (payload: CreateAppointmentPayload) => createAppointment(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === "appointments",
+      });
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
 
 export function useUpdateAppointmentMetadata() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateAppointmentPayload }) =>
       updateAppointmentMetadata(id, payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: getBranchQueryKey("appointment", [data.id]),
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return key === "appointments" || key === "appointment";
+        },
       });
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
 
 export function useRescheduleAppointment() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: RescheduleAppointmentPayload }) =>
       rescheduleAppointment(id, payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: getBranchQueryKey("appointment", [data.id]),
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return key === "appointments" || key === "appointment";
+        },
       });
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
 
 export function useAssignAppointmentStaff() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: AssignStaffPayload }) =>
       assignAppointmentStaff(id, payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: getBranchQueryKey("appointment", [data.id]),
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return key === "appointments" || key === "appointment";
+        },
       });
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
 
 export function useUpdateAppointmentStatus() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateAppointmentStatusPayload }) =>
       updateAppointmentStatus(id, payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+    onSuccess: () => {
+      // Invalidate all appointment query variations across scopes so POS queue and calendar update immediately
       queryClient.invalidateQueries({
-        queryKey: getBranchQueryKey("appointment", [data.id]),
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return key === "appointments" || key === "appointment";
+        },
       });
+      // Broadcast to all other open tabs (e.g. Billing/POS queue tab)
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
 
 export function useDeleteAppointment() {
   const queryClient = useQueryClient();
-  const { getBranchQueryKey } = useBranchContext();
 
   return useMutation({
     mutationFn: ({ id, branchId }: { id: string; branchId: string }) =>
       deleteAppointment(id, branchId),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("appointments") });
+    onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: getBranchQueryKey("appointment", [variables.id]),
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return key === "appointments" || key === "appointment";
+        },
       });
     },
   });

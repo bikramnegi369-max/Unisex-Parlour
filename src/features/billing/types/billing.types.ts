@@ -151,6 +151,7 @@ export interface CustomerBillingSummary {
   totalBilled: number;
   totalPaid: number;
   totalOutstanding: number;
+  totalPlanWaived?: number;
 }
 
 export interface InvoiceListResponseMeta {
