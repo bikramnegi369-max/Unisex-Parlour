@@ -46,11 +46,13 @@ export function VoidPaymentDialog({
   const onSubmit = async (values: VoidPaymentFormValues) => {
     if (!payment) return;
     try {
+      const targetBranchId = payment.branchId;
       await voidMutation.mutateAsync({
         paymentId: payment.id,
         invoiceId,
         payload: {
           reason: values.reason,
+          ...(targetBranchId ? { branchId: targetBranchId } : {}),
         },
       });
 

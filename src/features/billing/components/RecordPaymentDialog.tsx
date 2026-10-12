@@ -131,6 +131,7 @@ export function RecordPaymentDialog({
     };
 
     try {
+      const targetBranchId = invoice.branchId || invoice.branch?.id;
       const result = await recordPaymentMutation.mutateAsync({
         invoiceId: invoice.id,
         payload: {
@@ -138,6 +139,7 @@ export function RecordPaymentDialog({
           paymentMethod: values.paymentMethod,
           referenceNote: values.referenceNote,
           idempotencyKey: currentKey,
+          ...(targetBranchId ? { branchId: targetBranchId } : {}),
         },
       });
 

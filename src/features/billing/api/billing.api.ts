@@ -442,7 +442,9 @@ export async function recordPayment(
     `/billing/invoices/${invoiceId}/payments`,
     payload,
     {
-      branchScope: "current",
+      branchScope: payload.branchId
+        ? { type: "branch", branchId: payload.branchId }
+        : "current",
       headers,
     }
   );
@@ -483,7 +485,9 @@ export async function voidPayment(
     `/billing/payments/${paymentId}/void`,
     payload,
     {
-      branchScope: "current",
+      branchScope: payload.branchId
+        ? { type: "branch", branchId: payload.branchId }
+        : "current",
     }
   );
 

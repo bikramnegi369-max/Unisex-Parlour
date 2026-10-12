@@ -479,6 +479,34 @@ describe("Billing API Integration & Contract Verification", () => {
       expect(res.isIdempotentReplay).toBeUndefined();
     });
 
+    it("recordPayment sets branchScope to target branch when branchId is provided in payload", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { _id: "pay-branch-303", amount: 500, paymentMethod: "cash" },
+        },
+      });
+
+      await recordPayment("inv-1", {
+        amount: 500,
+        paymentMethod: "cash",
+        branchId: "branch-xyz-999",
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/billing/invoices/inv-1/payments",
+        expect.objectContaining({
+          amount: 500,
+          paymentMethod: "cash",
+          branchId: "branch-xyz-999",
+        }),
+        expect.objectContaining({
+          branchScope: { type: "branch", branchId: "branch-xyz-999" },
+        })
+      );
+    });
+
     it("voidPayment calls POST /billing/payments/:paymentId/void", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         data: {
@@ -499,6 +527,27 @@ describe("Billing API Integration & Contract Verification", () => {
       );
       expect(res.status).toBe("voided");
       expect(res.voidReason).toBe("Wrong entry");
+    });
+
+    it("voidPayment sets branchScope to target branch when branchId is provided in payload", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { _id: "pay-1", status: "voided", voidReason: "Wrong entry" },
+        },
+      });
+
+      await voidPayment("pay-1", {
+        reason: "Wrong entry",
+        branchId: "branch-abc-123",
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/billing/payments/pay-1/void",
+        { reason: "Wrong entry", branchId: "branch-abc-123" },
+        { branchScope: { type: "branch", branchId: "branch-abc-123" } }
+      );
     });
 
     it("downloadInvoicePdf calls GET /billing/invoices/:id/pdf with blob responseType", async () => {

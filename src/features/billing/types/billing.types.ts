@@ -124,10 +124,12 @@ export interface RecordPaymentPayload {
   paymentMethod: PaymentMethod;
   referenceNote?: string;
   idempotencyKey?: string;
+  branchId?: string;
 }
 
 export interface VoidPaymentPayload {
   reason: string;
+  branchId?: string;
 }
 
 export interface CancelInvoicePayload {

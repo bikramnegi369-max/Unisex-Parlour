@@ -781,7 +781,10 @@ describe("Billing UI Components & Financial Rules", () => {
         expect(mockMutateAsync).toHaveBeenCalledWith({
           paymentId: "pay-123",
           invoiceId: "inv-1",
-          payload: { reason: "Customer requested reversal due to double charge" },
+          payload: {
+            reason: "Customer requested reversal due to double charge",
+            branchId: "branch-1",
+          },
         });
       });
     });
