@@ -17,8 +17,6 @@ export const createUserSchema = z.object({
     .max(100, "Name must be less than 100 characters")
     .trim(),
   email: z
-    .string()
-    .min(1, "Email is required")
     .email("Please enter a valid email address")
     .trim(),
   phone: basePhoneSchema,
@@ -36,8 +34,6 @@ export const updateUserSchema = z.object({
     .max(100, "Name must be less than 100 characters")
     .trim(),
   email: z
-    .string()
-    .min(1, "Email is required")
     .email("Please enter a valid email address")
     .trim()
     .optional(),

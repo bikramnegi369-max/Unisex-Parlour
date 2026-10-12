@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import UsersPage from "@/app/(dashboard)/users/page";
 import UserForm from "../components/UserForm";
 import { useUsers } from "../hooks/useUsers";
@@ -232,11 +232,15 @@ describe("User Management Directory UI Tests", () => {
         isSubmitting={false}
         onCancel={vi.fn()}
       />,
-      { wrapper: createWrapper() }
+      { wrapper: createWrapper() },
     );
 
-    const emailInput = screen.getByLabelText(/Email Address/i) as HTMLInputElement;
-    const roleSelect = screen.getByLabelText(/System Role/i) as HTMLSelectElement;
+    const emailInput = screen.getByLabelText(
+      /Email Address/i,
+    ) as HTMLInputElement;
+    const roleSelect = screen.getByLabelText(
+      /System Role/i,
+    ) as HTMLSelectElement;
 
     expect(emailInput).toBeDefined();
     expect(emailInput.value).toBe("alice@parlour.com");
