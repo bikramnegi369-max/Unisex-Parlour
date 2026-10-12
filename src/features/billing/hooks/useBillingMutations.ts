@@ -64,8 +64,13 @@ export function useFinalizeInvoice() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => finalizeInvoice(id),
-    onSuccess: (_data, id) => {
+    mutationFn: (args: string | { id: string; branchId?: string }) => {
+      const id = typeof args === "string" ? args : args.id;
+      const branchId = typeof args === "object" ? args.branchId : undefined;
+      return finalizeInvoice(id, branchId);
+    },
+    onSuccess: (_data, args) => {
+      const id = typeof args === "string" ? args : args.id;
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];

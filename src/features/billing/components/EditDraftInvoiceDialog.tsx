@@ -61,11 +61,13 @@ export function EditDraftInvoiceDialog({
   const onSubmit = async (values: UpdateDraftInvoiceFormValues) => {
     if (!invoice) return;
     try {
+      const targetBranchId = invoice.branchId || invoice.branch?.id;
       await updateMutation.mutateAsync({
         id: invoice.id,
         payload: {
           discountTotal: values.discountTotal,
           notes: values.notes,
+          ...(targetBranchId ? { branchId: targetBranchId } : {}),
         },
       });
 

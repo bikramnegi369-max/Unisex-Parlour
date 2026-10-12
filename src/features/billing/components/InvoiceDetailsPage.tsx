@@ -99,8 +99,9 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const handleDownloadPdf = async () => {
     if (!invoice) return;
     setIsDownloadingPdf(true);
+    const targetBranchId = invoice.branchId || invoice.branch?.id;
     try {
-      await downloadInvoicePdf(invoice.id, invoice.invoiceNumber, "open");
+      await downloadInvoicePdf(invoice.id, invoice.invoiceNumber, "open", targetBranchId);
       toast.success("Invoice PDF opened for viewing / printing.");
     } catch (err: unknown) {
       const axiosError = err as {
@@ -147,7 +148,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
   const handleFinalize = async () => {
     try {
-      await finalizeMutation.mutateAsync(invoice.id);
+      const targetBranchId = invoice.branchId || invoice.branch?.id;
+      await finalizeMutation.mutateAsync({ id: invoice.id, branchId: targetBranchId });
       toast.success(`Invoice ${invoice.invoiceNumber} finalized successfully.`);
       setIsFinalizeConfirmOpen(false);
     } catch (err: unknown) {
@@ -165,9 +167,13 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
   const handleCancel = async () => {
     try {
+      const targetBranchId = invoice.branchId || invoice.branch?.id;
       await cancelMutation.mutateAsync({
         id: invoice.id,
-        payload: { reason: cancelReason.trim() || undefined },
+        payload: {
+          reason: cancelReason.trim() || undefined,
+          ...(targetBranchId ? { branchId: targetBranchId } : {}),
+        },
       });
       toast.success(`Invoice ${invoice.invoiceNumber} cancelled.`);
       setIsCancelConfirmOpen(false);

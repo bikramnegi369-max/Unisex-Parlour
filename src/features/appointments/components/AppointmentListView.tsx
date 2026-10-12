@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import React, { useMemo } from "react";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -10,38 +9,15 @@ import {
 } from "./AppointmentStatusBadge";
 import { AppointmentReminderStatus } from "./AppointmentReminderStatus";
 import { Button } from "@/components/ui/button";
-import {
-  Eye,
-  Calendar,
-  UserCheck,
-  RefreshCw,
-  Trash2,
-  MapPin,
-} from "lucide-react";
+import { Calendar, RefreshCw, Trash2, Eye, UserCheck } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/formatters";
 import type { Appointment } from "../types/appointment.types";
-
-// ---------------------------------------------------------------------------
-// Safe display helpers — the UI must NEVER crash on malformed/partial data.
-// ---------------------------------------------------------------------------
-function getCustomerDisplayName(appt: Appointment): string {
-  if (appt.customer?.name) return appt.customer.name;
-  if (appt.customerId && appt.customerId.length > 0) {
-    return `Customer #${appt.customerId.slice(-6)}`;
-  }
-  return "Unknown customer";
-}
-
-function getServiceSummary(appt: Appointment): string {
-  const names = (appt.services || [])
-    .map((s) => s?.name)
-    .filter((n): n is string => Boolean(n));
-  return names.length > 0 ? names.join(", ") : "—";
-}
-
-function getAppointmentCodeDisplay(appt: Appointment): string {
-  return appt.appointmentCode || `#${appt.id.slice(-6)}`;
-}
+import {
+  getAppointmentColumns,
+  getCustomerDisplayName,
+  getAppointmentCodeDisplay,
+  getServiceSummary,
+} from "../columns/appointment.columns";
 
 interface AppointmentListViewProps {
   appointments: Appointment[];
@@ -70,217 +46,31 @@ export function AppointmentListView({
   canStatus,
   canDelete,
 }: AppointmentListViewProps) {
-  const columns: ColumnDef<Appointment>[] = [
-    {
-      accessorKey: "appointmentCode",
-      header: "Appointment ID",
-      cell: ({ row }) => {
-        const appt = row.original;
-        const codeDisplay = getAppointmentCodeDisplay(appt);
-        return (
-          <span className="font-mono text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 whitespace-nowrap">
-            {codeDisplay}
-          </span>
-        );
-      },
-    },
-    {
-      accessorKey: "date",
-      header: "Date & Time",
-      cell: ({ row }) => {
-        const appt = row.original;
-        return (
-          <div className="space-y-0.5 whitespace-nowrap">
-            <div className="text-xs font-semibold text-foreground">
-              {formatDate(appt.date)}
-            </div>
-            <div className="text-[11px] text-muted-foreground">
-              {appt.startTime} {appt.endTime ? `- ${appt.endTime}` : ""}
-            </div>
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "customer",
-      header: "Customer",
-      cell: ({ row }) => {
-        const appt = row.original;
-        return (
-          <div className="space-y-0.5">
-            <div className="text-xs font-semibold text-foreground">
-              {getCustomerDisplayName(appt)}
-            </div>
-            {appt.customer?.phone && (
-              <div className="text-[11px] text-muted-foreground">
-                {appt.customer.phone}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "services",
-      header: "Services",
-      cell: ({ row }) => {
-        const appt = row.original;
-        const serviceNames = getServiceSummary(appt);
-        return (
-          <div
-            className="text-xs text-foreground max-w-50 truncate"
-            title={serviceNames}
-          >
-            {serviceNames}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "staff",
-      header: "Staff",
-      cell: ({ row }) => {
-        const appt = row.original;
-        return (
-          <div className="text-xs font-medium text-foreground">
-            {appt.staff?.name || (
-              <span className="text-muted-foreground italic">Unassigned</span>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const appt = row.original;
-        return (
-          <div className="flex flex-col gap-1 items-start">
-            <div className="flex items-center gap-1.5">
-              <AppointmentStatusBadge
-                status={appt.status}
-                isUnassignedQueue={!appt.staffId}
-              />
-              <BookingTypeBadge bookingType={appt.bookingType} />
-            </div>
-            {appt.reminder?.enabled && (
-              <AppointmentReminderStatus reminder={appt.reminder} compact />
-            )}
-          </div>
-        );
-      },
-    },
-    ...(isAllBranches
-      ? [
-          {
-            accessorKey: "branch",
-            header: "Branch",
-            cell: ({ row }: { row: { original: Appointment } }) => {
-              const appt = row.original;
-              return (
-                <div className="flex items-center gap-1 text-xs text-primary font-medium">
-                  <MapPin className="h-3 w-3" />
-                  {appt.branch?.name || appt.branchId}
-                </div>
-              );
-            },
-          },
-        ]
-      : []),
-    {
-      accessorKey: "total",
-      header: "Total",
-      cell: ({ row }) => {
-        const appt = row.original;
-        const total =
-          appt.pricing?.total ??
-          appt.services?.reduce((acc, s) => acc + s.price, 0) ??
-          0;
-        return (
-          <div className="text-xs font-bold text-foreground">
-            {formatCurrency(total)}
-          </div>
-        );
-      },
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      cell: ({ row }) => {
-        const appt = row.original;
-        const isTerminal = ["completed", "cancelled", "no_show"].includes(
-          appt.status,
-        );
-
-        return (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onSelectAppointment(appt)}
-              title="View Details"
-              aria-label="View Details"
-            >
-              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-            </Button>
-
-            {canEdit && !isTerminal && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onReschedule(appt)}
-                  title="Reschedule"
-                  aria-label="Reschedule Appointment"
-                >
-                  <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => onAssignStaff(appt)}
-                  title="Assign Staff"
-                  aria-label="Assign Staff"
-                >
-                  <UserCheck className="h-3.5 w-3.5 text-purple-600" />
-                </Button>
-              </>
-            )}
-
-            {canStatus && !isTerminal && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => onChangeStatus(appt)}
-                title="Change Status"
-                aria-label="Change Status"
-              >
-                <RefreshCw className="h-3.5 w-3.5 text-amber-600" />
-              </Button>
-            )}
-
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive"
-                onClick={() => onDelete(appt)}
-                title="Administrative Soft-Delete"
-                aria-label="Administrative Soft-Delete"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            )}
-          </div>
-        );
-      },
-    },
-  ];
+  const columns = useMemo(
+    () =>
+      getAppointmentColumns({
+        onSelectAppointment,
+        onReschedule,
+        onAssignStaff,
+        onChangeStatus,
+        onDelete,
+        isAllBranches,
+        canEdit,
+        canStatus,
+        canDelete,
+      }),
+    [
+      onSelectAppointment,
+      onReschedule,
+      onAssignStaff,
+      onChangeStatus,
+      onDelete,
+      isAllBranches,
+      canEdit,
+      canStatus,
+      canDelete,
+    ],
+  );
 
   const renderMobileRow = (appt: Appointment) => {
     const isTerminal = ["completed", "cancelled", "no_show"].includes(

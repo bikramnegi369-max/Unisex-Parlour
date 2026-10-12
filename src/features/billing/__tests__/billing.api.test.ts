@@ -5,6 +5,8 @@ import {
   getInvoice,
   createInvoice,
   finalizeInvoice,
+  cancelInvoice,
+  updateDraftInvoice,
   recordPayment,
   voidPayment,
   downloadInvoicePdf,
@@ -365,6 +367,60 @@ describe("Billing API Integration & Contract Verification", () => {
         { branchScope: "current" }
       );
       expect(res.status).toBe("finalized");
+    });
+
+    it("finalizeInvoice sets branchScope to target branch when branchId is provided", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { _id: "inv-1", status: "finalized" },
+        },
+      });
+
+      await finalizeInvoice("inv-1", "branch-fin-777");
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/billing/invoices/inv-1/finalize",
+        {},
+        { branchScope: { type: "branch", branchId: "branch-fin-777" } }
+      );
+    });
+
+    it("cancelInvoice sets branchScope to target branch when branchId is in payload", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { _id: "inv-1", status: "cancelled" },
+        },
+      });
+
+      await cancelInvoice("inv-1", { reason: "Mistake", branchId: "branch-can-888" });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/billing/invoices/inv-1/cancel",
+        { reason: "Mistake", branchId: "branch-can-888" },
+        { branchScope: { type: "branch", branchId: "branch-can-888" } }
+      );
+    });
+
+    it("updateDraftInvoice sets branchScope to target branch when branchId is in payload", async () => {
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { _id: "inv-1", discountTotal: 20 },
+        },
+      });
+
+      await updateDraftInvoice("inv-1", { discountTotal: 20, branchId: "branch-upd-999" });
+
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "/billing/invoices/inv-1",
+        { discountTotal: 20, branchId: "branch-upd-999" },
+        { branchScope: { type: "branch", branchId: "branch-upd-999" } }
+      );
     });
 
     it("recordPayment calls POST /billing/invoices/:id/payments with idempotency headers when provided and handles flat response", async () => {

@@ -369,7 +369,9 @@ export async function updateDraftInvoice(
     `/billing/invoices/${id}`,
     payload,
     {
-      branchScope: "current",
+      branchScope: payload.branchId
+        ? { type: "branch", branchId: payload.branchId }
+        : "current",
     }
   );
 
@@ -379,12 +381,17 @@ export async function updateDraftInvoice(
 /**
  * Finalize an invoice. Financial figures become immutable.
  */
-export async function finalizeInvoice(id: string): Promise<Invoice> {
+export async function finalizeInvoice(
+  id: string,
+  branchId?: string
+): Promise<Invoice> {
   const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
     `/billing/invoices/${id}/finalize`,
     {},
     {
-      branchScope: "current",
+      branchScope: branchId
+        ? { type: "branch", branchId }
+        : "current",
     }
   );
 
@@ -402,7 +409,9 @@ export async function cancelInvoice(
     `/billing/invoices/${id}/cancel`,
     payload,
     {
-      branchScope: "current",
+      branchScope: payload.branchId
+        ? { type: "branch", branchId: payload.branchId }
+        : "current",
     }
   );
 
@@ -501,13 +510,16 @@ export async function voidPayment(
 export async function downloadInvoicePdf(
   invoiceId: string,
   invoiceNumber: string,
-  action: "open" | "download" = "open"
+  action: "open" | "download" = "open",
+  branchId?: string
 ): Promise<void> {
   const response = await apiClient.get<Blob>(
     `/billing/invoices/${invoiceId}/pdf`,
     {
       responseType: "blob",
-      branchScope: "current",
+      branchScope: branchId
+        ? { type: "branch", branchId }
+        : "current",
     }
   );
 

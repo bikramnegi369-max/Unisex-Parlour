@@ -254,7 +254,8 @@ export function InvoiceList() {
   const handleDownloadPdf = useCallback(async (inv: Invoice) => {
     try {
       toast.info(`Generating official PDF for invoice ${inv.invoiceNumber}...`);
-      await downloadInvoicePdf(inv.id, inv.invoiceNumber, "open");
+      const targetBranchId = inv.branchId || inv.branch?.id;
+      await downloadInvoicePdf(inv.id, inv.invoiceNumber, "open", targetBranchId);
       toast.success("PDF opened successfully.");
     } catch {
       toast.error("Failed to download PDF document.");

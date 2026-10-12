@@ -117,6 +117,7 @@ export interface CreateInvoicePayload {
 export interface UpdateDraftInvoicePayload {
   discountTotal?: number;
   notes?: string;
+  branchId?: string;
 }
 
 export interface RecordPaymentPayload {
@@ -134,6 +135,7 @@ export interface VoidPaymentPayload {
 
 export interface CancelInvoicePayload {
   reason?: string;
+  branchId?: string;
 }
 
 export interface InvoiceListQuery {
