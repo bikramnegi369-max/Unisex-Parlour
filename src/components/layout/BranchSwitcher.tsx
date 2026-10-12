@@ -54,11 +54,14 @@ export default function BranchSwitcher() {
   }
 
   return (
-    <div className="relative select-none" ref={dropdownRef}>
+    <div
+      className={cn("relative select-none", isOpen && "z-50")}
+      ref={dropdownRef}
+    >
       <button
         onClick={() => setIsOpen((prev) => !prev)}
         className={cn(
-          "flex items-center gap-2 h-9 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs",
+          "flex items-center gap-1.5 sm:gap-2 h-9 px-2.5 sm:px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer shadow-2xs",
           "bg-background hover:bg-muted/70 border-border/80 hover:border-border",
           "text-foreground min-w-35 max-w-52.5",
         )}
@@ -87,7 +90,7 @@ export default function BranchSwitcher() {
       {isOpen && (
         <div
           role="listbox"
-          className="absolute top-full left-0 mt-2 min-w-52.5 w-full bg-popover border border-border rounded-2xl shadow-xl z-50 p-1.5 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100 space-y-1"
+          className="absolute top-full left-0 mt-2 min-w-52.5 w-full bg-popover border border-border rounded-2xl shadow-2xl z-50 p-1.5 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100 space-y-1"
         >
           {/* All Branches option — only for org-wide users */}
           {canViewAllBranches && (

@@ -3,7 +3,10 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { Eye, Building, Printer, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { InvoiceStatusBadge, PaymentStatusBadge } from "../components/InvoiceStatusBadge";
+import {
+  InvoiceStatusBadge,
+  PaymentStatusBadge,
+} from "../components/InvoiceStatusBadge";
 import type { Invoice } from "../types/billing.types";
 
 interface InvoiceColumnsOptions {
@@ -29,11 +32,15 @@ export const getInvoiceColumns = ({
     cell: ({ row }) => {
       const inv = row.original;
       return (
-        <div className="flex flex-col">
-          <span className="font-bold text-foreground text-xs hover:text-primary cursor-pointer" onClick={() => onView(inv)}>
+        <div className="flex flex-col min-w-0 max-w-50">
+          <span
+            className="font-bold text-foreground text-xs hover:text-primary cursor-pointer whitespace-nowrap truncate"
+            title={inv.invoiceNumber}
+            onClick={() => onView(inv)}
+          >
             {inv.invoiceNumber}
           </span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap truncate">
             {formatDate(inv.createdAt, "dd MMM yyyy, hh:mm a")}
           </span>
         </div>

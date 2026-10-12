@@ -45,7 +45,7 @@ export default function Header() {
   };
 
   return (
-    <header className="relative flex items-center justify-between h-16 px-4 md:px-6 bg-card border-b border-border z-20 shrink-0 select-none shadow-2xs">
+    <header className="relative flex items-center justify-between h-16 px-4 md:px-6 bg-card border-b border-border z-30 shrink-0 select-none shadow-2xs">
       {/* Left Area: Mobile Menu Toggle & Search Bar */}
       <div className="flex items-center gap-3">
         <button
@@ -70,7 +70,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Center Area: Branch Switcher */}
+      {/* Center Area: Branch Switcher (desktop/tablet header; mobile has dedicated branch switcher in drawer sidebar) */}
       <div className="hidden md:block">
         <BranchSwitcher />
       </div>
