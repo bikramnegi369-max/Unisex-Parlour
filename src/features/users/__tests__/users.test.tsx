@@ -70,7 +70,9 @@ describe("User Module API Contract & Security Tests", () => {
 
     const payload = {
       name: "John Updated",
+      email: "john.updated@parlour.com",
       phone: "0987654321",
+      roleId: "role_manager_1",
       branchAccess: [{ branchId: "b2", branchName: "Branch B", isActive: true }],
       hasOrgWideAccess: false,
     };

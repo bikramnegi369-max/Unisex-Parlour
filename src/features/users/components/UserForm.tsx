@@ -126,10 +126,11 @@ export default function UserForm({
 
     const submitPayload = {
       name: values.name,
+      email: values.email,
       phone: values.phone,
+      ...(values.roleId ? { roleId: values.roleId } : {}),
       branchAccess: formattedBranchAccess,
       hasOrgWideAccess: values.hasOrgWideAccess,
-      ...(!isEditMode ? { email: values.email, roleId: values.roleId } : {}),
     };
     onSubmit(submitPayload);
   };
@@ -202,62 +203,65 @@ export default function UserForm({
           </div>
         </div>
 
-        {!isEditMode && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
-              >
-                Email Address <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="jane@parlour.com"
-                className={
-                  errors.email
-                    ? "border-destructive focus-visible:ring-destructive"
-                    : ""
-                }
-                disabled={isSubmitting}
-                {...register("email")}
-              />
-              {errors.email && (
-                <p className="text-xs text-destructive font-medium mt-1">
-                  {errors.email.message as string}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label
-                htmlFor="roleId"
-                className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
-              >
-                System Role <span className="text-destructive">*</span>
-              </label>
-              <select
-                id="roleId"
-                disabled={isSubmitting || isLoadingRoles}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                {...register("roleId")}
-              >
-                <option value="">Select a role...</option>
-                {roles.map((r: Role, index: number) => (
-                  <option key={r.id || r.name || `role-${index}`} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-              {errors.roleId && (
-                <p className="text-xs text-destructive font-medium mt-1">
-                  {errors.roleId.message as string}
-                </p>
-              )}
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label
+              htmlFor="email"
+              className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
+            >
+              Email Address <span className="text-destructive">*</span>
+            </label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="jane@parlour.com"
+              className={
+                errors.email
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
+              disabled={isSubmitting}
+              {...register("email")}
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive font-medium mt-1">
+                {errors.email.message as string}
+              </p>
+            )}
           </div>
-        )}
+
+          <div>
+            <label
+              htmlFor="roleId"
+              className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
+            >
+              System Role <span className="text-destructive">*</span>
+            </label>
+            <select
+              id="roleId"
+              disabled={isSubmitting || isLoadingRoles || isSelfEdit}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              {...register("roleId")}
+            >
+              <option value="">Select a role...</option>
+              {roles.map((r: Role, index: number) => (
+                <option key={r.id || r.name || `role-${index}`} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+            {isSelfEdit && (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Role modification is disabled when editing your own account.
+              </p>
+            )}
+            {errors.roleId && (
+              <p className="text-xs text-destructive font-medium mt-1">
+                {errors.roleId.message as string}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Scoping Section */}

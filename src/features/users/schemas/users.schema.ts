@@ -35,7 +35,14 @@ export const updateUserSchema = z.object({
     .min(1, "Name is required")
     .max(100, "Name must be less than 100 characters")
     .trim(),
+  email: z
+    .string()
+    .min(1, "Email is required")
+    .email("Please enter a valid email address")
+    .trim()
+    .optional(),
   phone: basePhoneSchema,
+  roleId: z.string().min(1, "Role is required").optional(),
   branchAccess: z.array(z.string()).default([]),
   hasOrgWideAccess: z.boolean().default(false),
 });

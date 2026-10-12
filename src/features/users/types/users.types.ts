@@ -67,7 +67,9 @@ export interface CreateUserPayload {
 // Payload for PATCH /users/:id
 export interface UpdateUserPayload {
   name?: string;
+  email?: string;
   phone?: string;
+  roleId?: string;
   branchAccess?: UserBranchAccess[];
   hasOrgWideAccess?: boolean;
 }

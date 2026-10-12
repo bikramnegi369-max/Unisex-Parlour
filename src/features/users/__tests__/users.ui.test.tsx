@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import UsersPage from "@/app/(dashboard)/users/page";
+import UserForm from "../components/UserForm";
 import { useUsers } from "../hooks/useUsers";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -205,5 +206,43 @@ describe("User Management Directory UI Tests", () => {
     // Desktop table + mobile card both render the name (responsive views)
     expect(screen.getAllByText("Alice Cooper").length).toBeGreaterThan(0);
     expect(screen.getAllByText("alice@parlour.com").length).toBeGreaterThan(0);
+  });
+
+  it("renders UserForm with prefilled email and role in edit mode", () => {
+    const mockUser = {
+      id: "u10",
+      name: "Alice Cooper",
+      email: "alice@parlour.com",
+      phone: "+1234567890",
+      role: { id: "role_1", name: "Manager", description: "Manager role" },
+      organizationId: "org_1",
+      hasOrgWideAccess: false,
+      branchAccess: [],
+      isVerified: true,
+      isFirstLogin: false,
+      status: "active" as const,
+      createdAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-01T00:00:00Z",
+    };
+
+    render(
+      <UserForm
+        initialUser={mockUser}
+        onSubmit={vi.fn()}
+        isSubmitting={false}
+        onCancel={vi.fn()}
+      />,
+      { wrapper: createWrapper() }
+    );
+
+    const emailInput = screen.getByLabelText(/Email Address/i) as HTMLInputElement;
+    const roleSelect = screen.getByLabelText(/System Role/i) as HTMLSelectElement;
+
+    expect(emailInput).toBeDefined();
+    expect(emailInput.value).toBe("alice@parlour.com");
+    expect(emailInput.disabled).toBe(false);
+
+    expect(roleSelect).toBeDefined();
+    expect(roleSelect.disabled).toBe(false);
   });
 });
