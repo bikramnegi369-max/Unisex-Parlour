@@ -37,20 +37,21 @@ export function useAppointments(
   });
 }
 
-export function useAppointment(id: string | undefined) {
+export function useAppointment(id: string | undefined, branchId?: string) {
   const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "appointments.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
+  const effectiveBranchId = branchId || currentBranchId;
+  const isEnabled = isAuthenticated && hasViewPermission && !!id && (effectiveBranchId !== null || isOrgWide);
 
-  const queryKey = getBranchQueryKey("appointment", [id || ""]);
+  const queryKey = getBranchQueryKey("appointment", [id || "", branchId || ""]);
 
   return useQuery({
     queryKey,
-    queryFn: () => getAppointment(id!),
+    queryFn: () => getAppointment(id!, branchId),
     enabled: isEnabled,
   });
 }

@@ -1,5 +1,6 @@
-// @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { apiClient } from "@/lib/api/axios";
+import { getAppointment } from "../api/appointments.api";
 import {
   createAppointmentSchema,
   rescheduleAppointmentSchema,
@@ -8,7 +9,65 @@ import {
 } from "../schemas/appointment.schema";
 import { formatInBranchTimezone } from "@/lib/formatters";
 
+vi.mock("@/lib/api/axios", () => ({
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
 describe("Appointment Schema & API Contract Validation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("getAppointment branch scoping", () => {
+    it("passes specific branchScope when branchId is provided", async () => {
+      const mockRaw = {
+        _id: "apt_123",
+        branchId: "branch_abc",
+        customerId: "cust_1",
+        date: "2026-10-12",
+        startTime: "10:00",
+        services: [],
+      };
+
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: { success: true, data: mockRaw },
+      });
+
+      const res = await getAppointment("apt_123", "branch_abc");
+
+      expect(apiClient.get).toHaveBeenCalledWith("/appointments/apt_123", {
+        branchScope: { type: "branch", branchId: "branch_abc" },
+      });
+      expect(res.id).toBe("apt_123");
+    });
+
+    it("falls back to current branchScope when branchId is omitted", async () => {
+      const mockRaw = {
+        _id: "apt_123",
+        branchId: "branch_current",
+        customerId: "cust_1",
+        date: "2026-10-12",
+        startTime: "10:00",
+        services: [],
+      };
+
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        data: { success: true, data: mockRaw },
+      });
+
+      await getAppointment("apt_123");
+
+      expect(apiClient.get).toHaveBeenCalledWith("/appointments/apt_123", {
+        branchScope: "current",
+      });
+    });
+  });
+
   it("validates advance and walk-in appointment creation schemas with services and custom pricing", () => {
     const advanceWithCustomPricing = createAppointmentSchema.safeParse({
       branchId: "br_1",

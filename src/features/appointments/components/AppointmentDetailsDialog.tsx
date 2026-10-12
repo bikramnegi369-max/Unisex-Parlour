@@ -82,7 +82,10 @@ export function AppointmentDetailsDialog({
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
   const { data: fetchedAppointment, isLoading: isFetchingDetails } =
-    useAppointment(isOpen ? initialAppointment?.id : undefined);
+    useAppointment(
+      isOpen ? initialAppointment?.id : undefined,
+      initialAppointment?.branchId
+    );
 
   // Use fresh fetched single appointment data, falling back to initial list item snapshot
   const appointment = fetchedAppointment || initialAppointment;

@@ -185,10 +185,16 @@ export const getAppointments = async (
   };
 };
 
-export const getAppointment = async (id: string): Promise<Appointment> => {
-  const { data } = await apiClient.get<{ success: boolean; data: Record<string, unknown> }>(`/appointments/${id}`, {
-    branchScope: "current",
-  });
+export const getAppointment = async (
+  id: string,
+  branchId?: string
+): Promise<Appointment> => {
+  const { data } = await apiClient.get<{ success: boolean; data: Record<string, unknown> }>(
+    `/appointments/${id}`,
+    {
+      branchScope: branchId ? { type: "branch", branchId } : "current",
+    }
+  );
   return normalizeAppointment(data.data);
 };
 
