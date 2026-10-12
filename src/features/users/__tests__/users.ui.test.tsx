@@ -7,6 +7,7 @@ import UserForm from "../components/UserForm";
 import { useUsers } from "../hooks/useUsers";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { UserSession } from "@/lib/permissions";
 
 // Mock auth hook
 vi.mock("@/features/auth/hooks/useAuth", () => ({
@@ -56,7 +57,7 @@ vi.mock("@/hooks/useBranchContext", () => ({
     currentBranchId: "br_1",
     currentBranch: { id: "br_1", name: "Main Branch" },
     isAllBranchesSelected: false,
-    getBranchQueryKey: (name: string, keys: any[] = []) => [
+    getBranchQueryKey: (name: string, keys: unknown[] = []) => [
       name,
       "br_1",
       ...keys,
@@ -66,10 +67,33 @@ vi.mock("@/hooks/useBranchContext", () => ({
 
 const createWrapper = () => {
   const queryClient = new QueryClient();
-  return ({ children }: { children: React.ReactNode }) => (
+  const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  Wrapper.displayName = "TestQueryClientWrapper";
+  return Wrapper;
 };
+
+const createMockAuthReturn = (
+  user: UserSession,
+  overrides?: Partial<ReturnType<typeof useAuth>>,
+): ReturnType<typeof useAuth> => ({
+  user,
+  isAuthenticated: true,
+  isLoading: false,
+  isError: false,
+  login: vi.fn(),
+  isLoggingIn: false,
+  logout: vi.fn(),
+  isLoggingOut: false,
+  sendOtp: vi.fn(),
+  isSendingOtp: false,
+  verifyOtp: vi.fn(),
+  isVerifyingOtp: false,
+  activateChangePassword: vi.fn(),
+  isActivatingChangePassword: false,
+  ...overrides,
+});
 
 describe("User Management Directory UI Tests", () => {
   beforeEach(() => {
@@ -77,8 +101,8 @@ describe("User Management Directory UI Tests", () => {
     cleanup();
 
     // Default auth setup: Admin user
-    vi.mocked(useAuth).mockReturnValue({
-      user: {
+    vi.mocked(useAuth).mockReturnValue(
+      createMockAuthReturn({
         id: "admin_1",
         name: "Admin User",
         email: "admin@parlour.com",
@@ -87,27 +111,14 @@ describe("User Management Directory UI Tests", () => {
         organizationId: "org_1",
         branchAccess: [],
         hasOrgWideAccess: true,
-      },
-      isAuthenticated: true,
-      isLoading: false,
-      isError: false,
-      login: vi.fn() as any,
-      isLoggingIn: false,
-      logout: vi.fn(),
-      isLoggingOut: false,
-      sendOtp: vi.fn() as any,
-      isSendingOtp: false,
-      verifyOtp: vi.fn() as any,
-      isVerifyingOtp: false,
-      activateChangePassword: vi.fn() as any,
-      isActivatingChangePassword: false,
-    });
+      }),
+    );
   });
 
   it("renders Denied Access when users.view permission is missing", () => {
     // Override auth mock to remove view permission
-    vi.mocked(useAuth).mockReturnValue({
-      user: {
+    vi.mocked(useAuth).mockReturnValue(
+      createMockAuthReturn({
         id: "stylist_1",
         name: "Stylist User",
         email: "stylist@parlour.com",
@@ -115,29 +126,16 @@ describe("User Management Directory UI Tests", () => {
         permissions: [],
         organizationId: "org_1",
         branchAccess: [],
-      },
-      isAuthenticated: true,
-      isLoading: false,
-      isError: false,
-      login: vi.fn() as any,
-      isLoggingIn: false,
-      logout: vi.fn(),
-      isLoggingOut: false,
-      sendOtp: vi.fn() as any,
-      isSendingOtp: false,
-      verifyOtp: vi.fn() as any,
-      isVerifyingOtp: false,
-      activateChangePassword: vi.fn() as any,
-      isActivatingChangePassword: false,
-    });
+      }),
+    );
 
     vi.mocked(useUsers).mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: false,
       error: null,
-      refetch: vi.fn() as any,
-    } as any);
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useUsers>);
 
     render(<UsersPage />, { wrapper: createWrapper() });
 
@@ -151,8 +149,8 @@ describe("User Management Directory UI Tests", () => {
       isLoading: true,
       isError: false,
       error: null,
-      refetch: vi.fn() as any,
-    } as any);
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useUsers>);
 
     render(<UsersPage />, { wrapper: createWrapper() });
 
@@ -198,8 +196,8 @@ describe("User Management Directory UI Tests", () => {
       isLoading: false,
       isError: false,
       error: null,
-      refetch: vi.fn() as any,
-    } as any);
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useUsers>);
 
     render(<UsersPage />, { wrapper: createWrapper() });
 
