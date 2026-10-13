@@ -22,7 +22,13 @@ import {
 import type { Role } from "@/features/roles/types/roles.types";
 
 export default function RolesPage() {
-  const { data: roles = [], isLoading: isLoadingRoles, isError: isErrorRoles, refetch: refetchRoles } = useRoles();
+  const {
+    data: roles = [],
+    isLoading: isLoadingRoles,
+    isRefetching: isRefetchingRoles,
+    isError: isErrorRoles,
+    refetch: refetchRoles,
+  } = useRoles();
   const { data: serverModules = [], isLoading: isLoadingModules } = usePermissionModules();
 
   // Pagination & Filtering State for Permissions
@@ -34,6 +40,7 @@ export default function RolesPage() {
   const {
     data: permissionsResult,
     isLoading: isLoadingPermissions,
+    isRefetching: isRefetchingPermissions,
     isError: isErrorPermissions,
     refetch: refetchPermissions,
   } = usePermissions({
@@ -49,6 +56,19 @@ export default function RolesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      await Promise.all([refetchRoles(), refetchPermissions()]);
+      toast.success("Roles & permissions synchronized successfully.");
+    } catch {
+      toast.error("Failed to synchronize roles & permissions.");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Selected role derives naturally from state or falls back to first role
   const selectedRole = roles.find((r: Role) => r.id === selectedRoleId) || roles[0] || null;
@@ -152,10 +172,15 @@ export default function RolesPage() {
     );
   }
 
+
   if (roles.length === 0) {
     return (
       <div className="space-y-6 w-full max-w-full overflow-hidden">
-        <RolesListHeader onCreateRoleClick={() => setIsCreateOpen(true)} />
+        <RolesListHeader
+          onCreateRoleClick={() => setIsCreateOpen(true)}
+          isSyncing={isSyncing}
+          onSync={handleSync}
+        />
 
         <Card className="border border-border/80 shadow-sm p-8 sm:p-12 text-center bg-card">
           <EmptyState
@@ -181,7 +206,11 @@ export default function RolesPage() {
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
-      <RolesListHeader onCreateRoleClick={() => setIsCreateOpen(true)} />
+      <RolesListHeader
+        onCreateRoleClick={() => setIsCreateOpen(true)}
+        isSyncing={isSyncing}
+        onSync={handleSync}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start w-full min-w-0">
         {/* Left Side: Roles List Navigation */}
@@ -248,7 +277,9 @@ export default function RolesPage() {
             }}
             onSavePermissions={handleSavePermissions}
             isSaving={isSavingPermissions}
-            isLoadingPermissions={isLoadingPermissions}
+            isLoadingPermissions={
+              isLoadingPermissions || isRefetchingPermissions || isSyncing
+            }
             isErrorPermissions={isErrorPermissions}
             onRetryPermissions={() => refetchPermissions()}
             isLoadingModules={isLoadingModules}

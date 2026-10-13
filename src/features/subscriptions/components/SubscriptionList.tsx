@@ -17,6 +17,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SyncButton } from "@/components/ui/sync-button";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -94,7 +95,14 @@ export function SubscriptionList() {
     SUBSCRIPTIONS_CONFIG.permissions.redeem,
   );
 
-  const { data, isLoading, isError, refetch } = useSubscriptions({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isRefetching,
+    isError,
+    refetch,
+  } = useSubscriptions({
     page,
     limit: pageSize,
     search: debouncedSearch.trim() || undefined,
@@ -104,6 +112,8 @@ export function SubscriptionList() {
   const {
     data: plansData,
     isLoading: isLoadingPlans,
+    isFetching: isFetchingPlans,
+    isRefetching: isRefetchingPlans,
     isError: isPlansError,
     refetch: refetchPlans,
   } = useSubscriptionPlans({
@@ -298,6 +308,32 @@ export function SubscriptionList() {
     setIsCreateOpen(true);
   };
 
+  const [isSyncingManual, setIsSyncingManual] = useState(false);
+
+  const handleSync = async () => {
+    setIsSyncingManual(true);
+    try {
+      if (activeTab === "subscriptions") {
+        await refetch();
+        toast.success("Subscriptions list synchronized successfully.");
+      } else {
+        await refetchPlans();
+        toast.success("Plan templates catalog synchronized successfully.");
+      }
+    } catch {
+      toast.error(
+        activeTab === "subscriptions"
+          ? "Failed to synchronize subscriptions."
+          : "Failed to synchronize plan templates catalog.",
+      );
+    } finally {
+      setIsSyncingManual(false);
+    }
+  };
+
+  const isSubLoading = isLoading || isRefetching || (isSyncingManual && activeTab === "subscriptions");
+  const isPlanLoading = isLoadingPlans || isRefetchingPlans || (isSyncingManual && activeTab === "plans");
+
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -306,7 +342,17 @@ export function SubscriptionList() {
         description="Manage customer-specific prepaid subscriptions, service entitlements, and plan templates across authorized branches."
         icon={CreditCard}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <SyncButton
+              isSyncing={isSyncingManual || (activeTab === "subscriptions" ? isRefetching : isRefetchingPlans)}
+              onSync={handleSync}
+              label={
+                activeTab === "subscriptions"
+                  ? "Refresh Subscriptions"
+                  : "Refresh Plans"
+              }
+              className="w-full sm:w-auto"
+            />
             {canConfigure && activeTab === "plans" && (
               <Button
                 type="button"
@@ -314,7 +360,7 @@ export function SubscriptionList() {
                   setActivePlan(null);
                   setIsPlanFormOpen(true);
                 }}
-                className="h-9 text-xs font-semibold gap-1.5 shadow-sm cursor-pointer"
+                className="h-9 text-xs font-semibold gap-1.5 shadow-sm cursor-pointer w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4" />
                 Add Plan Template
@@ -327,7 +373,7 @@ export function SubscriptionList() {
                   setSelectedPlanForCustomer(null);
                   setIsCreateOpen(true);
                 }}
-                className="h-9 text-xs font-semibold gap-1.5 shadow-sm cursor-pointer"
+                className="h-9 text-xs font-semibold gap-1.5 shadow-sm cursor-pointer w-full sm:w-auto"
               >
                 <Plus className="h-4 w-4" />
                 Sell Subscription
@@ -407,7 +453,7 @@ export function SubscriptionList() {
               setStatus("all");
               setPage(1);
             }}
-            isLoading={isLoading}
+            isLoading={isSubLoading}
           />
 
           {/* Main Table / View */}
@@ -420,7 +466,22 @@ export function SubscriptionList() {
                 onClick: () => refetch(),
               }}
             />
-          ) : subscriptions.length === 0 && !isLoading ? (
+          ) : isSubLoading ? (
+            <SubscriptionTable
+              columns={columns}
+              data={[]}
+              isLoading={true}
+              onView={handleView}
+              onEdit={handleEdit}
+              onCancel={handleCancel}
+              onRedeem={handleRedeem}
+              canView={canView}
+              canEdit={canConfigure}
+              canCancel={canConfigure}
+              canRedeem={canRedeem}
+              getBranchName={getBranchName}
+            />
+          ) : subscriptions.length === 0 ? (
             debouncedSearch.trim() || status !== "all" ? (
               <EmptyState
                 icon={HelpCircle}
@@ -458,7 +519,7 @@ export function SubscriptionList() {
               <SubscriptionTable
                 columns={columns}
                 data={subscriptions}
-                isLoading={isLoading}
+                isLoading={false}
                 onView={handleView}
                 onEdit={handleEdit}
                 onCancel={handleCancel}
@@ -507,7 +568,15 @@ export function SubscriptionList() {
                 onClick: () => refetchPlans(),
               }}
             />
-          ) : plans.length === 0 && !isLoadingPlans ? (
+          ) : isPlanLoading ? (
+            <SubscriptionPlanTable
+              plans={[]}
+              isLoading={true}
+              onEdit={() => {}}
+              onDelete={() => {}}
+              canConfigure={canConfigure}
+            />
+          ) : plans.length === 0 ? (
             <EmptyState
               icon={Layers}
               title="No Subscription Plans Yet"
@@ -528,7 +597,7 @@ export function SubscriptionList() {
           ) : (
             <SubscriptionPlanTable
               plans={plans}
-              isLoading={isLoadingPlans}
+              isLoading={false}
               onEdit={(p) => {
                 setActivePlan(p);
                 setIsPlanFormOpen(true);

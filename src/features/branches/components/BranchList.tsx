@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
+import { toast } from "sonner";
 import { Plus, Building2 } from "lucide-react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -9,6 +10,7 @@ import { useBranches } from "../hooks/useBranches";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import { Button } from "@/components/ui/button";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SyncButton } from "@/components/ui/sync-button";
 import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -129,8 +131,23 @@ export function BranchList() {
     );
   }
 
+  const handleSync = async () => {
+    try {
+      await refetch();
+      toast.success("Branch directory synchronized successfully.");
+    } catch {
+      toast.error("Failed to synchronize branch directory.");
+    }
+  };
+
   const headerActions = (
     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full sm:w-auto">
+      <SyncButton
+        isSyncing={isRefetching}
+        onSync={handleSync}
+        label="Refresh Branches"
+        className="w-full sm:w-auto"
+      />
       {canCreate && (
         <Button
           onClick={handleCreate}
@@ -157,7 +174,7 @@ export function BranchList() {
       <DataTable
         columns={columns}
         data={branches}
-        isLoading={isLoading}
+        isLoading={isLoading || isRefetching}
         emptyState={
           <EmptyState
             icon={Building2}

@@ -434,4 +434,56 @@ describe("Branches Feature Module", () => {
       expect(store.getState().branch.currentBranchId).toBeNull();
     });
   });
+
+  describe("BranchList Component UI Banner Refresh", () => {
+    it("renders Refresh Branches sync button in PageHeaderBanner and executes refetch", async () => {
+      const { BranchList } = await import("../components/BranchList");
+      const { render, screen, fireEvent } = await import("@testing-library/react");
+
+      const mockResponse = {
+        data: {
+          success: true,
+          data: {
+            organization: { id: "org-1", name: "Main Salon Org" },
+            branches: [{ id: "b1", name: "Downtown Branch", isActive: true }],
+          },
+        },
+      };
+      vi.mocked(apiClient.get).mockResolvedValue(mockResponse);
+
+      render(
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <BranchList />
+          </QueryClientProvider>
+        </Provider>
+      );
+
+      const refreshBtn = await screen.findByRole("button", { name: /Refresh Branches/i });
+      expect(refreshBtn).toBeDefined();
+
+      fireEvent.click(refreshBtn);
+
+      await waitFor(() => {
+        expect(apiClient.get).toHaveBeenCalled();
+      });
+    });
+
+    it("renders shimmer skeleton (.animate-pulse) in DataTable while branches are loading", async () => {
+      const { BranchList } = await import("../components/BranchList");
+      const { render } = await import("@testing-library/react");
+
+      vi.mocked(apiClient.get).mockReturnValue(new Promise(() => {}));
+
+      const { container } = render(
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <BranchList />
+          </QueryClientProvider>
+        </Provider>
+      );
+
+      expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
+    });
+  });
 });

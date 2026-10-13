@@ -107,6 +107,42 @@ describe("Roles Feature UI & RBAC Authorization", () => {
     });
   });
 
+  it("renders Refresh Roles sync button in header banner and executes refresh flow", async () => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: mockAuthorizedUser,
+      isAuthenticated: true,
+      isLoading: false,
+      isError: false,
+      login: vi.fn() as any,
+      isLoggingIn: false,
+      logout: vi.fn(),
+      isLoggingOut: false,
+      sendOtp: vi.fn() as any,
+      isSendingOtp: false,
+      verifyOtp: vi.fn() as any,
+      isVerifyingOtp: false,
+      activateChangePassword: vi.fn() as any,
+      isActivatingChangePassword: false,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RolesPage />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Refresh Roles/i })).toBeDefined();
+    });
+
+    const refreshBtn = screen.getByRole("button", { name: /Refresh Roles/i });
+    fireEvent.click(refreshBtn);
+
+    await waitFor(() => {
+      expect(rolesApiModule.getRoles).toHaveBeenCalled();
+    });
+  });
+
   it("renders dynamic modules in filter dropdown returned from GET /rbac/modules", async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: mockAuthorizedUser,
