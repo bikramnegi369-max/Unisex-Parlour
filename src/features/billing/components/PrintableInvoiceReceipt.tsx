@@ -31,7 +31,7 @@ export const PrintableInvoiceReceipt = React.forwardRef<
             Branch: {branchName}
           </p>
         )}
-        <p className="text-[10px] text-gray-600">Tax / Commercial Invoice</p>
+        <p className="text-[10px] text-gray-600">Commercial Invoice</p>
       </div>
 
       {/* Invoice & Appointment Meta */}

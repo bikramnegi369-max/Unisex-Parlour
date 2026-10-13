@@ -262,7 +262,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
             onClick={handleDownloadPdf}
             disabled={isDownloadingPdf}
             className="text-xs h-8 gap-1.5 font-medium"
-            title="Download or preview official tax invoice PDF"
+            title="Download or preview official invoice PDF"
           >
             {isDownloadingPdf ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />

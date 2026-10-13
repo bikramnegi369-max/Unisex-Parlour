@@ -68,12 +68,19 @@ export function AppointmentStatusDialog({
     // Check if transitioning to completed requires subscription OTP verification
     if (
       data.status === "completed" &&
-      requiresSubscriptionVerification(appointment) &&
-      onRequireSubscriptionVerification
+      requiresSubscriptionVerification(appointment)
     ) {
-      onClose();
-      onRequireSubscriptionVerification(appointment);
-      return;
+      if (appointment.status !== "in_progress") {
+        toast.error(
+          "Subscription-covered appointments must be moved to In Progress before they can be completed."
+        );
+        return;
+      }
+      if (onRequireSubscriptionVerification) {
+        onClose();
+        onRequireSubscriptionVerification(appointment);
+        return;
+      }
     }
 
     try {
@@ -143,15 +150,27 @@ export function AppointmentStatusDialog({
               </p>
             )}
             {selectedStatus === "completed" && requiresSubscriptionVerification(appointment) && (
-              <div className="flex items-start gap-2 p-2 bg-primary/10 border border-primary/20 rounded-md text-xs text-foreground">
-                <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <div className="space-y-0.5">
-                  <p className="font-semibold text-primary">Customer verification required</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    This appointment includes prepaid subscription services. Clicking update will open customer OTP verification.
-                  </p>
+              appointment.status !== "in_progress" ? (
+                <div className="flex items-start gap-2 p-2 bg-amber-500/10 border border-amber-500/20 rounded-md text-xs text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-amber-700 dark:text-amber-400">Appointment must be In Progress</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      This appointment includes prepaid subscription services. It must first be moved to &quot;In Progress&quot; before customer verification and completion can be performed.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-start gap-2 p-2 bg-primary/10 border border-primary/20 rounded-md text-xs text-foreground">
+                  <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-primary">Customer verification required</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      This appointment includes prepaid subscription services. Clicking update will open customer OTP verification.
+                    </p>
+                  </div>
+                </div>
+              )
             )}
           </div>
 

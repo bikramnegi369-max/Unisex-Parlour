@@ -25,11 +25,11 @@ export default function RolesPage() {
   const {
     data: roles = [],
     isLoading: isLoadingRoles,
-    isRefetching: isRefetchingRoles,
     isError: isErrorRoles,
     refetch: refetchRoles,
   } = useRoles();
-  const { data: serverModules = [], isLoading: isLoadingModules } = usePermissionModules();
+  const { data: serverModules = [], isLoading: isLoadingModules } =
+    usePermissionModules();
 
   // Pagination & Filtering State for Permissions
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,7 +50,8 @@ export default function RolesPage() {
     module: selectedModule !== "all" ? selectedModule : undefined,
   });
 
-  const { mutate: updatePermissions, isPending: isSavingPermissions } = useUpdateRolePermissions();
+  const { mutate: updatePermissions, isPending: isSavingPermissions } =
+    useUpdateRolePermissions();
 
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -71,7 +72,8 @@ export default function RolesPage() {
   };
 
   // Selected role derives naturally from state or falls back to first role
-  const selectedRole = roles.find((r: Role) => r.id === selectedRoleId) || roles[0] || null;
+  const selectedRole =
+    roles.find((r: Role) => r.id === selectedRoleId) || roles[0] || null;
 
   const permissionsList = permissionsResult?.data || [];
   const permissionsMeta = permissionsResult?.meta;
@@ -85,15 +87,17 @@ export default function RolesPage() {
       },
       {
         onSuccess: () => {
-          toast.success(`Permissions updated successfully for ${selectedRole.name}.`);
+          toast.success(
+            `Permissions updated successfully for ${selectedRole.name}.`,
+          );
         },
         onError: (err: unknown) => {
           const msg =
-            (err as { response?: { data?: { message?: string } } }).response?.data?.message ||
-            "Failed to update role permissions.";
+            (err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message || "Failed to update role permissions.";
           toast.error(msg);
         },
-      }
+      },
     );
   };
 
@@ -133,7 +137,10 @@ export default function RolesPage() {
           {/* Left Navigation Roles List Shimmer */}
           <div className="lg:col-span-3 space-y-2 w-full min-w-0">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-12 bg-muted/50 rounded-xl border border-border/40" />
+              <div
+                key={i}
+                className="h-12 bg-muted/50 rounded-xl border border-border/40"
+              />
             ))}
           </div>
 
@@ -149,7 +156,10 @@ export default function RolesPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-20 bg-muted/40 rounded-xl border border-border/40" />
+                  <div
+                    key={i}
+                    className="h-20 bg-muted/40 rounded-xl border border-border/40"
+                  />
                 ))}
               </div>
             </div>
@@ -171,7 +181,6 @@ export default function RolesPage() {
       />
     );
   }
-
 
   if (roles.length === 0) {
     return (
@@ -225,11 +234,16 @@ export default function RolesPage() {
                   "w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all cursor-pointer flex items-center justify-between border group",
                   isSelected
                     ? "bg-primary/5 text-primary border-primary/20 shadow-sm"
-                    : "bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground",
                 )}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <ShieldCheck size={16} className={isSelected ? "text-primary" : "text-muted-foreground"} />
+                  <ShieldCheck
+                    size={16}
+                    className={
+                      isSelected ? "text-primary" : "text-muted-foreground"
+                    }
+                  />
                   <span className="truncate">{role.name}</span>
                 </div>
 

@@ -24,6 +24,17 @@ vi.mock("../hooks/useAppointments", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useBranchContext", () => ({
+  useBranchContext: () => ({
+    currentBranchId: "br_1",
+    getBranchQueryKey: (entity: string, extra: unknown[] = []) => [
+      entity,
+      { scope: "branch", branchId: "br_1" },
+      ...extra,
+    ],
+  }),
+}));
+
 vi.mock("@/features/auth/hooks/useAuth", () => ({
   useAuth: () => ({
     user: {
@@ -356,6 +367,231 @@ describe("Subscription Verification Flow & Helper Tests", () => {
           screen.getByText(/Subscription entitlement is no longer available or exhausted/i)
         ).toBeInTheDocument();
       });
+    });
+
+    it("prevents requesting OTP when appointment is not in_progress and shows actionable guidance", () => {
+      const scheduledSubAppt: Appointment = {
+        ...mockSubAppointment,
+        status: "scheduled",
+      };
+
+      render(
+        <SubscriptionVerificationModal
+          appointment={scheduledSubAppt}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      // Warning guidance banner is present
+      expect(
+        screen.getByText(/This appointment must be marked/i)
+      ).toBeInTheDocument();
+      expect(screen.getByText(/In Progress/i)).toBeInTheDocument();
+
+      // Send verification code button is disabled
+      const sendBtn = screen.getByRole("button", {
+        name: /Send Verification Code/i,
+      });
+      expect(sendBtn).toBeDisabled();
+
+      fireEvent.click(sendBtn);
+      expect(mockRequestOtpMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it("recovers countdown timer accurately after simulated elapsed time and tab visibility change", async () => {
+      const startTime = 1000000;
+      vi.spyOn(Date, "now").mockReturnValue(startTime);
+
+      mockRequestOtpMutateAsync.mockResolvedValueOnce({
+        success: true,
+        message: "Code sent",
+        data: { expiresIn: 300, resendAfter: 60 },
+      });
+
+      render(
+        <SubscriptionVerificationModal
+          appointment={mockSubAppointment}
+          isOpen={true}
+          onClose={vi.fn()}
+        />
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /Send Verification Code/i })
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText("Verify customer")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText("5:00")).toBeInTheDocument();
+      expect(screen.getByText("Resend in 60s")).toBeInTheDocument();
+
+      // Fast-forward simulated clock by 35 seconds (e.g. background tab throttling)
+      vi.spyOn(Date, "now").mockReturnValue(startTime + 35 * 1000);
+
+      // Trigger visibilitychange event
+      Object.defineProperty(document, "hidden", { value: false, writable: true });
+      fireEvent(document, new Event("visibilitychange"));
+
+      await waitFor(() => {
+        // 300 - 35 = 265 seconds = 4:25
+        expect(screen.getByText("4:25")).toBeInTheDocument();
+        // 60 - 35 = 25 seconds
+        expect(screen.getByText("Resend in 25s")).toBeInTheDocument();
+      });
+
+      // Advance clock past resend cooldown (65 seconds elapsed)
+      vi.spyOn(Date, "now").mockReturnValue(startTime + 65 * 1000);
+      fireEvent(window, new Event("focus"));
+
+      await waitFor(() => {
+        // Resend button should now appear
+        expect(screen.getByRole("button", { name: /Resend Code/i })).toBeInTheDocument();
+      });
+
+      vi.restoreAllMocks();
+    });
+  });
+
+  describe("AppointmentStatusDialog Precondition Check", () => {
+    it("blocks transition to completed for subscription appointment when not in_progress and provides toast feedback", async () => {
+      const { AppointmentStatusDialog } = await import("../components/AppointmentStatusDialog");
+      const { toast } = await import("sonner");
+      const toastSpy = vi.spyOn(toast, "error");
+
+      const scheduledAppt: Appointment = {
+        ...mockSubAppointment,
+        status: "scheduled",
+      };
+
+      const mockSubmit = vi.fn();
+      const mockRequireVerification = vi.fn();
+
+      render(
+        <AppointmentStatusDialog
+          appointment={scheduledAppt}
+          isOpen={true}
+          onClose={vi.fn()}
+          onSubmit={mockSubmit}
+          onRequireSubscriptionVerification={mockRequireVerification}
+          isLoading={false}
+        />
+      );
+
+      // Status selector should show option "Completed"
+      const select = screen.getByRole("combobox");
+      fireEvent.change(select, { target: { value: "completed" } });
+
+      // Actionable notice that appointment must be in_progress is rendered
+      expect(screen.getByText("Appointment must be In Progress")).toBeInTheDocument();
+
+      // Attempt submit
+      fireEvent.click(screen.getByRole("button", { name: /Update Status/i }));
+
+      await waitFor(() => {
+        expect(toastSpy).toHaveBeenCalledWith(
+          "Subscription-covered appointments must be moved to In Progress before they can be completed."
+        );
+      });
+
+      expect(mockSubmit).not.toHaveBeenCalled();
+      expect(mockRequireVerification).not.toHaveBeenCalled();
+    });
+
+    it("allows transition to completed and delegates to verification modal when appointment is already in_progress", async () => {
+      const { AppointmentStatusDialog } = await import("../components/AppointmentStatusDialog");
+
+      const inProgressAppt: Appointment = {
+        ...mockSubAppointment,
+        status: "in_progress",
+      };
+
+      const mockSubmit = vi.fn();
+      const mockRequireVerification = vi.fn();
+      const mockClose = vi.fn();
+
+      render(
+        <AppointmentStatusDialog
+          appointment={inProgressAppt}
+          isOpen={true}
+          onClose={mockClose}
+          onSubmit={mockSubmit}
+          onRequireSubscriptionVerification={mockRequireVerification}
+          isLoading={false}
+        />
+      );
+
+      const select = screen.getByRole("combobox");
+      fireEvent.change(select, { target: { value: "completed" } });
+
+      expect(screen.getByText("Customer verification required")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /Update Status/i }));
+
+      await waitFor(() => {
+        expect(mockRequireVerification).toHaveBeenCalledWith(inProgressAppt);
+      });
+
+      expect(mockClose).toHaveBeenCalled();
+      expect(mockSubmit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Cache Invalidation & Cross-Tab Synchronization", () => {
+    it("invalidates appointment, billing invoices, and broadcasts cross-tab sync upon completeWithSubscription", async () => {
+      const { useCompleteWithSubscription } = await import("../hooks/useAppointmentMutations");
+      const { broadcastCrossTabInvalidation } = await import("@/lib/api/crossTabSync");
+      const { renderHook, act } = await import("@testing-library/react");
+      const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
+      const { completeWithSubscription } = await import("../api/appointments.api");
+
+      vi.mock("@/lib/api/crossTabSync", () => ({
+        broadcastCrossTabInvalidation: vi.fn(),
+      }));
+
+      vi.mock("../api/appointments.api", () => ({
+        completeWithSubscription: vi.fn(),
+        normalizeAppointment: vi.fn((x) => x),
+      }));
+
+      const queryClient = new QueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+      (completeWithSubscription as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        id: "appt_123",
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [{ appliedSubscriptionId: "sub_1" }],
+      });
+
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+
+      const { result } = renderHook(() => useCompleteWithSubscription(), { wrapper });
+
+      await act(async () => {
+        await result.current.mutateAsync({
+          id: "appt_123",
+          payload: { branchId: "br_1", otp: "123456" },
+        });
+      });
+
+      // 1. Cross-tab sync broadcast called
+      expect(broadcastCrossTabInvalidation).toHaveBeenCalledWith("appointments");
+
+      // 2. Billing query key invalidated
+      const invalidatedKeys = invalidateSpy.mock.calls.map((call) => call[0]?.queryKey);
+      
+      // Verifies invoices invalidation for branch and scope
+      const hasBranchInvoices = invalidatedKeys.some((k) => Array.isArray(k) && k[0] === "invoices");
+      expect(hasBranchInvoices).toBe(true);
+
+      // Verifies appointments invalidation
+      const hasAppointments = invalidatedKeys.some((k) => Array.isArray(k) && k[0] === "appointments");
+      expect(hasAppointments).toBe(true);
     });
   });
 

@@ -4,7 +4,6 @@ import React, { useMemo } from "react";
 import { formatCurrency } from "@/lib/formatters";
 import {
   TrendingUp,
-  Clock,
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
@@ -28,7 +27,6 @@ export function BillingStatsCards({
   invoices,
   summary,
   totalRecords,
-  filterLabel,
   isLoading,
   isRefreshing = false,
 }: BillingStatsCardsProps) {

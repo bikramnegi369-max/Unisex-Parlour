@@ -36,9 +36,11 @@ export function SubscriptionVerificationModal({
   const [otp, setOtp] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Dynamic countdown states from backend contract
+  // Dynamic countdown states and timestamp-based deadlines
   const [expiresIn, setExpiresIn] = useState<number>(0);
   const [resendAfter, setResendAfter] = useState<number>(0);
+  const expiryDeadlineRef = useRef<number | null>(null);
+  const resendDeadlineRef = useRef<number | null>(null);
 
   const requestOtpMutation = useRequestConsumptionOtp();
   const completeMutation = useCompleteWithSubscription();
@@ -52,20 +54,45 @@ export function SubscriptionVerificationModal({
       setErrorMessage(null);
       setExpiresIn(0);
       setResendAfter(0);
+      expiryDeadlineRef.current = null;
+      resendDeadlineRef.current = null;
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
-  // Timers countdown
+  // Timestamp-based countdown timers with visibility / focus recovery
   useEffect(() => {
     if (step !== "otp") return;
 
-    const interval = setInterval(() => {
-      setExpiresIn((prev) => (prev > 0 ? prev - 1 : 0));
-      setResendAfter((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    const updateTimers = () => {
+      const now = Date.now();
+      if (expiryDeadlineRef.current !== null) {
+        const remainingExpiry = Math.max(0, Math.ceil((expiryDeadlineRef.current - now) / 1000));
+        setExpiresIn(remainingExpiry);
+      }
+      if (resendDeadlineRef.current !== null) {
+        const remainingResend = Math.max(0, Math.ceil((resendDeadlineRef.current - now) / 1000));
+        setResendAfter(remainingResend);
+      }
+    };
 
-    return () => clearInterval(interval);
+    updateTimers();
+    const interval = setInterval(updateTimers, 1000);
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        updateTimers();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", updateTimers);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", updateTimers);
+    };
   }, [step]);
 
   if (!appointment) return null;
@@ -81,6 +108,13 @@ export function SubscriptionVerificationModal({
   const maskedPhone = maskPhoneNumber(customerPhone);
 
   const handleSendOtp = async () => {
+    if (appointment.status !== "in_progress") {
+      const msg = "Subscription-covered appointments must be In Progress before verification codes can be sent.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      return;
+    }
+
     if (!appointment.branchId || appointment.branchId === "all") {
       setErrorMessage("Authoritative branch ID is required for verification.");
       toast.error("Authoritative branch ID is required for verification.");
@@ -102,6 +136,9 @@ export function SubscriptionVerificationModal({
         payload: { branchId: appointment.branchId },
       });
 
+      const now = Date.now();
+      expiryDeadlineRef.current = now + res.data.expiresIn * 1000;
+      resendDeadlineRef.current = now + res.data.resendAfter * 1000;
       setExpiresIn(res.data.expiresIn);
       setResendAfter(res.data.resendAfter);
       setStep("otp");
@@ -252,6 +289,15 @@ export function SubscriptionVerificationModal({
               </div>
             </div>
 
+            {appointment.status !== "in_progress" && (
+              <div className="p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <span className="leading-snug">
+                  This appointment must be marked <strong>In Progress</strong> before customer verification codes can be requested.
+                </span>
+              </div>
+            )}
+
             {errorMessage && (
               <div className="p-2.5 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -274,7 +320,7 @@ export function SubscriptionVerificationModal({
                 type="button"
                 size="sm"
                 onClick={handleSendOtp}
-                disabled={isPending}
+                disabled={isPending || appointment.status !== "in_progress"}
                 className="text-xs gap-1.5"
               >
                 {requestOtpMutation.isPending && (

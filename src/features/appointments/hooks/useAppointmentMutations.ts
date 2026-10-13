@@ -177,6 +177,13 @@ export function useCompleteWithSubscription() {
         queryKey: getScopeQueryKey("appointment", null, [data.id]),
       });
 
+      // Broadcast to all other open tabs (e.g. Billing/POS queue tab)
+      broadcastCrossTabInvalidation("appointments");
+
+      // Invalidate billing queries across branch and org scopes
+      queryClient.invalidateQueries({ queryKey: getBranchQueryKey("invoices") });
+      queryClient.invalidateQueries({ queryKey: getScopeQueryKey("invoices", null) });
+
       // Targeted subscription queries invalidation for affected customer entitlements
       if (data.customerId) {
         queryClient.invalidateQueries({
