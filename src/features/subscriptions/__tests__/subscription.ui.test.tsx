@@ -7,6 +7,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import * as subApiModule from "../api/subscriptions.api";
 import { subscriptionPlansApi } from "../api/plans.api";
+import type { UserSession } from "@/lib/permissions";
+import type { PaginatedResponse } from "@/types/api.types";
+import type { Subscription } from "../types/subscription.types";
+import type { SubscriptionPlanListResponse } from "../types/plan.types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -43,8 +47,10 @@ vi.mock("../api/plans.api", () => ({
   },
 }));
 
-const mockUser = {
+const mockUser: UserSession = {
   id: "usr_admin",
+  name: "Admin User",
+  email: "admin@example.com",
   role: "Manager",
   permissions: [
     "subscriptions.view",
@@ -53,7 +59,15 @@ const mockUser = {
     "subscriptions.redeem",
   ],
   organizationId: "org_1",
+  branchAccess: [],
 };
+
+const createMockPaginatedResponse = <T,>(data: T[]): PaginatedResponse<T> => ({
+  success: true,
+  status: "success",
+  data,
+  meta: { total: data.length, page: 1, limit: 10, totalPages: 1 },
+});
 
 describe("SubscriptionList UI Banner Refresh Functionality", () => {
   let queryClient: QueryClient;
@@ -68,31 +82,29 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
     });
 
     vi.mocked(useAuth).mockReturnValue({
-      user: mockUser as any,
+      user: mockUser,
       isAuthenticated: true,
       isLoading: false,
       isError: false,
-      login: vi.fn() as any,
+      login: vi.fn(),
       isLoggingIn: false,
       logout: vi.fn(),
       isLoggingOut: false,
-      sendOtp: vi.fn() as any,
+      sendOtp: vi.fn(),
       isSendingOtp: false,
-      verifyOtp: vi.fn() as any,
+      verifyOtp: vi.fn(),
       isVerifyingOtp: false,
-      activateChangePassword: vi.fn() as any,
+      activateChangePassword: vi.fn(),
       isActivatingChangePassword: false,
     });
 
-    vi.mocked(subApiModule.getSubscriptions).mockResolvedValue({
-      data: [],
-      meta: { total: 0, page: 1, limit: 10, totalPages: 1 },
-    });
+    vi.mocked(subApiModule.getSubscriptions).mockResolvedValue(
+      createMockPaginatedResponse([])
+    );
 
-    vi.mocked(subscriptionPlansApi.getPlans).mockResolvedValue({
-      data: [],
-      meta: { total: 0, page: 1, limit: 10, totalPages: 1 },
-    });
+    vi.mocked(subscriptionPlansApi.getPlans).mockResolvedValue(
+      createMockPaginatedResponse([])
+    );
   });
 
   it("renders Refresh Subscriptions button when subscriptions tab is active and calls refetch", async () => {
@@ -140,7 +152,7 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
   });
 
   it("renders shimmer skeleton (.animate-pulse) when subscriptions query is loading", async () => {
-    let resolveSub: (val: unknown) => void;
+    let resolveSub!: (val: PaginatedResponse<Subscription>) => void;
     vi.mocked(subApiModule.getSubscriptions).mockReturnValueOnce(
       new Promise((res) => {
         resolveSub = res;
@@ -154,14 +166,14 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
     );
 
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
-    resolveSub!({ data: [], meta: { total: 0 } });
+    resolveSub(createMockPaginatedResponse([]));
     await waitFor(() => {
       expect(subApiModule.getSubscriptions).toHaveBeenCalled();
     });
   });
 
   it("renders shimmer skeleton (.animate-pulse) when plan templates catalog query is loading", async () => {
-    let resolvePlans: (val: unknown) => void;
+    let resolvePlans!: (val: SubscriptionPlanListResponse) => void;
     vi.mocked(subscriptionPlansApi.getPlans).mockReturnValueOnce(
       new Promise((res) => {
         resolvePlans = res;
@@ -180,18 +192,17 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
     fireEvent.click(tabButtons[0]);
 
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
-    resolvePlans!({ data: [], meta: { total: 0 } });
+    resolvePlans(createMockPaginatedResponse([]));
     await waitFor(() => {
       expect(subscriptionPlansApi.getPlans).toHaveBeenCalled();
     });
   });
 
   it("shows shimmer loading when clicking Refresh Subscriptions button", async () => {
-    let resolveSub: (val: unknown) => void;
-    vi.mocked(subApiModule.getSubscriptions).mockResolvedValueOnce({
-      data: [],
-      meta: { total: 0, page: 1, limit: 10, totalPages: 1 },
-    });
+    let resolveSub!: (val: PaginatedResponse<Subscription>) => void;
+    vi.mocked(subApiModule.getSubscriptions).mockResolvedValueOnce(
+      createMockPaginatedResponse([])
+    );
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { container } = render(
@@ -213,15 +224,14 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
     fireEvent.click(refreshBtn);
 
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
-    resolveSub!({ data: [], meta: { total: 0 } });
+    resolveSub(createMockPaginatedResponse([]));
   });
 
   it("shows shimmer loading when clicking Refresh Plans button", async () => {
-    let resolvePlans: (val: unknown) => void;
-    vi.mocked(subscriptionPlansApi.getPlans).mockResolvedValueOnce({
-      data: [],
-      meta: { total: 0, page: 1, limit: 10, totalPages: 1 },
-    });
+    let resolvePlans!: (val: SubscriptionPlanListResponse) => void;
+    vi.mocked(subscriptionPlansApi.getPlans).mockResolvedValueOnce(
+      createMockPaginatedResponse([])
+    );
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const { container } = render(
@@ -248,6 +258,6 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
     fireEvent.click(refreshBtn);
 
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
-    resolvePlans!({ data: [], meta: { total: 0 } });
+    resolvePlans(createMockPaginatedResponse([]));
   });
 });

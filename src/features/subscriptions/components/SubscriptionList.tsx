@@ -95,14 +95,7 @@ export function SubscriptionList() {
     SUBSCRIPTIONS_CONFIG.permissions.redeem,
   );
 
-  const {
-    data,
-    isLoading,
-    isFetching,
-    isRefetching,
-    isError,
-    refetch,
-  } = useSubscriptions({
+  const { data, isLoading, isRefetching, isError, refetch } = useSubscriptions({
     page,
     limit: pageSize,
     search: debouncedSearch.trim() || undefined,
@@ -112,7 +105,6 @@ export function SubscriptionList() {
   const {
     data: plansData,
     isLoading: isLoadingPlans,
-    isFetching: isFetchingPlans,
     isRefetching: isRefetchingPlans,
     isError: isPlansError,
     refetch: refetchPlans,
@@ -253,7 +245,8 @@ export function SubscriptionList() {
     values: CreateSubscriptionPlanFormValues,
   ) => {
     try {
-      const planId = activePlan?.id || (activePlan as unknown as { _id?: string })?._id;
+      const planId =
+        activePlan?.id || (activePlan as unknown as { _id?: string })?._id;
       if (activePlan && planId) {
         await updatePlanMutation.mutateAsync({
           id: planId,
@@ -331,8 +324,14 @@ export function SubscriptionList() {
     }
   };
 
-  const isSubLoading = isLoading || isRefetching || (isSyncingManual && activeTab === "subscriptions");
-  const isPlanLoading = isLoadingPlans || isRefetchingPlans || (isSyncingManual && activeTab === "plans");
+  const isSubLoading =
+    isLoading ||
+    isRefetching ||
+    (isSyncingManual && activeTab === "subscriptions");
+  const isPlanLoading =
+    isLoadingPlans ||
+    isRefetchingPlans ||
+    (isSyncingManual && activeTab === "plans");
 
   return (
     <div className="space-y-6">
@@ -344,7 +343,12 @@ export function SubscriptionList() {
         actions={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
             <SyncButton
-              isSyncing={isSyncingManual || (activeTab === "subscriptions" ? isRefetching : isRefetchingPlans)}
+              isSyncing={
+                isSyncingManual ||
+                (activeTab === "subscriptions"
+                  ? isRefetching
+                  : isRefetchingPlans)
+              }
               onSync={handleSync}
               label={
                 activeTab === "subscriptions"
