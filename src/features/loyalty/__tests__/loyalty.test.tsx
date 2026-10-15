@@ -362,5 +362,29 @@ describe("Loyalty Module - Frontend Integration & Financial Contracts", () => {
       expect(res.isIdempotentReplay).toBe(true);
     });
   });
+
+  describe("LoyaltyHeaderBanner & Refresh Shimmer Flow", () => {
+    it("renders LoyaltyHeaderBanner with title and refresh button", async () => {
+      const { LoyaltyHeaderBanner } = await import("../components/LoyaltyHeaderBanner");
+      const onSync = vi.fn();
+
+      render(<LoyaltyHeaderBanner isSyncing={false} onSync={onSync} />);
+
+      expect(screen.getByText("Loyalty & Rewards")).toBeInTheDocument();
+      const refreshBtn = screen.getByRole("button", { name: /Refresh Loyalty/i });
+      expect(refreshBtn).toBeInTheDocument();
+
+      fireEvent.click(refreshBtn);
+      expect(onSync).toHaveBeenCalledTimes(1);
+    });
+
+    it("displays refreshing state on LoyaltyHeaderBanner when isSyncing is true", async () => {
+      const { LoyaltyHeaderBanner } = await import("../components/LoyaltyHeaderBanner");
+      render(<LoyaltyHeaderBanner isSyncing={true} onSync={vi.fn()} />);
+
+      expect(screen.getByRole("button", { name: /Refreshing.../i })).toBeDisabled();
+    });
+  });
 });
+
 
