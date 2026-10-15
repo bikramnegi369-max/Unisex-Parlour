@@ -323,7 +323,7 @@ describe("Billing API Integration & Contract Verification", () => {
       expect(res.id).toBe("inv-1");
     });
 
-    it("createInvoice posts payload with explicit branch target", async () => {
+    it("createInvoice posts payload with discount mapped from discountTotal and explicit branch target", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         data: {
           success: true,
@@ -336,17 +336,32 @@ describe("Billing API Integration & Contract Verification", () => {
         branchId: "branch-100",
         appointmentId: "apt-200",
         discountTotal: 50,
+        redeemLoyaltyPoints: 30,
+        notes: "Loyalty redemption test",
       };
 
       const res = await createInvoice(payload);
 
       expect(apiClient.post).toHaveBeenCalledWith(
         "/billing/invoices",
-        payload,
+        {
+          branchId: "branch-100",
+          appointmentId: "apt-200",
+          discount: 50,
+          redeemLoyaltyPoints: 30,
+          notes: "Loyalty redemption test",
+        },
         {
           branchScope: { type: "branch", branchId: "branch-100" },
         }
       );
+
+      // Verify discountTotal is NOT sent in create request
+      const callPayload = vi.mocked(apiClient.post).mock.calls[0][1] as Record<string, unknown>;
+      expect(callPayload.discount).toBe(50);
+      expect(callPayload.discountTotal).toBeUndefined();
+      expect(callPayload.redeemLoyaltyPoints).toBe(30);
+
       expect(res.id).toBe("inv-new");
     });
 
@@ -405,7 +420,7 @@ describe("Billing API Integration & Contract Verification", () => {
       );
     });
 
-    it("updateDraftInvoice sets branchScope to target branch when branchId is in payload", async () => {
+    it("updateDraftInvoice sends discountTotal and sets branchScope to target branch when branchId is in payload", async () => {
       vi.mocked(apiClient.patch).mockResolvedValueOnce({
         data: {
           success: true,
@@ -414,13 +429,23 @@ describe("Billing API Integration & Contract Verification", () => {
         },
       });
 
-      await updateDraftInvoice("inv-1", { discountTotal: 20, branchId: "branch-upd-999" });
+      await updateDraftInvoice("inv-1", {
+        discountTotal: 20,
+        redeemLoyaltyPoints: 15,
+        branchId: "branch-upd-999",
+      });
 
       expect(apiClient.patch).toHaveBeenCalledWith(
         "/billing/invoices/inv-1",
-        { discountTotal: 20, branchId: "branch-upd-999" },
+        { discountTotal: 20, redeemLoyaltyPoints: 15, branchId: "branch-upd-999" },
         { branchScope: { type: "branch", branchId: "branch-upd-999" } }
       );
+
+      // Verify discountTotal IS sent on patch and discount is NOT sent
+      const patchCallPayload = vi.mocked(apiClient.patch).mock.calls[0][1] as Record<string, unknown>;
+      expect(patchCallPayload.discountTotal).toBe(20);
+      expect(patchCallPayload.discount).toBeUndefined();
+      expect(patchCallPayload.redeemLoyaltyPoints).toBe(15);
     });
 
     it("recordPayment calls POST /billing/invoices/:id/payments with idempotency headers when provided and handles flat response", async () => {

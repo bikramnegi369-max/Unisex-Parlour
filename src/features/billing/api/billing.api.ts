@@ -391,11 +391,18 @@ export async function getInvoice(id: string): Promise<Invoice> {
 
 /**
  * Create a draft invoice from an appointment.
+ * Backend contract expects `discount` on POST /billing/invoices (strips unknown fields like discountTotal).
  */
 export async function createInvoice(payload: CreateInvoicePayload): Promise<Invoice> {
+  const { discountTotal, ...rest } = payload;
+  const backendPayload = {
+    ...rest,
+    ...(discountTotal !== undefined ? { discount: discountTotal } : {}),
+  };
+
   const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
     "/billing/invoices",
-    payload,
+    backendPayload,
     {
       branchScope: { type: "branch", branchId: payload.branchId },
     }
