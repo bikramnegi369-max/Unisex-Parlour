@@ -62,7 +62,10 @@ export type PermissionType =
   | "subscriptions.view"
   | "subscriptions.sell"
   | "subscriptions.configure"
-  | "subscriptions.redeem";
+  | "subscriptions.redeem"
+  | "loyalty.view"
+  | "loyalty.configure"
+  | "loyalty.adjust";
 
 export interface UserSession {
   id: string;

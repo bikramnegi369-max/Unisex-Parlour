@@ -7,6 +7,11 @@ export const createInvoiceSchema = z.object({
     .number()
     .min(0, "Discount cannot be negative")
     .default(0),
+  redeemLoyaltyPoints: z.coerce
+    .number()
+    .int("Loyalty points must be an integer")
+    .min(0, "Loyalty points cannot be negative")
+    .optional(),
   notes: z
     .string()
     .max(500, "Notes cannot exceed 500 characters")
@@ -19,6 +24,11 @@ export const updateDraftInvoiceSchema = z.object({
   discountTotal: z.coerce
     .number()
     .min(0, "Discount cannot be negative"),
+  redeemLoyaltyPoints: z.coerce
+    .number()
+    .int("Loyalty points must be an integer")
+    .min(0, "Loyalty points cannot be negative")
+    .optional(),
   notes: z
     .string()
     .max(500, "Notes cannot exceed 500 characters")
@@ -26,6 +36,7 @@ export const updateDraftInvoiceSchema = z.object({
 });
 
 export type UpdateDraftInvoiceFormValues = z.infer<typeof updateDraftInvoiceSchema>;
+
 
 export const recordPaymentSchema = z.object({
   amount: z.coerce

@@ -63,6 +63,10 @@ export interface Invoice {
   discountTotal: number;
   grossPayable: number;
   subscriptionCoveredAmount: number;
+  redeemLoyaltyPoints?: number;
+  loyaltyRedeemedPoints?: number;
+  loyaltyDiscountAmount?: number;
+  loyaltyPointsEarned?: number;
   payableAmount: number;
   amountPaid: number;
   amountDue: number;
@@ -111,14 +115,17 @@ export interface CreateInvoicePayload {
   branchId: string;
   appointmentId: string;
   discountTotal?: number;
+  redeemLoyaltyPoints?: number;
   notes?: string;
 }
 
 export interface UpdateDraftInvoicePayload {
   discountTotal?: number;
+  redeemLoyaltyPoints?: number;
   notes?: string;
   branchId?: string;
 }
+
 
 export interface RecordPaymentPayload {
   amount: number;

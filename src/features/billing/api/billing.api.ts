@@ -13,6 +13,13 @@ import type {
   InvoiceListResponseMeta,
   CustomerBillingSummary,
 } from "../types/billing.types";
+import { normalizeAppointment } from "@/features/appointments/api/appointments.api";
+import type { Appointment } from "@/features/appointments/types/appointment.types";
+
+export interface CheckoutQueueQuery {
+  branchId?: string;
+  date?: string;
+}
 
 const toFlatId = (val: unknown): string => {
   if (!val) return "";
@@ -208,6 +215,30 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
     discountTotal: rawDiscount,
     grossPayable: rawGross,
     subscriptionCoveredAmount: resolvedSubscriptionCovered,
+    redeemLoyaltyPoints:
+      typeof raw.redeemLoyaltyPoints === "number"
+        ? raw.redeemLoyaltyPoints
+        : typeof raw.loyaltyRedeemedPoints === "number"
+        ? raw.loyaltyRedeemedPoints
+        : typeof raw.loyaltyPointsRedeemed === "number"
+        ? raw.loyaltyPointsRedeemed
+        : undefined,
+    loyaltyRedeemedPoints:
+      typeof raw.loyaltyRedeemedPoints === "number"
+        ? raw.loyaltyRedeemedPoints
+        : typeof raw.redeemLoyaltyPoints === "number"
+        ? raw.redeemLoyaltyPoints
+        : typeof raw.loyaltyPointsRedeemed === "number"
+        ? raw.loyaltyPointsRedeemed
+        : undefined,
+    loyaltyDiscountAmount:
+      typeof raw.loyaltyDiscountAmount === "number"
+        ? raw.loyaltyDiscountAmount
+        : typeof raw.loyaltyDiscount === "number"
+        ? raw.loyaltyDiscount
+        : undefined,
+    loyaltyPointsEarned:
+      typeof raw.loyaltyPointsEarned === "number" ? raw.loyaltyPointsEarned : undefined,
     payableAmount: resolvedPayable,
     amountPaid: resolvedAmountPaid,
     amountDue: resolvedAmountDue,
@@ -327,6 +358,21 @@ export async function getInvoices(
     data: (data.data || []).map(normalizeInvoice),
     meta,
   };
+}
+
+/**
+ * Fetch server-authoritative POS checkout queue (unbilled in_progress & completed appointments)
+ */
+export async function getCheckoutQueue(query: CheckoutQueueQuery = {}): Promise<Appointment[]> {
+  const { data } = await apiClient.get<ApiResponse<Record<string, unknown>[]>>(
+    "/billing/checkout-queue",
+    {
+      params: query,
+      branchScope: query.branchId ? { type: "branch", branchId: query.branchId } : "current",
+    }
+  );
+
+  return (data.data || []).map(normalizeAppointment);
 }
 
 /**

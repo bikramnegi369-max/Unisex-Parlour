@@ -288,13 +288,20 @@ export function CustomerOverview({
         </CardHeader>
         <CardContent className="p-6">
           <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-4">
-            <div>
-              <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
-                Loyalty Points
-              </p>
-              <p className="text-2xl font-bold text-primary mt-1">
-                {customer.loyaltyPoints ?? 0}
-              </p>
+            <div className="space-y-1">
+              <div>
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">
+                  Spendable Loyalty Points
+                </p>
+                <p className="text-2xl font-bold text-primary mt-1">
+                  {customer.loyaltyPoints ?? 0}
+                </p>
+              </div>
+              {(customer.loyaltyPointsDebt ?? 0) > 0 && (
+                <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold">
+                  <span>Loyalty Debt: {customer.loyaltyPointsDebt} pts</span>
+                </div>
+              )}
             </div>
             <Badge
               variant="outline"
@@ -303,6 +310,11 @@ export function CustomerOverview({
               Member
             </Badge>
           </div>
+          {(customer.loyaltyPointsDebt ?? 0) > 0 && (
+            <div className="p-3 mb-4 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-800 dark:text-amber-300">
+              <span className="font-semibold">Notice:</span> This account has an outstanding loyalty debt of {customer.loyaltyPointsDebt} points due to prior reversals/voids. Future earned points will offset this liability first before becoming spendable.
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <p className="text-[10px] uppercase font-semibold text-muted-foreground leading-none">

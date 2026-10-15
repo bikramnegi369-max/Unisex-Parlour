@@ -109,10 +109,18 @@ export const buildCustomerColumns = ({
     cell: (info) => {
       const val = info.getValue();
       const points = typeof val === "number" ? val : (info.row.original.loyaltyPoints ?? 0);
+      const debt = info.row.original.loyaltyPointsDebt ?? 0;
       return (
-        <span className="font-semibold text-foreground">
-          {points} pts
-        </span>
+        <div className="flex flex-col">
+          <span className="font-semibold text-foreground">
+            {points} pts
+          </span>
+          {debt > 0 && (
+            <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              Debt: {debt} pts
+            </span>
+          )}
+        </div>
       );
     },
   },

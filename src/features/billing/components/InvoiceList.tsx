@@ -15,7 +15,7 @@ import { SyncButton } from "@/components/ui/sync-button";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatCurrency } from "@/lib/formatters";
-import { useInvoices } from "../hooks/useBillingQueries";
+import { useInvoices, useCheckoutQueue } from "../hooks/useBillingQueries";
 import { downloadInvoicePdf } from "../api/billing.api";
 import { getInvoiceColumns } from "../columns/invoice.columns";
 import { InvoiceStatusBadge, PaymentStatusBadge } from "./InvoiceStatusBadge";
@@ -24,7 +24,6 @@ import { ReadyToBillQueue } from "./ReadyToBillQueue";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
-import { useAppointments } from "@/features/appointments/hooks/useAppointments";
 import { toast } from "sonner";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type {
@@ -202,47 +201,17 @@ export function InvoiceList() {
   const totalPages =
     meta?.totalPages ?? (meta ? Math.ceil(Number(meta.total) / pageSize) : 1);
 
-  // Fetch appointments for POS Ready to Bill Queue
-  // Scoped to today's date and current branch, revalidated on mutation, cross-tab events, or window focus
+  // Server-authoritative POS Ready to Bill Queue
+  // Replaced fragile client-side dual-query diffing with dedicated backend checkout queue endpoint
   const {
-    data: appointmentsData,
-    isLoading: isAppointmentsLoading,
-    isFetching: isAppointmentsFetching,
-    refetch: refetchAppointments,
-  } = useAppointments(
-    {
-      branchId:
-        isAllBranchesSelected || !currentBranchId ? undefined : currentBranchId,
-      date: new Date().toISOString().split("T")[0],
-    },
-    {
-      refetchOnWindowFocus: true,
-    },
-  );
-
-  // Query today's invoices separately for the POS Ready to Bill Queue
-  // This guarantees that table filters (status, paymentStatus, datePresets, search) NEVER leak into or alter the live checkout queue
-  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
-  const { data: todayInvoicesResponse } = useInvoices({
-    startDate: todayStr,
-    endDate: todayStr,
-    limit: 100,
+    data: readyToBillAppointments = [],
+    isLoading: isQueueLoading,
+    isFetching: isQueueFetching,
+    refetch: refetchQueue,
+  } = useCheckoutQueue({
+    branchId:
+      isAllBranchesSelected || !currentBranchId ? undefined : currentBranchId,
   });
-
-  // Filter out appointments that already have an invoice today
-  const invoicedAppointmentIds = useMemo(() => {
-    const list = todayInvoicesResponse?.data || [];
-    return new Set(list.map((inv: Invoice) => inv.appointmentId).filter(Boolean));
-  }, [todayInvoicesResponse?.data]);
-
-  const readyToBillAppointments = useMemo(() => {
-    if (!appointmentsData?.data) return [];
-    return appointmentsData.data.filter(
-      (apt: Appointment) =>
-        (apt.status === "completed" || apt.status === "in_progress") &&
-        !invoicedAppointmentIds.has(apt.id),
-    );
-  }, [appointmentsData, invoicedAppointmentIds]);
 
   const handleView = useCallback(
     (inv: Invoice) => {
@@ -303,10 +272,10 @@ export function InvoiceList() {
         actions={
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <SyncButton
-              isSyncing={isFetching || isAppointmentsFetching}
+              isSyncing={isFetching || isQueueFetching}
               onSync={() => {
                 refetch();
-                refetchAppointments();
+                refetchQueue();
               }}
               label="Sync Register"
               className="w-full sm:w-auto"
@@ -327,8 +296,8 @@ export function InvoiceList() {
       {/* POS Ready to Bill Queue (Real-Time Counter Action Center) */}
       <ReadyToBillQueue
         appointments={readyToBillAppointments}
-        isLoading={isAppointmentsLoading || isAppointmentsFetching}
-        isRefreshing={isFetching || isAppointmentsFetching}
+        isLoading={isQueueLoading || isQueueFetching}
+        isRefreshing={isFetching || isQueueFetching}
         onCheckout={(apt) => setSelectedAppointmentForBill(apt)}
       />
 

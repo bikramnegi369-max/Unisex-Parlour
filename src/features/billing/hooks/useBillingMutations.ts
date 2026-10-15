@@ -24,7 +24,12 @@ export function useCreateInvoice() {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return key === "invoices" || key === "appointments" || key === "appointment";
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            key === "appointments" ||
+            key === "appointment"
+          );
         },
       });
     },
@@ -76,6 +81,9 @@ export function useFinalizeInvoice() {
           const key = query.queryKey[0];
           return (
             key === "invoices" ||
+            key === "customers" ||
+            key === "customer" ||
+            key === "loyalty-ledger" ||
             (key === "invoice" &&
               (query.queryKey.includes(id) ||
                 query.queryKey.some((k) => Array.isArray(k) && k.includes(id))))
@@ -103,6 +111,10 @@ export function useCancelInvoice() {
           const key = query.queryKey[0];
           return (
             key === "invoices" ||
+            key === "checkout-queue" ||
+            key === "customers" ||
+            key === "customer" ||
+            key === "loyalty-ledger" ||
             (key === "invoice" &&
               (query.queryKey.includes(variables.id) ||
                 query.queryKey.some(
@@ -132,6 +144,9 @@ export function useRecordPayment() {
           const key = query.queryKey[0];
           return (
             key === "invoices" ||
+            key === "customers" ||
+            key === "customer" ||
+            key === "loyalty-ledger" ||
             (key === "invoice" &&
               (query.queryKey.includes(variables.invoiceId) ||
                 query.queryKey.some(
@@ -167,6 +182,9 @@ export function useVoidPayment() {
           const key = query.queryKey[0];
           return (
             key === "invoices" ||
+            key === "customers" ||
+            key === "customer" ||
+            key === "loyalty-ledger" ||
             (key === "invoice" &&
               (query.queryKey.includes(variables.invoiceId) ||
                 query.queryKey.some(

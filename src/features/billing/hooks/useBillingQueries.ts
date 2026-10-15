@@ -3,6 +3,8 @@ import {
   getInvoices,
   getInvoice,
   getInvoicePayments,
+  getCheckoutQueue,
+  type CheckoutQueueQuery,
 } from "../api/billing.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -61,3 +63,26 @@ export function useInvoicePayments(invoiceId: string | undefined) {
     enabled: isEnabled,
   });
 }
+
+export function useCheckoutQueue(query: CheckoutQueueQuery = {}) {
+  const { currentBranchId, getBranchQueryKey } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+
+  const isOrgWide = user?.hasOrgWideAccess === true;
+  const hasViewPermission =
+    hasPermission(user, "billing.view") || hasPermission(user, "billing.checkout");
+
+  const effectiveBranchId = query.branchId !== undefined ? query.branchId : currentBranchId;
+  const isEnabled =
+    isAuthenticated && hasViewPermission && (effectiveBranchId !== null || isOrgWide);
+
+  const queryKey = getBranchQueryKey("checkout-queue", [query]);
+
+  return useQuery({
+    queryKey,
+    queryFn: () => getCheckoutQueue(query),
+    enabled: isEnabled,
+    refetchOnWindowFocus: true,
+  });
+}
+

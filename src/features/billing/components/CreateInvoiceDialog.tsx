@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Receipt, ShieldCheck, User, Calendar, Scissors } from "lucide-react";
+import { Receipt, ShieldCheck, User, Calendar, Scissors, Award, Sparkles } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ import {
   type CreateInvoiceFormValues,
 } from "../schemas/billing.schema";
 import type { Appointment, AppointmentServiceSnapshot } from "@/features/appointments/types/appointment.types";
+import { useCustomer } from "@/features/customers/hooks/useCustomer";
+import { useRedemptionPreview } from "@/features/loyalty/hooks/useLoyaltyQueries";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface CreateInvoiceDialogProps {
   isOpen: boolean;
@@ -31,6 +34,9 @@ export function CreateInvoiceDialog({
   onSuccess,
 }: CreateInvoiceDialogProps) {
   const createInvoiceMutation = useCreateInvoice();
+
+  const customerId = appointment?.customerId || appointment?.customer?.id;
+  const { data: customer } = useCustomer(customerId || null);
 
   const services = useMemo(() => {
     return appointment?.services || [];
@@ -61,6 +67,7 @@ export function CreateInvoiceDialog({
       branchId: appointment?.branchId || "",
       appointmentId: appointment?.id || "",
       discountTotal: initialDiscount,
+      redeemLoyaltyPoints: 0,
       notes: appointment?.notes || "",
     },
     values: appointment
@@ -68,6 +75,7 @@ export function CreateInvoiceDialog({
           branchId: appointment.branchId,
           appointmentId: appointment.id,
           discountTotal: initialDiscount,
+          redeemLoyaltyPoints: 0,
           notes: appointment.notes || "",
         }
       : undefined,
@@ -78,8 +86,36 @@ export function CreateInvoiceDialog({
     name: "discountTotal",
     defaultValue: initialDiscount,
   }) || 0;
+
+  const enteredLoyaltyPoints =
+    Number(
+      useWatch({
+        control,
+        name: "redeemLoyaltyPoints",
+        defaultValue: 0,
+      })
+    ) || 0;
+
+  // Debounce requested points to prevent racing API queries
+  const debouncedLoyaltyPoints = useDebounce(enteredLoyaltyPoints, 350);
+
+  // Bill amount for pre-creation preview: gross uncovered amount
+  const preliminaryBillAmount = Math.max(0, subtotal - subscriptionCoveredAmount - (Number(enteredDiscount) || 0));
+
+  // Read-only server-authoritative redemption preview using supported billAmount parameter
+  const { data: previewData, isLoading: isPreviewLoading } = useRedemptionPreview(
+    customerId && debouncedLoyaltyPoints > 0
+      ? {
+          customerId,
+          billAmount: preliminaryBillAmount,
+          pointsRequested: debouncedLoyaltyPoints,
+        }
+      : null,
+    { enabled: Boolean(isOpen && customerId && debouncedLoyaltyPoints > 0) }
+  );
+
   const grossPayable = Math.max(0, subtotal - (Number(enteredDiscount) || 0));
-  const estimatedPayable = Math.max(0, grossPayable - subscriptionCoveredAmount);
+  const estimatedPayable = previewData?.effectivePayable ?? Math.max(0, grossPayable - subscriptionCoveredAmount - (previewData?.appliedDiscount || 0));
 
   const onSubmit = async (values: CreateInvoiceFormValues) => {
     if (!appointment) return;
@@ -88,6 +124,7 @@ export function CreateInvoiceDialog({
         branchId: appointment.branchId,
         appointmentId: appointment.id,
         discountTotal: values.discountTotal,
+        redeemLoyaltyPoints: values.redeemLoyaltyPoints && values.redeemLoyaltyPoints > 0 ? values.redeemLoyaltyPoints : undefined,
         notes: values.notes,
       });
 
@@ -224,6 +261,73 @@ export function CreateInvoiceDialog({
               <span className="font-semibold">
                 -{formatCurrency(subscriptionCoveredAmount)}
               </span>
+            </div>
+          )}
+
+          {previewData && previewData.appliedDiscount > 0 && (
+            <div className="flex items-center justify-between text-xs text-primary font-medium">
+              <span className="flex items-center gap-1">
+                <Sparkles className="h-3.5 w-3.5" />
+                Loyalty Discount ({enteredLoyaltyPoints} pts)
+              </span>
+              <span className="font-semibold">
+                -{formatCurrency(previewData.appliedDiscount)}
+              </span>
+            </div>
+          )}
+
+          {/* Loyalty Redemption Section */}
+          {customer && (customer.loyaltyPoints ?? 0) > 0 && (
+            <div className="p-3 bg-primary/5 rounded-lg border border-primary/20 space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Award className="h-3.5 w-3.5 text-primary" />
+                  Redeem Loyalty Points (Optional)
+                </span>
+                <span className="text-muted-foreground text-[11px]">
+                  Available: <strong>{customer.loyaltyPoints ?? 0} pts</strong>
+                </span>
+              </div>
+
+              {(customer.loyaltyPointsDebt ?? 0) > 0 && (
+                <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                  Customer has {customer.loyaltyPointsDebt} pts debt from previous reversals.
+                </p>
+              )}
+
+              <div className="space-y-1">
+                <Input
+                  type="number"
+                  min="0"
+                  max={customer.loyaltyPoints ?? 0}
+                  step="1"
+                  placeholder="Enter points to redeem..."
+                  {...register("redeemLoyaltyPoints")}
+                  className="text-xs h-8"
+                />
+                {errors.redeemLoyaltyPoints && (
+                  <p className="text-[10px] text-destructive">
+                    {errors.redeemLoyaltyPoints.message}
+                  </p>
+                )}
+              </div>
+
+              {/* Server-authoritative preview feedback */}
+              {isPreviewLoading && (
+                <p className="text-[10px] text-muted-foreground italic">
+                  Calculating server redemption preview...
+                </p>
+              )}
+              {previewData && !previewData.isEligible && (
+                <p className="text-[10px] text-destructive font-medium">
+                  {previewData.reason || "Points cannot be redeemed for this bill amount."}
+                </p>
+              )}
+              {previewData && previewData.isEligible && previewData.maxRedeemablePoints < debouncedLoyaltyPoints && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Notice: Program cap limits redemption to max {previewData.maxRedeemablePoints} points ({formatCurrency(previewData.maxRedemptionDiscount)} max discount).
+                </p>
+              )}
             </div>
           )}
 

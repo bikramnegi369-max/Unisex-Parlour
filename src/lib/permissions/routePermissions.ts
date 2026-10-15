@@ -21,7 +21,7 @@ export const routePermissions = {
   "/services/categories": "services.view",
   "/memberships": "billing.view",
   "/coupons": "billing.view",
-  "/loyalty": "billing.view",
+  "/loyalty": "loyalty.view",
   "/inventory": "inventory.view",
   "/suppliers": "inventory.view",
   "/activity-logs": "activity-logs.view",

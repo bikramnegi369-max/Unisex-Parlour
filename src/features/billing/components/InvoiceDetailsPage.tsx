@@ -18,6 +18,7 @@ import {
   Printer,
   FileText,
   Loader2,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -386,6 +387,18 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 </span>
                 <span className="font-bold">
                   -{formatCurrency(invoice.subscriptionCoveredAmount)}
+                </span>
+              </div>
+            )}
+
+            {invoice.loyaltyDiscountAmount !== undefined && invoice.loyaltyDiscountAmount > 0 && (
+              <div className="flex justify-between text-primary font-medium">
+                <span className="flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Loyalty Points Redeemed ({invoice.loyaltyRedeemedPoints ?? invoice.redeemLoyaltyPoints ?? 0} pts)
+                </span>
+                <span className="font-bold">
+                  -{formatCurrency(invoice.loyaltyDiscountAmount)}
                 </span>
               </div>
             )}

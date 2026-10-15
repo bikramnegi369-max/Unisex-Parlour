@@ -126,8 +126,14 @@ export function CustomerMobileCard({
         )}
         {customer.loyaltyPoints !== undefined && (
           <div className="flex justify-between">
-            <span>Loyalty Points:</span>
+            <span>Spendable Points:</span>
             <span className="font-semibold text-foreground">{customer.loyaltyPoints} pts</span>
+          </div>
+        )}
+        {(customer.loyaltyPointsDebt ?? 0) > 0 && (
+          <div className="flex justify-between text-amber-600 dark:text-amber-400">
+            <span>Loyalty Debt:</span>
+            <span className="font-semibold">{customer.loyaltyPointsDebt} pts</span>
           </div>
         )}
         {isAllBranches && (

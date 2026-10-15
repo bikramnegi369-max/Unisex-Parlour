@@ -74,6 +74,7 @@ export interface Customer {
   homeBranchId: string;
   visitedBranchIds: string[];
   loyaltyPoints: number;
+  loyaltyPointsDebt?: number;
   status: CustomerStatus;
   preferences?: {
     preferredStaff?: string[];

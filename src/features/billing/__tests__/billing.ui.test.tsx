@@ -209,6 +209,112 @@ describe("Billing UI Components & Financial Rules", () => {
       expect(screen.getByText("₹2,000.00")).toBeDefined(); // subtotal
       expect(screen.getByText("-₹500.00")).toBeDefined(); // subscription covered
     });
+
+    it("submits create invoice mutation without redeemLoyaltyPoints when points are 0 or empty", async () => {
+      const createSpy = vi.fn().mockResolvedValue({
+        id: "inv-new",
+        invoiceNumber: "INV-NEW-001",
+      });
+
+      const mutations = await import("../hooks/useBillingMutations");
+      vi.spyOn(mutations, "useCreateInvoice").mockReturnValue({
+        mutateAsync: createSpy,
+        isPending: false,
+      } as unknown as ReturnType<typeof mutations.useCreateInvoice>);
+
+      renderWithProviders(
+        <CreateInvoiceDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          appointment={mockAppointment}
+        />
+      );
+
+      // Verify submit without points sends no redeemLoyaltyPoints
+      fireEvent.click(screen.getByRole("button", { name: /Generate Draft Invoice/i }));
+
+      await waitFor(() => {
+        expect(createSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            branchId: "branch-1",
+            appointmentId: "apt-1",
+            discountTotal: 100,
+            redeemLoyaltyPoints: undefined,
+          })
+        );
+      });
+    });
+
+    it("submits create invoice mutation with redeemLoyaltyPoints when cashier enters positive points", async () => {
+      const createSpy = vi.fn().mockResolvedValue({
+        id: "inv-new-loyalty",
+        invoiceNumber: "INV-LOYALTY-001",
+      });
+
+      const mutations = await import("../hooks/useBillingMutations");
+      vi.spyOn(mutations, "useCreateInvoice").mockReturnValue({
+        mutateAsync: createSpy,
+        isPending: false,
+      } as unknown as ReturnType<typeof mutations.useCreateInvoice>);
+
+      const customerHook = await import("@/features/customers/hooks/useCustomer");
+      vi.spyOn(customerHook, "useCustomer").mockReturnValue({
+        data: {
+          id: "cust-1",
+          name: "Alice Smith",
+          phone: "9988776655",
+          loyaltyPoints: 120,
+          loyaltyPointsDebt: 0,
+        },
+        isLoading: false,
+      } as unknown as ReturnType<typeof customerHook.useCustomer>);
+
+      const loyaltyHook = await import("@/features/loyalty/hooks/useLoyaltyQueries");
+      vi.spyOn(loyaltyHook, "useRedemptionPreview").mockReturnValue({
+        data: {
+          isEligible: true,
+          availablePoints: 120,
+          maxRedeemablePoints: 100,
+          maxRedemptionDiscount: 100,
+          appliedPoints: 50,
+          appliedDiscount: 50,
+          effectivePayable: 850,
+        },
+        isLoading: false,
+      } as unknown as ReturnType<typeof loyaltyHook.useRedemptionPreview>);
+
+      renderWithProviders(
+        <CreateInvoiceDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          appointment={mockAppointment}
+        />
+      );
+
+      // Confirm available points badge renders
+      expect(screen.getByText(/Available:/i)).toBeDefined();
+      expect(screen.getByText(/120 pts/i)).toBeDefined();
+
+      const pointsInput = screen.getByPlaceholderText(/Enter points to redeem.../i);
+      expect(pointsInput).toBeDefined();
+
+      // Enter 50 loyalty points
+      fireEvent.change(pointsInput, { target: { value: "50" } });
+
+      // Submit the dialog
+      fireEvent.click(screen.getByRole("button", { name: /Generate Draft Invoice/i }));
+
+      await waitFor(() => {
+        expect(createSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            branchId: "branch-1",
+            appointmentId: "apt-1",
+            discountTotal: 100,
+            redeemLoyaltyPoints: 50,
+          })
+        );
+      });
+    });
   });
 
   describe("InvoicePaymentHistory", () => {
