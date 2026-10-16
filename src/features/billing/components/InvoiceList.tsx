@@ -26,6 +26,9 @@ import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
 import { toast } from "sonner";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
+import { useUpdateAppointmentStatus } from "@/features/appointments/hooks/useAppointmentMutations";
+import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
+import { requiresSubscriptionVerification } from "@/features/appointments/utils/appointmentSubscription";
 import type {
   Invoice,
   InvoiceStatus,
@@ -213,6 +216,54 @@ export function InvoiceList() {
       isAllBranchesSelected || !currentBranchId ? undefined : currentBranchId,
   });
 
+  const updateStatusMutation = useUpdateAppointmentStatus();
+  const [appointmentForSubVerification, setAppointmentForSubVerification] =
+    useState<Appointment | null>(null);
+
+  const handleCompleteAppointment = useCallback(
+    async (appt: Appointment) => {
+      const effectiveBranchId =
+        appt.branchId ||
+        appt.branch?.id ||
+        (currentBranchId && currentBranchId !== "all" ? currentBranchId : "");
+
+      if (!effectiveBranchId) {
+        toast.error("Branch ID could not be identified for this appointment.");
+        return;
+      }
+
+      if (requiresSubscriptionVerification(appt)) {
+        setAppointmentForSubVerification({
+          ...appt,
+          branchId: effectiveBranchId,
+        });
+      } else {
+        try {
+          await updateStatusMutation.mutateAsync({
+            id: appt.id,
+            payload: {
+              branchId: effectiveBranchId,
+              status: "completed",
+            },
+          });
+          toast.success("Appointment completed successfully. Ready for billing.");
+          refetchQueue();
+        } catch (err: unknown) {
+          const axiosError = err as {
+            response?: { data?: { message?: string } };
+            message?: string;
+          };
+          toast.error(
+            axiosError.response?.data?.message ||
+              axiosError.message ||
+              "Failed to complete appointment."
+          );
+        }
+      }
+    },
+    [updateStatusMutation, refetchQueue, currentBranchId]
+  );
+
   const handleView = useCallback(
     (inv: Invoice) => {
       router.push(`/billing/${inv.id}`);
@@ -299,6 +350,7 @@ export function InvoiceList() {
         isLoading={isQueueLoading || isQueueFetching}
         isRefreshing={isFetching || isQueueFetching}
         onCheckout={(apt) => setSelectedAppointmentForBill(apt)}
+        onCompleteAppointment={handleCompleteAppointment}
       />
 
       {/* Filters & Presets Card */}
@@ -558,6 +610,20 @@ export function InvoiceList() {
           onSuccess={(invoiceId) => {
             setSelectedAppointmentForBill(null);
             router.push(`/billing/${invoiceId}`);
+          }}
+        />
+      )}
+
+      {/* Subscription Consumption OTP Verification Modal */}
+      {appointmentForSubVerification && (
+        <SubscriptionVerificationModal
+          appointment={appointmentForSubVerification}
+          isOpen={Boolean(appointmentForSubVerification)}
+          onClose={() => setAppointmentForSubVerification(null)}
+          onSuccess={() => {
+            setAppointmentForSubVerification(null);
+            refetchQueue();
+            toast.success("Subscription verified and appointment completed.");
           }}
         />
       )}

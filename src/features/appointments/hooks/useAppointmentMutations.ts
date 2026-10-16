@@ -103,7 +103,11 @@ export function useUpdateAppointmentStatus() {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return key === "appointments" || key === "appointment";
+          return (
+            key === "appointments" ||
+            key === "appointment" ||
+            key === "checkout-queue"
+          );
         },
       });
       // Broadcast to all other open tabs (e.g. Billing/POS queue tab)
@@ -183,6 +187,9 @@ export function useCompleteWithSubscription() {
       // Invalidate billing queries across branch and org scopes
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("invoices") });
       queryClient.invalidateQueries({ queryKey: getScopeQueryKey("invoices", null) });
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === "checkout-queue",
+      });
 
       // Targeted subscription queries invalidation for affected customer entitlements
       if (data.customerId) {

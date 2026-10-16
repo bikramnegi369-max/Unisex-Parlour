@@ -10,6 +10,7 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  CheckCircle2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ interface ReadyToBillQueueProps {
   isLoading?: boolean;
   isRefreshing?: boolean;
   onCheckout: (appointment: Appointment) => void;
+  onCompleteAppointment?: (appointment: Appointment) => void;
 }
 
 type QueueStatusFilter = "all" | "completed" | "in_progress";
@@ -29,6 +31,7 @@ export function ReadyToBillQueue({
   isLoading,
   isRefreshing = false,
   onCheckout,
+  onCompleteAppointment,
 }: ReadyToBillQueueProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<QueueStatusFilter>("all");
@@ -336,18 +339,25 @@ export function ReadyToBillQueue({
                           </div>
                         </div>
 
-                        <Button
-                          size="sm"
-                          onClick={() => onCheckout(apt)}
-                          className={`h-7 text-xs font-bold gap-1 px-2.5 shadow-2xs group-hover:translate-x-0.5 transition-transform ${
-                            isFinished
-                              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                              : "bg-primary hover:bg-primary/90 text-primary-foreground"
-                          }`}
-                        >
-                          <span>Quick Bill</span>
-                          <ArrowRight className="h-3 w-3" />
-                        </Button>
+                        {isFinished ? (
+                          <Button
+                            size="sm"
+                            onClick={() => onCheckout(apt)}
+                            className="h-7 text-xs font-bold gap-1 px-2.5 shadow-2xs group-hover:translate-x-0.5 transition-transform cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            <span>Quick Bill</span>
+                            <ArrowRight className="h-3 w-3" />
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            onClick={() => onCompleteAppointment ? onCompleteAppointment(apt) : onCheckout(apt)}
+                            className="h-7 text-xs font-bold gap-1 px-2.5 shadow-2xs group-hover:translate-x-0.5 transition-transform cursor-pointer bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Complete Booking</span>
+                          </Button>
+                        )}
                       </div>
                     </div>
                   );

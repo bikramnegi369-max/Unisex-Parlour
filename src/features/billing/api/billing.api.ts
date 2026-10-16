@@ -372,7 +372,13 @@ export async function getCheckoutQueue(query: CheckoutQueueQuery = {}): Promise<
     }
   );
 
-  return (data.data || []).map(normalizeAppointment);
+  return (data.data || []).map((raw) => {
+    const apt = normalizeAppointment(raw);
+    if (!apt.branchId && query.branchId) {
+      apt.branchId = query.branchId;
+    }
+    return apt;
+  });
 }
 
 /**

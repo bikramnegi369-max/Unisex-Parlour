@@ -19,6 +19,7 @@ import type { Appointment, AppointmentServiceSnapshot } from "@/features/appoint
 import { useCustomer } from "@/features/customers/hooks/useCustomer";
 import { useRedemptionPreview } from "@/features/loyalty/hooks/useLoyaltyQueries";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useBranchContext } from "@/hooks/useBranchContext";
 
 interface CreateInvoiceDialogProps {
   isOpen: boolean;
@@ -33,6 +34,7 @@ export function CreateInvoiceDialog({
   appointment,
   onSuccess,
 }: CreateInvoiceDialogProps) {
+  const { currentBranchId } = useBranchContext();
   const createInvoiceMutation = useCreateInvoice();
 
   const customerId = appointment?.customerId || appointment?.customer?.id;
@@ -55,6 +57,14 @@ export function CreateInvoiceDialog({
 
   const initialDiscount = appointment?.pricing?.discount || 0;
 
+  const effectiveBranchId =
+    appointment?.branchId ||
+    appointment?.branch?.id ||
+    currentBranchId ||
+    "";
+
+  const effectiveAppointmentId = appointment?.id || "";
+
   const {
     register,
     handleSubmit,
@@ -64,16 +74,16 @@ export function CreateInvoiceDialog({
   } = useForm<CreateInvoiceFormValues>({
     resolver: zodResolver(createInvoiceSchema) as unknown as Resolver<CreateInvoiceFormValues>,
     defaultValues: {
-      branchId: appointment?.branchId || "",
-      appointmentId: appointment?.id || "",
+      branchId: effectiveBranchId,
+      appointmentId: effectiveAppointmentId,
       discountTotal: initialDiscount,
       redeemLoyaltyPoints: 0,
       notes: appointment?.notes || "",
     },
     values: appointment
       ? {
-          branchId: appointment.branchId,
-          appointmentId: appointment.id,
+          branchId: effectiveBranchId,
+          appointmentId: effectiveAppointmentId,
           discountTotal: initialDiscount,
           redeemLoyaltyPoints: 0,
           notes: appointment.notes || "",
@@ -121,8 +131,8 @@ export function CreateInvoiceDialog({
     if (!appointment) return;
     try {
       const invoice = await createInvoiceMutation.mutateAsync({
-        branchId: appointment.branchId,
-        appointmentId: appointment.id,
+        branchId: values.branchId || effectiveBranchId,
+        appointmentId: values.appointmentId || effectiveAppointmentId,
         discountTotal: values.discountTotal,
         redeemLoyaltyPoints: values.redeemLoyaltyPoints && values.redeemLoyaltyPoints > 0 ? values.redeemLoyaltyPoints : undefined,
         notes: values.notes,
@@ -147,6 +157,16 @@ export function CreateInvoiceDialog({
     }
   };
 
+  const onInvalid = (formErrors: typeof errors) => {
+    const firstErrorMessage =
+      formErrors.branchId?.message ||
+      formErrors.appointmentId?.message ||
+      formErrors.discountTotal?.message ||
+      formErrors.redeemLoyaltyPoints?.message ||
+      "Please check the invoice form fields.";
+    toast.error(firstErrorMessage);
+  };
+
   if (!appointment) return null;
 
   return (
@@ -160,7 +180,8 @@ export function CreateInvoiceDialog({
         <p className="text-xs text-muted-foreground">
           Create a billable invoice record for Appointment {appointment.appointmentCode || `#${appointment.id.slice(-6)}`}
         </p>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-5">
         {/* Customer & Appointment Info Header */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-muted/30 border border-border/80 rounded-xl text-xs">
           <div className="space-y-1">

@@ -11,6 +11,7 @@ import { InvoicePaymentHistory } from "../components/InvoicePaymentHistory";
 import { CreateInvoiceDialog } from "../components/CreateInvoiceDialog";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
 import { VoidPaymentDialog } from "../components/VoidPaymentDialog";
+import { ReadyToBillQueue } from "../components/ReadyToBillQueue";
 import { InvoiceDetailsPage } from "../components/InvoiceDetailsPage";
 import { CustomerBillingTab } from "@/features/customers/components/CustomerBillingTab";
 import { useInvoices, useInvoice, useInvoicePayments } from "../hooks/useBillingQueries";
@@ -311,6 +312,41 @@ describe("Billing UI Components & Financial Rules", () => {
             appointmentId: "apt-1",
             discountTotal: 100,
             redeemLoyaltyPoints: 50,
+          })
+        );
+      });
+    });
+
+    it("allows submitting draft invoice for appointments opened from queue", async () => {
+      const createSpy = vi.fn().mockResolvedValue({
+        id: "inv-new-queue",
+        invoiceNumber: "INV-QUEUE-001",
+      });
+
+      const mutations = await import("../hooks/useBillingMutations");
+      vi.spyOn(mutations, "useCreateInvoice").mockReturnValue({
+        mutateAsync: createSpy,
+        isPending: false,
+      } as unknown as ReturnType<typeof mutations.useCreateInvoice>);
+
+      renderWithProviders(
+        <CreateInvoiceDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          appointment={mockAppointment}
+        />
+      );
+
+      const submitBtn = screen.getByRole("button", { name: /Generate Draft Invoice/i }) as HTMLButtonElement;
+      expect(submitBtn.disabled).toBe(false);
+
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(createSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            branchId: "branch-1",
+            appointmentId: "apt-1",
           })
         );
       });
@@ -932,6 +968,66 @@ describe("Billing UI Components & Financial Rules", () => {
       expect(screen.getByText("+₹500")).toBeDefined();
       expect(screen.getByText("₹1,000")).toBeDefined();
       expect(screen.getByText("Customer Tendered (₹):")).toBeDefined();
+    });
+
+    it("renders Quick Bill for completed tickets and Complete Booking for in_progress tickets in ReadyToBillQueue", () => {
+      const mockCheckoutAppointments: Appointment[] = [
+        {
+          id: "apt-completed-1",
+          appointmentCode: "APT-C1",
+          organizationId: "org-1",
+          branchId: "branch-1",
+          customerId: "cust-1",
+          serviceIds: ["s-1"],
+          bookingType: "walk_in",
+          status: "completed",
+          date: "2026-10-16",
+          startTime: "10:00",
+          customer: { id: "cust-1", name: "Completed Client", phone: "1234567890" },
+          services: [{ serviceId: "s-1", name: "Haircut", duration: 30, price: 500 }],
+          createdAt: "2026-10-16",
+          updatedAt: "2026-10-16",
+        },
+        {
+          id: "apt-in-progress-1",
+          appointmentCode: "APT-IP1",
+          organizationId: "org-1",
+          branchId: "branch-1",
+          customerId: "cust-2",
+          serviceIds: ["s-2"],
+          bookingType: "walk_in",
+          status: "in_progress",
+          date: "2026-10-16",
+          startTime: "10:30",
+          customer: { id: "cust-2", name: "In Chair Client", phone: "0987654321" },
+          services: [{ serviceId: "s-2", name: "Beard Trim", duration: 20, price: 300 }],
+          createdAt: "2026-10-16",
+          updatedAt: "2026-10-16",
+        },
+      ];
+
+      const checkoutSpy = vi.fn();
+      const completeSpy = vi.fn();
+
+      render(
+        <ReadyToBillQueue
+          appointments={mockCheckoutAppointments}
+          onCheckout={checkoutSpy}
+          onCompleteAppointment={completeSpy}
+        />
+      );
+
+      // Verify the completed ticket has 'Quick Bill' button
+      const quickBillBtn = screen.getByRole("button", { name: /Quick Bill/i });
+      expect(quickBillBtn).toBeDefined();
+      fireEvent.click(quickBillBtn);
+      expect(checkoutSpy).toHaveBeenCalledWith(mockCheckoutAppointments[0]);
+
+      // Verify the in-progress ticket has 'Complete Booking' button
+      const completeBookingBtn = screen.getByRole("button", { name: /Complete Booking/i });
+      expect(completeBookingBtn).toBeDefined();
+      fireEvent.click(completeBookingBtn);
+      expect(completeSpy).toHaveBeenCalledWith(mockCheckoutAppointments[1]);
     });
   });
 });
