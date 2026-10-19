@@ -257,9 +257,25 @@ export const updateAppointmentStatus = async (
   id: string,
   payload: UpdateAppointmentStatusPayload
 ): Promise<Appointment> => {
+  const requestBody: Record<string, unknown> = {
+    branchId: payload.branchId,
+    status: payload.status,
+  };
+
+  const reason = payload.reason !== undefined ? payload.reason : payload.cancellationReason;
+  if (reason !== undefined) {
+    requestBody.reason = reason;
+  }
+  if (payload.cancellationReason !== undefined) {
+    requestBody.cancellationReason = payload.cancellationReason;
+  }
+  if (payload.forceEarlyStart === true) {
+    requestBody.forceEarlyStart = true;
+  }
+
   const { data } = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(
     `/appointments/${id}/status`,
-    payload,
+    requestBody,
     {
       branchScope: { type: "branch", branchId: payload.branchId },
     }
@@ -330,4 +346,79 @@ export const completeWithSubscription = async (
   );
   return normalizeAppointment(data.data);
 };
+
+export const previewAppointmentServices = async (
+  id: string,
+  payload: import("../types/appointment.types").ServiceModificationPreviewPayload
+): Promise<import("../types/appointment.types").ServiceModificationPreviewData> => {
+  if (!payload.branchId || payload.branchId === "all") {
+    throw new Error("Authoritative branch ID is required for service modification preview.");
+  }
+  const { data } = await apiClient.post<{
+    success: boolean;
+    data: import("../types/appointment.types").ServiceModificationPreviewData;
+  }>(
+    `/appointments/${id}/services/preview`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+  return data.data;
+};
+
+export const commitAppointmentServices = async (
+  id: string,
+  payload: import("../types/appointment.types").ServiceModificationCommitPayload
+): Promise<import("../types/appointment.types").ServiceModificationCommitResponse> => {
+  if (!payload.branchId || payload.branchId === "all") {
+    throw new Error("Authoritative branch ID is required for service modification commit.");
+  }
+  const { data } = await apiClient.post<{
+    success: boolean;
+    message?: string;
+    data: {
+      initiatingAppointment?: Record<string, unknown>;
+      shiftedAppointments?: Array<{ id?: string; _id?: string }>;
+      [key: string]: unknown;
+    };
+    affectedAppointmentIds?: string[];
+    shiftedAppointments?: Array<{ id?: string; _id?: string }>;
+  }>(
+    `/appointments/${id}/services/commit`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+
+  const rawInitiating =
+    data.data?.initiatingAppointment ||
+    data.data;
+
+  const rawShiftedList: Array<{ id?: string; _id?: string }> =
+    (data.data?.shiftedAppointments as Array<{ id?: string; _id?: string }>) ||
+    data.shiftedAppointments ||
+    [];
+
+  const extractedIdsFromShifted: string[] = rawShiftedList
+    .map((item) => (item?.id || item?._id ? String(item.id || item._id) : ""))
+    .filter(Boolean);
+
+  const allAffectedIds = Array.from(
+    new Set([
+      ...(data.affectedAppointmentIds || []),
+      ...extractedIdsFromShifted,
+    ])
+  );
+
+  return {
+    success: data.success,
+    message: data.message,
+    data: normalizeAppointment(rawInitiating),
+    affectedAppointmentIds: allAffectedIds,
+    shiftedAppointments: rawShiftedList as import("../types/appointment.types").CascadeAffectedAppointment[],
+  };
+};
+
 

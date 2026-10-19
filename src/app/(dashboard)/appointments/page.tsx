@@ -24,6 +24,7 @@ import { RescheduleAppointmentDialog } from "@/features/appointments/components/
 import { AssignStaffDialog } from "@/features/appointments/components/AssignStaffDialog";
 import { AppointmentStatusDialog } from "@/features/appointments/components/AppointmentStatusDialog";
 import { DeleteAppointmentDialog } from "@/features/appointments/components/DeleteAppointmentDialog";
+import { EditAppointmentServicesDialog } from "@/features/appointments/components/EditAppointmentServicesDialog";
 import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
 import { requiresSubscriptionVerification } from "@/features/appointments/utils/appointmentSubscription";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
@@ -92,6 +93,7 @@ export default function AppointmentsPage() {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
   const [isAssignStaffOpen, setIsAssignStaffOpen] = useState(false);
+  const [isEditServicesOpen, setIsEditServicesOpen] = useState(false);
   const [isStatusOpen, setIsStatusOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isSubscriptionVerificationOpen, setIsSubscriptionVerificationOpen] =
@@ -733,6 +735,10 @@ export default function AppointmentsPage() {
           setIsDetailsOpen(false);
           setIsAssignStaffOpen(true);
         }}
+        onEditServices={() => {
+          setIsDetailsOpen(false);
+          setIsEditServicesOpen(true);
+        }}
         onChangeStatus={() => {
           setIsDetailsOpen(false);
           setIsStatusOpen(true);
@@ -782,6 +788,16 @@ export default function AppointmentsPage() {
           setIsSubscriptionVerificationOpen(true);
         }}
         isLoading={updateStatusMutation.isPending}
+      />
+
+      <EditAppointmentServicesDialog
+        appointment={selectedAppointment}
+        isOpen={isEditServicesOpen}
+        onClose={() => setIsEditServicesOpen(false)}
+        onSuccess={() => {
+          refetch();
+        }}
+        canEdit={canEdit}
       />
 
       <SubscriptionVerificationModal

@@ -68,6 +68,36 @@ export const updateStatusSchema = z.object({
     .string()
     .max(300, "Reason cannot exceed 300 characters")
     .optional(),
+  reason: z
+    .string()
+    .max(300, "Reason cannot exceed 300 characters")
+    .optional(),
+  forceEarlyStart: z.boolean().optional(),
 });
 
 export type UpdateStatusSchemaType = z.infer<typeof updateStatusSchema>;
+
+export const serviceModificationItemSchema = z.object({
+  serviceId: z.string().min(1, "Service ID is required"),
+  customPrice: z.coerce.number().min(0, "Price must be a positive number").optional(),
+  appliedSubscriptionId: z.string().nullable().optional(),
+});
+
+export const serviceModificationPreviewSchema = z.object({
+  branchId: z.string().min(1, "Branch is required"),
+  services: z.array(serviceModificationItemSchema).min(1, "At least one service is required"),
+  discount: z.coerce.number().min(0).optional(),
+});
+
+export type ServiceModificationPreviewSchemaType = z.infer<typeof serviceModificationPreviewSchema>;
+
+export const serviceModificationCommitSchema = z.object({
+  branchId: z.string().min(1, "Branch is required"),
+  previewToken: z.string().min(1, "Preview token is required"),
+  services: z.array(serviceModificationItemSchema).min(1, "At least one service is required"),
+  discount: z.coerce.number().min(0).optional(),
+  managerOverrideReason: z.string().max(500).optional(),
+});
+
+export type ServiceModificationCommitSchemaType = z.infer<typeof serviceModificationCommitSchema>;
+

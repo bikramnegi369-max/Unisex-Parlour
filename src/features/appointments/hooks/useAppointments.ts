@@ -13,4 +13,6 @@ export {
   useTriggerAppointmentReminder,
   useRequestConsumptionOtp,
   useCompleteWithSubscription,
+  usePreviewAppointmentServices,
+  useCommitAppointmentServices,
 } from "./useAppointmentMutations";

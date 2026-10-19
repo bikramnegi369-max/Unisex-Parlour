@@ -172,6 +172,108 @@ export interface UpdateAppointmentStatusPayload {
   branchId: string;
   status: AppointmentStatus;
   cancellationReason?: string;
+  reason?: string;
+  forceEarlyStart?: boolean;
+}
+
+export interface ServiceModificationItem {
+  serviceId: string;
+  customPrice?: number;
+  appliedSubscriptionId?: string | null;
+}
+
+export interface ServiceModificationPreviewPayload {
+  branchId: string;
+  services: ServiceModificationItem[];
+  discount?: number;
+}
+
+export interface CascadeAffectedAppointment {
+  id: string;
+  appointmentCode?: string;
+  originalStartTime: string;
+  proposedStartTime: string;
+  originalEndTime?: string;
+  proposedEndTime?: string;
+  customerName?: string;
+  staffName?: string;
+}
+
+export interface CascadeConflict {
+  type?: "staff_leave" | "operating_hours" | "overlap" | "buffer_violation" | "other" | string;
+  message?: string;
+  reason?: string;
+  actionRequired?: string;
+  appointmentId?: string;
+  appointmentCode?: string;
+  isBlocking?: boolean;
+  code?: string;
+  field?: string;
+  details?: string;
+}
+
+export interface ServiceModificationPreviewData {
+  previewToken: string;
+  appointmentId?: string;
+  canCommit: boolean;
+  requiresManagerOverride?: boolean;
+  initiatingAppointment: {
+    id: string;
+    totalDuration: number;
+    proposedStartTime: string;
+    proposedEndTime: string;
+    pricing: {
+      subtotal: number;
+      discount?: number;
+      total: number;
+    };
+    services?: Array<{
+      serviceId: string;
+      name: string;
+      duration: number;
+      price: number;
+      appliedSubscriptionId?: string | null;
+    }>;
+  };
+  duration?: number;
+  endTime?: string;
+  pricing?: {
+    subtotal: number;
+    discount?: number;
+    total: number;
+  };
+  services?: Array<{
+    serviceId: string;
+    name: string;
+    duration: number;
+    price: number;
+    appliedSubscriptionId?: string | null;
+  }>;
+  affectedAppointments?: CascadeAffectedAppointment[];
+  shiftedAppointments?: CascadeAffectedAppointment[];
+  conflicts?: CascadeConflict[];
+}
+
+export interface ServiceModificationPreviewResponse {
+  success: boolean;
+  message?: string;
+  data: ServiceModificationPreviewData;
+}
+
+export interface ServiceModificationCommitPayload {
+  branchId: string;
+  previewToken: string;
+  services: ServiceModificationItem[];
+  discount?: number;
+  managerOverrideReason?: string;
+}
+
+export interface ServiceModificationCommitResponse {
+  success: boolean;
+  message?: string;
+  data: Appointment;
+  affectedAppointmentIds?: string[];
+  shiftedAppointments?: CascadeAffectedAppointment[];
 }
 
 export interface DeleteAppointmentPayload {

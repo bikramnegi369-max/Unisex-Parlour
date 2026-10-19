@@ -52,6 +52,7 @@ interface AppointmentDetailsDialogProps {
   onClose: () => void;
   onReschedule: () => void;
   onAssignStaff: () => void;
+  onEditServices?: () => void;
   onChangeStatus: () => void;
   onDelete: () => void;
   onCompleteAppointment?: (appointment: Appointment) => void;
@@ -66,6 +67,7 @@ export function AppointmentDetailsDialog({
   onClose,
   onReschedule,
   onAssignStaff,
+  onEditServices,
   onChangeStatus,
   onDelete,
   onCompleteAppointment,
@@ -374,7 +376,10 @@ export function AppointmentDetailsDialog({
             </span>
           </div>
 
-          <AppointmentReminderStatus reminder={appointment.reminder} />
+          <AppointmentReminderStatus
+            reminder={appointment.reminder}
+            timeZone={branchTimezone}
+          />
 
           {/* Render sendAt in branch timezone if scheduled */}
           {appointment.reminder?.enabled && appointment.reminder.sendAt && (
@@ -590,6 +595,18 @@ export function AppointmentDetailsDialog({
                   <UserCheck className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>Assign Staff</span>
                 </Button>
+                {onEditServices && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onEditServices}
+                    className="text-xs h-8 gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
+                    title="Add, remove, or modify services and custom prices"
+                  >
+                    <Scissors className="h-3.5 w-3.5" />
+                    <span>Modify Services</span>
+                  </Button>
+                )}
               </>
             )}
 

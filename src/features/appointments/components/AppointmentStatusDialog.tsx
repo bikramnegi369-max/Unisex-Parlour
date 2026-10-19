@@ -11,9 +11,11 @@ import {
   updateStatusSchema,
   type UpdateStatusSchemaType,
 } from "../schemas/appointment.schema";
-import { toast } from "sonner";
 import { requiresSubscriptionVerification } from "../utils/appointmentSubscription";
-import { ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
+import { ShieldCheck, AlertTriangle } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
 
 interface AppointmentStatusDialogProps {
@@ -33,6 +35,9 @@ export function AppointmentStatusDialog({
   onRequireSubscriptionVerification,
   isLoading,
 }: AppointmentStatusDialogProps) {
+  const { user } = useAuth();
+  const canForceEarlyStart = hasPermission(user, "appointments.force_early_start");
+
   const {
     register,
     handleSubmit,
@@ -44,6 +49,7 @@ export function AppointmentStatusDialog({
       branchId: appointment?.branchId || "",
       status: appointment?.status || "scheduled",
       cancellationReason: "",
+      forceEarlyStart: false,
     },
   });
 
@@ -52,12 +58,31 @@ export function AppointmentStatusDialog({
     name: "status",
   });
 
+  // Early start calculation: is appointment scheduled start > 15 minutes ahead of current time?
+  const isEarlyStart = React.useMemo(() => {
+    if (!appointment?.date || !appointment.startTime) return false;
+    try {
+      const branchTz = appointment.branch?.timezone || "Asia/Kolkata";
+      const nowInTz = new Date(new Date().toLocaleString("en-US", { timeZone: branchTz }));
+      const [apptY, apptM, apptD] = appointment.date.split("-").map(Number);
+      const [apptH, apptMin] = appointment.startTime.split(":").map(Number);
+      const apptDate = new Date(apptY, apptM - 1, apptD, apptH, apptMin, 0);
+
+      const diffMs = apptDate.getTime() - nowInTz.getTime();
+      const diffMinutes = diffMs / 60000;
+      return diffMinutes > 15;
+    } catch {
+      return false;
+    }
+  }, [appointment]);
+
   useEffect(() => {
     if (isOpen && appointment) {
       reset({
         branchId: appointment.branchId,
         status: appointment.status,
         cancellationReason: appointment.cancellationReason || "",
+        forceEarlyStart: false,
       });
     }
   }, [isOpen, appointment, reset]);
@@ -83,8 +108,20 @@ export function AppointmentStatusDialog({
       }
     }
 
+    const submissionPayload: UpdateStatusSchemaType = {
+      branchId: data.branchId,
+      status: data.status,
+      cancellationReason: data.cancellationReason,
+      reason: data.reason || data.cancellationReason,
+    };
+
+    // Include forceEarlyStart: true ONLY for an explicitly authorized override; otherwise omit it
+    if (canForceEarlyStart && isEarlyStart && data.forceEarlyStart === true) {
+      submissionPayload.forceEarlyStart = true;
+    }
+
     try {
-      await onSubmit(appointment.id, data);
+      await onSubmit(appointment.id, submissionPayload);
       toast.success("Appointment status updated successfully.");
       onClose();
     } catch (err: unknown) {
@@ -148,6 +185,34 @@ export function AppointmentStatusDialog({
                 This appointment is in a terminal state ({appointment.status})
                 and cannot transition status further.
               </p>
+            )}
+            {/* Early Start Restriction & Override */}
+            {selectedStatus === "in_progress" && isEarlyStart && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs space-y-2 text-amber-900 dark:text-amber-200">
+                <div className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Early Start Notice (&gt; 15 mins before schedule)</span>
+                </div>
+                <p className="text-[11px] leading-relaxed">
+                  This appointment is scheduled for <strong className="font-mono">{appointment.startTime}</strong> ({appointment.date}).
+                  Backend rules restrict starting service more than 15 minutes before the scheduled time without explicit authorization.
+                </p>
+
+                {canForceEarlyStart ? (
+                  <label className="flex items-center gap-2 cursor-pointer pt-1 text-[11px] font-semibold text-primary">
+                    <input
+                      type="checkbox"
+                      {...register("forceEarlyStart")}
+                      className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                    />
+                    <span>Authorize early start override (requires force_early_start permission)</span>
+                  </label>
+                ) : (
+                  <div className="text-[11px] text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 font-medium">
+                    ⚠️ You do not have the required permission (<code>appointments.force_early_start</code>) to start this appointment more than 15 minutes early.
+                  </div>
+                )}
+              </div>
             )}
             {selectedStatus === "completed" && requiresSubscriptionVerification(appointment) && (
               appointment.status !== "in_progress" ? (

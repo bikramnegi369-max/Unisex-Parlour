@@ -220,3 +220,84 @@ export function useCompleteWithSubscription() {
   });
 }
 
+export function usePreviewAppointmentServices() {
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: import("../types/appointment.types").ServiceModificationPreviewPayload;
+    }) =>
+      import("../api/appointments.api").then((mod) =>
+        mod.previewAppointmentServices(id, payload)
+      ),
+  });
+}
+
+export function useCommitAppointmentServices() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: import("../types/appointment.types").ServiceModificationCommitPayload;
+    }) =>
+      import("../api/appointments.api").then((mod) =>
+        mod.commitAppointmentServices(id, payload)
+      ),
+    onSuccess: (result, variables) => {
+      const data = result.data;
+      // 1. Invalidate initiating appointment
+      queryClient.invalidateQueries({
+        queryKey: getBranchQueryKey("appointment", [variables.id]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getScopeQueryKey("appointment", null, [variables.id]),
+      });
+
+      // 2. Invalidate every affected appointment returned by backend
+      if (result.affectedAppointmentIds && result.affectedAppointmentIds.length > 0) {
+        for (const affId of result.affectedAppointmentIds) {
+          queryClient.invalidateQueries({
+            queryKey: getBranchQueryKey("appointment", [affId]),
+          });
+          queryClient.invalidateQueries({
+            queryKey: getScopeQueryKey("appointment", null, [affId]),
+          });
+        }
+      }
+
+      // 3. Invalidate appointments list and calendar queries
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "appointments" ||
+            key === "appointment" ||
+            key === "checkout-queue"
+          );
+        },
+      });
+
+      // 4. Invalidate affected staff schedules
+      if (data.staffId) {
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey[0];
+            return key === "employees" || key === "staff-services";
+          },
+        });
+      }
+
+      // 5. Broadcast across tabs
+      broadcastCrossTabInvalidation("appointments");
+    },
+  });
+}
+
+

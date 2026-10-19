@@ -11,6 +11,7 @@ import {
   Loader2,
   Info,
 } from "lucide-react";
+import { formatDateTime, formatInBranchTimezone } from "@/lib/formatters";
 import type {
   AppointmentReminder,
   ReminderAggregateStatus,
@@ -21,6 +22,7 @@ interface AppointmentReminderStatusProps {
   reminder?: AppointmentReminder | null;
   compact?: boolean;
   className?: string;
+  timeZone?: string;
 }
 
 export function getAggregateStatusLabel(
@@ -133,6 +135,7 @@ export function AppointmentReminderStatus({
   reminder,
   compact = false,
   className = "",
+  timeZone,
 }: AppointmentReminderStatusProps) {
   if (!reminder || !reminder.enabled) {
     if (compact) return null;
@@ -293,8 +296,13 @@ export function AppointmentReminderStatus({
               </Badge>
             </div>
             {sms?.sentAt && (
-              <div className="text-[10px] text-muted-foreground">
-                Sent: {sms.sentAt}
+              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <span className="font-medium text-foreground">Sent:</span>{" "}
+                <span>
+                  {timeZone
+                    ? formatInBranchTimezone(sms.sentAt, timeZone)
+                    : formatDateTime(sms.sentAt, "dd MMM yyyy, hh:mm a")}
+                </span>
               </div>
             )}
             {sms?.status === "failed" && (
@@ -319,8 +327,13 @@ export function AppointmentReminderStatus({
               </Badge>
             </div>
             {email?.sentAt && (
-              <div className="text-[10px] text-muted-foreground">
-                Sent: {email.sentAt}
+              <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <span className="font-medium text-foreground">Sent:</span>{" "}
+                <span>
+                  {timeZone
+                    ? formatInBranchTimezone(email.sentAt, timeZone)
+                    : formatDateTime(email.sentAt, "dd MMM yyyy, hh:mm a")}
+                </span>
               </div>
             )}
             {email?.status === "failed" && (

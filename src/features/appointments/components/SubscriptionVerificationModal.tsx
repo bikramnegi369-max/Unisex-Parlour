@@ -39,8 +39,8 @@ export function SubscriptionVerificationModal({
   // Dynamic countdown states and timestamp-based deadlines
   const [expiresIn, setExpiresIn] = useState<number>(0);
   const [resendAfter, setResendAfter] = useState<number>(0);
-  const expiryDeadlineRef = useRef<number | null>(null);
-  const resendDeadlineRef = useRef<number | null>(null);
+  const [expiryDeadline, setExpiryDeadline] = useState<number | null>(null);
+  const [resendDeadline, setResendDeadline] = useState<number | null>(null);
 
   const requestOtpMutation = useRequestConsumptionOtp();
   const completeMutation = useCompleteWithSubscription();
@@ -54,11 +54,28 @@ export function SubscriptionVerificationModal({
       setErrorMessage(null);
       setExpiresIn(0);
       setResendAfter(0);
-      expiryDeadlineRef.current = null;
-      resendDeadlineRef.current = null;
+      setExpiryDeadline(null);
+      setResendDeadline(null);
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
+
+  // Reset pending OTP challenge if service modification changes the appointment
+  const currentServicesStr = JSON.stringify(appointment?.services || []);
+  const [prevServicesStr, setPrevServicesStr] = useState(currentServicesStr);
+
+  if (prevServicesStr !== currentServicesStr) {
+    setPrevServicesStr(currentServicesStr);
+    if (step === "otp") {
+      setStep("prompt");
+      setOtp("");
+      setErrorMessage("Appointment services were modified. Pending verification code reset.");
+      setExpiresIn(0);
+      setResendAfter(0);
+      setExpiryDeadline(null);
+      setResendDeadline(null);
+    }
+  }
 
   // Timestamp-based countdown timers with visibility / focus recovery
   useEffect(() => {
@@ -66,12 +83,12 @@ export function SubscriptionVerificationModal({
 
     const updateTimers = () => {
       const now = Date.now();
-      if (expiryDeadlineRef.current !== null) {
-        const remainingExpiry = Math.max(0, Math.ceil((expiryDeadlineRef.current - now) / 1000));
+      if (expiryDeadline !== null) {
+        const remainingExpiry = Math.max(0, Math.ceil((expiryDeadline - now) / 1000));
         setExpiresIn(remainingExpiry);
       }
-      if (resendDeadlineRef.current !== null) {
-        const remainingResend = Math.max(0, Math.ceil((resendDeadlineRef.current - now) / 1000));
+      if (resendDeadline !== null) {
+        const remainingResend = Math.max(0, Math.ceil((resendDeadline - now) / 1000));
         setResendAfter(remainingResend);
       }
     };
@@ -93,7 +110,7 @@ export function SubscriptionVerificationModal({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", updateTimers);
     };
-  }, [step]);
+  }, [step, expiryDeadline, resendDeadline]);
 
   if (!appointment) return null;
 
@@ -137,8 +154,8 @@ export function SubscriptionVerificationModal({
       });
 
       const now = Date.now();
-      expiryDeadlineRef.current = now + res.data.expiresIn * 1000;
-      resendDeadlineRef.current = now + res.data.resendAfter * 1000;
+      setExpiryDeadline(now + res.data.expiresIn * 1000);
+      setResendDeadline(now + res.data.resendAfter * 1000);
       setExpiresIn(res.data.expiresIn);
       setResendAfter(res.data.resendAfter);
       setStep("otp");

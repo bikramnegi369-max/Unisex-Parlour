@@ -80,10 +80,19 @@ export function useCrossTabSync() {
           const key = query.queryKey[0];
           if (scope === "all") return true;
           if (scope === "appointments") {
-            return key === "appointments" || key === "appointment";
+            return (
+              key === "appointments" ||
+              key === "appointment" ||
+              key === "checkout-queue"
+            );
           }
           if (scope === "invoices") {
-            return key === "invoices" || key === "invoice" || key === "billing";
+            return (
+              key === "invoices" ||
+              key === "invoice" ||
+              key === "billing" ||
+              key === "checkout-queue"
+            );
           }
           if (scope === "subscriptions") {
             return key === "subscriptions" || key === "subscription";

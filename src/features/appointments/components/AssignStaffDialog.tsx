@@ -182,14 +182,6 @@ export function AssignStaffDialog({
     }
   }, [appointment, isTodayAppointment, currentBranch?.timezone]);
 
-  // Compute initial auto-start status
-  const shouldAutoStartDefault =
-    isTodayAppointment &&
-    Boolean(
-      appointment &&
-      (appointment.bookingType === "walk_in" || isElapsedAppointmentToday),
-    );
-
   // Reset dialog states during render when appointment or open status changes
   const [prevSessionKey, setPrevSessionKey] = useState<string | null>(null);
   const currentSessionKey =
@@ -200,7 +192,7 @@ export function AssignStaffDialog({
     if (isOpen && appointment) {
       setConflictError(null);
       setSyncTimeToNow(true);
-      setStartServiceImmediately(shouldAutoStartDefault);
+      setStartServiceImmediately(false);
     } else {
       setConflictError(null);
       setSyncTimeToNow(true);

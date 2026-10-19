@@ -855,7 +855,7 @@ export function AppointmentCalendarView({
                 data-testid="calendar-time-column"
                 className="w-20 shrink-0 border-r border-border bg-card z-30 sticky left-0 shadow-sm cursor-default select-none"
               >
-                <div className="h-10 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-40 shadow-xs">
+                <div className="h-11 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-40 shadow-xs">
                   Time
                 </div>
                 <div
@@ -865,13 +865,27 @@ export function AppointmentCalendarView({
                   {TIME_SLOTS.map((time, idx) => (
                     <div
                       key={time}
-                      className="absolute left-0 right-0 border-b border-border/40 text-[10px] font-semibold text-muted-foreground pr-2 flex items-start justify-end pt-1 select-none"
+                      className="absolute left-0 right-0 border-b border-border/50 text-[10px] font-semibold text-muted-foreground pr-2 flex items-start justify-end pt-1 select-none"
                       style={{
                         height: `${hourScale}px`,
                         top: `${idx * hourScale}px`,
                       }}
                     >
                       {time}
+                      {/* Subtle 30-min intermediate tick label / line */}
+                      <div
+                        className="absolute right-0 w-2 border-b border-border/40 pointer-events-none"
+                        style={{ top: `${hourScale * 0.5}px` }}
+                      />
+                      {/* Subtle 15-min and 45-min intermediate ticks */}
+                      <div
+                        className="absolute right-0 w-1 border-b border-border/25 pointer-events-none"
+                        style={{ top: `${hourScale * 0.25}px` }}
+                      />
+                      <div
+                        className="absolute right-0 w-1 border-b border-border/25 pointer-events-none"
+                        style={{ top: `${hourScale * 0.75}px` }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -1078,10 +1092,14 @@ export function AppointmentCalendarView({
                         {/* Drag hover drop indicator line */}
                         {isCurrentLaneDragOver && dragHoverTopPx !== null && (
                           <div
-                            className="absolute left-0 right-0 border-b-2 border-primary z-30 pointer-events-none flex items-center shadow-md animate-pulse"
-                            style={{ top: `${dragHoverTopPx}px` }}
+                            className="absolute left-0 right-0 z-30 pointer-events-none flex items-center"
+                            style={{
+                              top: `${dragHoverTopPx}px`,
+                              transform: "translateY(-50%)",
+                            }}
                           >
-                            <div className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-r shadow-md flex items-center gap-1">
+                            <div className="w-full border-t-2 border-primary shadow-xs" />
+                            <div className="absolute left-0 bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-1 -translate-y-1/2">
                               <Move className="h-3 w-3" />
                               <span>{dragHoverTime}</span>
                             </div>
@@ -1091,24 +1109,44 @@ export function AppointmentCalendarView({
                         {/* Current Time Red Line (branch timezone) */}
                         {showCurrentTimeLine && (
                           <div
-                            className="absolute left-0 right-0 border-b-2 border-destructive z-20 pointer-events-none flex items-center"
-                            style={{ top: `${currentTimeTopPx}px` }}
+                            className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                            style={{
+                              top: `${currentTimeTopPx}px`,
+                              transform: "translateY(-50%)",
+                            }}
                           >
-                            <div className="bg-destructive text-destructive-foreground text-[9px] font-bold px-1 py-0.2 rounded-r shadow-xs">
+                            <div className="w-full border-t-2 border-destructive shadow-xs" />
+                            <div className="absolute left-0 bg-destructive text-destructive-foreground text-[9px] font-bold px-1 py-0.2 rounded shadow-xs -translate-y-1/2">
                               NOW
                             </div>
                           </div>
                         )}
-                        {/* Horizontal Grid lines */}
+                        {/* Horizontal Grid lines with 15-min and 30-min sub-interval guides */}
                         {TIME_SLOTS.map((_, idx) => (
                           <div
                             key={idx}
-                            className="absolute left-0 right-0 border-b border-border/30 pointer-events-none"
+                            className="absolute left-0 right-0 border-b border-border/40 pointer-events-none"
                             style={{
                               height: `${hourScale}px`,
                               top: `${idx * hourScale}px`,
                             }}
-                          />
+                          >
+                            {/* 15m sub-tick */}
+                            <div
+                              className="absolute left-0 right-0 border-b border-border/15 border-dashed pointer-events-none"
+                              style={{ top: `${hourScale * 0.25}px` }}
+                            />
+                            {/* 30m sub-tick */}
+                            <div
+                              className="absolute left-0 right-0 border-b border-border/25 border-dashed pointer-events-none"
+                              style={{ top: `${hourScale * 0.5}px` }}
+                            />
+                            {/* 45m sub-tick */}
+                            <div
+                              className="absolute left-0 right-0 border-b border-border/15 border-dashed pointer-events-none"
+                              style={{ top: `${hourScale * 0.75}px` }}
+                            />
+                          </div>
                         ))}
 
                         {/* On Leave Watermark Overlay across entire lane height */}
@@ -1236,9 +1274,11 @@ export function AppointmentCalendarView({
                                 }}
                                 className={`absolute rounded-lg border p-1.5 text-xs transition-all select-none overflow-hidden flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary ${cardZIndex} ${cardBgBorder} ${
                                   isBeingDragged
-                                    ? "opacity-40 scale-95 ring-2 ring-primary"
-                                    : ""
-                                } ${isDraggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}`}
+                                    ? "opacity-50 scale-[0.98] ring-2 ring-primary shadow-xl"
+                                    : draggingApptId !== null
+                                      ? "pointer-events-none"
+                                      : ""
+                                } ${isDraggable ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-pointer"}`}
                               >
                                 {/* Clipping indicators */}
                                 {isClippedTop && (
