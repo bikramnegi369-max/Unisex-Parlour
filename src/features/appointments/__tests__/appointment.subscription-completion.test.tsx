@@ -606,11 +606,13 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         startTime: "10:00",
         services: [{ serviceId: "srv_normal" }],
       });
-      expect(parsedUntouched.services?.[0].customPrice).toBeUndefined();
+      const srv0 = parsedUntouched.services?.[0];
+      const customPrice0 = srv0 && "customPrice" in srv0 ? srv0.customPrice : undefined;
+      expect(customPrice0).toBeUndefined();
 
       // 2. Pricing formula: effectivePrice = customPrice ?? service.basePrice
       const service = { id: "srv_normal", basePrice: 500 };
-      const effectivePriceUntouched = parsedUntouched.services?.[0].customPrice ?? service.basePrice;
+      const effectivePriceUntouched = customPrice0 ?? service.basePrice;
       expect(effectivePriceUntouched).toBe(500);
 
       // 3. User sets customPrice: 450
@@ -622,8 +624,10 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         startTime: "10:00",
         services: [{ serviceId: "srv_normal", customPrice: 450 }],
       });
-      expect(parsedWithOverride.services?.[0].customPrice).toBe(450);
-      const effectivePriceOverride = parsedWithOverride.services?.[0].customPrice ?? service.basePrice;
+      const srvOverride = parsedWithOverride.services?.[0];
+      const customPriceOverride = srvOverride && "customPrice" in srvOverride ? srvOverride.customPrice : undefined;
+      expect(customPriceOverride).toBe(450);
+      const effectivePriceOverride = customPriceOverride ?? service.basePrice;
       expect(effectivePriceOverride).toBe(450);
 
       // 4. User clears customPrice (undefined) -> reverts to basePrice
@@ -645,9 +649,14 @@ describe("Subscription Verification Flow & Helper Tests", () => {
       });
 
       expect(parsed.services).toHaveLength(1);
-      expect(parsed.services?.[0].serviceId).toBe("srv_normal");
-      expect(parsed.services?.[0].customPrice).toBe(450);
-      expect(parsed.services?.[0].appliedSubscriptionId).toBeUndefined();
+      const srv = parsed.services?.[0];
+      if (srv && srv.serviceType === "registered") {
+        expect(srv.serviceId).toBe("srv_normal");
+        expect(srv.customPrice).toBe(450);
+        expect(srv.appliedSubscriptionId).toBeUndefined();
+      } else {
+        throw new Error("Expected registered service");
+      }
     });
 
     it("2 & 3. validates subscription-backed service line persists appliedSubscriptionId", () => {
@@ -666,8 +675,13 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         ],
       });
 
-      expect(parsed.services?.[0].appliedSubscriptionId).toBe("sub_active_123");
-      expect(parsed.services?.[0].customPrice).toBe(500);
+      const firstService = parsed.services?.[0];
+      if (firstService && firstService.serviceType === "registered") {
+        expect(firstService.appliedSubscriptionId).toBe("sub_active_123");
+        expect(firstService.customPrice).toBe(500);
+      } else {
+        throw new Error("Expected registered service");
+      }
     });
 
     it("4. subscription coverage does NOT require setting customPrice to 0", () => {
@@ -686,8 +700,13 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         ],
       });
 
-      expect(parsed.services?.[0].customPrice).toBe(800);
-      expect(parsed.services?.[0].appliedSubscriptionId).toBe("sub_vip_plan");
+      const firstService = parsed.services?.[0];
+      if (firstService && firstService.serviceType === "registered") {
+        expect(firstService.customPrice).toBe(800);
+        expect(firstService.appliedSubscriptionId).toBe("sub_vip_plan");
+      } else {
+        throw new Error("Expected registered service");
+      }
     });
 
     it("5, 6, 7. newly created subscription lines are unredeemed and do not call redemption or OTP APIs", () => {
@@ -808,9 +827,14 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         ],
       });
 
-      expect(parsed.services?.[0].serviceId).toBe("srv_auto");
-      expect(parsed.services?.[0].appliedSubscriptionId).toBe("auto");
-      expect(parsed.services?.[0].customPrice).toBeUndefined();
+      const firstService = parsed.services?.[0];
+      if (firstService && firstService.serviceType === "registered") {
+        expect(firstService.serviceId).toBe("srv_auto");
+        expect(firstService.appliedSubscriptionId).toBe("auto");
+        expect(firstService.customPrice).toBeUndefined();
+      } else {
+        throw new Error("Expected registered service");
+      }
     });
 
     it("13. explicit subscription selection: exact subscription ID is preserved without alteration", () => {
@@ -828,7 +852,12 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         ],
       });
 
-      expect(parsed.services?.[0].appliedSubscriptionId).toBe("sub_specific_earliest_expiring");
+      const firstService = parsed.services?.[0];
+      if (firstService && firstService.serviceType === "registered") {
+        expect(firstService.appliedSubscriptionId).toBe("sub_specific_earliest_expiring");
+      } else {
+        throw new Error("Expected registered service");
+      }
     });
   });
 });

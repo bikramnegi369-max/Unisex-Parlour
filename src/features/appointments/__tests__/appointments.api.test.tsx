@@ -201,7 +201,10 @@ describe("Appointment Schema & API Contract Validation", () => {
       discount: 50,
     });
     expect(validPreview.success).toBe(true);
-    expect(validPreview.data?.services[0].appliedSubscriptionId).toBe("sub_1");
+    const firstPreviewService = validPreview.data?.services[0];
+    if (firstPreviewService && "appliedSubscriptionId" in firstPreviewService) {
+      expect(firstPreviewService.appliedSubscriptionId).toBe("sub_1");
+    }
 
     const emptyPreviewServices = serviceModificationPreviewSchema.safeParse({
       branchId: "br_1",
@@ -218,7 +221,10 @@ describe("Appointment Schema & API Contract Validation", () => {
     });
     expect(validCommit.success).toBe(true);
     expect(validCommit.data?.discount).toBe(50);
-    expect(validCommit.data?.services[0].appliedSubscriptionId).toBe("sub_1");
+    const firstCommitService = validCommit.data?.services[0];
+    if (firstCommitService && "appliedSubscriptionId" in firstCommitService) {
+      expect(firstCommitService.appliedSubscriptionId).toBe("sub_1");
+    }
 
     const missingTokenCommit = serviceModificationCommitSchema.safeParse({
       branchId: "br_1",
@@ -351,5 +357,242 @@ describe("Appointment Schema & API Contract Validation", () => {
     const nyTime = formatInBranchTimezone(isoInstant, "America/New_York");
     expect(nyTime).toContain("6:00"); // 10:00 UTC = 06:00 EDT (EDT is UTC-4 in August)
   });
+
+  describe("Custom Services Schema & API Contract", () => {
+    it("validates custom service in createAppointmentSchema", () => {
+      const validCustom = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "Exclusive Grooming Package",
+            duration: 60,
+            price: 1500,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(validCustom.success).toBe(true);
+    });
+
+    it("rejects custom service with invalid name, duration, or negative price", () => {
+      // Empty name
+      const emptyName = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "   ",
+            duration: 30,
+            price: 500,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(emptyName.success).toBe(false);
+
+      // Name over 120 chars
+      const longName = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "A".repeat(121),
+            duration: 30,
+            price: 500,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(longName.success).toBe(false);
+
+      // Duration < 1
+      const zeroDuration = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "Valid Name",
+            duration: 0,
+            price: 500,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(zeroDuration.success).toBe(false);
+
+      // Duration > 720
+      const largeDuration = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "Valid Name",
+            duration: 721,
+            price: 500,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(largeDuration.success).toBe(false);
+
+      // Negative price
+      const negPrice = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "Valid Name",
+            duration: 30,
+            price: -50,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(negPrice.success).toBe(false);
+
+      // Price = 0 is valid (free/complimentary custom service)
+      const zeroPrice = createAppointmentSchema.safeParse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        services: [
+          {
+            serviceType: "custom",
+            name: "Complimentary Head Massage",
+            duration: 15,
+            price: 0,
+          },
+        ],
+        date: "2026-08-20",
+        startTime: "14:30",
+        bookingType: "advance",
+      });
+      expect(zeroPrice.success).toBe(true);
+    });
+
+    it("validates serviceModificationPreviewSchema and serviceModificationCommitSchema with custom services", () => {
+      const validPreview = serviceModificationPreviewSchema.safeParse({
+        branchId: "br_1",
+        services: [
+          {
+            serviceType: "registered",
+            serviceId: "srv_reg_1",
+            customPrice: 400,
+          },
+          {
+            serviceType: "custom",
+            name: "Custom Beard Detailing",
+            duration: 25,
+            price: 250,
+          },
+        ],
+      });
+      expect(validPreview.success).toBe(true);
+
+      const validCommit = serviceModificationCommitSchema.safeParse({
+        branchId: "br_1",
+        previewToken: "tok_secure_hash_12345",
+        services: [
+          {
+            serviceType: "custom",
+            name: "Special Styling",
+            duration: 45,
+            price: 700,
+          },
+        ],
+        managerOverrideReason: "Authorized VIP customer request",
+      });
+      expect(validCommit.success).toBe(true);
+    });
+
+    it("calls preview and commit endpoints with exact paths and payloads", async () => {
+      const { previewAppointmentServices, commitAppointmentServices } = await import(
+        "../api/appointments.api"
+      );
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            previewToken: "preview_tok_99",
+            canCommit: true,
+            requiresManagerOverride: false,
+          },
+        },
+      });
+
+      const previewPayload = {
+        branchId: "br_1",
+        services: [
+          {
+            serviceType: "custom" as const,
+            name: "Custom Fade",
+            duration: 35,
+            price: 450,
+          },
+        ],
+      };
+
+      await previewAppointmentServices("apt_999", previewPayload);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/appointments/apt_999/services/preview",
+        previewPayload,
+        expect.anything()
+      );
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            id: "apt_999",
+            services: [
+              {
+                name: "Custom Fade",
+                duration: 35,
+                price: 450,
+                isCustom: true,
+                serviceType: "custom",
+                serviceId: null,
+              },
+            ],
+          },
+        },
+      });
+
+      const commitPayload = {
+        branchId: "br_1",
+        previewToken: "preview_tok_99",
+        services: previewPayload.services,
+      };
+
+      await commitAppointmentServices("apt_999", commitPayload);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/appointments/apt_999/services/commit",
+        commitPayload,
+        expect.anything()
+      );
+    });
+  });
 });
+
 

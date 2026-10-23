@@ -51,6 +51,8 @@ import {
   UserCheck,
   ChevronDown,
   ChevronRight,
+  Plus,
+  AlertCircle,
 } from "lucide-react";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
@@ -120,6 +122,11 @@ export function CreateAppointmentDialog({
   const [collapsedCategories, setCollapsedCategories] = useState<
     Record<string, boolean>
   >({});
+  const [showAddCustomModal, setShowAddCustomModal] = useState(false);
+  const [customServiceName, setCustomServiceName] = useState("");
+  const [customServiceDuration, setCustomServiceDuration] = useState("30");
+  const [customServicePrice, setCustomServicePrice] = useState("");
+  const [customServiceError, setCustomServiceError] = useState<string | null>(null);
 
   const activeBranches = availableBranches.map((b) => ({
     id: b.id,
@@ -179,7 +186,10 @@ export function CreateAppointmentDialog({
     [watchedServices],
   );
   const selectedServiceIds = useMemo(
-    () => selectedServices.map((s) => s.serviceId),
+    () =>
+      selectedServices
+        .filter((s): s is Extract<typeof s, { serviceType: "registered" }> => s.serviceType === "registered")
+        .map((s) => s.serviceId),
     [selectedServices],
   );
 
@@ -355,6 +365,9 @@ export function CreateAppointmentDialog({
   // Calculate requested total duration
   const requestedDuration = useMemo(() => {
     return selectedServices.reduce((acc, item) => {
+      if (item.serviceType === "custom") {
+        return acc + (Number(item.duration) || 0);
+      }
       const srv = services.find((s) => s.id === item.serviceId);
       return acc + (srv?.duration || 0);
     }, 0);
@@ -493,19 +506,27 @@ export function CreateAppointmentDialog({
     let coveredCount = 0;
 
     for (const item of selectedServices) {
-      const srv = services.find((s: Service) => s.id === item.serviceId);
-      if (srv) {
-        totalDuration += srv.duration || 0;
-        const itemPrice =
-          item.customPrice !== undefined && item.customPrice !== null
-            ? Number(item.customPrice)
-            : (srv.pricing?.basePrice ?? 0);
+      if (item.serviceType === "custom") {
+        const duration = Number(item.duration) || 0;
+        const price = Number(item.price) || 0;
+        totalDuration += duration;
+        grossSubtotal += price;
+        // Custom services never consume subscription entitlements
+      } else {
+        const srv = services.find((s: Service) => s.id === item.serviceId);
+        if (srv) {
+          totalDuration += srv.duration || 0;
+          const itemPrice =
+            item.customPrice !== undefined && item.customPrice !== null
+              ? Number(item.customPrice)
+              : (srv.pricing?.basePrice ?? 0);
 
-        grossSubtotal += itemPrice;
+          grossSubtotal += itemPrice;
 
-        if (item.appliedSubscriptionId) {
-          coveredCount += 1;
-          subscriptionDeduction += itemPrice;
+          if (item.appliedSubscriptionId) {
+            coveredCount += 1;
+            subscriptionDeduction += itemPrice;
+          }
         }
       }
     }
@@ -684,22 +705,44 @@ export function CreateAppointmentDialog({
   const handleFormSubmit = async (data: CreateAppointmentSchemaType) => {
     setConflictError(null);
 
-    const formattedServices = (data.services || []).map((s) => ({
-      serviceId: s.serviceId,
-      customPrice:
-        s.customPrice !== undefined && s.customPrice !== null
-          ? Number(s.customPrice)
-          : undefined,
-      appliedSubscriptionId: s.appliedSubscriptionId || undefined,
-    }));
+    const formattedServices = (data.services || []).map((s) => {
+      if (s.serviceType === "custom") {
+        return {
+          serviceType: "custom" as const,
+          name: s.name.trim(),
+          duration: Math.max(1, Math.min(720, Math.round(Number(s.duration) || 1))),
+          price: Math.max(0, Number(s.price) || 0),
+          _id: s._id,
+          id: s.id,
+        };
+      }
+      return {
+        serviceType: "registered" as const,
+        serviceId: s.serviceId,
+        customPrice:
+          s.customPrice !== undefined && s.customPrice !== null
+            ? Number(s.customPrice)
+            : undefined,
+        appliedSubscriptionId: s.appliedSubscriptionId || undefined,
+      };
+    });
 
-    // Enforce production invariants: walk-in appointments are strictly today and require no reminders
+    const registeredServiceIds = formattedServices
+      .map((s) => ("serviceId" in s ? s.serviceId : undefined))
+      .filter((id): id is string => Boolean(id));
+
+    // Enforce production invariants: walk-in appointments are strictly today and require no reminders.
+    // If there are no registered services (e.g. custom-only appointment), omit serviceIds completely
+    // so the backend validation doesn't reject empty serviceIds array ([]) while services is populated.
+    const serviceIdsPayload =
+      registeredServiceIds.length > 0 ? { serviceIds: registeredServiceIds } : {};
+
     const payload: CreateAppointmentSchemaType =
       data.bookingType === "walk_in"
         ? {
             ...data,
             services: formattedServices,
-            serviceIds: formattedServices.map((s) => s.serviceId),
+            ...serviceIdsPayload,
             date: format(new Date(), "yyyy-MM-dd"),
             reminder: {
               enabled: false,
@@ -710,8 +753,11 @@ export function CreateAppointmentDialog({
         : {
             ...data,
             services: formattedServices,
-            serviceIds: formattedServices.map((s) => s.serviceId),
+            ...serviceIdsPayload,
           };
+    if (registeredServiceIds.length === 0) {
+      delete (payload as { serviceIds?: string[] }).serviceIds;
+    }
 
     // Validate that the appointment does not spill past calendar midnight (1440 minutes)
     if (data.startTime && selectedServicesSummary.totalDuration > 0) {
@@ -802,9 +848,11 @@ export function CreateAppointmentDialog({
     }
   }, [isOpen, selectedServicesSummary.coveredCount]);
 
-  const handleRemoveService = (serviceId: string) => {
-    const updated = selectedServices.filter((s) => s.serviceId !== serviceId);
-    const updatedSelectedServiceIds = updated.map((s) => s.serviceId);
+  const handleRemoveServiceByIndex = (index: number) => {
+    const updated = selectedServices.filter((_, i) => i !== index);
+    const updatedSelectedServiceIds = updated
+      .filter((s): s is Extract<typeof s, { serviceType: "registered" }> => s.serviceType === "registered")
+      .map((s) => s.serviceId);
     setValue("services", updated, { shouldValidate: true });
     setValue("serviceIds", updatedSelectedServiceIds);
 
@@ -826,8 +874,19 @@ export function CreateAppointmentDialog({
     }
   };
 
+  const handleRemoveService = (serviceId: string) => {
+    const idx = selectedServices.findIndex(
+      (s) => s.serviceType === "registered" && s.serviceId === serviceId,
+    );
+    if (idx !== -1) {
+      handleRemoveServiceByIndex(idx);
+    }
+  };
+
   const handleServiceToggle = (service: Service) => {
-    const isSelected = selectedServices.some((s) => s.serviceId === service.id);
+    const isSelected = selectedServices.some(
+      (s) => s.serviceType === "registered" && s.serviceId === service.id,
+    );
 
     if (isSelected) {
       handleRemoveService(service.id);
@@ -840,12 +899,15 @@ export function CreateAppointmentDialog({
       const updated = [
         ...selectedServices,
         {
+          serviceType: "registered" as const,
           serviceId: service.id,
           customPrice: undefined,
           appliedSubscriptionId,
         },
       ];
-      const updatedSelectedServiceIds = updated.map((s) => s.serviceId);
+      const updatedSelectedServiceIds = updated
+        .filter((s): s is Extract<typeof s, { serviceType: "registered" }> => s.serviceType === "registered")
+        .map((s) => s.serviceId);
       setValue("services", updated, { shouldValidate: true });
       setValue("serviceIds", updatedSelectedServiceIds);
 
@@ -870,7 +932,7 @@ export function CreateAppointmentDialog({
 
   const handleCustomPriceChange = (serviceId: string, rawPrice: string) => {
     const updated = selectedServices.map((s) => {
-      if (s.serviceId !== serviceId) return s;
+      if (s.serviceType !== "registered" || s.serviceId !== serviceId) return s;
       if (rawPrice.trim() === "") {
         return { ...s, customPrice: undefined };
       }
@@ -883,12 +945,25 @@ export function CreateAppointmentDialog({
     setValue("services", updated, { shouldValidate: true });
   };
 
+  const handleCustomServicePriceChange = (index: number, rawPrice: string) => {
+    const updated = selectedServices.map((s, i) => {
+      if (i !== index) return s;
+      const parsed = parseFloat(rawPrice);
+      const newPrice = isNaN(parsed) ? 0 : Math.max(0, parsed);
+      return {
+        ...s,
+        price: newPrice,
+      };
+    });
+    setValue("services", updated, { shouldValidate: true });
+  };
+
   const handleToggleSubscriptionCoverage = (
     serviceId: string,
     subId: string | null,
   ) => {
     const updated = selectedServices.map((s) => {
-      if (s.serviceId !== serviceId) return s;
+      if (s.serviceType !== "registered" || s.serviceId !== serviceId) return s;
       const currentlyApplied =
         s.appliedSubscriptionId === subId ||
         (s.appliedSubscriptionId === "auto" && subId === "auto");
@@ -898,6 +973,47 @@ export function CreateAppointmentDialog({
       };
     });
     setValue("services", updated, { shouldValidate: true });
+  };
+
+  const handleAddCustomService = () => {
+    const trimmedName = customServiceName.trim();
+    if (!trimmedName) {
+      setCustomServiceError("Service name is required.");
+      return;
+    }
+    if (trimmedName.length > 120) {
+      setCustomServiceError("Service name cannot exceed 120 characters.");
+      return;
+    }
+    const durationNum = parseInt(customServiceDuration, 10);
+    if (isNaN(durationNum) || durationNum < 1 || durationNum > 720) {
+      setCustomServiceError("Duration must be between 1 and 720 minutes.");
+      return;
+    }
+    const priceNum = customServicePrice === "" ? 0 : parseFloat(customServicePrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      setCustomServiceError("Agreed price must be 0 or higher.");
+      return;
+    }
+
+    const newCustomService = {
+      serviceType: "custom" as const,
+      name: trimmedName,
+      duration: durationNum,
+      price: priceNum,
+      id: `custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    };
+
+    const updated = [...selectedServices, newCustomService];
+    setValue("services", updated, { shouldValidate: true });
+    toast.success(`Custom service "${trimmedName}" added.`);
+
+    // Reset inputs & close modal
+    setCustomServiceName("");
+    setCustomServiceDuration("30");
+    setCustomServicePrice("");
+    setCustomServiceError(null);
+    setShowAddCustomModal(false);
   };
 
   const dialogTitle =
@@ -1142,41 +1258,67 @@ export function CreateAppointmentDialog({
             </div>
 
             {/* Step 2: Service Catalog Selector (Production-Grade High-Density Master-Detail UX) */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3">
+              {/* Header: Label + Selected Counter Badge */}
+              <div className="flex items-center justify-between gap-3">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Scissors className="h-3.5 w-3.5 text-primary" />
                   2. Select Services <span className="text-destructive">*</span>
                 </label>
-                {selectedServicesSummary.count > 0 && (
-                  <span className="text-[11px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                    {selectedServicesSummary.count} selected (
-                    {selectedServicesSummary.totalDuration} mins)
+
+                {selectedServicesSummary.count > 0 ? (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/25 text-[11px] font-semibold text-primary animate-in fade-in duration-150">
+                    <span className="font-bold">{selectedServicesSummary.count}</span>
+                    <span>{selectedServicesSummary.count === 1 ? "service" : "services"}</span>
+                    <span className="text-muted-foreground/60">•</span>
+                    <span className="font-medium text-foreground">{selectedServicesSummary.totalDuration}m</span>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-muted-foreground/80 font-medium">
+                    None selected
                   </span>
                 )}
               </div>
 
-              {/* Search + Category Filter Tabs */}
+              {/* Search + Custom Service Quick-Action Toolbar */}
               <div className="space-y-2 sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-1">
-                <div className="relative">
-                  <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Search all services by name..."
-                    value={serviceSearch}
-                    onChange={(e) => setServiceSearch(e.target.value)}
-                    className="h-9 text-xs pl-9 pr-8 rounded-lg bg-card border-border shadow-xs"
-                  />
-                  {serviceSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setServiceSearch("")}
-                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer"
-                      title="Clear search"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search services by name..."
+                      value={serviceSearch}
+                      onChange={(e) => setServiceSearch(e.target.value)}
+                      className="h-9 text-xs pl-9 pr-8 rounded-lg bg-card border-border shadow-2xs w-full focus-visible:ring-1"
+                    />
+                    {serviceSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setServiceSearch("")}
+                        className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                        title="Clear search"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomServiceName("");
+                      setCustomServiceDuration("30");
+                      setCustomServicePrice("");
+                      setCustomServiceError(null);
+                      setShowAddCustomModal(true);
+                    }}
+                    className="h-9 px-3 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 active:bg-purple-500/25 border border-purple-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0 whitespace-nowrap hover:shadow-xs"
+                    title="Add a custom one-off service for this appointment"
+                  >
+                    <Plus className="h-3.5 w-3.5 stroke-3 text-purple-600 dark:text-purple-400" />
+                    <span>Custom Service</span>
+                  </button>
                 </div>
 
                 {/* Horizontal Category Pill Carousel with Dedicated 'Selected' Quick Filter & Wheel Scroll */}
@@ -1784,20 +1926,99 @@ export function CreateAppointmentDialog({
                     }
                     className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"
                   >
-                    {selectedServices.map((item) => {
+                    {selectedServices.map((item, idx) => {
+                      if (item.serviceType === "custom") {
+                        const customName = item.name || "Custom Service";
+                        const customDuration = Number(item.duration) || 0;
+                        const customPrice = Number(item.price) || 0;
+
+                        return (
+                          <div
+                            key={item.id || item._id || `custom-line-${idx}`}
+                            className="rounded-xl px-3.5 py-2.5 border transition-all text-xs bg-purple-500/5 border-purple-500/30 ring-1 ring-purple-500/15"
+                          >
+                            {/* Row 1: Custom Name, Duration & Price Input */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
+                                    {customName}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/15 px-1.5 py-0.2 rounded border border-purple-500/30 shrink-0 whitespace-nowrap">
+                                    Custom Service
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-muted-foreground block pt-0.5">
+                                  {customDuration} mins • One-off agreed service
+                                </span>
+                              </div>
+
+                              {/* Price Input & Remove Action */}
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
+                                  <span className="text-[11px] font-semibold text-muted-foreground">
+                                    ₹
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={customPrice}
+                                    placeholder="0"
+                                    onChange={(e) =>
+                                      handleCustomServicePriceChange(idx, e.target.value)
+                                    }
+                                    className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
+                                    title="Agreed price for this custom service"
+                                  />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveServiceByIndex(idx)}
+                                  className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
+                                  title="Remove custom service from booking"
+                                  aria-label={`Remove ${customName}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Row 2: Note that subscription cannot be applied */}
+                            <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+                              <span className="text-[10px] italic">
+                                Custom services cannot consume subscription entitlements
+                              </span>
+                              <span className="font-extrabold text-foreground text-xs leading-tight">
+                                {formatCurrency(customPrice)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Type narrow to registered item
+                      const registeredItem = item as {
+                        serviceType?: "registered";
+                        serviceId: string;
+                        customPrice?: number;
+                        appliedSubscriptionId?: string | null;
+                      };
+
                       const srv = services.find(
-                        (s: Service) => s.id === item.serviceId,
+                        (s: Service) => s.id === registeredItem.serviceId,
                       );
-                      const srvName = srv?.name || item.serviceId;
+                      const srvName = srv?.name || registeredItem.serviceId;
                       const basePrice = srv?.pricing?.basePrice ?? 0;
                       const currentEffectivePrice =
-                        item.customPrice !== undefined &&
-                        item.customPrice !== null
-                          ? item.customPrice
+                        registeredItem.customPrice !== undefined &&
+                        registeredItem.customPrice !== null
+                          ? registeredItem.customPrice
                           : basePrice;
-                      const hasSub = Boolean(item.appliedSubscriptionId);
+                      const hasSub = Boolean(registeredItem.appliedSubscriptionId);
                       const subQuota = subscriptionQuotaByService.get(
-                        item.serviceId,
+                        registeredItem.serviceId,
                       );
                       const canRedeemPlan = Boolean(
                         subQuota && subQuota.remaining > 0,
@@ -1805,7 +2026,7 @@ export function CreateAppointmentDialog({
 
                       return (
                         <div
-                          key={item.serviceId}
+                          key={registeredItem.serviceId}
                           className={`rounded-xl px-3.5 py-2.5 border transition-all text-xs ${
                             hasSub
                               ? "bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20"
@@ -1841,11 +2062,11 @@ export function CreateAppointmentDialog({
                                   type="number"
                                   min="0"
                                   step="any"
-                                  value={item.customPrice ?? ""}
+                                  value={registeredItem.customPrice ?? ""}
                                   placeholder={String(basePrice)}
                                   onChange={(e) =>
                                     handleCustomPriceChange(
-                                      item.serviceId,
+                                      registeredItem.serviceId,
                                       e.target.value,
                                     )
                                   }
@@ -1857,7 +2078,7 @@ export function CreateAppointmentDialog({
                               <button
                                 type="button"
                                 onClick={() =>
-                                  handleRemoveService(item.serviceId)
+                                  handleRemoveService(registeredItem.serviceId)
                                 }
                                 className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
                                 title="Remove service from booking"
@@ -1885,29 +2106,29 @@ export function CreateAppointmentDialog({
                                         type="button"
                                         onClick={() =>
                                           handleToggleSubscriptionCoverage(
-                                            item.serviceId,
+                                            registeredItem.serviceId,
                                             "auto",
                                           )
                                         }
                                         className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer ${
-                                          item.appliedSubscriptionId === "auto"
+                                          registeredItem.appliedSubscriptionId === "auto"
                                             ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
                                             : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
                                         }`}
                                         title="Auto-select earliest expiring subscription"
                                       >
-                                        {item.appliedSubscriptionId === "auto" ? "✓ " : ""}
+                                        {registeredItem.appliedSubscriptionId === "auto" ? "✓ " : ""}
                                         Auto (Earliest Expiring)
                                       </button>
                                       {subQuota!.candidates.map((cand) => {
-                                        const isThisApplied = item.appliedSubscriptionId === cand.subscriptionId;
+                                        const isThisApplied = registeredItem.appliedSubscriptionId === cand.subscriptionId;
                                         return (
                                           <button
                                             key={cand.subscriptionId}
                                             type="button"
                                             onClick={() =>
                                               handleToggleSubscriptionCoverage(
-                                                item.serviceId,
+                                                registeredItem.serviceId,
                                                 cand.subscriptionId,
                                               )
                                             }
@@ -1932,7 +2153,7 @@ export function CreateAppointmentDialog({
                                       type="button"
                                       onClick={() =>
                                         handleToggleSubscriptionCoverage(
-                                          item.serviceId,
+                                          registeredItem.serviceId,
                                           "auto",
                                         )
                                       }
@@ -2089,6 +2310,129 @@ export function CreateAppointmentDialog({
           </div>
         </form>
       </div>
+
+      {/* Add Custom Service Modal Sub-Dialog */}
+      <Dialog
+        isOpen={showAddCustomModal}
+        onClose={() => {
+          setShowAddCustomModal(false);
+          setCustomServiceError(null);
+        }}
+        title="Add Custom Appointment Service"
+        maxWidth="md"
+      >
+        <div className="space-y-4 pt-1 text-xs">
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Add a one-off custom service agreed with the customer for this specific appointment. It will not be added to the global service catalog.
+          </p>
+          {customServiceError && (
+            <div className="p-2.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{customServiceError}</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="font-semibold text-foreground flex items-center justify-between">
+              <span>Service Name *</span>
+              <span className="text-[10px] text-muted-foreground font-normal">Max 120 chars</span>
+            </label>
+            <Input
+              type="text"
+              placeholder="e.g. Special Beard Sculpting & Styling"
+              value={customServiceName}
+              maxLength={120}
+              onChange={(e) => {
+                setCustomServiceName(e.target.value);
+                setCustomServiceError(null);
+              }}
+              className="h-9 text-xs"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">
+                Duration (minutes) *
+              </label>
+              <Input
+                type="number"
+                min="1"
+                max="720"
+                step="1"
+                placeholder="30"
+                value={customServiceDuration}
+                onChange={(e) => {
+                  setCustomServiceDuration(e.target.value);
+                  setCustomServiceError(null);
+                }}
+                className="h-9 text-xs"
+              />
+              <span className="text-[10px] text-muted-foreground block">
+                Allowed range: 1–720 mins
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="font-semibold text-foreground">
+                Customer-Agreed Price (₹) *
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                placeholder="0"
+                value={customServicePrice}
+                onChange={(e) => {
+                  setCustomServicePrice(e.target.value);
+                  setCustomServiceError(null);
+                }}
+                className="h-9 text-xs"
+              />
+              <span className="text-[10px] text-muted-foreground block">
+                Agreed price (can be 0)
+              </span>
+            </div>
+          </div>
+
+          <div className="p-3 bg-muted/40 rounded-xl border border-border/80 text-[11px] text-muted-foreground space-y-1">
+            <div className="font-semibold text-foreground flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-purple-600" />
+              Custom Service Characteristics
+            </div>
+            <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
+              <li>Never saved to the general services catalog.</li>
+              <li>Cannot consume customer subscription plan entitlements.</li>
+              <li>Calculates directly into appointment duration and collision detection.</li>
+            </ul>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowAddCustomModal(false);
+                setCustomServiceError(null);
+              }}
+              className="text-xs h-8"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleAddCustomService}
+              className="text-xs h-8 px-4 font-bold bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Service
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </Dialog>
   );
 }

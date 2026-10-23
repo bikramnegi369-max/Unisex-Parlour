@@ -310,9 +310,9 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
     expect(firstLaneHeader?.className).toContain("z-20");
   });
 
-  it("truncates duration for completed appointments to reflect actual completion time and displays actual completion", () => {
-    // Scheduled 10:00 - 12:00 (120 mins), but completed early at 10:25 (25 mins)
-    const completedAppt: Appointment = {
+  it("preserves scheduled interval for completed appointments without shrinking or expanding the calendar block", () => {
+    // Scheduled 10:00 - 12:00 (120 mins), completed early at 10:25 (25 mins)
+    const earlyCompletedAppt: Appointment = {
       ...mockAppt1,
       id: "appt_completed_1",
       status: "completed",
@@ -324,7 +324,7 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
 
     render(
       <AppointmentCalendarView
-        appointments={[completedAppt]}
+        appointments={[earlyCompletedAppt]}
         isLoading={false}
         selectedDate={new Date("2026-08-10T00:00:00")}
         viewMode="day"
@@ -335,7 +335,92 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
       />
     );
 
-    // Displays the actual completion time (10:00 - 10:25) rather than the scheduled 10:00 - 12:00
-    expect(screen.getByText("10:00 - 10:25")).toBeDefined();
+    // Primary calendar block displays scheduled interval (10:00 - 12:00)
+    expect(screen.getByText("10:00 - 12:00")).toBeDefined();
+  });
+
+  it("handles late-completion by showing delay indicator without distorting calendar positioning or column layout", () => {
+    // Scheduled 10:00 - 10:45 (45 mins), but completed late at 11:15 (+30m late)
+    const lateCompletedAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_late_1",
+      status: "completed",
+      startTime: "10:00",
+      endTime: "10:45",
+      totalDuration: 45,
+      completedAt: "2026-08-10T05:45:00.000Z", // 11:15 AM in Asia/Kolkata (+05:30)
+    };
+
+    // Subsequent appointment in the same staff lane: scheduled 11:00 - 11:45
+    // Because scheduled 10:00 - 10:45 ends before 11:00, they are non-overlapping in schedule!
+    // In the old implementation, extending effectiveEnd to 11:15 would have created a false collision with 11:00.
+    const nextLaneAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_next_1",
+      appointmentCode: "APP-001099",
+      status: "scheduled",
+      startTime: "11:00",
+      endTime: "11:45",
+      totalDuration: 45,
+      staffId: "emp_1",
+    };
+
+    const { container } = render(
+      <AppointmentCalendarView
+        appointments={[lateCompletedAppt, nextLaneAppt]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    // 1. Shows scheduled interval for both
+    expect(screen.getByText("10:00 - 10:45")).toBeDefined();
+    expect(screen.getByText("11:00 - 11:45")).toBeDefined();
+
+    // 2. Shows late delay badge on the completed appointment
+    expect(screen.getByText("+30m late")).toBeDefined();
+
+    // 3. Since scheduled times do NOT overlap (10:00-10:45 vs 11:00-11:45), both occupy full width (width: 100%, left: 0%)
+    // rather than being squeezed into side-by-side collision columns (width: 50%)
+    const apptCards = container.querySelectorAll("div[role='button']");
+    expect(apptCards.length).toBe(2);
+    expect((apptCards[0] as HTMLElement).style.width).toBe("100%");
+    expect((apptCards[0] as HTMLElement).style.left).toBe("0%");
+    expect((apptCards[1] as HTMLElement).style.width).toBe("100%");
+    expect((apptCards[1] as HTMLElement).style.left).toBe("0%");
+  });
+
+  it("handles on-time completion without displaying late delay indicator", () => {
+    // Scheduled 10:00 - 10:45, completed exactly at 10:45
+    const onTimeAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_ontime_1",
+      status: "completed",
+      startTime: "10:00",
+      endTime: "10:45",
+      totalDuration: 45,
+      completedAt: "2026-08-10T05:15:00.000Z", // 10:45 AM in Asia/Kolkata (+05:30)
+    };
+
+    render(
+      <AppointmentCalendarView
+        appointments={[onTimeAppt]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    expect(screen.getByText("10:00 - 10:45")).toBeDefined();
+    expect(screen.queryByText(/late/i)).toBeNull();
   });
 });

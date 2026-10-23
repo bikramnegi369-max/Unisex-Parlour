@@ -73,7 +73,9 @@ export function AssignStaffDialog({
       return appointment.serviceIds;
     }
     if (appointment.services && appointment.services.length > 0) {
-      return appointment.services.map((s) => s.serviceId);
+      return appointment.services
+        .map((s) => s.serviceId)
+        .filter((id): id is string => Boolean(id));
     }
     return [];
   }, [appointment]);

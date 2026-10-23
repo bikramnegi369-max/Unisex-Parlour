@@ -226,17 +226,22 @@ export function CreateInvoiceDialog({
               const isCovered = Boolean(item.appliedSubscriptionId);
               return (
                 <div
-                  key={item.serviceId || idx}
+                  key={item.serviceId || item._id || item.id || `invoice-srv-${idx}`}
                   className="p-3 flex items-center justify-between text-xs gap-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-foreground truncate">
                         {item.name}
                       </span>
                       {item.duration && (
                         <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
                           {item.duration}m
+                        </span>
+                      )}
+                      {(item.isCustom || item.serviceType === "custom" || !item.serviceId) && (
+                        <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                          Custom
                         </span>
                       )}
                       {isCovered && (

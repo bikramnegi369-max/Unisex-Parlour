@@ -34,11 +34,15 @@ export interface AppointmentReminderChannelState {
 }
 
 export interface AppointmentServiceSnapshot {
-  serviceId: string;
+  serviceId?: string | null;
   name: string;
   duration: number; // in minutes
   price: number;
   category?: string;
+  isCustom?: boolean;
+  serviceType?: "registered" | "custom";
+  _id?: string;
+  id?: string;
   appliedSubscriptionId?: string | null;
   subscriptionCode?: string | null;
   subscriptionPlanName?: string | null;
@@ -122,11 +126,40 @@ export interface Appointment {
   branch?: BranchSummary;
 }
 
-export interface CreateAppointmentServiceItem {
+export interface RegisteredServiceItem {
+  serviceType: "registered";
   serviceId: string;
   customPrice?: number;
   appliedSubscriptionId?: string | null;
 }
+
+export interface CustomServiceItem {
+  serviceType: "custom";
+  name: string;
+  duration: number; // in minutes (1–720)
+  price: number; // Customer-agreed price (>= 0)
+  _id?: string;
+  id?: string;
+}
+
+export type AppointmentServiceItem = RegisteredServiceItem | CustomServiceItem;
+
+export type CreateAppointmentServiceItem =
+  | AppointmentServiceItem
+  | {
+      serviceType?: "registered";
+      serviceId: string;
+      customPrice?: number;
+      appliedSubscriptionId?: string | null;
+    }
+  | {
+      serviceType: "custom";
+      name: string;
+      duration: number;
+      price: number;
+      _id?: string;
+      id?: string;
+    };
 
 export interface CreateAppointmentPayload {
   branchId: string; // Authoritative mutation target branch
@@ -174,13 +207,48 @@ export interface UpdateAppointmentStatusPayload {
   cancellationReason?: string;
   reason?: string;
   forceEarlyStart?: boolean;
+  allowOverdueStaffOverride?: boolean;
 }
 
-export interface ServiceModificationItem {
+export interface StaffOverdueConflictData {
+  conflictType: "STAFF_OVERDUE_APPOINTMENT";
+  overdueAppointmentCode?: string;
+  overdueScheduledEndTime?: string;
+  overdueMinutes?: number;
+  requiresOverride?: boolean;
+  message?: string;
+}
+
+export interface RegisteredServiceModificationItem {
+  serviceType?: "registered";
   serviceId: string;
   customPrice?: number;
   appliedSubscriptionId?: string | null;
 }
+
+export interface CustomServiceModificationItem {
+  serviceType: "custom";
+  name: string;
+  duration: number;
+  price: number;
+  _id?: string;
+  id?: string;
+}
+
+export type ServiceModificationItem =
+  | RegisteredServiceModificationItem
+  | CustomServiceModificationItem
+  | {
+      serviceType?: "registered" | "custom";
+      serviceId?: string;
+      name?: string;
+      duration?: number;
+      price?: number;
+      customPrice?: number;
+      appliedSubscriptionId?: string | null;
+      _id?: string;
+      id?: string;
+    };
 
 export interface ServiceModificationPreviewPayload {
   branchId: string;
@@ -228,11 +296,13 @@ export interface ServiceModificationPreviewData {
       total: number;
     };
     services?: Array<{
-      serviceId: string;
+      serviceId?: string | null;
       name: string;
       duration: number;
       price: number;
       appliedSubscriptionId?: string | null;
+      serviceType?: "registered" | "custom";
+      isCustom?: boolean;
     }>;
   };
   duration?: number;
@@ -243,11 +313,13 @@ export interface ServiceModificationPreviewData {
     total: number;
   };
   services?: Array<{
-    serviceId: string;
+    serviceId?: string | null;
     name: string;
     duration: number;
     price: number;
     appliedSubscriptionId?: string | null;
+    serviceType?: "registered" | "custom";
+    isCustom?: boolean;
   }>;
   affectedAppointments?: CascadeAffectedAppointment[];
   shiftedAppointments?: CascadeAffectedAppointment[];

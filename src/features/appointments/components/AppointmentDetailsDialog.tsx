@@ -45,6 +45,7 @@ import type {
   Appointment,
   AppointmentServiceSnapshot,
 } from "../types/appointment.types";
+import { calculateLateDelayMins } from "../utils/appointmentTime";
 
 interface AppointmentDetailsDialogProps {
   appointment: Appointment | null;
@@ -258,9 +259,34 @@ export function AppointmentDetailsDialog({
             </div>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-5">
               <Clock className="h-3 w-3" />
-              {appointment.startTime}{" "}
-              {appointment.endTime ? `- ${appointment.endTime}` : ""}
+              <span>
+                {appointment.startTime}{" "}
+                {appointment.endTime ? `- ${appointment.endTime}` : ""}
+              </span>
             </div>
+            {appointment.status === "completed" && appointment.completedAt && (
+              (() => {
+                const { lateDelayMins, actualCompletedTimeStr } = calculateLateDelayMins({
+                  date: appointment.date,
+                  endTime: appointment.endTime,
+                  completedAt: appointment.completedAt,
+                  branchTimezone,
+                });
+
+                return (
+                  <div className="text-[11px] text-muted-foreground pl-5 flex items-center gap-1.5 pt-0.5 flex-wrap">
+                    <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                      Actual Completion: {actualCompletedTimeStr ? `${actualCompletedTimeStr} (${branchTimezone})` : formatDate(appointment.completedAt, "hh:mm a")}
+                    </span>
+                    {lateDelayMins !== null && lateDelayMins > 0 && (
+                      <span className="text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded-full">
+                        +{lateDelayMins}m late
+                      </span>
+                    )}
+                  </div>
+                );
+              })()
+            )}
           </div>
 
           <div className="space-y-1">
@@ -288,16 +314,21 @@ export function AppointmentDetailsDialog({
 
                 return (
                   <div
-                    key={srv.serviceId || idx}
+                    key={srv.serviceId || srv._id || srv.id || `srv-idx-${idx}`}
                     className="p-2.5 flex items-center justify-between text-xs"
                   >
                     <div className="flex items-center gap-2">
                       <Scissors className="h-3.5 w-3.5 text-primary" />
                       <div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-semibold text-foreground">
                             {srv.name}
                           </span>
+                          {(srv.isCustom || srv.serviceType === "custom" || !srv.serviceId) && (
+                            <span className="text-[9px] bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-semibold whitespace-nowrap">
+                              Custom Service
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-0.5">
                           <span>{srv.duration} mins</span>

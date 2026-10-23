@@ -92,28 +92,42 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
     }
   }
 
-  // 6. Services normalization (serviceName → name)
+  // 6. Services normalization (serviceName → name, preserve custom service attributes)
   const rawServices: Record<string, unknown>[] = Array.isArray(raw.services)
     ? raw.services
     : [];
-  const services: AppointmentServiceSnapshot[] = rawServices.map((s) => ({
-    serviceId: toFlatId(s.serviceId || s._id || s.id),
-    name: (s.name as string) || (s.serviceName as string) || "",
-    duration: (s.duration as number) || 0,
-    price: (s.price as number) || 0,
-    category: s.category as string | undefined,
-    appliedSubscriptionId:
-      (s.appliedSubscriptionId as string) ||
-      (toFlatId(s.appliedSubscriptionId) ? toFlatId(s.appliedSubscriptionId) : null) ||
-      null,
-    subscriptionCode: typeof s.subscriptionCode === "string" ? s.subscriptionCode : null,
-    subscriptionPlanName: typeof s.subscriptionPlanName === "string" ? s.subscriptionPlanName : null,
-    isRedeemedViaSubscription: Boolean(s.isRedeemedViaSubscription),
-    subscriptionUsageId:
-      (s.subscriptionUsageId as string) ||
-      (toFlatId(s.subscriptionUsageId) ? toFlatId(s.subscriptionUsageId) : null) ||
-      null,
-  }));
+  const services: AppointmentServiceSnapshot[] = rawServices.map((s) => {
+    const isCustomExplicit = Boolean(s.isCustom || s.serviceType === "custom");
+    // If it has an explicit serviceId, check it. If empty or null or marked custom, serviceId is null/undefined.
+    const rawServiceId = s.serviceId || (isCustomExplicit ? null : s._id || s.id);
+    const flattenedServiceId = rawServiceId ? toFlatId(rawServiceId) : null;
+    const isCustom = isCustomExplicit || !flattenedServiceId;
+
+    return {
+      serviceId: flattenedServiceId || null,
+      name: (s.name as string) || (s.serviceName as string) || (isCustom ? "Custom Service" : ""),
+      duration: (s.duration as number) || 0,
+      price: (s.price as number) || 0,
+      category: s.category as string | undefined,
+      isCustom,
+      serviceType: isCustom ? "custom" : "registered",
+      _id: s._id ? String(s._id) : undefined,
+      id: s.id ? String(s.id) : undefined,
+      appliedSubscriptionId: isCustom
+        ? null
+        : (s.appliedSubscriptionId as string) ||
+          (toFlatId(s.appliedSubscriptionId) ? toFlatId(s.appliedSubscriptionId) : null) ||
+          null,
+      subscriptionCode: isCustom ? null : typeof s.subscriptionCode === "string" ? s.subscriptionCode : null,
+      subscriptionPlanName: isCustom ? null : typeof s.subscriptionPlanName === "string" ? s.subscriptionPlanName : null,
+      isRedeemedViaSubscription: isCustom ? false : Boolean(s.isRedeemedViaSubscription),
+      subscriptionUsageId: isCustom
+        ? null
+        : (s.subscriptionUsageId as string) ||
+          (toFlatId(s.subscriptionUsageId) ? toFlatId(s.subscriptionUsageId) : null) ||
+          null,
+    };
+  });
 
   // 7. Cancellation normalization (object → flat reason + structured object)
   const cancellationObj = raw.cancellation as AppointmentCancellation | undefined;
@@ -146,7 +160,7 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
     serviceIds:
       Array.isArray(raw.serviceIds) && raw.serviceIds.length > 0
         ? raw.serviceIds
-        : services.map((s) => s.serviceId),
+        : (services.map((s) => s.serviceId).filter(Boolean) as string[]),
     services,
     staffId,
     staff,
@@ -271,6 +285,9 @@ export const updateAppointmentStatus = async (
   }
   if (payload.forceEarlyStart === true) {
     requestBody.forceEarlyStart = true;
+  }
+  if (payload.allowOverdueStaffOverride === true) {
+    requestBody.allowOverdueStaffOverride = true;
   }
 
   const { data } = await apiClient.patch<{ success: boolean; data: Record<string, unknown> }>(

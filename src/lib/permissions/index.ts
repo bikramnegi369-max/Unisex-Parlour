@@ -12,6 +12,7 @@ export type PermissionType =
   | "appointments.update_status"
   | "appointments.cancel"
   | "appointments.force_early_start"
+  | "appointments.reschedule"
   | "appointments.delete"
   | "appointments.reminders.send"
   | "employees.view"

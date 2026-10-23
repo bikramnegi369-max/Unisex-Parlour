@@ -1,10 +1,41 @@
 import { z } from "zod";
 
-export const createAppointmentServiceItemSchema = z.object({
+export const registeredServiceItemSchema = z.object({
+  serviceType: z.literal("registered").default("registered"),
   serviceId: z.string().min(1, "Service ID is required"),
   customPrice: z.coerce.number().min(0, "Price must be a positive number").optional(),
   appliedSubscriptionId: z.string().nullable().optional(),
 });
+
+export const customServiceItemSchema = z.object({
+  serviceType: z.literal("custom"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Service name is required")
+    .max(120, "Service name cannot exceed 120 characters"),
+  duration: z.coerce
+    .number()
+    .int("Duration must be an integer")
+    .min(1, "Duration must be at least 1 minute")
+    .max(720, "Duration cannot exceed 720 minutes (12 hours)"),
+  price: z.coerce.number().min(0, "Agreed price cannot be negative"),
+  _id: z.string().optional(),
+  id: z.string().optional(),
+});
+
+export const createAppointmentServiceItemSchema = z.preprocess((val) => {
+  if (val && typeof val === "object" && !("serviceType" in val)) {
+    if ("name" in val && typeof (val as { name: unknown }).name === "string") {
+      return { ...(val as object), serviceType: "custom" };
+    }
+    return { ...(val as object), serviceType: "registered" };
+  }
+  return val;
+}, z.discriminatedUnion("serviceType", [
+  registeredServiceItemSchema,
+  customServiceItemSchema,
+]));
 
 export const createAppointmentSchema = z
   .object({
@@ -73,15 +104,44 @@ export const updateStatusSchema = z.object({
     .max(300, "Reason cannot exceed 300 characters")
     .optional(),
   forceEarlyStart: z.boolean().optional(),
+  allowOverdueStaffOverride: z.boolean().optional(),
 });
 
 export type UpdateStatusSchemaType = z.infer<typeof updateStatusSchema>;
 
-export const serviceModificationItemSchema = z.object({
+export const registeredServiceModificationItemSchema = z.object({
+  serviceType: z.literal("registered").optional(),
   serviceId: z.string().min(1, "Service ID is required"),
   customPrice: z.coerce.number().min(0, "Price must be a positive number").optional(),
   appliedSubscriptionId: z.string().nullable().optional(),
 });
+
+export const customServiceModificationItemSchema = z.object({
+  serviceType: z.literal("custom"),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Service name is required")
+    .max(120, "Service name cannot exceed 120 characters"),
+  duration: z.coerce
+    .number()
+    .int("Duration must be an integer")
+    .min(1, "Duration must be at least 1 minute")
+    .max(720, "Duration cannot exceed 720 minutes (12 hours)"),
+  price: z.coerce.number().min(0, "Agreed price cannot be negative"),
+  _id: z.string().optional(),
+  id: z.string().optional(),
+});
+
+export const serviceModificationItemSchema = z.union([
+  customServiceModificationItemSchema,
+  registeredServiceModificationItemSchema,
+  z.object({
+    serviceId: z.string().min(1, "Service ID is required"),
+    customPrice: z.coerce.number().min(0, "Price must be a positive number").optional(),
+    appliedSubscriptionId: z.string().nullable().optional(),
+  }),
+]);
 
 export const serviceModificationPreviewSchema = z.object({
   branchId: z.string().min(1, "Branch is required"),

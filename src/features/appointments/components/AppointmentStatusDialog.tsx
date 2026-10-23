@@ -37,6 +37,18 @@ export function AppointmentStatusDialog({
 }: AppointmentStatusDialogProps) {
   const { user } = useAuth();
   const canForceEarlyStart = hasPermission(user, "appointments.force_early_start");
+  const canOverrideOverdueStaff = hasPermission(user, "appointments.reschedule");
+
+  const [overdueConflict, setOverdueConflict] = React.useState<{
+    conflictType: "STAFF_OVERDUE_APPOINTMENT";
+    overdueAppointmentCode?: string;
+    overdueScheduledEndTime?: string;
+    overdueMinutes?: number;
+    requiresOverride?: boolean;
+    message?: string;
+    pendingPayload?: UpdateStatusSchemaType;
+  } | null>(null);
+  const [isOverriding, setIsOverriding] = React.useState(false);
 
   const {
     register,
@@ -50,6 +62,7 @@ export function AppointmentStatusDialog({
       status: appointment?.status || "scheduled",
       cancellationReason: "",
       forceEarlyStart: false,
+      allowOverdueStaffOverride: false,
     },
   });
 
@@ -76,6 +89,17 @@ export function AppointmentStatusDialog({
     }
   }, [appointment]);
 
+  // Reset state when dialog opens or appointment changes by tracking active ID
+  const [prevApptId, setPrevApptId] = React.useState<string | null>(null);
+  const currentApptId = isOpen && appointment ? appointment.id : null;
+  if (currentApptId !== prevApptId) {
+    setPrevApptId(currentApptId);
+    if (currentApptId) {
+      setOverdueConflict(null);
+      setIsOverriding(false);
+    }
+  }
+
   useEffect(() => {
     if (isOpen && appointment) {
       reset({
@@ -83,6 +107,7 @@ export function AppointmentStatusDialog({
         status: appointment.status,
         cancellationReason: appointment.cancellationReason || "",
         forceEarlyStart: false,
+        allowOverdueStaffOverride: false,
       });
     }
   }, [isOpen, appointment, reset]);
@@ -120,16 +145,78 @@ export function AppointmentStatusDialog({
       submissionPayload.forceEarlyStart = true;
     }
 
+    if (data.allowOverdueStaffOverride === true && canOverrideOverdueStaff) {
+      submissionPayload.allowOverdueStaffOverride = true;
+    }
+
     try {
       await onSubmit(appointment.id, submissionPayload);
       toast.success("Appointment status updated successfully.");
+      setOverdueConflict(null);
+      onClose();
+    } catch (err: unknown) {
+      const axiosError = err as {
+        response?: {
+          status?: number;
+          data?: {
+            message?: string;
+            conflictType?: string;
+            overdueAppointmentCode?: string;
+            overdueScheduledEndTime?: string;
+            overdueMinutes?: number;
+            requiresOverride?: boolean;
+          };
+        };
+      };
+
+      if (
+        axiosError.response?.status === 409 &&
+        axiosError.response.data?.conflictType === "STAFF_OVERDUE_APPOINTMENT"
+      ) {
+        setOverdueConflict({
+          conflictType: "STAFF_OVERDUE_APPOINTMENT",
+          overdueAppointmentCode: axiosError.response.data.overdueAppointmentCode,
+          overdueScheduledEndTime: axiosError.response.data.overdueScheduledEndTime,
+          overdueMinutes: axiosError.response.data.overdueMinutes,
+          requiresOverride: axiosError.response.data.requiresOverride ?? true,
+          message: axiosError.response.data.message,
+          pendingPayload: submissionPayload,
+        });
+        return;
+      }
+
+      toast.error(
+        axiosError.response?.data?.message ||
+          "Failed to update appointment status.",
+      );
+    }
+  };
+
+  const handleConfirmOverdueOverride = async () => {
+    if (!appointment || !overdueConflict?.pendingPayload) return;
+    if (!canOverrideOverdueStaff) {
+      toast.error("You do not have permission (appointments.reschedule) to override overdue staff conflicts.");
+      return;
+    }
+
+    setIsOverriding(true);
+    try {
+      const retryPayload: UpdateStatusSchemaType = {
+        ...overdueConflict.pendingPayload,
+        allowOverdueStaffOverride: true,
+      };
+      await onSubmit(appointment.id, retryPayload);
+      toast.success("Staff overdue conflict overridden and status updated successfully.");
+      setOverdueConflict(null);
       onClose();
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { message?: string } } };
       toast.error(
         axiosError.response?.data?.message ||
-          "Failed to update appointment status.",
+          "Failed to override staff conflict.",
       );
+    } finally {
+      setIsOverriding(false);
     }
   };
 
@@ -186,6 +273,69 @@ export function AppointmentStatusDialog({
                 and cannot transition status further.
               </p>
             )}
+
+            {/* Overdue Staff Conflict Notice & Confirmation */}
+            {overdueConflict && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-xs space-y-3 text-destructive"
+              >
+                <div className="flex items-center gap-1.5 font-semibold text-destructive">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Staff Overdue Conflict Detected</span>
+                </div>
+                <div className="text-[11px] space-y-1 text-foreground">
+                  <p>
+                    The assigned staff member is currently occupied with an overdue appointment:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-0.5 text-muted-foreground font-mono">
+                    {overdueConflict.overdueAppointmentCode && (
+                      <li>
+                        Appointment: <strong className="text-foreground">{overdueConflict.overdueAppointmentCode}</strong>
+                      </li>
+                    )}
+                    {overdueConflict.overdueScheduledEndTime && (
+                      <li>
+                        Scheduled End: <strong className="text-foreground">{overdueConflict.overdueScheduledEndTime}</strong>
+                      </li>
+                    )}
+                    {overdueConflict.overdueMinutes !== undefined && (
+                      <li>
+                        Overdue Delay: <strong className="text-amber-600 dark:text-amber-400">+{overdueConflict.overdueMinutes}m</strong>
+                      </li>
+                    )}
+                  </ul>
+                  {overdueConflict.message && (
+                    <p className="text-[10px] text-muted-foreground pt-1 italic">
+                      {overdueConflict.message}
+                    </p>
+                  )}
+                </div>
+
+                {canOverrideOverdueStaff ? (
+                  <div className="pt-2 border-t border-destructive/20 flex items-center justify-between gap-2">
+                    <p className="text-[10px] text-muted-foreground">
+                      You have permission to authorize this staff override.
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleConfirmOverdueOverride}
+                      disabled={isOverriding || isLoading}
+                    >
+                      {isOverriding ? "Overriding..." : "Confirm & Override"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-destructive bg-destructive/15 p-2 rounded border border-destructive/30 font-medium">
+                    ⚠️ You do not have the required permission (<code>appointments.reschedule</code>) to override this staff conflict. Please reassign the appointment or wait for the previous appointment to finish.
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Early Start Restriction & Override */}
             {selectedStatus === "in_progress" && isEarlyStart && (
               <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs space-y-2 text-amber-900 dark:text-amber-200">

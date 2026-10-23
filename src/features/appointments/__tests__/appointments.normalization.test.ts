@@ -848,3 +848,90 @@ describe("Week View — Selected Date Navigation & Query Isolation", () => {
     expect(emptyDay).toHaveLength(0);
   });
 });
+
+describe("normalizeAppointment — Custom & Mixed Services", () => {
+  it("normalizes custom service items with null serviceId and isCustom flag", () => {
+    const rawAppointment = {
+      ...BACKEND_RESPONSE_FIXTURE,
+      _id: "apt-custom-001",
+      services: [
+        {
+          _id: "cust-item-1",
+          name: "Special Bridal Touchup",
+          duration: 45,
+          price: 2500,
+          isCustom: true,
+          serviceType: "custom",
+          serviceId: null,
+          appliedSubscriptionId: "sub-123", // Even if present in bad raw data, normalizer must null it out
+        },
+      ],
+      totalDuration: 45,
+      pricing: { subtotal: 2500, discount: 0, total: 2500 },
+    };
+
+    const result = normalizeAppointment(rawAppointment);
+
+    expect(result.services).toHaveLength(1);
+    expect(result.services[0]).toMatchObject({
+      name: "Special Bridal Touchup",
+      duration: 45,
+      price: 2500,
+      isCustom: true,
+      serviceType: "custom",
+      serviceId: null,
+      appliedSubscriptionId: null,
+      isRedeemedViaSubscription: false,
+    });
+    // serviceIds must NOT include null or undefined
+    expect(result.serviceIds).toEqual([]);
+  });
+
+  it("normalizes mixed appointments containing both registered and custom service items", () => {
+    const rawMixed = {
+      ...BACKEND_RESPONSE_FIXTURE,
+      _id: "apt-mixed-002",
+      services: [
+        {
+          _id: "reg-item-1",
+          serviceId: "srv-reg-1",
+          name: "Standard Haircut",
+          duration: 30,
+          price: 400,
+          appliedSubscriptionId: "sub-valid-99",
+          isRedeemedViaSubscription: true,
+        },
+        {
+          _id: "cust-item-2",
+          name: "Custom Beard Grooming",
+          duration: 25,
+          price: 350,
+          isCustom: true,
+        },
+      ],
+      totalDuration: 55,
+      pricing: { subtotal: 750, discount: 0, total: 750 },
+    };
+
+    const result = normalizeAppointment(rawMixed);
+
+    expect(result.services).toHaveLength(2);
+    // Registered line
+    expect(result.services[0].serviceId).toBe("srv-reg-1");
+    expect(result.services[0].isCustom).toBe(false);
+    expect(result.services[0].serviceType).toBe("registered");
+    expect(result.services[0].appliedSubscriptionId).toBe("sub-valid-99");
+    expect(result.services[0].isRedeemedViaSubscription).toBe(true);
+
+    // Custom line
+    expect(result.services[1].serviceId).toBeNull();
+    expect(result.services[1].isCustom).toBe(true);
+    expect(result.services[1].serviceType).toBe("custom");
+    expect(result.services[1].appliedSubscriptionId).toBeNull();
+    expect(result.services[1].isRedeemedViaSubscription).toBe(false);
+
+    // appointment.serviceIds should only contain registered service IDs
+    expect(result.serviceIds).toEqual(["srv-reg-1"]);
+  });
+});
+

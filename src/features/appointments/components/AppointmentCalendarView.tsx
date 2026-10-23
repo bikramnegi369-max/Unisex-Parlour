@@ -27,6 +27,7 @@ import { CalendarOff } from "lucide-react";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
 import type { Appointment } from "../types/appointment.types";
+import { calculateLateDelayMins } from "../utils/appointmentTime";
 
 interface AppointmentCalendarViewProps {
   appointments: Appointment[];
@@ -104,6 +105,7 @@ interface PositionedAppointment {
   leftPct: number;
   widthPct: number;
   actualCompletedTimeStr?: string | null;
+  lateDelayMins?: number | null;
   isOutsideViewport: boolean;
   isClippedTop: boolean;
   isClippedBottom: boolean;
@@ -132,6 +134,7 @@ function layoutAppointments(
     effectiveEnd: number;
     durationMins: number;
     actualCompletedTimeStr: string | null;
+    lateDelayMins?: number | null;
     isCompletedAppt: boolean;
     column: number;
     totalColumnsInCluster: number;
@@ -152,55 +155,24 @@ function layoutAppointments(
       if (sum > 0) durationMins = sum;
     }
 
-    // Group into visual events with calculated time intervals
+    // Group into visual events with calculated time intervals strictly based on scheduled times.
+    // The primary calendar block must use the scheduled interval (startTime/endTime).
+    // Never extend or shrink the scheduled block based on completedAt to prevent layout distortion or overlapping.
     const effectiveStart = startMin ?? 0;
-    let effectiveEnd = effectiveStart + durationMins;
+    const effectiveEnd = effectiveStart + durationMins;
 
-    // Completed appointment handling:
-    // If an appointment is completed, it should NOT occupy the full scheduled duration block
-    // or block the staff calendar. Instead, its height reflects only the actual time from start
-    // to completion (using completedAt in branch timezone, or minimal slot if completed immediately).
-    let actualCompletedTimeStr: string | null = null;
+    // Completed appointment metadata:
+    // Extract actual completion time and calculate any completion delay relative to scheduled end time
+    // using the branch timezone, without altering calendar positioning or duration.
     const isCompletedAppt = appt.status === "completed";
-
-    if (isCompletedAppt) {
-      let actualEndMin: number | null = null;
-      if (appt.completedAt) {
-        try {
-          const compDate = new Date(appt.completedAt);
-          if (!isNaN(compDate.getTime())) {
-            const compParts = new Intl.DateTimeFormat("en-US", {
-              timeZone: branchTimezone,
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-              hourCycle: "h23",
-            }).formatToParts(compDate);
-            const compHStr =
-              compParts.find((p) => p.type === "hour")?.value || "00";
-            const compMStr =
-              compParts.find((p) => p.type === "minute")?.value || "00";
-            const compH = parseInt(compHStr, 10);
-            const compM = parseInt(compMStr, 10);
-            actualEndMin = compH * 60 + compM;
-            actualCompletedTimeStr = `${compHStr}:${compMStr}`;
-          }
-        } catch {
-          // Fallback if parsing fails
-        }
-      }
-
-      if (actualEndMin !== null && actualEndMin > effectiveStart) {
-        // Service completed at actualEndMin: span only from start to completion
-        effectiveEnd = actualEndMin;
-        durationMins = effectiveEnd - effectiveStart;
-      } else {
-        // If completed without completedAt or completed at/before start time (e.g. instant walk-in checkout),
-        // keep duration to minimal 15 min block so it marks completion without monopolizing the lane.
-        durationMins = Math.min(durationMins, 15);
-        effectiveEnd = effectiveStart + durationMins;
-      }
-    }
+    const { lateDelayMins, actualCompletedTimeStr } = isCompletedAppt && appt.completedAt
+      ? calculateLateDelayMins({
+          date: appt.date,
+          endTime: appt.endTime,
+          completedAt: appt.completedAt,
+          branchTimezone,
+        })
+      : { lateDelayMins: null, actualCompletedTimeStr: null };
 
     parsed.push({
       appt,
@@ -208,6 +180,7 @@ function layoutAppointments(
       effectiveEnd,
       durationMins,
       actualCompletedTimeStr,
+      lateDelayMins,
       isCompletedAppt,
       column: 0,
       totalColumnsInCluster: 1,
@@ -310,6 +283,7 @@ function layoutAppointments(
       leftPct,
       widthPct,
       actualCompletedTimeStr,
+      lateDelayMins: item.lateDelayMins,
       isOutsideViewport:
         effectiveStart >= VIEWPORT_END_HOUR * 60 ||
         effectiveEnd <= VIEWPORT_START_HOUR * 60,
@@ -1171,6 +1145,7 @@ export function AppointmentCalendarView({
                             leftPct,
                             widthPct,
                             actualCompletedTimeStr,
+                            lateDelayMins,
                             isOutsideViewport,
                             isClippedTop,
                             isClippedBottom,
@@ -1297,14 +1272,18 @@ export function AppointmentCalendarView({
                                       )}
                                       <span className="truncate">
                                         {appt.startTime}
-                                        {isCompleted && actualCompletedTimeStr
-                                          ? ` - ${actualCompletedTimeStr}`
-                                          : appt.endTime
-                                            ? ` - ${appt.endTime}`
-                                            : ""}
+                                        {appt.endTime ? ` - ${appt.endTime}` : ""}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                                      {isCompleted && lateDelayMins !== null && lateDelayMins !== undefined && lateDelayMins > 0 && (
+                                        <span
+                                          className="text-[9px] px-1 py-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold"
+                                          title={`Completed at ${actualCompletedTimeStr || "later"} (${lateDelayMins}m late)`}
+                                        >
+                                          +{lateDelayMins}m late
+                                        </span>
+                                      )}
                                       {appt.reminder?.enabled && (
                                         <AppointmentReminderStatus
                                           reminder={appt.reminder}
