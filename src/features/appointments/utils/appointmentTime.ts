@@ -124,3 +124,117 @@ export function calculateLateDelayMins({
     return { lateDelayMins: null, actualCompletedTimeStr: null };
   }
 }
+
+export interface AppointmentOverrunInfo {
+  hasOverrun: boolean;
+  overrunStartMin: number;
+  overrunEndMin: number;
+  overrunDurationMins: number;
+  overrunEndTimeStr: string;
+  isLive: boolean; // true if still in_progress, false if completed
+}
+
+/**
+ * Calculates whether an appointment has overrun its scheduled end time,
+ * returning the overrun segment's minute boundaries on the calendar day.
+ *
+ * For completed appointments: overrun is from scheduled end to completedAt.
+ * For in_progress appointments: overrun is from scheduled end to current time (if appointment date is today and now > scheduled end).
+ * Date boundaries: If the overrun extends across midnight into the next day,
+ * overrunEndMin is appropriately bounded or represented for the day view.
+ */
+export function calculateAppointmentOverrun({
+  status,
+  date,
+  endTime,
+  completedAt,
+  branchTimezone = "Asia/Kolkata",
+  referenceNow = new Date(),
+}: {
+  status: string;
+  date?: string; // YYYY-MM-DD
+  endTime?: string; // HH:mm
+  completedAt?: string | null;
+  branchTimezone?: string;
+  referenceNow?: Date;
+}): AppointmentOverrunInfo | null {
+  if (!endTime || !date) return null;
+
+  const [endH, endM] = endTime.split(":").map(Number);
+  if (isNaN(endH) || isNaN(endM)) return null;
+  const schedEndMin = endH * 60 + endM;
+
+  // Case 1: Completed late
+  if (status === "completed") {
+    if (!completedAt) return null;
+    const { lateDelayMins, actualCompletedTimeStr } = calculateLateDelayMins({
+      date,
+      endTime,
+      completedAt,
+      branchTimezone,
+    });
+    if (!lateDelayMins || lateDelayMins <= 0 || !actualCompletedTimeStr) {
+      return null;
+    }
+    const overrunEndMin = schedEndMin + lateDelayMins;
+    return {
+      hasOverrun: true,
+      overrunStartMin: schedEndMin,
+      overrunEndMin,
+      overrunDurationMins: lateDelayMins,
+      overrunEndTimeStr: actualCompletedTimeStr,
+      isLive: false,
+    };
+  }
+
+  // Case 2: In-progress currently running past scheduled end
+  if (status === "in_progress") {
+    try {
+      // Get branch today date string
+      const branchToday = new Intl.DateTimeFormat("en-CA", {
+        timeZone: branchTimezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(referenceNow);
+
+      // Only show live overrun if the appointment is on the branch current date
+      // (or if running across today)
+      if (date !== branchToday) {
+        return null;
+      }
+
+      // Branch current time
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: branchTimezone,
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+      }).formatToParts(referenceNow);
+      const nowH = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+      const nowM = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+      const nowMin = nowH * 60 + nowM;
+
+      const overrunMins = nowMin - schedEndMin;
+      if (overrunMins <= 0) {
+        return null;
+      }
+
+      const nowHStr = nowH.toString().padStart(2, "0");
+      const nowMStr = nowM.toString().padStart(2, "0");
+
+      return {
+        hasOverrun: true,
+        overrunStartMin: schedEndMin,
+        overrunEndMin: nowMin,
+        overrunDurationMins: overrunMins,
+        overrunEndTimeStr: `${nowHStr}:${nowMStr}`,
+        isLive: true,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}

@@ -387,12 +387,23 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
 
     // 3. Since scheduled times do NOT overlap (10:00-10:45 vs 11:00-11:45), both occupy full width (width: 100%, left: 0%)
     // rather than being squeezed into side-by-side collision columns (width: 50%)
-    const apptCards = container.querySelectorAll("div[role='button']");
+    const apptCards = container.querySelectorAll("div[data-appointment-card='true']");
     expect(apptCards.length).toBe(2);
     expect((apptCards[0] as HTMLElement).style.width).toBe("100%");
     expect((apptCards[0] as HTMLElement).style.left).toBe("0%");
     expect((apptCards[1] as HTMLElement).style.width).toBe("100%");
     expect((apptCards[1] as HTMLElement).style.left).toBe("0%");
+
+    // 4. Overrun is rendered as a distinct separate element with testid
+    const overrunEl = screen.getByTestId("appointment-overrun-appt_late_1");
+    expect(overrunEl).toBeDefined();
+    expect(overrunEl.textContent).toContain("Late Overrun: 10:45 → 11:15");
+    expect(overrunEl.textContent).toContain("+30m");
+    // Verify overrun block geometry starts at scheduled end (10:45)
+    // 10:45 is 2h45m = 165 mins from 08:00 viewport start = (165/60)*120 = 330px
+    expect((overrunEl as HTMLElement).style.top).toBe("330px");
+    expect((overrunEl as HTMLElement).style.left).toBe("0%");
+    expect((overrunEl as HTMLElement).style.width).toBe("100%");
   });
 
   it("handles on-time completion without displaying late delay indicator", () => {
@@ -422,5 +433,138 @@ describe("AppointmentCalendarView - Grabbable, Draggable & Filter Synchronizatio
 
     expect(screen.getByText("10:00 - 10:45")).toBeDefined();
     expect(screen.queryByText(/late/i)).toBeNull();
+    expect(screen.queryByTestId("appointment-overrun-appt_ontime_1")).toBeNull();
+  });
+
+  it("renders a separate actual-overrun segment for an in_progress appointment running past scheduled end", () => {
+    // Current time: 11:30 AM in Asia/Kolkata (+05:30) on 2026-08-10 -> UTC is 06:00:00Z
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T06:00:00.000Z"));
+
+    const inProgressOverrunAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_live_overrun",
+      appointmentCode: "APP-LIVE-01",
+      status: "in_progress",
+      startTime: "10:00",
+      endTime: "10:45",
+      totalDuration: 45,
+      date: "2026-08-10",
+      staffId: "emp_1",
+    };
+
+    // A subsequent appointment scheduled at 12:00 - 13:00 in the same lane
+    const subsequentAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_subsequent_1",
+      appointmentCode: "APP-SUB-01",
+      status: "scheduled",
+      startTime: "12:00",
+      endTime: "13:00",
+      totalDuration: 60,
+      date: "2026-08-10",
+      staffId: "emp_1",
+    };
+
+    const { container } = render(
+      <AppointmentCalendarView
+        appointments={[inProgressOverrunAppt, subsequentAppt]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    // 1. Both scheduled appointment cards maintain their scheduled times and 100% width
+    const cards = container.querySelectorAll("div[data-appointment-card='true']");
+    expect(cards.length).toBe(2);
+    expect((cards[0] as HTMLElement).style.width).toBe("100%");
+    expect((cards[0] as HTMLElement).style.left).toBe("0%");
+    expect((cards[1] as HTMLElement).style.width).toBe("100%");
+    expect((cards[1] as HTMLElement).style.left).toBe("0%");
+
+    // Verify subsequent appointment scheduled position:
+    // 12:00 is 4 hours from 08:00 = 4 * 120 = 480px
+    expect((cards[1] as HTMLElement).style.top).toBe("480px");
+
+    // 2. Separate in-progress overrun segment is rendered
+    const overrunSegment = screen.getByTestId("appointment-overrun-appt_live_overrun");
+    expect(overrunSegment).toBeDefined();
+    // Overrun from 10:45 to 11:30 = 45m overrun
+    expect(overrunSegment.textContent).toContain("Active Overrun: 10:45 → 11:30");
+    expect(overrunSegment.textContent).toContain("+45m");
+    // Overrun starts at scheduled end 10:45 (330px)
+    expect((overrunSegment as HTMLElement).style.top).toBe("330px");
+    // Lane alignment matches the parent appointment
+    expect((overrunSegment as HTMLElement).style.left).toBe("0%");
+    expect((overrunSegment as HTMLElement).style.width).toBe("100%");
+
+    // Verify accessibility labels
+    expect(overrunSegment.getAttribute("aria-label")).toContain(
+      "In-progress appointment running 45m past scheduled end 10:45"
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("keeps subsequent appointment position unchanged even when a completed appointment overran into its time slot", () => {
+    // Appointment 1: Scheduled 09:00 - 10:00, completed late at 10:30 (+30m)
+    const lateAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_first_late",
+      appointmentCode: "APP-LATE-10",
+      status: "completed",
+      startTime: "09:00",
+      endTime: "10:00",
+      totalDuration: 60,
+      completedAt: "2026-08-10T05:00:00.000Z", // 10:30 in Asia/Kolkata (+05:30)
+      staffId: "emp_1",
+    };
+
+    // Appointment 2: Scheduled 10:15 - 11:00.
+    // Notice scheduled start 10:15 is BEFORE actual completion 10:30!
+    // The calendar must PRESERVE 10:15 scheduled position and NOT auto-reschedule or distort lanes.
+    const subsequentAppt: Appointment = {
+      ...mockAppt1,
+      id: "appt_subsequent_2",
+      appointmentCode: "APP-SUB-02",
+      status: "scheduled",
+      startTime: "10:15",
+      endTime: "11:00",
+      totalDuration: 45,
+      staffId: "emp_1",
+    };
+
+    const { container } = render(
+      <AppointmentCalendarView
+        appointments={[lateAppt, subsequentAppt]}
+        isLoading={false}
+        selectedDate={new Date("2026-08-10T00:00:00")}
+        viewMode="day"
+        onViewModeChange={vi.fn()}
+        onSelectDate={vi.fn()}
+        onSelectAppointment={vi.fn()}
+        isAllBranches={false}
+      />
+    );
+
+    const cards = container.querySelectorAll("div[data-appointment-card='true']");
+    expect(cards.length).toBe(2);
+
+    // Appt 1 scheduled: 09:00 is 1 hour from 08:00 = 120px
+    expect((cards[0] as HTMLElement).style.top).toBe("120px");
+    // Appt 2 scheduled: 10:15 is 2h15m = 135 mins from 08:00 = (135/60)*120 = 270px
+    expect((cards[1] as HTMLElement).style.top).toBe("270px");
+
+    // Overrun segment for Appt 1: starts at scheduled end 10:00 (120 min from 08:00 = 240px)
+    const overrunSegment = screen.getByTestId("appointment-overrun-appt_first_late");
+    expect(overrunSegment).toBeDefined();
+    expect((overrunSegment as HTMLElement).style.top).toBe("240px");
+    expect(overrunSegment.textContent).toContain("Late Overrun: 10:00 → 10:30");
+    expect(overrunSegment.textContent).toContain("+30m");
   });
 });

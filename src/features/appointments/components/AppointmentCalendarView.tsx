@@ -10,6 +10,8 @@ import {
   Scissors,
   GripVertical,
   Move,
+  Clock,
+  Timer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +29,11 @@ import { CalendarOff } from "lucide-react";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
 import type { Appointment } from "../types/appointment.types";
-import { calculateLateDelayMins } from "../utils/appointmentTime";
+import {
+  calculateLateDelayMins,
+  calculateAppointmentOverrun,
+  type AppointmentOverrunInfo,
+} from "../utils/appointmentTime";
 
 interface AppointmentCalendarViewProps {
   appointments: Appointment[];
@@ -98,6 +104,17 @@ function parseTimeToMinutes(time: string | undefined): number | null {
 // ---------------------------------------------------------------------------
 // Collision-aware appointment layout
 // ---------------------------------------------------------------------------
+interface PositionedOverrunSegment {
+  topPx: number;
+  heightPx: number;
+  leftPct: number;
+  widthPct: number;
+  durationMins: number;
+  endTimeStr: string;
+  isLive: boolean;
+  isOutsideViewport: boolean;
+}
+
 interface PositionedAppointment {
   appt: Appointment;
   topPx: number;
@@ -106,6 +123,7 @@ interface PositionedAppointment {
   widthPct: number;
   actualCompletedTimeStr?: string | null;
   lateDelayMins?: number | null;
+  overrun?: PositionedOverrunSegment | null;
   isOutsideViewport: boolean;
   isClippedTop: boolean;
   isClippedBottom: boolean;
@@ -115,6 +133,7 @@ function layoutAppointments(
   appointments: Appointment[],
   hourPx: number = 120,
   branchTimezone: string = "Asia/Kolkata",
+  referenceNow: Date = new Date(),
 ): PositionedAppointment[] {
   const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourPx;
   // Sort by startTime ascending, then by totalDuration descending
@@ -135,6 +154,7 @@ function layoutAppointments(
     durationMins: number;
     actualCompletedTimeStr: string | null;
     lateDelayMins?: number | null;
+    overrunInfo: AppointmentOverrunInfo | null;
     isCompletedAppt: boolean;
     column: number;
     totalColumnsInCluster: number;
@@ -161,9 +181,17 @@ function layoutAppointments(
     const effectiveStart = startMin ?? 0;
     const effectiveEnd = effectiveStart + durationMins;
 
-    // Completed appointment metadata:
-    // Extract actual completion time and calculate any completion delay relative to scheduled end time
-    // using the branch timezone, without altering calendar positioning or duration.
+    // Overrun metadata:
+    // Determine if this appointment overran (either completed late or currently in_progress past end)
+    const overrunInfo = calculateAppointmentOverrun({
+      status: appt.status,
+      date: appt.date,
+      endTime: appt.endTime,
+      completedAt: appt.completedAt,
+      branchTimezone,
+      referenceNow,
+    });
+
     const isCompletedAppt = appt.status === "completed";
     const { lateDelayMins, actualCompletedTimeStr } = isCompletedAppt && appt.completedAt
       ? calculateLateDelayMins({
@@ -181,6 +209,7 @@ function layoutAppointments(
       durationMins,
       actualCompletedTimeStr,
       lateDelayMins,
+      overrunInfo,
       isCompletedAppt,
       column: 0,
       totalColumnsInCluster: 1,
@@ -255,6 +284,7 @@ function layoutAppointments(
       effectiveEnd,
       durationMins,
       actualCompletedTimeStr,
+      overrunInfo,
       isCompletedAppt,
       column,
       totalColumnsInCluster,
@@ -276,6 +306,31 @@ function layoutAppointments(
     const leftPct = (column / totalColumnsInCluster) * 100;
     const widthPct = 100 / totalColumnsInCluster;
 
+    // Overrun segment calculation:
+    // Placed strictly from scheduled end (effectiveEnd) to actual overrun end.
+    // Preserves lane alignment (same leftPct and widthPct as parent appointment).
+    let positionedOverrun: PositionedOverrunSegment | null = null;
+    if (overrunInfo && overrunInfo.hasOverrun) {
+      const overrunStartFromViewport = overrunInfo.overrunStartMin - VIEWPORT_START_HOUR * 60;
+      const overrunTopPx = Math.max(0, (overrunStartFromViewport / 60) * hourPx);
+      const rawOverrunHeightPx = (overrunInfo.overrunDurationMins / 60) * hourPx;
+      const overrunHeightPx = Math.max(24, Math.min(rawOverrunHeightPx, viewportHeightPx - overrunTopPx));
+      const isOverrunOutside =
+        overrunInfo.overrunStartMin >= VIEWPORT_END_HOUR * 60 ||
+        overrunInfo.overrunEndMin <= VIEWPORT_START_HOUR * 60;
+
+      positionedOverrun = {
+        topPx: overrunTopPx,
+        heightPx: overrunHeightPx,
+        leftPct,
+        widthPct,
+        durationMins: overrunInfo.overrunDurationMins,
+        endTimeStr: overrunInfo.overrunEndTimeStr,
+        isLive: overrunInfo.isLive,
+        isOutsideViewport: isOverrunOutside,
+      };
+    }
+
     positioned.push({
       appt,
       topPx,
@@ -284,6 +339,7 @@ function layoutAppointments(
       widthPct,
       actualCompletedTimeStr,
       lateDelayMins: item.lateDelayMins,
+      overrun: positionedOverrun,
       isOutsideViewport:
         effectiveStart >= VIEWPORT_END_HOUR * 60 ||
         effectiveEnd <= VIEWPORT_START_HOUR * 60,
@@ -324,6 +380,7 @@ export function AppointmentCalendarView({
   };
 
   const { currentBranch, currentBranchId } = useBranchContext();
+  const [hoveredApptId, setHoveredApptId] = useState<string | null>(null);
   const [hourScale, setHourScale] = useState<number>(120); // 120px gives ideal full visibility for text, codes, and badges
   const viewportHeightPx =
     (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
@@ -875,6 +932,7 @@ export function AppointmentCalendarView({
                     laneAppointments,
                     hourScale,
                     branchTimezone,
+                    now,
                   );
 
                   // Calculate max concurrency in this lane so lane dynamically expands so each concurrent column gets full length width (at least 270px per column)
@@ -1146,6 +1204,7 @@ export function AppointmentCalendarView({
                             widthPct,
                             actualCompletedTimeStr,
                             lateDelayMins,
+                            overrun,
                             isOutsideViewport,
                             isClippedTop,
                             isClippedBottom,
@@ -1187,10 +1246,17 @@ export function AppointmentCalendarView({
                               );
                             }
 
+                            const isApptHovered = hoveredApptId === appt.id;
+
                             // Card styling based on status and layering:
-                            const cardZIndex = isActive
-                              ? "z-10 hover:z-30"
-                              : "z-5 hover:z-30";
+                            // Scheduled cards normally rest at z-20. When an appointment is hovered,
+                            // both the scheduled card and its overrun segment rise to z-35, putting the full
+                            // overrun on top in clear focus!
+                            const cardZIndex = isApptHovered
+                              ? "z-35 shadow-xl"
+                              : isActive
+                                ? "z-20 hover:z-35"
+                                : "z-20 hover:z-35";
                             const cardBgBorder = isCompleted
                               ? "bg-card border-emerald-500/50 hover:border-emerald-500 hover:shadow-md"
                               : isCancelled
@@ -1204,144 +1270,233 @@ export function AppointmentCalendarView({
                               !isCancelled;
 
                             return (
-                              <div
-                                key={appt.id}
-                                role="button"
-                                tabIndex={0}
-                                data-no-pan="true"
-                                draggable={isDraggable}
-                                onDragStart={(e) => {
-                                  if (!isDraggable) return;
-                                  setDraggingApptId(appt.id);
-                                  e.dataTransfer.effectAllowed = "move";
-                                  e.dataTransfer.setData(
-                                    "application/json",
-                                    JSON.stringify({
-                                      appointmentId: appt.id,
-                                      originalStartTime: appt.startTime,
-                                      originalStaffId: appt.staffId,
-                                    }),
-                                  );
-                                }}
-                                onDragEnd={() => {
-                                  setDraggingApptId(null);
-                                  setDragOverLaneId(null);
-                                  setDragHoverTime(null);
-                                  setDragHoverTopPx(null);
-                                }}
-                                aria-label={`Appointment for ${getCustomerDisplayName(appt)} at ${appt.startTime}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectAppointment(appt);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter" || e.key === " ") {
-                                    e.preventDefault();
+                              <React.Fragment key={appt.id}>
+                                {/* Primary Scheduled Appointment Block */}
+                                <div
+                                  role="button"
+                                  tabIndex={0}
+                                  data-no-pan="true"
+                                  data-appointment-card="true"
+                                  draggable={isDraggable}
+                                  onMouseEnter={() => setHoveredApptId(appt.id)}
+                                  onMouseLeave={() =>
+                                    setHoveredApptId((prev) =>
+                                      prev === appt.id ? null : prev,
+                                    )
+                                  }
+                                  onDragStart={(e) => {
+                                    if (!isDraggable) return;
+                                    setDraggingApptId(appt.id);
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData(
+                                      "application/json",
+                                      JSON.stringify({
+                                        appointmentId: appt.id,
+                                        originalStartTime: appt.startTime,
+                                        originalStaffId: appt.staffId,
+                                      }),
+                                    );
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggingApptId(null);
+                                    setDragOverLaneId(null);
+                                    setDragHoverTime(null);
+                                    setDragHoverTopPx(null);
+                                  }}
+                                  aria-label={`Appointment for ${getCustomerDisplayName(appt)} at ${appt.startTime}`}
+                                  onClick={(e) => {
                                     e.stopPropagation();
                                     onSelectAppointment(appt);
-                                  }
-                                }}
-                                style={{
-                                  top: `${topPx}px`,
-                                  height: `${heightPx}px`,
-                                  left: `${leftPct}%`,
-                                  width: `${widthPct}%`,
-                                }}
-                                className={`absolute rounded-lg border p-1.5 text-xs transition-all select-none overflow-hidden flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary ${cardZIndex} ${cardBgBorder} ${
-                                  isBeingDragged
-                                    ? "opacity-50 scale-[0.98] ring-2 ring-primary shadow-xl"
-                                    : draggingApptId !== null
-                                      ? "pointer-events-none"
-                                      : ""
-                                } ${isDraggable ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-pointer"}`}
-                              >
-                                {/* Clipping indicators */}
-                                {isClippedTop && (
-                                  <div className="absolute top-0 left-0 right-0 h-1 bg-amber-400/70 rounded-t-lg" />
-                                )}
-                                {isClippedBottom && (
-                                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-400/70 rounded-b-lg" />
-                                )}
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onSelectAppointment(appt);
+                                    }
+                                  }}
+                                  style={{
+                                    top: `${topPx}px`,
+                                    height: `${heightPx}px`,
+                                    left: `${leftPct}%`,
+                                    width: `${widthPct}%`,
+                                  }}
+                                  className={`absolute rounded-lg border p-1.5 text-xs transition-all select-none overflow-hidden flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-primary ${cardZIndex} ${cardBgBorder} ${
+                                    isBeingDragged
+                                      ? "opacity-50 scale-[0.98] ring-2 ring-primary shadow-xl"
+                                      : draggingApptId !== null
+                                        ? "pointer-events-none"
+                                        : ""
+                                  } ${isDraggable ? "cursor-grab active:cursor-grabbing hover:shadow-md" : "cursor-pointer"}`}
+                                >
+                                  {/* Clipping indicators */}
+                                  {isClippedTop && (
+                                    <div className="absolute top-0 left-0 right-0 h-1 bg-amber-400/70 rounded-t-lg" />
+                                  )}
+                                  {isClippedBottom && (
+                                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-400/70 rounded-b-lg" />
+                                  )}
 
-                                <div className="space-y-1">
-                                  {/* Top Row: Time + Status Badges */}
-                                  <div className="flex items-center justify-between gap-1 text-[10px] font-bold">
-                                    <div className="flex items-center gap-1 text-primary truncate">
-                                      {isDraggable && (
-                                        <GripVertical className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-                                      )}
+                                  <div className="space-y-1">
+                                    {/* Top Row: Time + Status Badges */}
+                                    <div className="flex items-center justify-between gap-1 text-[10px] font-bold">
+                                      <div className="flex items-center gap-1 text-primary truncate">
+                                        {isDraggable && (
+                                          <GripVertical className="h-3 w-3 text-muted-foreground/60 shrink-0" />
+                                        )}
+                                        <span className="truncate">
+                                          {appt.startTime}
+                                          {appt.endTime ? ` - ${appt.endTime}` : ""}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                                        {isCompleted && lateDelayMins !== null && lateDelayMins !== undefined && lateDelayMins > 0 && (
+                                          <span
+                                            className="text-[9px] px-1 py-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold"
+                                            title={`Completed at ${actualCompletedTimeStr || "later"} (${lateDelayMins}m late)`}
+                                          >
+                                            +{lateDelayMins}m late
+                                          </span>
+                                        )}
+                                        {appt.reminder?.enabled && (
+                                          <AppointmentReminderStatus
+                                            reminder={appt.reminder}
+                                            compact
+                                          />
+                                        )}
+                                        <BookingTypeBadge
+                                          bookingType={appt.bookingType}
+                                          className="text-[9px] px-1 py-0"
+                                        />
+                                        <AppointmentStatusBadge
+                                          status={appt.status}
+                                          isUnassignedQueue={!appt.staffId}
+                                          className="text-[9px] px-1 py-0"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* Middle Row: Customer Name & Code */}
+                                    <div className="font-bold text-foreground truncate text-xs flex items-center justify-between gap-1">
                                       <span className="truncate">
-                                        {appt.startTime}
-                                        {appt.endTime ? ` - ${appt.endTime}` : ""}
+                                        {getCustomerDisplayName(appt)}
+                                      </span>
+                                      <span className="font-mono text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded shrink-0 border border-primary/20">
+                                        {appt.appointmentCode ||
+                                          `#${appt.id.slice(-6)}`}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                                      {isCompleted && lateDelayMins !== null && lateDelayMins !== undefined && lateDelayMins > 0 && (
-                                        <span
-                                          className="text-[9px] px-1 py-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold"
-                                          title={`Completed at ${actualCompletedTimeStr || "later"} (${lateDelayMins}m late)`}
-                                        >
-                                          +{lateDelayMins}m late
-                                        </span>
-                                      )}
-                                      {appt.reminder?.enabled && (
-                                        <AppointmentReminderStatus
-                                          reminder={appt.reminder}
-                                          compact
-                                        />
-                                      )}
-                                      <BookingTypeBadge
-                                        bookingType={appt.bookingType}
-                                        className="text-[9px] px-1 py-0"
-                                      />
-                                      <AppointmentStatusBadge
-                                        status={appt.status}
-                                        isUnassignedQueue={!appt.staffId}
-                                        className="text-[9px] px-1 py-0"
-                                      />
+
+                                    {/* Services Summary */}
+                                    <div className="text-[10px] text-muted-foreground truncate font-medium">
+                                      <Scissors className="inline h-2.5 w-2.5 mr-0.5 text-muted-foreground/70" />
+                                      {getServiceSummary(appt)}
                                     </div>
                                   </div>
 
-                                  {/* Middle Row: Customer Name & Code */}
-                                  <div className="font-bold text-foreground truncate text-xs flex items-center justify-between gap-1">
+                                  {/* Bottom Row: Staff & Price */}
+                                  <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 mt-1 border-t border-border/40 gap-1">
                                     <span className="truncate">
-                                      {getCustomerDisplayName(appt)}
+                                      Staff:{" "}
+                                      <strong className="text-foreground font-semibold">
+                                        {getStaffDisplayName(appt)}
+                                      </strong>
                                     </span>
-                                    <span className="font-mono text-[9px] font-semibold text-primary bg-primary/10 px-1 py-0.5 rounded shrink-0 border border-primary/20">
-                                      {appt.appointmentCode ||
-                                        `#${appt.id.slice(-6)}`}
-                                    </span>
+                                    {(appt.pricing?.total ?? 0) > 0 && (
+                                      <span className="font-semibold text-foreground shrink-0">
+                                        {formatCurrency(appt.pricing?.total ?? 0)}
+                                      </span>
+                                    )}
                                   </div>
 
-                                  {/* Services Summary */}
-                                  <div className="text-[10px] text-muted-foreground truncate font-medium">
-                                    <Scissors className="inline h-2.5 w-2.5 mr-0.5 text-muted-foreground/70" />
-                                    {getServiceSummary(appt)}
-                                  </div>
-                                </div>
-
-                                {/* Bottom Row: Staff & Price */}
-                                <div className="flex items-center justify-between text-[9px] text-muted-foreground pt-1 mt-1 border-t border-border/40 gap-1">
-                                  <span className="truncate">
-                                    Staff:{" "}
-                                    <strong className="text-foreground font-semibold">
-                                      {getStaffDisplayName(appt)}
-                                    </strong>
-                                  </span>
-                                  {(appt.pricing?.total ?? 0) > 0 && (
-                                    <span className="font-semibold text-foreground shrink-0">
-                                      {formatCurrency(appt.pricing?.total ?? 0)}
-                                    </span>
+                                  {isAllBranches && appt.branch?.name && (
+                                    <div className="text-[9px] text-primary flex items-center gap-0.5 truncate pt-0.5">
+                                      <MapPin className="h-2.5 w-2.5" />
+                                      {appt.branch.name}
+                                    </div>
                                   )}
                                 </div>
 
-                                {isAllBranches && appt.branch?.name && (
-                                  <div className="text-[9px] text-primary flex items-center gap-0.5 truncate pt-0.5">
-                                    <MapPin className="h-2.5 w-2.5" />
-                                    {appt.branch.name}
+                                {/* Separate, Clearly Differentiated Actual-Overrun Segment */}
+                                {/* In resting state: renders at z-10 behind subsequent cards (z-20) */}
+                                {/* On hover of parent card or overrun: automatically elevates to z-35 on top */}
+                                {overrun && !overrun.isOutsideViewport && (
+                                  <div
+                                    data-testid={`appointment-overrun-${appt.id}`}
+                                    data-appointment-overrun="true"
+                                    data-no-pan="true"
+                                    onMouseEnter={() => setHoveredApptId(appt.id)}
+                                    onMouseLeave={() =>
+                                      setHoveredApptId((prev) =>
+                                        prev === appt.id ? null : prev,
+                                      )
+                                    }
+                                    aria-label={
+                                      overrun.isLive
+                                        ? `Overrun: In-progress appointment running ${overrun.durationMins}m past scheduled end ${appt.endTime}`
+                                        : `Overrun: Appointment completed ${overrun.durationMins}m late at ${overrun.endTimeStr}`
+                                    }
+                                    title={
+                                      overrun.isLive
+                                        ? `Scheduled end: ${appt.endTime} • Currently running ${overrun.durationMins}m late (actual: now ${overrun.endTimeStr})`
+                                        : `Scheduled end: ${appt.endTime} • Completed ${overrun.durationMins}m late (actual: ${overrun.endTimeStr})`
+                                    }
+                                    style={{
+                                      top: `${overrun.topPx}px`,
+                                      height: `${overrun.heightPx}px`,
+                                      left: `${overrun.leftPct}%`,
+                                      width: `${overrun.widthPct}%`,
+                                    }}
+                                    className={`absolute rounded-b-lg border-x-2 border-b-2 border-t-0 p-1 text-[10px] select-none overflow-hidden flex items-start justify-between gap-1 transition-all ${
+                                      isApptHovered
+                                        ? "z-35 opacity-100 shadow-lg pointer-events-auto ring-2 ring-primary/40"
+                                        : "z-10 pointer-events-none opacity-85"
+                                    } ${
+                                      overrun.isLive
+                                        ? "bg-[repeating-linear-gradient(135deg,rgba(245,158,11,0.12),rgba(245,158,11,0.12)_6px,rgba(245,158,11,0.22)_6px,rgba(245,158,11,0.22)_12px)] border-dashed border-amber-500 text-amber-950 dark:text-amber-100"
+                                        : "bg-[repeating-linear-gradient(135deg,rgba(16,185,129,0.10),rgba(16,185,129,0.10)_6px,rgba(16,185,129,0.18)_6px,rgba(16,185,129,0.18)_12px)] border-dashed border-emerald-500 text-emerald-950 dark:text-emerald-100"
+                                    }`}
+                                  >
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onSelectAppointment(appt);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          onSelectAppointment(appt);
+                                        }
+                                      }}
+                                      className="pointer-events-auto cursor-pointer flex items-center gap-1 min-w-0 truncate font-semibold bg-background/95 dark:bg-card/95 hover:bg-background border border-border/80 px-1.5 py-0.5 rounded shadow-xs backdrop-blur-xs"
+                                    >
+                                      {overrun.isLive ? (
+                                        <Timer className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400 animate-pulse" />
+                                      ) : (
+                                        <Clock className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                      )}
+                                      <span className="truncate">
+                                        <span className="font-bold">
+                                          {overrun.isLive ? "Active Overrun: " : "Late Overrun: "}
+                                        </span>
+                                        {appt.endTime} → {overrun.endTimeStr}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`pointer-events-auto text-[9px] px-1.5 py-0.5 rounded font-mono font-bold shrink-0 border shadow-2xs backdrop-blur-xs ${
+                                        overrun.isLive
+                                          ? "bg-amber-500/30 text-amber-900 dark:text-amber-200 border-amber-500/60"
+                                          : "bg-emerald-500/30 text-emerald-900 dark:text-emerald-200 border-emerald-500/60"
+                                      }`}
+                                    >
+                                      +{overrun.durationMins}m
+                                    </span>
                                   </div>
                                 )}
-                              </div>
+                              </React.Fragment>
                             );
                           },
                         )}
