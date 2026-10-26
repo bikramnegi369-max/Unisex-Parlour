@@ -4,6 +4,8 @@ import type {
   Subscription,
   SubscriptionUsageRecord,
   CreateSubscriptionPayload,
+  RenewSubscriptionPayload,
+  RenewSubscriptionResult,
   UpdateSubscriptionPayload,
   CancelSubscriptionPayload,
   RedeemSubscriptionPayload,
@@ -209,15 +211,23 @@ export const getSubscription = async (id: string): Promise<Subscription> => {
 };
 
 /**
- * Organization-scoped subscription creation.
+ * Branch-scoped subscription creation.
+ * Uses the active selling branch context (via X-Branch-Id attached by apiClient)
+ * to establish sale invoice branch ownership.
  * Returns the created subscription along with any generated sale invoice or invoiceId.
  */
 export const createSubscription = async (
-  payload: CreateSubscriptionPayload
+  payload: CreateSubscriptionPayload,
+  branchIdOverride?: string
 ): Promise<import("../types/subscription.types").CreateSubscriptionResult> => {
   const sanitizedBranchIds = (payload.permittedBranchIds || []).filter(
     (bId) => bId !== "all" && bId.trim() !== ""
   );
+
+  const branchConfig =
+    branchIdOverride && branchIdOverride !== "all"
+      ? { branchScope: { type: "branch" as const, branchId: branchIdOverride } }
+      : { branchScope: "current" as const };
 
   const { data } = await apiClient.post<SubscriptionMutateResponse>(
     "/subscriptions",
@@ -225,9 +235,7 @@ export const createSubscription = async (
       ...payload,
       permittedBranchIds: sanitizedBranchIds,
     },
-    {
-      branchScope: "none",
-    }
+    branchConfig
   );
 
   const rawData = data.data as Record<string, unknown>;
@@ -239,6 +247,54 @@ export const createSubscription = async (
   const mappedSub = mapSubscriptionKeys(rawSub);
 
   // Extract invoiceId and invoice from either top-level or subscription level
+  const invoiceId =
+    (typeof rawData.invoiceId === "string" ? rawData.invoiceId : undefined) ||
+    mappedSub.invoiceId ||
+    (typeof rawData.invoice === "object" && rawData.invoice !== null
+      ? ((rawData.invoice as { id?: string; _id?: string }).id || (rawData.invoice as { id?: string; _id?: string })._id)
+      : undefined);
+
+  const invoiceNumber =
+    (typeof rawData.invoiceNumber === "string" ? rawData.invoiceNumber : undefined) ||
+    mappedSub.invoiceNumber ||
+    (typeof rawData.invoice === "object" && rawData.invoice !== null
+      ? (rawData.invoice as { invoiceNumber?: string }).invoiceNumber
+      : undefined);
+
+  return {
+    ...mappedSub,
+    invoiceId,
+    invoiceNumber,
+    invoice: rawData.invoice as import("@/features/billing/types/billing.types").Invoice | undefined,
+  };
+};
+
+/**
+ * Branch-scoped subscription renewal.
+ * Uses the active selling branch context (via X-Branch-Id attached by apiClient)
+ * to establish sale invoice branch ownership for the renewal invoice.
+ * Returns the renewed subscription along with any generated renewal invoice or invoiceId.
+ */
+export const renewSubscription = async (
+  id: string,
+  payload: RenewSubscriptionPayload = {}
+): Promise<RenewSubscriptionResult> => {
+  const { data } = await apiClient.post<SubscriptionMutateResponse>(
+    `/subscriptions/${id}/renew`,
+    payload,
+    {
+      branchScope: "current",
+    }
+  );
+
+  const rawData = data.data as Record<string, unknown>;
+  const rawSub =
+    rawData && typeof rawData.subscription === "object" && rawData.subscription !== null
+      ? (rawData.subscription as RawSubscriptionDTO)
+      : (rawData as RawSubscriptionDTO);
+
+  const mappedSub = mapSubscriptionKeys(rawSub);
+
   const invoiceId =
     (typeof rawData.invoiceId === "string" ? rawData.invoiceId : undefined) ||
     mappedSub.invoiceId ||

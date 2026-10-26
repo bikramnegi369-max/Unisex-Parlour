@@ -217,5 +217,45 @@ describe("SubscriptionTable & Columns", () => {
     // Redeem button should NOT be rendered for unpaid subscription even if canRedeem is true
     expect(screen.queryByTitle("Redeem Entitlements")).toBeNull();
   });
+
+  it("renders Renew button when canRenew is true and onRenew is provided", () => {
+    const onRenew = vi.fn();
+    const columns = getSubscriptionColumns({
+      onView,
+      onEdit,
+      onCancel,
+      onRedeem,
+      onRenew,
+      canView: true,
+      canEdit: true,
+      canCancel: true,
+      canRedeem: true,
+      canRenew: true,
+      getBranchName,
+    });
+
+    render(
+      <SubscriptionTable
+        columns={columns}
+        data={mockSubscriptions}
+        isLoading={false}
+        onView={onView}
+        onEdit={onEdit}
+        onCancel={onCancel}
+        onRedeem={onRedeem}
+        canView={true}
+        canEdit={true}
+        canCancel={true}
+        canRedeem={true}
+        getBranchName={getBranchName}
+      />
+    );
+
+    const renewButtons = screen.getAllByTitle("Renew Subscription");
+    expect(renewButtons.length).toBe(mockSubscriptions.length);
+
+    fireEvent.click(renewButtons[0]);
+    expect(onRenew).toHaveBeenCalledWith(mockSubscriptions[0]);
+  });
 });
 

@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { Eye, Edit, Ban, Gift, Building2, User } from "lucide-react";
+import { Eye, Edit, Ban, Gift, Building2, User, RefreshCw } from "lucide-react";
 import type { Subscription } from "../types/subscription.types";
 import { SubscriptionStatusBadge } from "../components/SubscriptionStatusBadge";
 
@@ -11,10 +11,12 @@ interface SubscriptionColumnsOptions {
   onEdit: (subscription: Subscription) => void;
   onCancel: (subscription: Subscription) => void;
   onRedeem: (subscription: Subscription) => void;
+  onRenew?: (subscription: Subscription) => void;
   canView: boolean;
   canEdit: boolean;
   canCancel: boolean;
   canRedeem: boolean;
+  canRenew?: boolean;
   getBranchName: (branchId: string) => string;
 }
 
@@ -23,10 +25,12 @@ export const getSubscriptionColumns = ({
   onEdit,
   onCancel,
   onRedeem,
+  onRenew,
   canView,
   canEdit,
   canCancel,
   canRedeem,
+  canRenew = false,
   getBranchName,
 }: SubscriptionColumnsOptions): ColumnDef<Subscription>[] => [
   {
@@ -205,6 +209,17 @@ export const getSubscriptionColumns = ({
               title="Manual Redemption"
             >
               <Gift className="h-4 w-4" />
+            </button>
+          )}
+
+          {canRenew && onRenew && sub.status !== "cancelled" && (
+            <button
+              type="button"
+              onClick={() => onRenew(sub)}
+              className="cursor-pointer h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary flex items-center justify-center transition-colors text-muted-foreground"
+              title="Renew Subscription"
+            >
+              <RefreshCw className="h-4 w-4" />
             </button>
           )}
 

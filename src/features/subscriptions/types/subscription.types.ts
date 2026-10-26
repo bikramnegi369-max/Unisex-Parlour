@@ -127,6 +127,18 @@ export interface CreateSubscriptionResult extends Subscription {
   invoiceNumber?: string;
 }
 
+export interface RenewSubscriptionPayload {
+  endDate?: string;
+  price?: number;
+  notes?: string;
+}
+
+export interface RenewSubscriptionResult extends Subscription {
+  invoice?: import("@/features/billing/types/billing.types").Invoice;
+  invoiceId?: string;
+  invoiceNumber?: string;
+}
+
 export type SubscriptionListResponse = PaginatedResponse<Subscription>;
 export type SubscriptionDetailsResponse = ApiResponse<Subscription>;
 export type SubscriptionMutateResponse = ApiResponse<

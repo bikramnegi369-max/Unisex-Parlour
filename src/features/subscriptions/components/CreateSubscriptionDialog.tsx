@@ -26,6 +26,7 @@ interface CreateSubscriptionDialogProps {
   isLoading: boolean;
   initialCustomerId?: string;
   initialPlan?: SubscriptionPlan | null;
+  branchId?: string;
 }
 
 export function CreateSubscriptionDialog({
@@ -35,11 +36,31 @@ export function CreateSubscriptionDialog({
   isLoading,
   initialCustomerId,
   initialPlan,
+  branchId: propBranchId,
 }: CreateSubscriptionDialogProps) {
-  const { availableBranches } = useBranchContext();
+  const { availableBranches, currentBranch, currentBranchId, isAllBranchesSelected } = useBranchContext();
+
+  // Derive the active selling branch: prefer explicitly provided branchId (e.g. from appointment creation),
+  // falling back to current branch selection if not "all".
+  const effectiveBranchId =
+    propBranchId && propBranchId !== "all"
+      ? propBranchId
+      : currentBranchId && currentBranchId !== "all" && !isAllBranchesSelected
+      ? currentBranchId
+      : null;
+
+  const effectiveBranch =
+    availableBranches.find((b) => b.id === effectiveBranchId) ||
+    (currentBranch?.id === effectiveBranchId ? currentBranch : null);
+
+  const effectiveBranchName =
+    effectiveBranch?.name ||
+    (effectiveBranchId ? `Branch #${effectiveBranchId.slice(-4)}` : null);
+
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [selectedQuantity, setSelectedQuantity] = useState("1");
   const [serviceAddError, setServiceAddError] = useState<string | null>(null);
+  const [branchValidationError, setBranchValidationError] = useState<string | null>(null);
   const [selectedPlanTemplateId, setSelectedPlanTemplateId] = useState<string>(
     initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || ""
   );
@@ -220,6 +241,13 @@ export function CreateSubscriptionDialog({
   };
 
   const handleFormSubmit = async (data: CreateSubscriptionFormValues) => {
+    setBranchValidationError(null);
+    if (!effectiveBranchId) {
+      setBranchValidationError(
+        "Please select a specific selling branch before creating a subscription. Subscription sale invoices cannot be issued under 'All Branches' or without an active branch selection."
+      );
+      return;
+    }
     await onSubmit(data);
     reset();
   };
@@ -228,6 +256,36 @@ export function CreateSubscriptionDialog({
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+      {/* Active Selling Branch Notice / Missing Branch Error */}
+      {!effectiveBranchId ? (
+        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl flex items-start gap-2 text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <div className="text-xs space-y-1">
+            <p className="font-semibold">Active Selling Branch Required</p>
+            <p className="text-[11px] leading-relaxed opacity-90">
+              Subscription creation and sale invoice generation require an active branch selection. Please select your active branch before selling subscriptions.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="p-2.5 bg-muted/40 border border-border/80 rounded-xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Building2 className="h-3.5 w-3.5 text-primary" />
+            <span className="font-semibold text-foreground">Selling Branch:</span>
+            <span>{effectiveBranchName}</span>
+          </div>
+          <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded font-medium">
+            Invoice Branch
+          </span>
+        </div>
+      )}
+
+      {branchValidationError && (
+        <div className="p-2.5 bg-destructive/10 border border-destructive/30 rounded-lg text-xs text-destructive flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{branchValidationError}</span>
+        </div>
+      )}
       {/* Optional Plan Template Selector */}
       {planTemplates.length > 0 && (
         <div className="p-3 bg-muted/40 border border-primary/20 rounded-xl space-y-1.5">
@@ -279,9 +337,9 @@ export function CreateSubscriptionDialog({
         </label>
         <Input
           type="number"
-          min="0"
+          min="0.01"
           step="0.01"
-          placeholder="Enter custom agreed price..."
+          placeholder="Enter custom agreed price (must be greater than 0)..."
           disabled={isLoading}
           {...register("price", { valueAsNumber: true })}
           className="h-9 text-xs"
@@ -533,8 +591,13 @@ export function CreateSubscriptionDialog({
         <Button
           type="submit"
           size="sm"
-          disabled={isLoading}
+          disabled={isLoading || !effectiveBranchId}
           className="h-9 text-xs cursor-pointer gap-1.5"
+          title={
+            !effectiveBranchId
+              ? "Select an active branch to sell subscriptions"
+              : undefined
+          }
         >
           {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           Sell Subscription

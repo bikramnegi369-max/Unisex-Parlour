@@ -26,6 +26,14 @@ vi.mock("@/hooks/useBranchContext", () => ({
   useBranchContext: () => ({
     getBranchName: vi.fn((id: string) => `Branch ${id}`),
     currentBranch: null,
+    currentBranchId: null,
+    availableBranches: [],
+    isAllBranchesSelected: true,
+    getBranchQueryKey: vi.fn((entity: string, keys: unknown[] = []) => [
+      entity,
+      { scope: "organization" },
+      ...keys,
+    ]),
   }),
 }));
 
@@ -33,6 +41,7 @@ vi.mock("../api/subscriptions.api", () => ({
   getSubscriptions: vi.fn(),
   getSubscriptionById: vi.fn(),
   createSubscription: vi.fn(),
+  renewSubscription: vi.fn(),
   updateSubscription: vi.fn(),
   cancelSubscription: vi.fn(),
 }));
@@ -259,5 +268,101 @@ describe("SubscriptionList UI Banner Refresh Functionality", () => {
 
     expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
     resolvePlans(createMockPaginatedResponse([]));
+  });
+
+  it("disables Sell Subscription button when All Branches is active", async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SubscriptionList />
+      </QueryClientProvider>
+    );
+
+    const headerSellBtn = await screen.findByRole("button", {
+      name: /Sell Subscription/i,
+    });
+    fireEvent.click(headerSellBtn);
+
+    // After clicking, dialog is open. Find all "Sell Subscription" buttons; the dialog submit button is disabled
+    const sellButtons = await screen.findAllByRole("button", {
+      name: /Sell Subscription/i,
+    });
+    expect(sellButtons.length).toBeGreaterThan(1);
+    const modalSubmitBtn = sellButtons[sellButtons.length - 1];
+    expect(modalSubmitBtn.hasAttribute("disabled")).toBe(true);
+
+    // Notice banner is shown
+    expect(screen.getByText(/Active Selling Branch Required/i)).toBeDefined();
+  });
+
+  it("disables Renew Subscription submit button and displays missing branch notice when All Branches is active", async () => {
+    const mockSubToRenew: Subscription = {
+      id: "sub_renew_test",
+      subscriptionCode: "SUB-REN-100",
+      organizationId: "org_1",
+      customerId: "cust_1",
+      price: 2500,
+      status: "active",
+      permittedBranchIds: [],
+      entitlements: [],
+      startDate: "2026-01-01",
+      endDate: "2026-07-01",
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+
+    const { RenewSubscriptionDialog } = await import(
+      "../components/RenewSubscriptionDialog"
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RenewSubscriptionDialog
+          subscription={mockSubToRenew}
+          isOpen={true}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          isLoading={false}
+        />
+      </QueryClientProvider>
+    );
+
+    // Active Selling Branch Required notice is displayed
+    expect(screen.getByText(/Active Selling Branch Required/i)).toBeDefined();
+
+    // Submit button is disabled
+    const submitBtn = screen.getByRole("button", {
+      name: /Renew Subscription/i,
+    });
+    expect(submitBtn.hasAttribute("disabled")).toBe(true);
+  });
+
+  it("derives active selling branch from prop branchId when supplied (e.g. appointment creation context)", async () => {
+    const { CreateSubscriptionDialog } = await import(
+      "../components/CreateSubscriptionDialog"
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CreateSubscriptionDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          isLoading={false}
+          branchId="branch_apt_456"
+        />
+      </QueryClientProvider>
+    );
+
+    // Active Selling Branch Required notice should NOT be displayed because contextual branch is provided
+    expect(screen.queryByText(/Active Selling Branch Required/i)).toBeNull();
+
+    // Selling branch indicator displays the contextual branch
+    expect(screen.getByText(/Selling Branch:/i)).toBeDefined();
+
+    // The submit button is NOT disabled by branch check
+    const sellBtn = screen.getByRole("button", {
+      name: /Sell Subscription/i,
+    });
+    expect(sellBtn.hasAttribute("disabled")).toBe(false);
   });
 });

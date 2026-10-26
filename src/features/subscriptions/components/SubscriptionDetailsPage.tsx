@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Edit, Ban, Gift, CreditCard, Layers, History, Info } from "lucide-react";
+import { ArrowLeft, Edit, Ban, Gift, CreditCard, Layers, History, Info, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
@@ -15,14 +15,20 @@ import { SUBSCRIPTIONS_CONFIG } from "../config/subscriptions.config";
 import { useSubscription } from "../hooks/useSubscription";
 import { useUpdateSubscription } from "../hooks/useUpdateSubscription";
 import { useCancelSubscription } from "../hooks/useCancelSubscription";
+import { useRenewSubscription } from "../hooks/useRenewSubscription";
 import { SubscriptionStatusBadge } from "./SubscriptionStatusBadge";
 import { SubscriptionOverviewTab } from "./SubscriptionOverviewTab";
 import { SubscriptionEntitlementsTab } from "./SubscriptionEntitlementsTab";
 import { SubscriptionUsageTab } from "./SubscriptionUsageTab";
 import { EditSubscriptionDialog } from "./EditSubscriptionDialog";
 import { CancelSubscriptionDialog } from "./CancelSubscriptionDialog";
+import { RenewSubscriptionDialog } from "./RenewSubscriptionDialog";
 import { RedeemSubscriptionModal } from "./RedeemSubscriptionModal";
-import type { UpdateSubscriptionFormValues, CancelSubscriptionFormValues } from "../schemas/subscription.schema";
+import type {
+  UpdateSubscriptionFormValues,
+  CancelSubscriptionFormValues,
+  RenewSubscriptionFormValues,
+} from "../schemas/subscription.schema";
 import type { SubscriptionEntitlement } from "../types/subscription.types";
 
 interface SubscriptionDetailsPageProps {
@@ -38,14 +44,17 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
   const [isRedeemOpen, setIsRedeemOpen] = useState(false);
+  const [isRenewOpen, setIsRenewOpen] = useState(false);
 
   const canEdit = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.configure);
   const canCancel = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.configure);
   const canRedeem = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.redeem);
+  const canSell = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.sell);
 
   const { data: subscription, isLoading, isError, refetch } = useSubscription(id);
   const updateMutation = useUpdateSubscription();
   const cancelMutation = useCancelSubscription();
+  const renewMutation = useRenewSubscription();
 
   const handleEditSubmit = async (values: UpdateSubscriptionFormValues) => {
     try {
@@ -75,6 +84,49 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
         ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to cancel subscription.";
+      toast.error(msg);
+    }
+  };
+
+  const handleRenewSubmit = async (values: RenewSubscriptionFormValues) => {
+    try {
+      const renewedSub = await renewMutation.mutateAsync({
+        id,
+        payload: {
+          endDate: values.endDate,
+          price: values.price,
+          notes: values.notes,
+        },
+      });
+
+      setIsRenewOpen(false);
+      refetch();
+
+      const invoiceId = renewedSub.invoiceId || renewedSub.invoice?.id;
+      const invoiceNumber = renewedSub.invoiceNumber || renewedSub.invoice?.invoiceNumber || "";
+
+      if (invoiceId) {
+        toast.success(
+          `Subscription renewed! Renewal invoice ${invoiceNumber} created (${renewedSub.paymentStatus === "paid" ? "Paid" : "Pending Payment"}).`,
+          {
+            action: {
+              label: "View Invoice",
+              onClick: () => router.push(`/billing/${invoiceId}`),
+            },
+            duration: 6000,
+          }
+        );
+        router.push(`/billing/${invoiceId}`);
+      } else {
+        toast.success("Subscription renewed successfully.");
+      }
+    } catch (err: unknown) {
+      const errorObj = err as Record<string, unknown> | null;
+      const responseObj = errorObj?.response as Record<string, unknown> | null;
+      const msg =
+        ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+        (errorObj?.message as string) ||
+        "Failed to renew subscription.";
       toast.error(msg);
     }
   };
@@ -204,6 +256,20 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
               </Button>
             )}
 
+            {canSell && subscription.status !== "cancelled" && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRenewOpen(true)}
+                className="h-9 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                title="Renew subscription validity and entitlements"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Renew
+              </Button>
+            )}
+
             {canEdit && (
               <Button
                 type="button"
@@ -306,6 +372,23 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
               refetch();
               setActiveTab("usage");
             }}
+          />
+        </Dialog>
+      )}
+
+      {/* Renew Modal */}
+      {isRenewOpen && (
+        <Dialog
+          isOpen={isRenewOpen}
+          onClose={() => setIsRenewOpen(false)}
+          title="Renew Subscription"
+        >
+          <RenewSubscriptionDialog
+            subscription={subscription}
+            isOpen={isRenewOpen}
+            onClose={() => setIsRenewOpen(false)}
+            onSubmit={handleRenewSubmit}
+            isLoading={renewMutation.isPending}
           />
         </Dialog>
       )}

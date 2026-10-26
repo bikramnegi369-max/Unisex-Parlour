@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   createSubscriptionSchema,
   cancelSubscriptionSchema,
+  renewSubscriptionSchema,
   redeemSubscriptionSchema,
 } from "../schemas/subscription.schema";
 
@@ -25,12 +26,15 @@ describe("Subscription Zod Schemas", () => {
       expect(result.success).toBe(true);
     });
 
-    it("accepts zero price (e.g. complimentary subscription)", () => {
+    it("rejects zero price (subscription sale price must be greater than 0)", () => {
       const result = createSubscriptionSchema.safeParse({
         ...validData,
         price: 0,
       });
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain("greater than 0");
+      }
     });
 
     it("rejects negative price", () => {
@@ -40,7 +44,7 @@ describe("Subscription Zod Schemas", () => {
       });
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues[0].message).toContain("greater than or equal to 0");
+        expect(result.error.issues[0].message).toContain("greater than 0");
       }
     });
 
@@ -112,6 +116,39 @@ describe("Subscription Zod Schemas", () => {
     it("rejects empty cancellation reason", () => {
       const result = cancelSubscriptionSchema.safeParse({
         reason: "   ",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("renewSubscriptionSchema", () => {
+    it("accepts valid renewal data with endDate, price, and notes", () => {
+      const result = renewSubscriptionSchema.safeParse({
+        endDate: "2027-09-01",
+        price: 2500,
+        notes: "Seasonal renewal",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts renewal without price or notes", () => {
+      const result = renewSubscriptionSchema.safeParse({
+        endDate: "2027-09-01",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects missing endDate", () => {
+      const result = renewSubscriptionSchema.safeParse({
+        price: 2500,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects negative renewal price", () => {
+      const result = renewSubscriptionSchema.safeParse({
+        endDate: "2027-09-01",
+        price: -100,
       });
       expect(result.success).toBe(false);
     });

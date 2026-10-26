@@ -830,6 +830,7 @@ export function AppointmentDetailsDialog({
           isOpen={isSellSubscriptionOpen}
           onClose={() => setIsSellSubscriptionOpen(false)}
           initialCustomerId={customerId}
+          branchId={appointment.branchId}
           isLoading={upsellSubMutation.isPending}
           onSubmit={async (values) => {
             try {

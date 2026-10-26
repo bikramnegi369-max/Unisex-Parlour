@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Building2, Calendar, User, FileText, CheckCircle2 } from "lucide-react";
 import type { Subscription } from "../types/subscription.types";
@@ -111,12 +112,12 @@ export function SubscriptionOverviewTab({
             {subscription.invoiceId && (
               <div className="flex justify-between items-center pt-1 border-t border-border/50">
                 <span className="text-muted-foreground">Sale Invoice:</span>
-                <a
+                <Link
                   href={`/billing/${subscription.invoiceId}`}
                   className="font-bold text-xs text-primary underline underline-offset-2 hover:opacity-80"
                 >
                   {subscription.invoiceNumber || `#${subscription.invoiceId.slice(-6)}`}
-                </a>
+                </Link>
               </div>
             )}
           </div>

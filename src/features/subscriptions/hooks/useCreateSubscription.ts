@@ -2,11 +2,20 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createSubscription } from "../api/subscriptions.api";
 import type { CreateSubscriptionPayload } from "../types/subscription.types";
 
+export type CreateSubscriptionMutationInput =
+  | CreateSubscriptionPayload
+  | { payload: CreateSubscriptionPayload; branchId?: string };
+
 export function useCreateSubscription() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreateSubscriptionPayload) => createSubscription(payload),
+    mutationFn: (input: CreateSubscriptionMutationInput) => {
+      if ("payload" in input && input.payload) {
+        return createSubscription(input.payload, input.branchId);
+      }
+      return createSubscription(input as CreateSubscriptionPayload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({
         predicate: (query) => {

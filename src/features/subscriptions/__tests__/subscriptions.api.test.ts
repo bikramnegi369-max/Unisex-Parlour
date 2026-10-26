@@ -4,6 +4,7 @@ import {
   getSubscriptions,
   getSubscription,
   createSubscription,
+  renewSubscription,
   updateSubscription,
   cancelSubscription,
   sendSubscriptionOtp,
@@ -114,7 +115,7 @@ describe("Subscriptions API layer", () => {
   });
 
   describe("createSubscription", () => {
-    it("calls POST /subscriptions with organization scope and sanitizes permittedBranchIds", async () => {
+    it("calls POST /subscriptions with current branch scope and sanitizes permittedBranchIds", async () => {
       const payload = {
         customerId: "cust_1",
         price: 2500,
@@ -146,7 +147,7 @@ describe("Subscriptions API layer", () => {
           endDate: "2027-03-01",
           notes: "Vip client",
         },
-        { branchScope: "none" }
+        { branchScope: "current" }
       );
       expect(res.id).toBe("new_sub_1");
     });
@@ -186,6 +187,54 @@ describe("Subscriptions API layer", () => {
       expect(res.invoiceId).toBe("inv_sub_123");
       expect(res.invoiceNumber).toBe("INV-SUB-001");
       expect(res.invoice?.amountDue).toBe(3500);
+    });
+  });
+
+  describe("renewSubscription", () => {
+    it("calls POST /subscriptions/:id/renew with current branch scope and returns renewal invoice reference", async () => {
+      const payload = {
+        endDate: "2027-09-01",
+        price: 3000,
+        notes: "6 month renewal",
+      };
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: {
+            subscription: {
+              _id: "sub_renew_1",
+              subscriptionCode: "SUB-001",
+              customerId: "cust_1",
+              price: 3000,
+              endDate: "2027-09-01",
+              status: "active",
+            },
+            invoiceId: "inv_renew_999",
+            invoiceNumber: "INV-REN-001",
+            invoice: {
+              _id: "inv_renew_999",
+              invoiceNumber: "INV-REN-001",
+              status: "finalized",
+              paymentStatus: "unpaid",
+              amountDue: 3000,
+            },
+          },
+        },
+      });
+
+      const res = await renewSubscription("sub_renew_1", payload);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/subscriptions/sub_renew_1/renew",
+        payload,
+        { branchScope: "current" }
+      );
+      expect(res.id).toBe("sub_renew_1");
+      expect(res.invoiceId).toBe("inv_renew_999");
+      expect(res.invoiceNumber).toBe("INV-REN-001");
+      expect(res.invoice?.amountDue).toBe(3000);
     });
   });
 

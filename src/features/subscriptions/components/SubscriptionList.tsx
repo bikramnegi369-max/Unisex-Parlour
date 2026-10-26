@@ -27,6 +27,7 @@ import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useCreateSubscription } from "../hooks/useCreateSubscription";
 import { useUpdateSubscription } from "../hooks/useUpdateSubscription";
 import { useCancelSubscription } from "../hooks/useCancelSubscription";
+import { useRenewSubscription } from "../hooks/useRenewSubscription";
 import {
   useSubscriptionPlans,
   useCreateSubscriptionPlan,
@@ -39,6 +40,7 @@ import { SubscriptionFilters } from "./SubscriptionFilters";
 import { CreateSubscriptionDialog } from "./CreateSubscriptionDialog";
 import { EditSubscriptionDialog } from "./EditSubscriptionDialog";
 import { CancelSubscriptionDialog } from "./CancelSubscriptionDialog";
+import { RenewSubscriptionDialog } from "./RenewSubscriptionDialog";
 import { RedeemSubscriptionModal } from "./RedeemSubscriptionModal";
 import { SubscriptionPlanTable } from "./SubscriptionPlanTable";
 import { PlanFormDialog } from "./PlanFormDialog";
@@ -48,6 +50,7 @@ import type {
   CreateSubscriptionFormValues,
   UpdateSubscriptionFormValues,
   CancelSubscriptionFormValues,
+  RenewSubscriptionFormValues,
 } from "../schemas/subscription.schema";
 import type { CreateSubscriptionPlanFormValues } from "../schemas/plan.schema";
 
@@ -83,6 +86,8 @@ export function SubscriptionList() {
   const [isPlanFormOpen, setIsPlanFormOpen] = useState(false);
   const [activePlan, setActivePlan] = useState<SubscriptionPlan | null>(null);
 
+  const [isRenewOpen, setIsRenewOpen] = useState(false);
+
   // Permissions
   const canView = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.view);
   const canSell = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.sell);
@@ -115,6 +120,7 @@ export function SubscriptionList() {
   const createMutation = useCreateSubscription();
   const updateMutation = useUpdateSubscription();
   const cancelMutation = useCancelSubscription();
+  const renewMutation = useRenewSubscription();
 
   const createPlanMutation = useCreateSubscriptionPlan();
   const updatePlanMutation = useUpdateSubscriptionPlan();
@@ -144,6 +150,11 @@ export function SubscriptionList() {
   const handleRedeem = React.useCallback((sub: Subscription) => {
     setActiveSubscription(sub);
     setIsRedeemOpen(true);
+  }, []);
+
+  const handleRenew = React.useCallback((sub: Subscription) => {
+    setActiveSubscription(sub);
+    setIsRenewOpen(true);
   }, []);
 
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
@@ -187,6 +198,51 @@ export function SubscriptionList() {
           ?.message as string) ||
         (errorObj?.message as string) ||
         "Failed to create subscription.";
+      toast.error(msg);
+    }
+  };
+
+  const handleRenewSubmit = async (values: RenewSubscriptionFormValues) => {
+    if (!activeSubscription) return;
+    try {
+      const renewedSub = await renewMutation.mutateAsync({
+        id: activeSubscription.id,
+        payload: {
+          endDate: values.endDate,
+          price: values.price,
+          notes: values.notes,
+        },
+      });
+
+      setIsRenewOpen(false);
+      setActiveSubscription(null);
+
+      const invoiceId = renewedSub.invoiceId || renewedSub.invoice?.id;
+      const invoiceNumber = renewedSub.invoiceNumber || renewedSub.invoice?.invoiceNumber || "";
+
+      if (invoiceId) {
+        toast.success(
+          `Subscription renewed! Renewal invoice ${invoiceNumber} created (${renewedSub.paymentStatus === "paid" ? "Paid" : "Pending Payment"}).`,
+          {
+            action: {
+              label: "View Invoice",
+              onClick: () => router.push(`/billing/${invoiceId}`),
+            },
+            duration: 6000,
+          }
+        );
+        router.push(`/billing/${invoiceId}`);
+      } else {
+        toast.success("Subscription renewed successfully.");
+      }
+    } catch (err: unknown) {
+      const errorObj = err as Record<string, unknown> | null;
+      const responseObj = errorObj?.response as Record<string, unknown> | null;
+      const msg =
+        ((responseObj?.data as Record<string, unknown> | null)
+          ?.message as string) ||
+        (errorObj?.message as string) ||
+        "Failed to renew subscription.";
       toast.error(msg);
     }
   };
@@ -242,10 +298,12 @@ export function SubscriptionList() {
         onEdit: handleEdit,
         onCancel: handleCancel,
         onRedeem: handleRedeem,
+        onRenew: handleRenew,
         canView,
         canEdit: canConfigure,
         canCancel: canConfigure,
         canRedeem,
+        canRenew: canSell,
         getBranchName,
       }),
     [
@@ -253,9 +311,11 @@ export function SubscriptionList() {
       handleEdit,
       handleCancel,
       handleRedeem,
+      handleRenew,
       canView,
       canConfigure,
       canRedeem,
+      canSell,
       getBranchName,
     ],
   );
@@ -753,6 +813,29 @@ export function SubscriptionList() {
             onSuccess={() => {
               refetch();
             }}
+          />
+        </Dialog>
+      )}
+
+      {/* Renew Subscription Dialog */}
+      {isRenewOpen && activeSubscription && (
+        <Dialog
+          isOpen={isRenewOpen}
+          onClose={() => {
+            setIsRenewOpen(false);
+            setActiveSubscription(null);
+          }}
+          title="Renew Subscription"
+        >
+          <RenewSubscriptionDialog
+            subscription={activeSubscription}
+            isOpen={isRenewOpen}
+            onClose={() => {
+              setIsRenewOpen(false);
+              setActiveSubscription(null);
+            }}
+            onSubmit={handleRenewSubmit}
+            isLoading={renewMutation.isPending}
           />
         </Dialog>
       )}

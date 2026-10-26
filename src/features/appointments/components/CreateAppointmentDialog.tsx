@@ -209,8 +209,10 @@ interface RegisteredServiceBookingSummaryRowProps {
     total: number;
     used: number;
     endDate?: string;
+    status?: string;
     paymentStatus?: string;
     amountDue?: number;
+    isPaid?: boolean;
     isRedeemable: boolean;
     candidates: Array<{
       subscriptionId: string;
@@ -219,8 +221,10 @@ interface RegisteredServiceBookingSummaryRowProps {
       used: number;
       total: number;
       endDate?: string;
+      status?: string;
       paymentStatus?: string;
       amountDue?: number;
+      isPaid?: boolean;
       isRedeemable: boolean;
     }>;
   };
@@ -256,18 +260,47 @@ const RegisteredServiceBookingSummaryRow = React.memo(
             : "bg-muted/20 border-border hover:border-border/80"
         }`}
       >
-        {/* Row 1: Name, Duration & Custom Price Input */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
+        {/* Row 1: Service Name, Badges, Duration & Action */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
                 {srvName}
               </span>
               {hasSub && (
                 <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 shrink-0 whitespace-nowrap">
-                  Covered by Plan
+                  Plan Applied
                 </span>
               )}
+              {/* If plan payment is pending / partial, show badge neatly next to service title */}
+              {canRedeemPlan &&
+                (subQuota!.paymentStatus === "partially_paid" ? (
+                  <span
+                    className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 font-bold px-1.5 py-0.2 rounded uppercase shrink-0 whitespace-nowrap"
+                    title={
+                      subQuota!.amountDue != null && subQuota!.amountDue > 0
+                        ? `Partial payment (Due: ₹${subQuota!.amountDue})`
+                        : "Partial payment"
+                    }
+                  >
+                    Partial
+                  </span>
+                ) : subQuota!.paymentStatus === "unpaid" ||
+                  subQuota!.paymentStatus === "pending_payment" ||
+                  subQuota!.status === "pending_payment" ||
+                  subQuota!.isPaid === false ||
+                  (subQuota!.amountDue != null && subQuota!.amountDue > 0) ? (
+                  <span
+                    className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold px-1.5 py-0.2 rounded uppercase shrink-0 whitespace-nowrap"
+                    title={
+                      subQuota!.amountDue != null && subQuota!.amountDue > 0
+                        ? `Plan payment pending: ₹${subQuota!.amountDue}`
+                        : "Plan payment pending"
+                    }
+                  >
+                    Payment Pending
+                  </span>
+                ) : null)}
             </div>
             <span className="text-[11px] text-muted-foreground block pt-0.5">
               {serviceObj?.duration || 0} mins • Standard:{" "}
@@ -275,180 +308,148 @@ const RegisteredServiceBookingSummaryRow = React.memo(
             </span>
           </div>
 
-          {/* Compact Custom Price Input & Remove Action */}
-          <div className="flex items-center gap-2 shrink-0">
-            {hasSub ? (
-              <div
-                className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2 py-0.5 shadow-2xs cursor-not-allowed opacity-90"
-                title="Subscribed services are covered by the customer plan and cannot have custom pricing."
-              >
-                <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                  Plan Covered
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
-                <span className="text-[11px] font-semibold text-muted-foreground">
-                  ₹
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={registeredItem.customPrice ?? ""}
-                  placeholder={String(basePrice)}
-                  onChange={(e) =>
-                    onCustomPriceChange(
-                      registeredItem.serviceId,
-                      e.target.value,
-                    )
-                  }
-                  className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
-                  title="Custom agreed price for non-subscribed service"
-                  aria-label={`Custom price for ${srvName}`}
-                />
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => onRemoveService(registeredItem.serviceId)}
-              className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
-              title="Remove service from booking"
-              aria-label={`Remove ${srvName}`}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          {/* Remove Button */}
+          <button
+            type="button"
+            onClick={() => onRemoveService(registeredItem.serviceId)}
+            className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer shrink-0"
+            title="Remove service from booking"
+            aria-label={`Remove ${srvName}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
 
-        {/* Row 2: Customer Plan Entitlement Bar */}
-        <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] gap-2">
-          {canRedeemPlan ? (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
-              {subQuota!.candidates.length > 1 ? (
-                /* Multi-subscription dropdown selector: clean, compact, and responsive */
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className="relative flex-1 min-w-44 max-w-xs">
-                    <select
-                      value={registeredItem.appliedSubscriptionId || ""}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        onToggleSubscription(
-                          registeredItem.serviceId,
-                          val ? val : null,
-                        );
-                      }}
-                      className={`w-full h-7 text-[11px] font-semibold rounded-lg border px-2 pr-7 appearance-none cursor-pointer transition-colors ${
-                        hasSub
-                          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
-                          : "bg-muted/40 border-border text-muted-foreground hover:border-border/80"
-                      }`}
-                    >
-                      <option value="">No Plan (Standard Billing)</option>
-                      <option value="auto">
-                        ⚡ Auto: Earliest Expiring ({subQuota!.remaining} left)
-                      </option>
-                      {subQuota!.candidates.map((cand) => {
-                        const paymentLabel =
-                          cand.paymentStatus === "unpaid" ||
-                          cand.paymentStatus === "pending_payment"
-                            ? " • Unpaid"
-                            : cand.paymentStatus === "partially_paid"
-                              ? " • Partial"
-                              : "";
-                        return (
-                          <option
-                            key={cand.subscriptionId}
-                            value={cand.subscriptionId}
-                          >
-                            {cand.subscriptionCode} ({cand.remaining}/
-                            {cand.total} left{paymentLabel})
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <ChevronDown className="h-3 w-3 absolute right-2 top-2 pointer-events-none text-muted-foreground" />
-                  </div>
-
-                  {hasSub && (
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">
-                      ✓ Plan active
-                    </span>
-                  )}
-                </div>
-              ) : (
-                /* Single subscription toggle button: distinct, clean pill */
-                <div className="flex items-center gap-2 flex-wrap min-w-0">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onToggleSubscription(registeredItem.serviceId, "auto")
-                    }
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
+        {/* Row 2: Stable Plan Toggle / Custom Price on Left, Anchored Cost on Right */}
+        <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            {canRedeemPlan ? (
+              subQuota!.candidates.length > 1 ? (
+                /* Multi-subscription dropdown selector: clean, compact, and fixed height */
+                <div className="relative flex-1 max-w-xs min-w-44">
+                  <select
+                    value={registeredItem.appliedSubscriptionId || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      onToggleSubscription(
+                        registeredItem.serviceId,
+                        val ? val : null,
+                      );
+                    }}
+                    className={`w-full h-7 text-[0.625rem] font-semibold rounded-lg border px-2 pr-7 appearance-none cursor-pointer transition-colors ${
                       hasSub
-                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
-                        : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
+                        ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
+                        : "bg-muted/40 border-border text-muted-foreground hover:border-border/80"
                     }`}
                   >
-                    {hasSub ? (
-                      <>
-                        <Check className="h-3 w-3 stroke-3" />
-                        <span>Covered ({subQuota!.subscriptionCode})</span>
-                        <span className="text-[9px] opacity-90 font-mono">
-                          ({subQuota!.remaining}/{subQuota!.total} left)
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="h-3 w-3" />
-                        <span>
-                          Apply Plan ({subQuota!.subscriptionCode} •{" "}
-                          {subQuota!.remaining}/{subQuota!.total})
-                        </span>
-                      </>
-                    )}
-                  </button>
-
-                  {subQuota!.paymentStatus === "unpaid" ||
-                  subQuota!.paymentStatus === "pending_payment" ? (
-                    <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold px-1.5 py-0.5 rounded uppercase">
-                      Pending
-                      {subQuota!.amountDue != null && subQuota!.amountDue > 0
-                        ? ` (₹${subQuota!.amountDue})`
-                        : ""}
-                    </span>
-                  ) : subQuota!.paymentStatus === "partially_paid" ? (
-                    <span className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 font-bold px-1.5 py-0.5 rounded uppercase">
-                      Partial
-                      {subQuota!.amountDue != null && subQuota!.amountDue > 0
-                        ? ` (Due: ₹${subQuota!.amountDue})`
-                        : ""}
-                    </span>
-                  ) : null}
+                    <option value="">No Plan (Standard Billing)</option>
+                    <option value="auto">
+                      ⚡ Auto: Earliest Expiring ({subQuota!.remaining} left)
+                    </option>
+                    {subQuota!.candidates.map((cand) => {
+                      const paymentLabel =
+                        cand.paymentStatus === "unpaid" ||
+                        cand.paymentStatus === "pending_payment"
+                          ? " • Unpaid"
+                          : cand.paymentStatus === "partially_paid"
+                            ? " • Partial"
+                            : "";
+                      return (
+                        <option
+                          key={cand.subscriptionId}
+                          value={cand.subscriptionId}
+                        >
+                          {cand.subscriptionCode} ({cand.remaining}/{cand.total}{" "}
+                          left{paymentLabel})
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <ChevronDown className="h-3 w-3 absolute right-2 top-2 pointer-events-none text-muted-foreground" />
                 </div>
-              )}
-            </div>
-          ) : (
-            <span className="text-[11px] text-muted-foreground">
-              Standard Billing
-            </span>
-          )}
+              ) : (
+                /* Single subscription toggle button: stable fixed height and clear text */
+                <button
+                  type="button"
+                  onClick={() =>
+                    onToggleSubscription(registeredItem.serviceId, "auto")
+                  }
+                  className={`h-7 inline-flex items-center gap-1.5 px-2 rounded-lg text-[0.625rem] font-semibold transition-all cursor-pointer border whitespace-nowrap shrink-0 shadow-2xs ${
+                    hasSub
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
+                      : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20"
+                  }`}
+                  title={
+                    hasSub
+                      ? `Covered by plan ${subQuota!.subscriptionCode} (${subQuota!.remaining} remaining)`
+                      : `Apply plan ${subQuota!.subscriptionCode} (${subQuota!.remaining} left)`
+                  }
+                >
+                  {hasSub ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 stroke-3 shrink-0" />
+                      <span>Plan Applied</span>
+                      <span className="font-mono opacity-90 font-medium">
+                        ({subQuota!.subscriptionCode} • {subQuota!.remaining}{" "}
+                        left)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <span>Apply Plan</span>
+                      <span className="font-mono opacity-80 font-medium">
+                        ({subQuota!.subscriptionCode} • {subQuota!.remaining}{" "}
+                        left)
+                      </span>
+                    </>
+                  )}
+                </button>
+              )
+            ) : (
+              /* Non-subscribed: Editable Custom Price Input */
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-muted-foreground">
+                  Price:
+                </span>
+                <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs h-7">
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    ₹
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={registeredItem.customPrice ?? ""}
+                    placeholder={String(basePrice)}
+                    onChange={(e) =>
+                      onCustomPriceChange(
+                        registeredItem.serviceId,
+                        e.target.value,
+                      )
+                    }
+                    className="w-16 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
+                    title="Custom agreed price for non-subscribed service"
+                    aria-label={`Custom price for ${srvName}`}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
 
-          {/* Final Effective Line Amount */}
-          <div className="text-right shrink-0 flex flex-col items-end">
+          {/* Final Effective Line Amount: Anchored right */}
+          <div className="text-right shrink-0 flex flex-col items-end justify-center min-w-16">
             {hasSub ? (
               <>
-                <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
+                <span className="line-through text-muted-foreground text-[10px] font-normal leading-none whitespace-nowrap">
                   {formatCurrency(currentEffectivePrice)}
                 </span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs leading-tight">
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs leading-tight whitespace-nowrap mt-0.5">
                   ₹0.00
                 </span>
               </>
             ) : (
-              <span className="font-extrabold text-foreground text-xs leading-tight">
+              <span className="font-extrabold text-foreground text-xs leading-tight whitespace-nowrap">
                 {formatCurrency(currentEffectivePrice)}
               </span>
             )}
@@ -588,8 +589,10 @@ export function CreateAppointmentDialog({
         used: number;
         total: number;
         endDate?: string;
+        status?: string;
         paymentStatus?: string;
         amountDue?: number;
+        isPaid?: boolean;
         isRedeemable: boolean;
       }>
     >();
@@ -606,8 +609,10 @@ export function CreateAppointmentDialog({
             used: ent.usedQuantity || 0,
             total: ent.totalQuantity,
             endDate: sub.endDate,
+            status: sub.status,
             paymentStatus: sub.paymentStatus,
             amountDue: sub.amountDue,
+            isPaid: sub.isPaid,
             isRedeemable,
           });
           map.set(ent.serviceId, list);
@@ -649,8 +654,10 @@ export function CreateAppointmentDialog({
         total: number;
         used: number;
         endDate?: string;
+        status?: string;
         paymentStatus?: string;
         amountDue?: number;
+        isPaid?: boolean;
         isRedeemable: boolean;
         candidates: Array<{
           subscriptionId: string;
@@ -659,8 +666,10 @@ export function CreateAppointmentDialog({
           used: number;
           total: number;
           endDate?: string;
+          status?: string;
           paymentStatus?: string;
           amountDue?: number;
+          isPaid?: boolean;
           isRedeemable: boolean;
         }>;
       }
@@ -679,8 +688,10 @@ export function CreateAppointmentDialog({
           total: totalAllocated,
           used: totalUsed,
           endDate: primary.endDate,
+          status: primary.status,
           paymentStatus: primary.paymentStatus,
           amountDue: primary.amountDue,
+          isPaid: primary.isPaid,
           isRedeemable: primary.isRedeemable,
           candidates,
         });
@@ -972,7 +983,7 @@ export function CreateAppointmentDialog({
       if (filteredServices.length > 0) {
         groups.push({
           categoryId: "subscribed",
-          categoryName: "My Subscribed Services (Active Quota)",
+          categoryName: "Subscribed Services",
           services: filteredServices,
         });
       }
@@ -1804,6 +1815,12 @@ export function CreateAppointmentDialog({
                         );
                         return;
                       }
+                      if (isBranchSelectionRequired) {
+                        toast.error(
+                          "Please select a branch for this appointment before selling a subscription package.",
+                        );
+                        return;
+                      }
                       setIsSellSubscriptionOpen(true);
                     }}
                     className="h-8 px-3 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs whitespace-nowrap hover:shadow-xs"
@@ -1931,35 +1948,35 @@ export function CreateAppointmentDialog({
                 subscribedServiceIds.size > 0 &&
                 activeCategoryId !== "subscribed" &&
                 !serviceSearch.trim() && (
-                  <div className="relative overflow-hidden p-3.5 bg-linear-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl shadow-xs">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <div className="flex items-start sm:items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-xl bg-emerald-500/20 border border-emerald-500/35 flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
-                          <ShieldCheck className="h-5 w-5 text-emerald-700 dark:text-emerald-300 stroke-2" />
+                  <div className="p-3 bg-linear-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/25 rounded-xl shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                      {/* Left Side: Shield Icon + Title + Covered Badge + Description */}
+                      <div className="flex items-start sm:items-center gap-2.5 min-w-0 flex-1">
+                        <div className="h-8 w-8 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                          <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400 stroke-2" />
                         </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-foreground text-xs leading-normal">
-                              Active Subscription Covered Services
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-foreground text-xs leading-tight">
+                              Active Subscription
                             </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-bold px-2 py-0.5 rounded-full border border-emerald-500/35 shrink-0 whitespace-nowrap">
-                              <Sparkles className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-300" />
-                              <span>{subscribedServiceIds.size} available</span>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded-md border border-emerald-500/30 shrink-0 whitespace-nowrap">
+                              {subscribedServiceIds.size} covered services
                             </span>
                           </div>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed wrap-break-word">
-                            This client holds prepaid plan quotas. Select
-                            subscribed services directly at ₹0 billable line
-                            total.
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug wrap-break-word">
+                            Client holds prepaid quota • ₹0 billable line total
                           </p>
                         </div>
                       </div>
+
+                      {/* Right Side Action Button */}
                       <button
                         type="button"
                         onClick={() => setSelectedCategoryId("subscribed")}
-                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-900 dark:text-emerald-100 bg-emerald-500/25 hover:bg-emerald-500/35 border border-emerald-500/40 shrink-0 cursor-pointer transition-colors shadow-2xs whitespace-nowrap self-start sm:self-center"
+                        className="self-start sm:self-center px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-800 dark:text-emerald-200 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/35 shrink-0 cursor-pointer transition-colors shadow-2xs whitespace-nowrap"
                       >
-                        View Subscribed
+                        Filter Subscribed
                       </button>
                     </div>
                   </div>
@@ -2012,7 +2029,7 @@ export function CreateAppointmentDialog({
                             : "border-border bg-card"
                         }`}
                       >
-                        {/* Category Header */}
+                        {/* Category Header: Clean, balanced, production-grade layout with no overlapping */}
                         <button
                           type="button"
                           aria-expanded={!isCollapsed}
@@ -2020,13 +2037,14 @@ export function CreateAppointmentDialog({
                           onClick={() =>
                             toggleCategoryCollapse(group.categoryId)
                           }
-                          className={`w-full flex items-center justify-between px-3.5 py-2.5 transition-colors text-xs font-semibold cursor-pointer select-none ${
+                          className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 transition-colors text-xs font-semibold cursor-pointer select-none ${
                             isSubscribedGroup
-                              ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-foreground"
+                              ? "bg-emerald-500/10 hover:bg-emerald-500/15 text-foreground"
                               : "bg-muted/30 hover:bg-muted/60 text-foreground"
                           }`}
                         >
-                          <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                          {/* Left: Indicator Chevron, Optional Shield & Full Category Name */}
+                          <div className="flex items-center gap-2 min-w-0 flex-1 text-left">
                             {isCollapsed ? (
                               <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             ) : (
@@ -2035,18 +2053,30 @@ export function CreateAppointmentDialog({
                             {isSubscribedGroup && (
                               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                             )}
-                            <span className="font-bold truncate text-left">
+                            <span className="font-bold text-foreground text-xs leading-snug">
                               {group.categoryName}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-normal shrink-0">
-                              ({group.services.length})
-                            </span>
                           </div>
-                          {selectedCountInGroup > 0 && (
-                            <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-bold shrink-0">
-                              {selectedCountInGroup} selected
+
+                          {/* Right: Badges & Count neatly grouped without overlapping */}
+                          <div className="flex items-center gap-1.5 shrink-0 text-right">
+                            {isSubscribedGroup && (
+                              <span className="text-[9px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded border border-emerald-500/30 whitespace-nowrap">
+                                Active Plan
+                              </span>
+                            )}
+                            <span className="text-[10px] text-muted-foreground bg-muted/60 border border-border/60 px-1.5 py-0.5 rounded font-medium whitespace-nowrap">
+                              {group.services.length}{" "}
+                              {group.services.length === 1
+                                ? "service"
+                                : "services"}
                             </span>
-                          )}
+                            {selectedCountInGroup > 0 && (
+                              <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-bold whitespace-nowrap">
+                                {selectedCountInGroup} selected
+                              </span>
+                            )}
+                          </div>
                         </button>
 
                         {/* High-Density Service List Rows with Full Text Visibility (No Truncation) */}
@@ -2810,18 +2840,22 @@ export function CreateAppointmentDialog({
           isOpen={isSellSubscriptionOpen}
           onClose={() => setIsSellSubscriptionOpen(false)}
           initialCustomerId={watchedCustomerId}
+          branchId={effectiveBranchId}
           isLoading={createSubMutation.isPending}
           onSubmit={async (values) => {
             try {
               const createdSub = await createSubMutation.mutateAsync({
-                customerId: values.customerId,
-                planId: values.planId,
-                price: values.price,
-                entitlements: values.entitlements,
-                permittedBranchIds: values.permittedBranchIds,
-                startDate: values.startDate,
-                endDate: values.endDate,
-                notes: values.notes,
+                payload: {
+                  customerId: values.customerId,
+                  planId: values.planId,
+                  price: values.price,
+                  entitlements: values.entitlements,
+                  permittedBranchIds: values.permittedBranchIds,
+                  startDate: values.startDate,
+                  endDate: values.endDate,
+                  notes: values.notes,
+                },
+                branchId: effectiveBranchId,
               });
 
               setIsSellSubscriptionOpen(false);
