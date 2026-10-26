@@ -17,6 +17,7 @@ export interface RawServiceDTO {
     specialPrice?: number;
   };
   basePrice?: number;
+  gender?: "male" | "female" | "unisex" | string;
   status?: "active" | "inactive" | string;
   isActive?: boolean;
   isDeleted?: boolean;
@@ -43,6 +44,11 @@ export const mapServiceDTO = (item: RawServiceDTO | null | undefined): Service =
       ? item.isActive
       : item.status === "active" || item.status === undefined;
 
+  const gender: "male" | "female" | "unisex" =
+    item.gender === "male" || item.gender === "female" || item.gender === "unisex"
+      ? item.gender
+      : "unisex";
+
   return {
     id: item._id || item.id || "",
     name: item.name || "",
@@ -56,6 +62,7 @@ export const mapServiceDTO = (item: RawServiceDTO | null | undefined): Service =
     },
     basePrice,
     displayOrder: item.displayOrder ?? 0,
+    gender,
     isActive,
     branchId: item.branchId || "",
     organizationId: item.organizationId || "",
@@ -102,6 +109,7 @@ export const createService = async (payload: ServicePayload): Promise<Service> =
     categoryId: catId,
     duration: payload.duration,
     basePrice,
+    gender: payload.gender || "unisex",
   };
 
   if (payload.code || payload.serviceCode) {
@@ -136,6 +144,7 @@ export const updateService = async (
         : payload.categoryId;
   }
   if (payload.duration !== undefined) nestedPayload.duration = payload.duration;
+  if (payload.gender !== undefined) nestedPayload.gender = payload.gender;
   if (payload.displayOrder !== undefined) nestedPayload.displayOrder = payload.displayOrder;
   if (payload.status !== undefined) nestedPayload.status = payload.status;
 

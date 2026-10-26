@@ -49,6 +49,7 @@ export default function ServicesList() {
   );
   const searchVal = searchParams.get("search") || "";
   const statusVal = searchParams.get("status") || "all";
+  const genderVal = searchParams.get("gender") || "all";
   const categoryIdVal = searchParams.get("categoryId") || "all";
   const sortVal = searchParams.get("sort") || "";
 
@@ -80,6 +81,10 @@ export default function ServicesList() {
     page: page,
     limit: limit,
     status: statusVal !== "all" ? statusVal : undefined,
+    gender:
+      genderVal === "male" || genderVal === "female" || genderVal === "unisex"
+        ? genderVal
+        : undefined,
     categoryId: categoryIdVal !== "all" ? categoryIdVal : undefined,
     sort: sortVal || undefined,
   });
@@ -291,28 +296,32 @@ export default function ServicesList() {
         onSync={handleSync}
       />
 
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col xl:flex-row gap-4 justify-between items-stretch xl:items-center">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col xl:flex-row gap-3 justify-between items-stretch xl:items-center">
           <ServicesSearch
             value={search}
             onChange={setSearch}
             isLoading={servicesQuery.isFetching}
           />
-          <ServicesFilters
-            status={statusVal}
-            onStatusChange={(val) => updateParam("status", val)}
-            categoryId={categoryIdVal}
-            onCategoryIdChange={(val) => updateParam("categoryId", val)}
-            categories={categoriesQuery.data?.data || []}
-            sort={sortVal}
-            onSortChange={(val) => updateParam("sort", val)}
-            onClearFilters={handleClearFilters}
-            activeScopeName={
-              currentBranch ? currentBranch.name : "All Branches"
-            }
-            isRefetching={servicesQuery.isRefetching}
-          />
         </div>
+
+        <ServicesFilters
+          status={statusVal}
+          onStatusChange={(val) => updateParam("status", val)}
+          gender={genderVal}
+          onGenderChange={(val) => updateParam("gender", val)}
+          categoryId={categoryIdVal}
+          onCategoryIdChange={(val) => updateParam("categoryId", val)}
+          categories={categoriesQuery.data?.data || []}
+          sort={sortVal}
+          onSortChange={(val) => updateParam("sort", val)}
+          onClearFilters={handleClearFilters}
+          activeScopeName={
+            currentBranch ? currentBranch.name : "All Branches"
+          }
+          isRefetching={servicesQuery.isRefetching}
+          totalResults={servicesQuery.data?.meta?.total}
+        />
 
         <DataTable
           columns={serviceColumns}

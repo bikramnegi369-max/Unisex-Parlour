@@ -6,6 +6,8 @@ export interface ServiceFilters {
   limit?: number | "all";
   sort?: string;
   order?: "asc" | "desc";
+  gender?: "male" | "female" | "unisex";
+  customerGender?: "male" | "female" | "other" | "prefer_not_to_say";
 }
 
 export interface ServiceCategoryFilters {

@@ -61,6 +61,7 @@ const mockServices: Service[] = [
   {
     id: "srv_haircut",
     name: "Classic Haircut",
+    gender: "unisex",
     duration: 30,
     basePrice: 500,
     pricing: { basePrice: 500 },
@@ -73,6 +74,7 @@ const mockServices: Service[] = [
   {
     id: "srv_facial",
     name: "Gold Facial",
+    gender: "unisex",
     duration: 60,
     basePrice: 1200,
     pricing: { basePrice: 1200 },

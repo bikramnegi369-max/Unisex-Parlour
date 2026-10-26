@@ -709,10 +709,32 @@ export function CreateAppointmentDialog({
     return currentBranch?.timezone || "Asia/Kolkata";
   }, [selectedBranchId, availableBranches, currentBranch]);
 
-  // Fetch services catalog & categories (all records for booking dialog)
-  const { data: servicesData, isLoading: isLoadingServices } = useServices({
-    limit: "all",
-  });
+  const effectiveCustomerGender = useMemo(() => {
+    const g = selectedCustomer?.gender;
+    if (g === "male" || g === "female" || g === "other" || g === "prefer_not_to_say") {
+      return g;
+    }
+    return undefined;
+  }, [selectedCustomer?.gender]);
+
+  // Fetch services catalog & categories (scoped by customerGender when customer is selected)
+  const servicesFilters = useMemo(() => {
+    const filters: { limit: "all"; customerGender?: "male" | "female" | "other" | "prefer_not_to_say" } = {
+      limit: "all",
+    };
+    if (effectiveCustomerGender) {
+      filters.customerGender = effectiveCustomerGender;
+    }
+    return filters;
+  }, [effectiveCustomerGender]);
+
+  const {
+    data: servicesData,
+    isLoading: isLoadingServices,
+    isFetching: isFetchingServices,
+    isSuccess: isSuccessServices,
+    isError: isErrorServices,
+  } = useServices(servicesFilters);
   const { data: categoriesData } = useServiceCategories({ limit: "all" });
   const categories: ServiceCategory[] = useMemo(
     () => categoriesData?.data || [],
@@ -738,6 +760,60 @@ export function CreateAppointmentDialog({
     () => employeesData?.data || EMPTY_EMPLOYEES,
     [employeesData?.data],
   );
+
+  // Compute service count per category for current eligible services catalog
+  const serviceCategoryCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of services) {
+      const rawCatId =
+        typeof s.categoryId === "object" ? s.categoryId?._id : s.categoryId;
+      const catId = rawCatId || "uncategorized";
+      map.set(catId, (map.get(catId) || 0) + 1);
+    }
+    return map;
+  }, [services]);
+
+  // Identify any selected registered services that are no longer available in the eligible service result set.
+  // Incompatibility is ONLY established when:
+  // 1. The query has completed successfully (isSuccessServices === true)
+  // 2. The query is neither loading nor refetching in-flight (isLoadingServices === false && isFetchingServices === false)
+  // 3. No query error occurred (isErrorServices === false)
+  // Query errors, stale data, and loading transitions must never falsely mark a service as incompatible.
+  const incompatibleServices = useMemo(() => {
+    if (
+      !isSuccessServices ||
+      isLoadingServices ||
+      isFetchingServices ||
+      isErrorServices ||
+      services.length === 0
+    ) {
+      return [];
+    }
+    const availableServiceIdSet = new Set(services.map((s) => s.id));
+    return selectedServices.filter(
+      (s): s is Extract<typeof s, { serviceType: "registered" }> =>
+        s.serviceType === "registered" && !availableServiceIdSet.has(s.serviceId),
+    );
+  }, [
+    isSuccessServices,
+    isLoadingServices,
+    isFetchingServices,
+    isErrorServices,
+    services,
+    selectedServices,
+  ]);
+
+  const hasIncompatibleServices = incompatibleServices.length > 0;
+
+  const handleRemoveIncompatibleServices = () => {
+    const availableServiceIdSet = new Set(services.map((s) => s.id));
+    const prunedServices = selectedServices.filter((s) => {
+      if (s.serviceType === "custom") return true;
+      return availableServiceIdSet.has(s.serviceId);
+    });
+    setValue("services", prunedServices, { shouldValidate: true });
+    toast.info("Incompatible services removed from appointment.");
+  };
 
   const employeeIds = useMemo(
     () => employees.map((e: Employee) => e.id),
@@ -1144,6 +1220,13 @@ export function CreateAppointmentDialog({
 
   const handleFormSubmit = async (data: CreateAppointmentSchemaType) => {
     setConflictError(null);
+
+    if (hasIncompatibleServices) {
+      const msg = "Please remove or replace incompatible services before booking.";
+      setConflictError(msg);
+      toast.error(msg);
+      return;
+    }
 
     const formattedServices = (data.services || []).map((s) => {
       if (s.serviceType === "custom") {
@@ -1848,6 +1931,38 @@ export function CreateAppointmentDialog({
                 </div>
               </div>
 
+              {/* Incompatible Service Alert Banner (when customer change makes selected services incompatible) */}
+              {hasIncompatibleServices && (
+                <div
+                  data-testid="incompatible-services-banner"
+                  className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-amber-900 dark:text-amber-200">
+                        Incompatible Services Detected
+                      </p>
+                      <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90 leading-snug">
+                        {incompatibleServices.length === 1
+                          ? "1 selected service is not eligible for this customer's gender category."
+                          : `${incompatibleServices.length} selected services are not eligible for this customer's gender category.`}{" "}
+                        Please resolve before confirming.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRemoveIncompatibleServices}
+                    className="h-7 text-xs border-amber-500/30 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20 shrink-0 font-semibold"
+                  >
+                    Remove Incompatible
+                  </Button>
+                </div>
+              )}
+
               {/* Sticky Service Catalog Header: 100% Dedicated Full-Width Search + Category Pills */}
               <div className="space-y-2 sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-1">
                 {/* Dedicated 100% Full-Width Search Bar */}
@@ -1926,20 +2041,23 @@ export function CreateAppointmentDialog({
                     All Services ({services.length})
                   </button>
 
-                  {categories.map((cat: ServiceCategory) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setSelectedCategoryId(cat.id)}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer border shrink-0 ${
-                        activeCategoryId === cat.id
-                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                          : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
+                  {categories.map((cat: ServiceCategory) => {
+                    const count = serviceCategoryCountMap.get(cat.id) || 0;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCategoryId(cat.id)}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer border shrink-0 ${
+                          activeCategoryId === cat.id
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                            : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        {cat.name} ({count})
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1999,18 +2117,22 @@ export function CreateAppointmentDialog({
               ) : (
                 <div className="space-y-2.5 max-h-95 overflow-y-auto pr-1 rounded-lg">
                   {categorizedServices.map((group) => {
-                    // Default behavior: All categories are CLOSED on start.
-                    // Active search, explicit click, or "subscribed" filter opens them.
+                    // Default behavior: All categories are CLOSED on start when viewing "All Services".
+                    // Active search, explicit click, selecting a specific category pill, or "subscribed"/"selected" filter opens them.
                     const isSearchingActively = Boolean(serviceSearch.trim());
                     const isSubscribedView =
                       selectedCategoryId === "subscribed" ||
                       selectedCategoryId === "selected";
+                    const isSingleCategoryView =
+                      selectedCategoryId !== "all" &&
+                      selectedCategoryId !== "subscribed" &&
+                      selectedCategoryId !== "selected";
                     // When un-collapsed explicitly, collapsedCategories[id] === false.
                     // By default (undefined), categories remain closed unless active view warrants open.
                     const isExplicitlyOpen =
                       collapsedCategories[group.categoryId] === false;
                     const isCollapsed =
-                      isSearchingActively || isSubscribedView
+                      isSearchingActively || isSubscribedView || isSingleCategoryView
                         ? collapsedCategories[group.categoryId] === true
                         : !isExplicitlyOpen;
 
@@ -2677,7 +2799,8 @@ export function CreateAppointmentDialog({
                     disabled={
                       isLoading ||
                       selectedServices.length === 0 ||
-                      isOvernightSpill
+                      isOvernightSpill ||
+                      hasIncompatibleServices
                     }
                     className="text-xs h-8 px-4 gap-1.5 font-bold"
                   >

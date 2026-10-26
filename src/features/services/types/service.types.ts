@@ -11,6 +11,7 @@ export interface Service {
   };
   basePrice: number;
   displayOrder: number;
+  gender: "male" | "female" | "unisex";
   isActive: boolean;
   branchId: string;
   organizationId: string;
@@ -25,6 +26,7 @@ export type ServicePayload = {
   description?: string;
   categoryId?: string | { _id: string; name: string };
   duration?: number;
+  gender?: "male" | "female" | "unisex";
   pricing?: {
     basePrice?: number;
     specialPrice?: number;

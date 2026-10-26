@@ -60,13 +60,36 @@ describe("ServiceForm Pre-filling", () => {
     const categorySelect = screen.getByLabelText(/Category/i) as HTMLSelectElement;
     const durationInput = screen.getByLabelText(/Duration/i) as HTMLInputElement;
     const priceInput = screen.getByLabelText(/Base Price/i) as HTMLInputElement;
+    const genderSelect = screen.getByLabelText(/Target Gender/i) as HTMLSelectElement;
 
     expect(nameInput.value).toBe("sdfghj");
     expect(descTextarea.value).toBe("jk");
     expect(categorySelect.value).toBe("6a6c53d9f185420dac19b1dc");
     expect(durationInput.value).toBe("30");
     expect(priceInput.value).toBe("120000");
+    expect(genderSelect.value).toBe("unisex");
     expect(screen.queryByLabelText(/Tax Rate/i)).toBeNull();
     expect(screen.queryByLabelText(/This service is taxable/i)).toBeNull();
+  });
+
+  it("pre-fills explicit gender when provided in initialService", () => {
+    render(
+      <ServiceForm
+        categories={categories}
+        initialService={{
+          name: "Bridal Makeup",
+          categoryId: "6a6c53d9f185420dac19b1dc",
+          duration: 60,
+          basePrice: 5000,
+          gender: "female",
+        }}
+        onSubmit={vi.fn()}
+        isSubmitting={false}
+        onCancel={vi.fn()}
+      />
+    );
+
+    const genderSelect = screen.getByLabelText(/Target Gender/i) as HTMLSelectElement;
+    expect(genderSelect.value).toBe("female");
   });
 });

@@ -58,6 +58,26 @@ export const buildServiceColumns = ({
     },
   },
   {
+    accessorKey: "gender",
+    header: "Gender",
+    cell: (info) => {
+      const val = (info.getValue() as string) || "unisex";
+      const label =
+        val === "male" ? "Male" : val === "female" ? "Female" : "Unisex";
+      const variantClass =
+        val === "female"
+          ? "bg-pink-500/10 text-pink-600 dark:text-pink-400 border-pink-500/20"
+          : val === "male"
+            ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+            : "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20";
+      return (
+        <Badge variant="outline" className={variantClass}>
+          {label}
+        </Badge>
+      );
+    },
+  },
+  {
     accessorKey: "duration",
     header: "Duration",
     cell: (info) => {

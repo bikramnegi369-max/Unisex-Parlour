@@ -58,6 +58,7 @@ describe("Services API Layer Anti-Corruption & Alignment", () => {
       expect(normalized.basePrice).toBe(500);
       expect(normalized.pricing?.basePrice).toBe(500);
       expect(normalized.isActive).toBe(true);
+      expect(normalized.gender).toBe("unisex");
       expect(normalized.branchId).toBe("br_789");
 
       // Verify raw DTO leak fields are not exposed on normalized Service
@@ -68,6 +69,32 @@ describe("Services API Layer Anti-Corruption & Alignment", () => {
       expect(asRecord.taxConfiguration).toBeUndefined();
       expect(asRecord.taxable).toBeUndefined();
       expect(asRecord.taxRate).toBeUndefined();
+    });
+
+    it("correctly preserves explicit gender (male / female)", () => {
+      const maleDto: RawServiceDTO = {
+        _id: "srv_m",
+        name: "Beard Trim",
+        gender: "male",
+      };
+      const femaleDto: RawServiceDTO = {
+        _id: "srv_f",
+        name: "Bridal Makeup",
+        gender: "female",
+      };
+
+      expect(mapServiceDTO(maleDto).gender).toBe("male");
+      expect(mapServiceDTO(femaleDto).gender).toBe("female");
+    });
+
+    it("safely normalizes unexpected runtime gender values to unisex", () => {
+      const weirdDto = {
+        _id: "srv_unknown",
+        name: "General Cut",
+        gender: "CUSTOM_OR_INVALID_GENDER",
+      } as unknown as RawServiceDTO;
+
+      expect(mapServiceDTO(weirdDto).gender).toBe("unisex");
     });
 
     it("handles inactive status correctly", () => {
@@ -114,6 +141,38 @@ describe("Services API Layer Anti-Corruption & Alignment", () => {
       expect(res.data[0].code).toBe("SH001");
       expect(res.data[0].basePrice).toBe(200);
       expect(res.data[0].isActive).toBe(true);
+    });
+
+    it("getServices passes customerGender parameter correctly for backend service discovery", async () => {
+      (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: {
+          data: [],
+          meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+        },
+      });
+
+      await getServices({ customerGender: "male", limit: "all" });
+
+      expect(apiClient.get).toHaveBeenCalledWith("/services", {
+        params: { customerGender: "male", limit: "all" },
+        branchScope: "none",
+      });
+    });
+
+    it("getServices passes gender parameter correctly for catalog exact-match filtering", async () => {
+      (apiClient.get as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: {
+          data: [],
+          meta: { total: 0, page: 1, limit: 10, totalPages: 0 },
+        },
+      });
+
+      await getServices({ gender: "female", page: 1 });
+
+      expect(apiClient.get).toHaveBeenCalledWith("/services", {
+        params: { gender: "female", page: 1 },
+        branchScope: "none",
+      });
     });
 
     it("getService calls GET /services/:id with branchScope none and normalizes single item", async () => {
@@ -171,21 +230,52 @@ describe("Services API Layer Anti-Corruption & Alignment", () => {
           categoryId: "cat_spa",
           duration: 60,
           basePrice: 1500,
+          gender: "unisex",
           description: "Relaxing facial",
         },
         { branchScope: "none" },
       );
       expect(created.id).toBe("srv_new");
       expect(created.basePrice).toBe(1500);
+      expect(created.gender).toBe("unisex");
+    });
+
+    it("createService sends explicit gender if provided", async () => {
+      const rawResponse: RawServiceDTO = {
+        _id: "srv_male",
+        name: "Men Grooming",
+        gender: "male",
+      };
+
+      (apiClient.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        data: { data: rawResponse },
+      });
+
+      await createService({
+        name: "Men Grooming",
+        categoryId: "cat_groom",
+        duration: 30,
+        basePrice: 500,
+        gender: "male",
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/services",
+        expect.objectContaining({
+          gender: "male",
+        }),
+        { branchScope: "none" },
+      );
     });
   });
 
   describe("PUT /services/:id (Update)", () => {
-    it("updateService translates flat basePrice into nested pricing with branchScope none", async () => {
+    it("updateService translates flat basePrice into nested pricing with branchScope none and passes gender", async () => {
       const rawResponse: RawServiceDTO = {
         _id: "srv_upd",
         name: "Hair Cut Updated",
         pricing: { basePrice: 600 },
+        gender: "female",
         status: "active",
       };
 
@@ -196,6 +286,7 @@ describe("Services API Layer Anti-Corruption & Alignment", () => {
       await updateService("srv_upd", {
         name: "Hair Cut Updated",
         basePrice: 600,
+        gender: "female",
       });
 
       expect(apiClient.put).toHaveBeenCalledWith(
@@ -205,6 +296,7 @@ describe("Services API Layer Anti-Corruption & Alignment", () => {
           pricing: {
             basePrice: 600,
           },
+          gender: "female",
         },
         { branchScope: "none" },
       );

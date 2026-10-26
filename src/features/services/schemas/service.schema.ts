@@ -11,6 +11,7 @@ export const serviceSchema = z.object({
   duration: z.coerce.number().min(1, "Duration must be at least 1 minute"),
   basePrice: z.coerce.number().min(0, "Base price must be a positive number"),
   displayOrder: z.coerce.number().min(0, "Display order must be at least 0").default(0),
+  gender: z.enum(["male", "female", "unisex"]).default("unisex"),
 });
 
 export type ServiceFormValues = z.infer<typeof serviceSchema>;

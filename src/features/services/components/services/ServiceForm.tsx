@@ -50,6 +50,7 @@ export default function ServiceForm({
       duration: initialService?.duration ?? 30,
       basePrice: initialService?.basePrice ?? rawService?.pricing?.basePrice ?? 0,
       displayOrder: initialService?.displayOrder ?? 0,
+      gender: initialService?.gender ?? "unisex",
     };
   }, [initialService]);
 
@@ -165,20 +166,40 @@ export default function ServiceForm({
         </div>
       </div>
 
-      <div>
-        <label htmlFor="service-display-order" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-          Display Order
-        </label>
-        <Input
-          id="service-display-order"
-          type="number"
-          placeholder="0"
-          disabled={isSubmitting}
-          {...register("displayOrder")}
-        />
-        {errors.displayOrder && (
-          <p className="text-xs text-destructive mt-1 font-medium">{errors.displayOrder.message}</p>
-        )}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="service-gender" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Target Gender <span className="text-destructive">*</span>
+          </label>
+          <Select
+            id="service-gender"
+            disabled={isSubmitting}
+            {...register("gender")}
+          >
+            <option value="unisex">Unisex (All Clients)</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+          </Select>
+          {errors.gender && (
+            <p className="text-xs text-destructive mt-1 font-medium">{errors.gender.message}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="service-display-order" className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            Display Order
+          </label>
+          <Input
+            id="service-display-order"
+            type="number"
+            placeholder="0"
+            disabled={isSubmitting}
+            {...register("displayOrder")}
+          />
+          {errors.displayOrder && (
+            <p className="text-xs text-destructive mt-1 font-medium">{errors.displayOrder.message}</p>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-4 border-t border-border/80">
