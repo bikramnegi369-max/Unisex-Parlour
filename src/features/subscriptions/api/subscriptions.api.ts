@@ -69,6 +69,16 @@ export const mapSubscriptionKeys = (s: RawSubscriptionDTO): Subscription => {
     id: s._id || s.id || "",
     customerId,
     customer,
+    invoiceId: typeof s.invoiceId === "string" 
+      ? s.invoiceId 
+      : (typeof s.invoiceId === "object" && s.invoiceId !== null)
+        ? (s.invoiceId as { _id?: string; id?: string })._id || (s.invoiceId as { _id?: string; id?: string }).id || undefined
+        : undefined,
+    invoiceNumber: typeof s.invoiceNumber === "string" ? s.invoiceNumber : undefined,
+    paymentStatus: (s.paymentStatus as Subscription["paymentStatus"]) || undefined,
+    amountPaid: typeof s.amountPaid === "number" ? s.amountPaid : undefined,
+    amountDue: typeof s.amountDue === "number" ? s.amountDue : undefined,
+    isPaid: typeof s.isPaid === "boolean" ? s.isPaid : undefined,
     permittedBranchIds: (s.permittedBranchIds || []).map((b) => {
       if (typeof b === "string") return b;
       if (typeof b === "object" && b !== null) {
@@ -92,12 +102,20 @@ export const mapSubscriptionKeys = (s: RawSubscriptionDTO): Subscription => {
 
       const serviceName = e.serviceName || srvObj?.name || "";
 
+      const remainingQuantity = e.remainingQuantity ?? 0;
+      const isRedeemable =
+        typeof e.isRedeemable === "boolean"
+          ? e.isRedeemable
+          : remainingQuantity > 0 &&
+            (s.status === "active" || s.status === "pending_payment");
+
       return {
         serviceId,
         serviceName,
         totalQuantity: e.totalQuantity ?? 0,
         usedQuantity: e.usedQuantity ?? 0,
-        remainingQuantity: e.remainingQuantity ?? 0,
+        remainingQuantity,
+        isRedeemable,
       };
     }),
   };
@@ -192,10 +210,11 @@ export const getSubscription = async (id: string): Promise<Subscription> => {
 
 /**
  * Organization-scoped subscription creation.
+ * Returns the created subscription along with any generated sale invoice or invoiceId.
  */
 export const createSubscription = async (
   payload: CreateSubscriptionPayload
-): Promise<Subscription> => {
+): Promise<import("../types/subscription.types").CreateSubscriptionResult> => {
   const sanitizedBranchIds = (payload.permittedBranchIds || []).filter(
     (bId) => bId !== "all" && bId.trim() !== ""
   );
@@ -210,7 +229,36 @@ export const createSubscription = async (
       branchScope: "none",
     }
   );
-  return mapSubscriptionKeys(data.data);
+
+  const rawData = data.data as Record<string, unknown>;
+  const rawSub =
+    rawData && typeof rawData.subscription === "object" && rawData.subscription !== null
+      ? (rawData.subscription as RawSubscriptionDTO)
+      : (rawData as RawSubscriptionDTO);
+
+  const mappedSub = mapSubscriptionKeys(rawSub);
+
+  // Extract invoiceId and invoice from either top-level or subscription level
+  const invoiceId =
+    (typeof rawData.invoiceId === "string" ? rawData.invoiceId : undefined) ||
+    mappedSub.invoiceId ||
+    (typeof rawData.invoice === "object" && rawData.invoice !== null
+      ? ((rawData.invoice as { id?: string; _id?: string }).id || (rawData.invoice as { id?: string; _id?: string })._id)
+      : undefined);
+
+  const invoiceNumber =
+    (typeof rawData.invoiceNumber === "string" ? rawData.invoiceNumber : undefined) ||
+    mappedSub.invoiceNumber ||
+    (typeof rawData.invoice === "object" && rawData.invoice !== null
+      ? (rawData.invoice as { invoiceNumber?: string }).invoiceNumber
+      : undefined);
+
+  return {
+    ...mappedSub,
+    invoiceId,
+    invoiceNumber,
+    invoice: rawData.invoice as import("@/features/billing/types/billing.types").Invoice | undefined,
+  };
 };
 
 /**

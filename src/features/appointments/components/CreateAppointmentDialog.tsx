@@ -53,8 +53,12 @@ import {
   ChevronRight,
   Plus,
   AlertCircle,
+  CreditCard,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
+import { useCreateSubscription } from "@/features/subscriptions/hooks/useCreateSubscription";
+import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
@@ -103,6 +107,358 @@ interface CreateAppointmentDialogProps {
   defaultBookingType?: "advance" | "walk_in";
 }
 
+interface CustomServiceBookingSummaryRowProps {
+  item: {
+    serviceType: "custom";
+    name: string;
+    duration: number | string;
+    price: number | string;
+    id?: string;
+    _id?: string;
+  };
+  index: number;
+  onPriceChange: (index: number, val: string) => void;
+  onRemove: (index: number) => void;
+}
+
+const CustomServiceBookingSummaryRow = React.memo(
+  function CustomServiceBookingSummaryRow({
+    item,
+    index,
+    onPriceChange,
+    onRemove,
+  }: CustomServiceBookingSummaryRowProps) {
+    const customName = item.name || "Custom Service";
+    const customDuration = Number(item.duration) || 0;
+    const customPrice = Number(item.price) || 0;
+
+    return (
+      <div className="rounded-xl px-3.5 py-2.5 border transition-all text-xs bg-purple-500/5 border-purple-500/30 ring-1 ring-purple-500/15">
+        {/* Row 1: Custom Name, Duration & Price Input */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
+                {customName}
+              </span>
+              <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/15 px-1.5 py-0.2 rounded border border-purple-500/30 shrink-0 whitespace-nowrap">
+                Custom Service
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground block pt-0.5">
+              {customDuration} mins • One-off agreed service
+            </span>
+          </div>
+
+          {/* Price Input & Remove Action */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                ₹
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={customPrice}
+                placeholder="0"
+                onChange={(e) => onPriceChange(index, e.target.value)}
+                className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
+                title="Agreed price for this custom service"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onRemove(index)}
+              className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
+              title="Remove custom service from booking"
+              aria-label={`Remove ${customName}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Note that subscription cannot be applied */}
+        <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+          <span className="text-[10px] italic">
+            Custom services cannot consume subscription entitlements
+          </span>
+          <span className="font-extrabold text-foreground text-xs leading-tight">
+            {formatCurrency(customPrice)}
+          </span>
+        </div>
+      </div>
+    );
+  },
+);
+
+interface RegisteredServiceBookingSummaryRowProps {
+  registeredItem: {
+    serviceType?: "registered";
+    serviceId: string;
+    customPrice?: number;
+    appliedSubscriptionId?: string | null;
+  };
+  serviceObj?: Service;
+  subQuota?: {
+    subscriptionId: string;
+    subscriptionCode: string;
+    remaining: number;
+    total: number;
+    used: number;
+    endDate?: string;
+    paymentStatus?: string;
+    amountDue?: number;
+    isRedeemable: boolean;
+    candidates: Array<{
+      subscriptionId: string;
+      subscriptionCode: string;
+      remaining: number;
+      used: number;
+      total: number;
+      endDate?: string;
+      paymentStatus?: string;
+      amountDue?: number;
+      isRedeemable: boolean;
+    }>;
+  };
+  onCustomPriceChange: (serviceId: string, val: string) => void;
+  onRemoveService: (serviceId: string) => void;
+  onToggleSubscription: (serviceId: string, subId: string | null) => void;
+}
+
+const RegisteredServiceBookingSummaryRow = React.memo(
+  function RegisteredServiceBookingSummaryRow({
+    registeredItem,
+    serviceObj,
+    subQuota,
+    onCustomPriceChange,
+    onRemoveService,
+    onToggleSubscription,
+  }: RegisteredServiceBookingSummaryRowProps) {
+    const srvName = serviceObj?.name || registeredItem.serviceId;
+    const basePrice = serviceObj?.pricing?.basePrice ?? 0;
+    const currentEffectivePrice =
+      registeredItem.customPrice !== undefined &&
+      registeredItem.customPrice !== null
+        ? registeredItem.customPrice
+        : basePrice;
+    const hasSub = Boolean(registeredItem.appliedSubscriptionId);
+    const canRedeemPlan = Boolean(subQuota && subQuota.remaining > 0);
+
+    return (
+      <div
+        className={`rounded-xl px-3.5 py-2.5 border transition-all text-xs ${
+          hasSub
+            ? "bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20"
+            : "bg-muted/20 border-border hover:border-border/80"
+        }`}
+      >
+        {/* Row 1: Name, Duration & Custom Price Input */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
+                {srvName}
+              </span>
+              {hasSub && (
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 shrink-0 whitespace-nowrap">
+                  Covered by Plan
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] text-muted-foreground block pt-0.5">
+              {serviceObj?.duration || 0} mins • Standard:{" "}
+              {formatCurrency(basePrice)}
+            </span>
+          </div>
+
+          {/* Compact Custom Price Input & Remove Action */}
+          <div className="flex items-center gap-2 shrink-0">
+            {hasSub ? (
+              <div
+                className="flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2 py-0.5 shadow-2xs cursor-not-allowed opacity-90"
+                title="Subscribed services are covered by the customer plan and cannot have custom pricing."
+              >
+                <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                  Plan Covered
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
+                <span className="text-[11px] font-semibold text-muted-foreground">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={registeredItem.customPrice ?? ""}
+                  placeholder={String(basePrice)}
+                  onChange={(e) =>
+                    onCustomPriceChange(
+                      registeredItem.serviceId,
+                      e.target.value,
+                    )
+                  }
+                  className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
+                  title="Custom agreed price for non-subscribed service"
+                  aria-label={`Custom price for ${srvName}`}
+                />
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => onRemoveService(registeredItem.serviceId)}
+              className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
+              title="Remove service from booking"
+              aria-label={`Remove ${srvName}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Customer Plan Entitlement Bar */}
+        <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] gap-2">
+          {canRedeemPlan ? (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0 flex-1">
+              {subQuota!.candidates.length > 1 ? (
+                /* Multi-subscription dropdown selector: clean, compact, and responsive */
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="relative flex-1 min-w-44 max-w-xs">
+                    <select
+                      value={registeredItem.appliedSubscriptionId || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        onToggleSubscription(
+                          registeredItem.serviceId,
+                          val ? val : null,
+                        );
+                      }}
+                      className={`w-full h-7 text-[11px] font-semibold rounded-lg border px-2 pr-7 appearance-none cursor-pointer transition-colors ${
+                        hasSub
+                          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-200"
+                          : "bg-muted/40 border-border text-muted-foreground hover:border-border/80"
+                      }`}
+                    >
+                      <option value="">No Plan (Standard Billing)</option>
+                      <option value="auto">
+                        ⚡ Auto: Earliest Expiring ({subQuota!.remaining} left)
+                      </option>
+                      {subQuota!.candidates.map((cand) => {
+                        const paymentLabel =
+                          cand.paymentStatus === "unpaid" ||
+                          cand.paymentStatus === "pending_payment"
+                            ? " • Unpaid"
+                            : cand.paymentStatus === "partially_paid"
+                              ? " • Partial"
+                              : "";
+                        return (
+                          <option
+                            key={cand.subscriptionId}
+                            value={cand.subscriptionId}
+                          >
+                            {cand.subscriptionCode} ({cand.remaining}/
+                            {cand.total} left{paymentLabel})
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <ChevronDown className="h-3 w-3 absolute right-2 top-2 pointer-events-none text-muted-foreground" />
+                  </div>
+
+                  {hasSub && (
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold shrink-0">
+                      ✓ Plan active
+                    </span>
+                  )}
+                </div>
+              ) : (
+                /* Single subscription toggle button: distinct, clean pill */
+                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onToggleSubscription(registeredItem.serviceId, "auto")
+                    }
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
+                      hasSub
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
+                        : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
+                    }`}
+                  >
+                    {hasSub ? (
+                      <>
+                        <Check className="h-3 w-3 stroke-3" />
+                        <span>Covered ({subQuota!.subscriptionCode})</span>
+                        <span className="text-[9px] opacity-90 font-mono">
+                          ({subQuota!.remaining}/{subQuota!.total} left)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3 w-3" />
+                        <span>
+                          Apply Plan ({subQuota!.subscriptionCode} •{" "}
+                          {subQuota!.remaining}/{subQuota!.total})
+                        </span>
+                      </>
+                    )}
+                  </button>
+
+                  {subQuota!.paymentStatus === "unpaid" ||
+                  subQuota!.paymentStatus === "pending_payment" ? (
+                    <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-bold px-1.5 py-0.5 rounded uppercase">
+                      Pending
+                      {subQuota!.amountDue != null && subQuota!.amountDue > 0
+                        ? ` (₹${subQuota!.amountDue})`
+                        : ""}
+                    </span>
+                  ) : subQuota!.paymentStatus === "partially_paid" ? (
+                    <span className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 font-bold px-1.5 py-0.5 rounded uppercase">
+                      Partial
+                      {subQuota!.amountDue != null && subQuota!.amountDue > 0
+                        ? ` (Due: ₹${subQuota!.amountDue})`
+                        : ""}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              Standard Billing
+            </span>
+          )}
+
+          {/* Final Effective Line Amount */}
+          <div className="text-right shrink-0 flex flex-col items-end">
+            {hasSub ? (
+              <>
+                <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
+                  {formatCurrency(currentEffectivePrice)}
+                </span>
+                <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs leading-tight">
+                  ₹0.00
+                </span>
+              </>
+            ) : (
+              <span className="font-extrabold text-foreground text-xs leading-tight">
+                {formatCurrency(currentEffectivePrice)}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  },
+);
+
 export function CreateAppointmentDialog({
   isOpen,
   onClose,
@@ -116,6 +472,7 @@ export function CreateAppointmentDialog({
     isAllBranchesSelected,
     availableBranches,
   } = useBranchContext();
+  const queryClient = useQueryClient();
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
@@ -126,7 +483,9 @@ export function CreateAppointmentDialog({
   const [customServiceName, setCustomServiceName] = useState("");
   const [customServiceDuration, setCustomServiceDuration] = useState("30");
   const [customServicePrice, setCustomServicePrice] = useState("");
-  const [customServiceError, setCustomServiceError] = useState<string | null>(null);
+  const [customServiceError, setCustomServiceError] = useState<string | null>(
+    null,
+  );
 
   const activeBranches = availableBranches.map((b) => ({
     id: b.id,
@@ -139,6 +498,7 @@ export function CreateAppointmentDialog({
     handleSubmit,
     control,
     setValue,
+    getValues,
     reset,
     formState: { errors },
   } = useForm<CreateAppointmentSchemaType>({
@@ -188,7 +548,10 @@ export function CreateAppointmentDialog({
   const selectedServiceIds = useMemo(
     () =>
       selectedServices
-        .filter((s): s is Extract<typeof s, { serviceType: "registered" }> => s.serviceType === "registered")
+        .filter(
+          (s): s is Extract<typeof s, { serviceType: "registered" }> =>
+            s.serviceType === "registered",
+        )
         .map((s) => s.serviceId),
     [selectedServices],
   );
@@ -199,14 +562,20 @@ export function CreateAppointmentDialog({
   );
 
   // Fetch customer subscriptions if customer is selected
-  const { data: customerSubsData } = useSubscriptions(
-    { customerId: watchedCustomerId, status: "active" },
-    { enabled: Boolean(watchedCustomerId) },
-  );
-  const activeSubscriptions: Subscription[] = useMemo(
-    () => customerSubsData?.data || [],
-    [customerSubsData?.data],
-  );
+  const { data: customerSubsData, refetch: refetchCustomerSubs } =
+    useSubscriptions(
+      { customerId: watchedCustomerId, limit: 50 },
+      { enabled: Boolean(watchedCustomerId) },
+    );
+  const createSubMutation = useCreateSubscription();
+  const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
+
+  const activeSubscriptions: Subscription[] = useMemo(() => {
+    return (customerSubsData?.data || []).filter((sub: Subscription) => {
+      // Include both 'active' and 'pending_payment' subscriptions when backend considers entitlements redeemable
+      return sub.status === "active" || sub.status === "pending_payment";
+    });
+  }, [customerSubsData?.data]);
 
   // Map of serviceId -> list of eligible active subscriptions covering this service (sorted by earliest expiration FIFO)
   const subscriptionsByService = useMemo(() => {
@@ -216,21 +585,30 @@ export function CreateAppointmentDialog({
         subscriptionId: string;
         subscriptionCode: string;
         remaining: number;
+        used: number;
         total: number;
         endDate?: string;
+        paymentStatus?: string;
+        amountDue?: number;
+        isRedeemable: boolean;
       }>
     >();
 
     for (const sub of activeSubscriptions) {
       for (const ent of sub.entitlements || []) {
-        if (ent.remainingQuantity > 0) {
+        const isRedeemable = ent.isRedeemable !== false;
+        if (ent.remainingQuantity > 0 && isRedeemable) {
           const list = map.get(ent.serviceId) || [];
           list.push({
             subscriptionId: sub.id,
             subscriptionCode: sub.subscriptionCode,
             remaining: ent.remainingQuantity,
+            used: ent.usedQuantity || 0,
             total: ent.totalQuantity,
             endDate: sub.endDate,
+            paymentStatus: sub.paymentStatus,
+            amountDue: sub.amountDue,
+            isRedeemable,
           });
           map.set(ent.serviceId, list);
         }
@@ -249,6 +627,17 @@ export function CreateAppointmentDialog({
     return map;
   }, [activeSubscriptions]);
 
+  // Set of all registered service IDs for which this customer has at least 1 remaining entitlement
+  const subscribedServiceIds = useMemo(() => {
+    const set = new Set<string>();
+    subscriptionsByService.forEach((candidates, serviceId) => {
+      if (candidates.some((c) => c.remaining > 0)) {
+        set.add(serviceId);
+      }
+    });
+    return set;
+  }, [subscriptionsByService]);
+
   // Aggregate quota helper for backward compatibility
   const subscriptionQuotaByService = useMemo(() => {
     const map = new Map<
@@ -258,13 +647,21 @@ export function CreateAppointmentDialog({
         subscriptionCode: string;
         remaining: number;
         total: number;
+        used: number;
         endDate?: string;
+        paymentStatus?: string;
+        amountDue?: number;
+        isRedeemable: boolean;
         candidates: Array<{
           subscriptionId: string;
           subscriptionCode: string;
           remaining: number;
+          used: number;
           total: number;
           endDate?: string;
+          paymentStatus?: string;
+          amountDue?: number;
+          isRedeemable: boolean;
         }>;
       }
     >();
@@ -274,12 +671,17 @@ export function CreateAppointmentDialog({
         const primary = candidates[0]; // Earliest expiring
         const totalRemaining = candidates.reduce((s, c) => s + c.remaining, 0);
         const totalAllocated = candidates.reduce((s, c) => s + c.total, 0);
+        const totalUsed = candidates.reduce((s, c) => s + c.used, 0);
         map.set(serviceId, {
           subscriptionId: primary.subscriptionId,
           subscriptionCode: primary.subscriptionCode,
           remaining: totalRemaining,
           total: totalAllocated,
+          used: totalUsed,
           endDate: primary.endDate,
+          paymentStatus: primary.paymentStatus,
+          amountDue: primary.amountDue,
+          isRedeemable: primary.isRedeemable,
           candidates,
         });
       }
@@ -381,7 +783,7 @@ export function CreateAppointmentDialog({
       endDate: appointmentDate,
       status: "approved",
     },
-    { enabled: isOpen }
+    { enabled: isOpen },
   );
 
   const dayLeaves: Leave[] = useMemo(() => {
@@ -477,16 +879,24 @@ export function CreateAppointmentDialog({
     requestedDuration,
   ]);
 
-  // Filter services by category pill + search text + selected filter
+  // Derived active category: if "subscribed" is selected but customer has no active subscriptions, fall back to "all"
+  const activeCategoryId =
+    selectedCategoryId === "subscribed" && subscribedServiceIds.size === 0
+      ? "all"
+      : selectedCategoryId;
+
+  // Filter services by category pill + search text + selected filter + subscribed filter
   const filteredServices = useMemo<Service[]>(() => {
     let result = services;
-    if (selectedCategoryId === "selected") {
+    if (activeCategoryId === "selected") {
       result = result.filter((s: Service) => selectedServiceIds.includes(s.id));
-    } else if (selectedCategoryId !== "all") {
+    } else if (activeCategoryId === "subscribed") {
+      result = result.filter((s: Service) => subscribedServiceIds.has(s.id));
+    } else if (activeCategoryId !== "all") {
       result = result.filter((s: Service) => {
         const catId =
           typeof s.categoryId === "object" ? s.categoryId?._id : s.categoryId;
-        return catId === selectedCategoryId;
+        return catId === activeCategoryId;
       });
     }
     if (serviceSearch.trim()) {
@@ -496,7 +906,13 @@ export function CreateAppointmentDialog({
       );
     }
     return result;
-  }, [services, selectedCategoryId, serviceSearch, selectedServiceIds]);
+  }, [
+    services,
+    activeCategoryId,
+    serviceSearch,
+    selectedServiceIds,
+    subscribedServiceIds,
+  ]);
 
   // Pricing & duration totals with accurate subscription coverage deductions
   const selectedServicesSummary = useMemo(() => {
@@ -550,6 +966,19 @@ export function CreateAppointmentDialog({
       categoryName: string;
       services: Service[];
     }[] = [];
+
+    // Special category grouping when filtered directly to "subscribed"
+    if (activeCategoryId === "subscribed") {
+      if (filteredServices.length > 0) {
+        groups.push({
+          categoryId: "subscribed",
+          categoryName: "My Subscribed Services (Active Quota)",
+          services: filteredServices,
+        });
+      }
+      return groups;
+    }
+
     const categoryMap = new Map<string, string>();
     for (const cat of categories) {
       categoryMap.set(cat.id, cat.name);
@@ -596,7 +1025,7 @@ export function CreateAppointmentDialog({
     }
 
     return groups;
-  }, [filteredServices, categories]);
+  }, [filteredServices, categories, activeCategoryId]);
 
   const toggleCategoryCollapse = (catId: string) => {
     setCollapsedCategories((prev) => {
@@ -710,7 +1139,10 @@ export function CreateAppointmentDialog({
         return {
           serviceType: "custom" as const,
           name: s.name.trim(),
-          duration: Math.max(1, Math.min(720, Math.round(Number(s.duration) || 1))),
+          duration: Math.max(
+            1,
+            Math.min(720, Math.round(Number(s.duration) || 1)),
+          ),
           price: Math.max(0, Number(s.price) || 0),
           _id: s._id,
           id: s.id,
@@ -735,7 +1167,9 @@ export function CreateAppointmentDialog({
     // If there are no registered services (e.g. custom-only appointment), omit serviceIds completely
     // so the backend validation doesn't reject empty serviceIds array ([]) while services is populated.
     const serviceIdsPayload =
-      registeredServiceIds.length > 0 ? { serviceIds: registeredServiceIds } : {};
+      registeredServiceIds.length > 0
+        ? { serviceIds: registeredServiceIds }
+        : {};
 
     const payload: CreateAppointmentSchemaType =
       data.bookingType === "walk_in"
@@ -848,40 +1282,56 @@ export function CreateAppointmentDialog({
     }
   }, [isOpen, selectedServicesSummary.coveredCount]);
 
-  const handleRemoveServiceByIndex = (index: number) => {
-    const updated = selectedServices.filter((_, i) => i !== index);
-    const updatedSelectedServiceIds = updated
-      .filter((s): s is Extract<typeof s, { serviceType: "registered" }> => s.serviceType === "registered")
-      .map((s) => s.serviceId);
-    setValue("services", updated, { shouldValidate: true });
-    setValue("serviceIds", updatedSelectedServiceIds);
+  const handleRemoveServiceByIndex = React.useCallback(
+    (index: number) => {
+      const current = (getValues("services") || []) as NonNullable<
+        CreateAppointmentSchemaType["services"]
+      >;
+      const updated = current.filter((_, i: number) => i !== index);
+      const updatedSelectedServiceIds = updated
+        .filter(
+          (s): s is Extract<typeof s, { serviceType: "registered" }> =>
+            s.serviceType === "registered",
+        )
+        .map((s) => s.serviceId);
+      setValue("services", updated, { shouldValidate: true });
+      setValue("serviceIds", updatedSelectedServiceIds);
 
-    // Verify assigned staff capability
-    if (selectedStaffId && updatedSelectedServiceIds.length > 0) {
-      const staffServices = staffServicesMap[selectedStaffId] || [];
-      const isStillQualified = updatedSelectedServiceIds.every((srvId) =>
-        staffServices.includes(srvId),
-      );
-      if (!isStillQualified) {
-        setValue("staffId", null);
-        const assignedStaffObj = employees.find(
-          (e: Employee) => e.id === selectedStaffId,
+      // Verify assigned staff capability
+      const currStaffId = getValues("staffId");
+      if (currStaffId && updatedSelectedServiceIds.length > 0) {
+        const staffServices = staffServicesMap[currStaffId] || [];
+        const isStillQualified = updatedSelectedServiceIds.every(
+          (srvId: string) => staffServices.includes(srvId),
         );
-        toast.info(
-          `${assignedStaffObj?.name || "Selected staff"} was unassigned because they do not offer all selected services.`,
-        );
+        if (!isStillQualified) {
+          setValue("staffId", null);
+          const assignedStaffObj = employees.find(
+            (e: Employee) => e.id === currStaffId,
+          );
+          toast.info(
+            `${assignedStaffObj?.name || "Selected staff"} was unassigned because they do not offer all selected services.`,
+          );
+        }
       }
-    }
-  };
+    },
+    [getValues, setValue, staffServicesMap, employees],
+  );
 
-  const handleRemoveService = (serviceId: string) => {
-    const idx = selectedServices.findIndex(
-      (s) => s.serviceType === "registered" && s.serviceId === serviceId,
-    );
-    if (idx !== -1) {
-      handleRemoveServiceByIndex(idx);
-    }
-  };
+  const handleRemoveService = React.useCallback(
+    (serviceId: string) => {
+      const current = (getValues("services") || []) as NonNullable<
+        CreateAppointmentSchemaType["services"]
+      >;
+      const idx = current.findIndex(
+        (s) => s.serviceType === "registered" && s.serviceId === serviceId,
+      );
+      if (idx !== -1) {
+        handleRemoveServiceByIndex(idx);
+      }
+    },
+    [getValues, handleRemoveServiceByIndex],
+  );
 
   const handleServiceToggle = (service: Service) => {
     const isSelected = selectedServices.some(
@@ -906,7 +1356,10 @@ export function CreateAppointmentDialog({
         },
       ];
       const updatedSelectedServiceIds = updated
-        .filter((s): s is Extract<typeof s, { serviceType: "registered" }> => s.serviceType === "registered")
+        .filter(
+          (s): s is Extract<typeof s, { serviceType: "registered" }> =>
+            s.serviceType === "registered",
+        )
         .map((s) => s.serviceId);
       setValue("services", updated, { shouldValidate: true });
       setValue("serviceIds", updatedSelectedServiceIds);
@@ -930,50 +1383,72 @@ export function CreateAppointmentDialog({
     }
   };
 
-  const handleCustomPriceChange = (serviceId: string, rawPrice: string) => {
-    const updated = selectedServices.map((s) => {
-      if (s.serviceType !== "registered" || s.serviceId !== serviceId) return s;
-      if (rawPrice.trim() === "") {
-        return { ...s, customPrice: undefined };
-      }
-      const parsed = parseFloat(rawPrice);
-      return {
-        ...s,
-        customPrice: isNaN(parsed) ? 0 : Math.max(0, parsed),
-      };
-    });
-    setValue("services", updated, { shouldValidate: true });
-  };
+  const handleCustomPriceChange = React.useCallback(
+    (serviceId: string, rawPrice: string) => {
+      const current = (getValues("services") || []) as NonNullable<
+        CreateAppointmentSchemaType["services"]
+      >;
+      const updated = current.map((s) => {
+        if (s.serviceType !== "registered" || s.serviceId !== serviceId)
+          return s;
+        // Subscribed services cannot have custom/editable prices (covered by subscription plan)
+        if (s.appliedSubscriptionId) return s;
+        if (rawPrice.trim() === "") {
+          return { ...s, customPrice: undefined };
+        }
+        const parsed = parseFloat(rawPrice);
+        return {
+          ...s,
+          customPrice: isNaN(parsed) ? 0 : Math.max(0, parsed),
+        };
+      });
+      setValue("services", updated, { shouldValidate: true });
+    },
+    [getValues, setValue],
+  );
 
-  const handleCustomServicePriceChange = (index: number, rawPrice: string) => {
-    const updated = selectedServices.map((s, i) => {
-      if (i !== index) return s;
-      const parsed = parseFloat(rawPrice);
-      const newPrice = isNaN(parsed) ? 0 : Math.max(0, parsed);
-      return {
-        ...s,
-        price: newPrice,
-      };
-    });
-    setValue("services", updated, { shouldValidate: true });
-  };
+  const handleCustomServicePriceChange = React.useCallback(
+    (index: number, rawPrice: string) => {
+      const current = (getValues("services") || []) as NonNullable<
+        CreateAppointmentSchemaType["services"]
+      >;
+      const updated = current.map((s, i: number) => {
+        if (i !== index) return s;
+        const parsed = parseFloat(rawPrice);
+        const newPrice = isNaN(parsed) ? 0 : Math.max(0, parsed);
+        return {
+          ...s,
+          price: newPrice,
+        };
+      });
+      setValue("services", updated, { shouldValidate: true });
+    },
+    [getValues, setValue],
+  );
 
-  const handleToggleSubscriptionCoverage = (
-    serviceId: string,
-    subId: string | null,
-  ) => {
-    const updated = selectedServices.map((s) => {
-      if (s.serviceType !== "registered" || s.serviceId !== serviceId) return s;
-      const currentlyApplied =
-        s.appliedSubscriptionId === subId ||
-        (s.appliedSubscriptionId === "auto" && subId === "auto");
-      return {
-        ...s,
-        appliedSubscriptionId: currentlyApplied ? null : subId,
-      };
-    });
-    setValue("services", updated, { shouldValidate: true });
-  };
+  const handleToggleSubscriptionCoverage = React.useCallback(
+    (serviceId: string, subId: string | null) => {
+      const current = (getValues("services") || []) as NonNullable<
+        CreateAppointmentSchemaType["services"]
+      >;
+      const updated = current.map((s) => {
+        if (s.serviceType !== "registered" || s.serviceId !== serviceId)
+          return s;
+        const currentlyApplied =
+          s.appliedSubscriptionId === subId ||
+          (s.appliedSubscriptionId === "auto" && subId === "auto");
+        const nextApplied = currentlyApplied ? null : subId;
+        return {
+          ...s,
+          appliedSubscriptionId: nextApplied,
+          // When covered by subscription, clear custom price override
+          ...(nextApplied ? { customPrice: undefined } : {}),
+        };
+      });
+      setValue("services", updated, { shouldValidate: true });
+    },
+    [getValues, setValue],
+  );
 
   const handleAddCustomService = () => {
     const trimmedName = customServiceName.trim();
@@ -990,7 +1465,8 @@ export function CreateAppointmentDialog({
       setCustomServiceError("Duration must be between 1 and 720 minutes.");
       return;
     }
-    const priceNum = customServicePrice === "" ? 0 : parseFloat(customServicePrice);
+    const priceNum =
+      customServicePrice === "" ? 0 : parseFloat(customServicePrice);
     if (isNaN(priceNum) || priceNum < 0) {
       setCustomServiceError("Agreed price must be 0 or higher.");
       return;
@@ -1218,13 +1694,40 @@ export function CreateAppointmentDialog({
                   <div className="flex flex-col items-end gap-1 shrink-0">
                     {/* 1. Active Plan */}
                     {activeSubscriptions.length > 0 && (
-                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md border border-primary/25 inline-flex items-center gap-1 shadow-2xs whitespace-nowrap">
-                        <Layers className="h-3 w-3 text-primary shrink-0" />
-                        {activeSubscriptions.length}{" "}
-                        {activeSubscriptions.length === 1
-                          ? "Active Plan"
-                          : "Active Plans"}
-                      </span>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-md border border-primary/25 inline-flex items-center gap-1 shadow-2xs whitespace-nowrap">
+                          <Layers className="h-3 w-3 text-primary shrink-0" />
+                          {activeSubscriptions.length}{" "}
+                          {activeSubscriptions.length === 1
+                            ? "Active Plan"
+                            : "Active Plans"}
+                        </span>
+                        {(() => {
+                          const unpaidCount = activeSubscriptions.filter(
+                            (s) =>
+                              s.paymentStatus === "unpaid" ||
+                              s.isPaid === false,
+                          ).length;
+                          const partialCount = activeSubscriptions.filter(
+                            (s) => s.paymentStatus === "partially_paid",
+                          ).length;
+                          if (unpaidCount > 0) {
+                            return (
+                              <span className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold px-1.5 py-0.2 rounded border border-amber-500/30 whitespace-nowrap">
+                                {unpaidCount} Pending Payment
+                              </span>
+                            );
+                          }
+                          if (partialCount > 0) {
+                            return (
+                              <span className="text-[9px] bg-orange-500/15 text-orange-700 dark:text-orange-300 font-semibold px-1.5 py-0.2 rounded border border-orange-500/30 whitespace-nowrap">
+                                {partialCount} Partially Paid
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
+                      </div>
                     )}
 
                     {/* 2. Client Branch Status */}
@@ -1259,50 +1762,56 @@ export function CreateAppointmentDialog({
 
             {/* Step 2: Service Catalog Selector (Production-Grade High-Density Master-Detail UX) */}
             <div className="space-y-3">
-              {/* Header: Label + Selected Counter Badge */}
-              <div className="flex items-center justify-between gap-3">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Scissors className="h-3.5 w-3.5 text-primary" />
-                  2. Select Services <span className="text-destructive">*</span>
-                </label>
+              {/* Header: Label + Selected Counter Badge & Action Buttons */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 min-h-8">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 leading-none">
+                    <Scissors className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>2. Select Services</span>
+                    <span className="text-destructive">*</span>
+                  </label>
 
-                {selectedServicesSummary.count > 0 ? (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/25 text-[11px] font-semibold text-primary animate-in fade-in duration-150">
-                    <span className="font-bold">{selectedServicesSummary.count}</span>
-                    <span>{selectedServicesSummary.count === 1 ? "service" : "services"}</span>
-                    <span className="text-muted-foreground/60">•</span>
-                    <span className="font-medium text-foreground">{selectedServicesSummary.totalDuration}m</span>
-                  </div>
-                ) : (
-                  <span className="text-[11px] text-muted-foreground/80 font-medium">
-                    None selected
-                  </span>
-                )}
-              </div>
+                  {selectedServicesSummary.count > 0 ? (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/25 text-[11px] font-semibold text-primary animate-in fade-in duration-150 leading-none">
+                      <span className="font-bold">
+                        {selectedServicesSummary.count}
+                      </span>
+                      <span>
+                        {selectedServicesSummary.count === 1
+                          ? "service"
+                          : "services"}
+                      </span>
+                      <span className="text-muted-foreground/60">•</span>
+                      <span className="font-medium text-foreground">
+                        {selectedServicesSummary.totalDuration}m
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground/80 font-medium leading-none">
+                      None selected
+                    </span>
+                  )}
+                </div>
 
-              {/* Search + Custom Service Quick-Action Toolbar */}
-              <div className="space-y-2 sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-1">
-                <div className="flex items-center gap-2">
-                  <div className="relative flex-1 min-w-0">
-                    <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Search services by name..."
-                      value={serviceSearch}
-                      onChange={(e) => setServiceSearch(e.target.value)}
-                      className="h-9 text-xs pl-9 pr-8 rounded-lg bg-card border-border shadow-2xs w-full focus-visible:ring-1"
-                    />
-                    {serviceSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setServiceSearch("")}
-                        className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                        title="Clear search"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
+                {/* Quick-Action Buttons (Elevated into the Step 2 header to give the Search Bar 100% width) */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!watchedCustomerId) {
+                        toast.error(
+                          "Please select a customer first to sell a subscription.",
+                        );
+                        return;
+                      }
+                      setIsSellSubscriptionOpen(true);
+                    }}
+                    className="h-8 px-3 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/25 border border-emerald-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs whitespace-nowrap hover:shadow-xs"
+                    title="Sell a subscription package to this customer"
+                  >
+                    <CreditCard className="h-3.5 w-3.5 stroke-2 text-emerald-600 dark:text-emerald-400" />
+                    <span>Sell Plan</span>
+                  </button>
 
                   <button
                     type="button"
@@ -1313,15 +1822,40 @@ export function CreateAppointmentDialog({
                       setCustomServiceError(null);
                       setShowAddCustomModal(true);
                     }}
-                    className="h-9 px-3 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 active:bg-purple-500/25 border border-purple-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs shrink-0 whitespace-nowrap hover:shadow-xs"
+                    className="h-8 px-3 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-500/10 hover:bg-purple-500/20 active:bg-purple-500/25 border border-purple-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs whitespace-nowrap hover:shadow-xs"
                     title="Add a custom one-off service for this appointment"
                   >
                     <Plus className="h-3.5 w-3.5 stroke-3 text-purple-600 dark:text-purple-400" />
                     <span>Custom Service</span>
                   </button>
                 </div>
+              </div>
 
-                {/* Horizontal Category Pill Carousel with Dedicated 'Selected' Quick Filter & Wheel Scroll */}
+              {/* Sticky Service Catalog Header: 100% Dedicated Full-Width Search + Category Pills */}
+              <div className="space-y-2 sticky top-0 bg-background/95 backdrop-blur-sm z-10 pb-1">
+                {/* Dedicated 100% Full-Width Search Bar */}
+                <div className="relative w-full">
+                  <Search className="h-4 w-4 absolute left-3 top-2.5 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search services by name..."
+                    value={serviceSearch}
+                    onChange={(e) => setServiceSearch(e.target.value)}
+                    className="h-9 text-xs pl-9 pr-8 rounded-lg bg-card border-border shadow-2xs w-full focus-visible:ring-1"
+                  />
+                  {serviceSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setServiceSearch("")}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                      title="Clear search"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Horizontal Category Pill Carousel with Dedicated 'Subscribed' & 'Selected' Quick Filters */}
                 <div
                   ref={setCategoryTabsRef}
                   onWheel={(e) => {
@@ -1331,18 +1865,35 @@ export function CreateAppointmentDialog({
                   }}
                   className="flex items-center gap-1.5 overflow-x-auto pb-1 scroll-smooth scrollbar-none overscroll-x-contain overscroll-y-contain text-xs"
                 >
+                  {/* Dedicated Subscribed Filter Pill */}
+                  {subscribedServiceIds.size > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCategoryId("subscribed")}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer border flex items-center gap-1 shrink-0 ${
+                        activeCategoryId === "subscribed"
+                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                          : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25"
+                      }`}
+                      title="View services covered by active subscription plan quota"
+                    >
+                      <ShieldCheck className="h-3 w-3 stroke-2 text-emerald-600 dark:text-emerald-300" />
+                      <span>Subscribed ({subscribedServiceIds.size})</span>
+                    </button>
+                  )}
+
                   {selectedServiceIds.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setSelectedCategoryId("selected")}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer border flex items-center gap-1 shrink-0 ${
-                        selectedCategoryId === "selected"
+                        activeCategoryId === "selected"
                           ? "bg-primary text-primary-foreground border-primary shadow-xs"
                           : "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
                       }`}
                     >
                       <Check className="h-3 w-3 stroke-3" />
-                      Selected ({selectedServiceIds.length})
+                      <span>Selected ({selectedServiceIds.length})</span>
                     </button>
                   )}
 
@@ -1350,7 +1901,7 @@ export function CreateAppointmentDialog({
                     type="button"
                     onClick={() => setSelectedCategoryId("all")}
                     className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer border shrink-0 ${
-                      selectedCategoryId === "all"
+                      activeCategoryId === "all"
                         ? "bg-primary text-primary-foreground border-primary shadow-xs"
                         : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                     }`}
@@ -1364,7 +1915,7 @@ export function CreateAppointmentDialog({
                       type="button"
                       onClick={() => setSelectedCategoryId(cat.id)}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-colors cursor-pointer border shrink-0 ${
-                        selectedCategoryId === cat.id
+                        activeCategoryId === cat.id
                           ? "bg-primary text-primary-foreground border-primary shadow-xs"
                           : "bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                       }`}
@@ -1374,6 +1925,45 @@ export function CreateAppointmentDialog({
                   ))}
                 </div>
               </div>
+
+              {/* Subscribed Plan Active Banner (Special Quick Section when customer has active subscription) */}
+              {watchedCustomerId &&
+                subscribedServiceIds.size > 0 &&
+                activeCategoryId !== "subscribed" &&
+                !serviceSearch.trim() && (
+                  <div className="relative overflow-hidden p-3.5 bg-linear-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/10 border border-emerald-500/30 rounded-xl shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-start sm:items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-xl bg-emerald-500/20 border border-emerald-500/35 flex items-center justify-center shrink-0 shadow-2xs mt-0.5 sm:mt-0">
+                          <ShieldCheck className="h-5 w-5 text-emerald-700 dark:text-emerald-300 stroke-2" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-foreground text-xs leading-normal">
+                              Active Subscription Covered Services
+                            </span>
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-bold px-2 py-0.5 rounded-full border border-emerald-500/35 shrink-0 whitespace-nowrap">
+                              <Sparkles className="h-2.5 w-2.5 text-emerald-600 dark:text-emerald-300" />
+                              <span>{subscribedServiceIds.size} available</span>
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed wrap-break-word">
+                            This client holds prepaid plan quotas. Select
+                            subscribed services directly at ₹0 billable line
+                            total.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryId("subscribed")}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-900 dark:text-emerald-100 bg-emerald-500/25 hover:bg-emerald-500/35 border border-emerald-500/40 shrink-0 cursor-pointer transition-colors shadow-2xs whitespace-nowrap self-start sm:self-center"
+                      >
+                        View Subscribed
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               {/* Service Cards Grid - Upgraded High-Density Rows with Zero Truncation */}
               {isLoadingServices ? (
@@ -1385,30 +1975,42 @@ export function CreateAppointmentDialog({
                 <div className="p-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl bg-muted/20">
                   {selectedCategoryId === "selected"
                     ? "No services selected yet. Pick from the catalog to see them here."
-                    : "No services found matching your filter."}
+                    : selectedCategoryId === "subscribed"
+                      ? "No subscribed services found for this customer."
+                      : "No services found matching your filter."}
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-95 overflow-y-auto pr-1 rounded-lg">
                   {categorizedServices.map((group) => {
                     // Default behavior: All categories are CLOSED on start.
-                    // Active search or explicit click opens them.
+                    // Active search, explicit click, or "subscribed" filter opens them.
                     const isSearchingActively = Boolean(serviceSearch.trim());
+                    const isSubscribedView =
+                      selectedCategoryId === "subscribed" ||
+                      selectedCategoryId === "selected";
                     // When un-collapsed explicitly, collapsedCategories[id] === false.
-                    // By default (undefined), categories remain closed.
+                    // By default (undefined), categories remain closed unless active view warrants open.
                     const isExplicitlyOpen =
                       collapsedCategories[group.categoryId] === false;
-                    const isCollapsed = isSearchingActively
-                      ? false
-                      : !isExplicitlyOpen;
+                    const isCollapsed =
+                      isSearchingActively || isSubscribedView
+                        ? collapsedCategories[group.categoryId] === true
+                        : !isExplicitlyOpen;
 
                     const selectedCountInGroup = group.services.filter((s) =>
                       selectedServiceIds.includes(s.id),
                     ).length;
 
+                    const isSubscribedGroup = group.categoryId === "subscribed";
+
                     return (
                       <div
                         key={group.categoryId}
-                        className="rounded-xl border border-border bg-card overflow-hidden shadow-xs"
+                        className={`rounded-xl border overflow-hidden shadow-xs transition-colors ${
+                          isSubscribedGroup
+                            ? "border-emerald-500/30 bg-card ring-1 ring-emerald-500/15"
+                            : "border-border bg-card"
+                        }`}
                       >
                         {/* Category Header */}
                         <button
@@ -1418,23 +2020,30 @@ export function CreateAppointmentDialog({
                           onClick={() =>
                             toggleCategoryCollapse(group.categoryId)
                           }
-                          className="w-full flex items-center justify-between px-3.5 py-2.5 bg-muted/30 hover:bg-muted/60 transition-colors text-xs font-semibold text-foreground cursor-pointer select-none"
+                          className={`w-full flex items-center justify-between px-3.5 py-2.5 transition-colors text-xs font-semibold cursor-pointer select-none ${
+                            isSubscribedGroup
+                              ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-foreground"
+                              : "bg-muted/30 hover:bg-muted/60 text-foreground"
+                          }`}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
                             {isCollapsed ? (
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             ) : (
-                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                             )}
-                            <span className="font-bold">
+                            {isSubscribedGroup && (
+                              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            )}
+                            <span className="font-bold truncate text-left">
                               {group.categoryName}
                             </span>
-                            <span className="text-[10px] text-muted-foreground font-normal">
+                            <span className="text-[10px] text-muted-foreground font-normal shrink-0">
                               ({group.services.length})
                             </span>
                           </div>
                           {selectedCountInGroup > 0 && (
-                            <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-bold">
+                            <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-bold shrink-0">
                               {selectedCountInGroup} selected
                             </span>
                           )}
@@ -1928,77 +2537,17 @@ export function CreateAppointmentDialog({
                   >
                     {selectedServices.map((item, idx) => {
                       if (item.serviceType === "custom") {
-                        const customName = item.name || "Custom Service";
-                        const customDuration = Number(item.duration) || 0;
-                        const customPrice = Number(item.price) || 0;
-
                         return (
-                          <div
+                          <CustomServiceBookingSummaryRow
                             key={item.id || item._id || `custom-line-${idx}`}
-                            className="rounded-xl px-3.5 py-2.5 border transition-all text-xs bg-purple-500/5 border-purple-500/30 ring-1 ring-purple-500/15"
-                          >
-                            {/* Row 1: Custom Name, Duration & Price Input */}
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
-                                    {customName}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/15 px-1.5 py-0.2 rounded border border-purple-500/30 shrink-0 whitespace-nowrap">
-                                    Custom Service
-                                  </span>
-                                </div>
-                                <span className="text-[11px] text-muted-foreground block pt-0.5">
-                                  {customDuration} mins • One-off agreed service
-                                </span>
-                              </div>
-
-                              {/* Price Input & Remove Action */}
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
-                                  <span className="text-[11px] font-semibold text-muted-foreground">
-                                    ₹
-                                  </span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    value={customPrice}
-                                    placeholder="0"
-                                    onChange={(e) =>
-                                      handleCustomServicePriceChange(idx, e.target.value)
-                                    }
-                                    className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
-                                    title="Agreed price for this custom service"
-                                  />
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveServiceByIndex(idx)}
-                                  className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
-                                  title="Remove custom service from booking"
-                                  aria-label={`Remove ${customName}`}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Row 2: Note that subscription cannot be applied */}
-                            <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
-                              <span className="text-[10px] italic">
-                                Custom services cannot consume subscription entitlements
-                              </span>
-                              <span className="font-extrabold text-foreground text-xs leading-tight">
-                                {formatCurrency(customPrice)}
-                              </span>
-                            </div>
-                          </div>
+                            item={item}
+                            index={idx}
+                            onPriceChange={handleCustomServicePriceChange}
+                            onRemove={handleRemoveServiceByIndex}
+                          />
                         );
                       }
 
-                      // Type narrow to registered item
                       const registeredItem = item as {
                         serviceType?: "registered";
                         serviceId: string;
@@ -2009,212 +2558,22 @@ export function CreateAppointmentDialog({
                       const srv = services.find(
                         (s: Service) => s.id === registeredItem.serviceId,
                       );
-                      const srvName = srv?.name || registeredItem.serviceId;
-                      const basePrice = srv?.pricing?.basePrice ?? 0;
-                      const currentEffectivePrice =
-                        registeredItem.customPrice !== undefined &&
-                        registeredItem.customPrice !== null
-                          ? registeredItem.customPrice
-                          : basePrice;
-                      const hasSub = Boolean(registeredItem.appliedSubscriptionId);
                       const subQuota = subscriptionQuotaByService.get(
                         registeredItem.serviceId,
                       );
-                      const canRedeemPlan = Boolean(
-                        subQuota && subQuota.remaining > 0,
-                      );
 
                       return (
-                        <div
+                        <RegisteredServiceBookingSummaryRow
                           key={registeredItem.serviceId}
-                          className={`rounded-xl px-3.5 py-2.5 border transition-all text-xs ${
-                            hasSub
-                              ? "bg-emerald-500/5 border-emerald-500/30 ring-1 ring-emerald-500/20"
-                              : "bg-muted/20 border-border hover:border-border/80"
-                          }`}
-                        >
-                          {/* Row 1: Name, Duration & Custom Price Input */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-foreground text-xs leading-snug wrap-break-word">
-                                  {srvName}
-                                </span>
-                                {hasSub && (
-                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20 shrink-0 whitespace-nowrap">
-                                    Covered by Plan
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[11px] text-muted-foreground block pt-0.5">
-                                {srv?.duration || 0} mins • Standard:{" "}
-                                {formatCurrency(basePrice)}
-                              </span>
-                            </div>
-
-                            {/* Compact Custom Price Input & Remove Action */}
-                            <div className="flex items-center gap-2 shrink-0">
-                              <div className="flex items-center gap-1 bg-background border border-border rounded-lg px-2 py-0.5 shadow-2xs">
-                                <span className="text-[11px] font-semibold text-muted-foreground">
-                                  ₹
-                                </span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={registeredItem.customPrice ?? ""}
-                                  placeholder={String(basePrice)}
-                                  onChange={(e) =>
-                                    handleCustomPriceChange(
-                                      registeredItem.serviceId,
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
-                                  title="Custom price for this appointment"
-                                />
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleRemoveService(registeredItem.serviceId)
-                                }
-                                className="h-7 w-7 rounded-lg border border-border/80 flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30 transition-colors cursor-pointer"
-                                title="Remove service from booking"
-                                aria-label={`Remove ${srvName}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Row 2: Customer Plan Quota Row or Standard Billing */}
-                          <div className="flex items-start justify-between pt-2 mt-2 border-t border-border/40 text-[11px] gap-2">
-                            {canRedeemPlan ? (
-                              <div className="flex flex-col items-start gap-1.5 min-w-0 flex-1">
-                                {subQuota!.candidates.length > 1 ? (
-                                  <div className="space-y-1 w-full">
-                                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                                        Multiple Subscriptions Available ({subQuota!.candidates.length})
-                                      </span>
-                                      <span>Total: {subQuota!.remaining} units left</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleToggleSubscriptionCoverage(
-                                            registeredItem.serviceId,
-                                            "auto",
-                                          )
-                                        }
-                                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer ${
-                                          registeredItem.appliedSubscriptionId === "auto"
-                                            ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                                            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                                        }`}
-                                        title="Auto-select earliest expiring subscription"
-                                      >
-                                        {registeredItem.appliedSubscriptionId === "auto" ? "✓ " : ""}
-                                        Auto (Earliest Expiring)
-                                      </button>
-                                      {subQuota!.candidates.map((cand) => {
-                                        const isThisApplied = registeredItem.appliedSubscriptionId === cand.subscriptionId;
-                                        return (
-                                          <button
-                                            key={cand.subscriptionId}
-                                            type="button"
-                                            onClick={() =>
-                                              handleToggleSubscriptionCoverage(
-                                                registeredItem.serviceId,
-                                                cand.subscriptionId,
-                                              )
-                                            }
-                                            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-all border cursor-pointer ${
-                                              isThisApplied
-                                                ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                                                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                                            }`}
-                                            title={`Expires: ${cand.endDate ? cand.endDate.slice(0, 10) : "N/A"}`}
-                                          >
-                                            {isThisApplied ? "✓ " : ""}
-                                            {cand.subscriptionCode} ({cand.remaining} left • Exp:{" "}
-                                            {cand.endDate ? cand.endDate.slice(0, 10) : "No expiry"})
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex flex-col items-start gap-1 min-w-0">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleToggleSubscriptionCoverage(
-                                          registeredItem.serviceId,
-                                          "auto",
-                                        )
-                                      }
-                                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer border ${
-                                        hasSub
-                                          ? "bg-emerald-600 text-white border-emerald-600 shadow-xs hover:bg-emerald-700"
-                                          : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
-                                      }`}
-                                    >
-                                      {hasSub ? (
-                                        <>
-                                          <Check className="h-3 w-3 stroke-3" />
-                                          <span>
-                                            Covered ({subQuota!.subscriptionCode})
-                                          </span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Sparkles className="h-3 w-3" />
-                                          <span>Apply Plan Quota</span>
-                                        </>
-                                      )}
-                                    </button>
-                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 pl-0.5">
-                                      <span>
-                                        (
-                                        {hasSub
-                                          ? Math.max(0, subQuota!.remaining - 1)
-                                          : subQuota!.remaining}{" "}
-                                        of {subQuota!.total} left
-                                        {hasSub ? " after this booking" : ""})
-                                      </span>
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-muted-foreground">
-                                Standard Billing
-                              </span>
-                            )}
-
-                            {/* Final Effective Line Amount */}
-                            <div className="text-right shrink-0 flex flex-col items-end">
-                              {hasSub ? (
-                                <>
-                                  <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
-                                    {formatCurrency(currentEffectivePrice)}
-                                  </span>
-                                  <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs leading-tight">
-                                    ₹0.00
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="font-extrabold text-foreground text-xs leading-tight">
-                                  {formatCurrency(currentEffectivePrice)}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                          registeredItem={registeredItem}
+                          serviceObj={srv}
+                          subQuota={subQuota}
+                          onCustomPriceChange={handleCustomPriceChange}
+                          onRemoveService={handleRemoveService}
+                          onToggleSubscription={
+                            handleToggleSubscriptionCoverage
+                          }
+                        />
                       );
                     })}
                   </div>
@@ -2323,7 +2682,9 @@ export function CreateAppointmentDialog({
       >
         <div className="space-y-4 pt-1 text-xs">
           <p className="text-muted-foreground text-xs leading-relaxed">
-            Add a one-off custom service agreed with the customer for this specific appointment. It will not be added to the global service catalog.
+            Add a one-off custom service agreed with the customer for this
+            specific appointment. It will not be added to the global service
+            catalog.
           </p>
           {customServiceError && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg text-xs font-medium flex items-center gap-2">
@@ -2335,7 +2696,9 @@ export function CreateAppointmentDialog({
           <div className="space-y-1.5">
             <label className="font-semibold text-foreground flex items-center justify-between">
               <span>Service Name *</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Max 120 chars</span>
+              <span className="text-[10px] text-muted-foreground font-normal">
+                Max 120 chars
+              </span>
             </label>
             <Input
               type="text"
@@ -2404,7 +2767,10 @@ export function CreateAppointmentDialog({
             <ul className="list-disc pl-4 space-y-0.5 text-[10px]">
               <li>Never saved to the general services catalog.</li>
               <li>Cannot consume customer subscription plan entitlements.</li>
-              <li>Calculates directly into appointment duration and collision detection.</li>
+              <li>
+                Calculates directly into appointment duration and collision
+                detection.
+              </li>
             </ul>
           </div>
 
@@ -2432,6 +2798,77 @@ export function CreateAppointmentDialog({
             </Button>
           </div>
         </div>
+      </Dialog>
+
+      {/* Subscription Upsell Dialog */}
+      <Dialog
+        isOpen={isSellSubscriptionOpen}
+        onClose={() => setIsSellSubscriptionOpen(false)}
+        title="Sell Subscription Package"
+      >
+        <CreateSubscriptionDialog
+          isOpen={isSellSubscriptionOpen}
+          onClose={() => setIsSellSubscriptionOpen(false)}
+          initialCustomerId={watchedCustomerId}
+          isLoading={createSubMutation.isPending}
+          onSubmit={async (values) => {
+            try {
+              const createdSub = await createSubMutation.mutateAsync({
+                customerId: values.customerId,
+                planId: values.planId,
+                price: values.price,
+                entitlements: values.entitlements,
+                permittedBranchIds: values.permittedBranchIds,
+                startDate: values.startDate,
+                endDate: values.endDate,
+                notes: values.notes,
+              });
+
+              setIsSellSubscriptionOpen(false);
+              await queryClient.invalidateQueries({
+                queryKey: ["subscriptions"],
+              });
+              await queryClient.invalidateQueries({ queryKey: ["customers"] });
+              await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+              await refetchCustomerSubs();
+              setSelectedCategoryId("subscribed");
+
+              const invoiceId = createdSub.invoiceId || createdSub.invoice?.id;
+              const invoiceNumber =
+                createdSub.invoiceNumber ||
+                createdSub.invoice?.invoiceNumber ||
+                "";
+
+              if (invoiceId) {
+                toast.success(
+                  `Subscription package sold! Separate invoice ${invoiceNumber} created.`,
+                  {
+                    action: {
+                      label: "Open Invoice",
+                      onClick: () =>
+                        window.open(`/billing/${invoiceId}`, "_blank"),
+                    },
+                    duration: 6000,
+                  },
+                );
+              } else {
+                toast.success("Subscription sold and created successfully.");
+              }
+            } catch (err: unknown) {
+              const errorObj = err as Record<string, unknown> | null;
+              const responseObj = errorObj?.response as Record<
+                string,
+                unknown
+              > | null;
+              const msg =
+                ((responseObj?.data as Record<string, unknown> | null)
+                  ?.message as string) ||
+                (errorObj?.message as string) ||
+                "Failed to sell subscription.";
+              toast.error(msg);
+            }
+          }}
+        />
       </Dialog>
     </Dialog>
   );

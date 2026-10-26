@@ -38,7 +38,11 @@ export function SubscriptionTable({
   getBranchName,
 }: SubscriptionTableProps) {
   const renderMobileRow = (sub: Subscription) => {
-    const isActive = sub.status === "active";
+    const isPaid =
+      sub.isPaid === true ||
+      sub.paymentStatus === "paid" ||
+      (sub.paymentStatus === undefined && sub.status === "active");
+    const isActive = sub.status === "active" && isPaid;
     const entitlements = sub.entitlements || [];
     const totalRemaining = entitlements.reduce((sum, e) => sum + e.remainingQuantity, 0);
     const totalAllocated = entitlements.reduce((sum, e) => sum + e.totalQuantity, 0);
@@ -54,7 +58,7 @@ export function SubscriptionTable({
             <span className="font-bold text-xs text-foreground">
               {sub.subscriptionCode || sub.id}
             </span>
-            <SubscriptionStatusBadge status={sub.status} />
+            <SubscriptionStatusBadge status={sub.status} paymentStatus={sub.paymentStatus} />
           </div>
           <span className="font-bold text-xs text-foreground">
             {formatCurrency(sub.price)}

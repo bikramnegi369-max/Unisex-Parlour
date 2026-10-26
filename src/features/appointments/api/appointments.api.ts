@@ -438,4 +438,60 @@ export const commitAppointmentServices = async (
   };
 };
 
+/**
+ * Upsell subscription package for a given appointment.
+ * Dedicated endpoint: POST /api/v1/appointments/:appointmentId/upsell-subscription
+ * Returns separate subscription sale invoice and subscription package.
+ */
+export const upsellAppointmentSubscription = async (
+  appointmentId: string,
+  payload: import("../types/appointment.types").UpsellSubscriptionPayload
+): Promise<import("../types/appointment.types").UpsellSubscriptionResponseData> => {
+  const { mapSubscriptionKeys } = await import(
+    "@/features/subscriptions/api/subscriptions.api"
+  );
+  const { normalizeInvoice } = await import(
+    "@/features/billing/api/billing.api"
+  );
+
+  const sanitizedBranchIds = (payload.permittedBranchIds || []).filter(
+    (bId) => bId !== "all" && bId.trim() !== ""
+  );
+
+  const config: { branchScope?: { type: "branch"; branchId: string } | "current" | "none" } =
+    payload.branchId && payload.branchId !== "all"
+      ? { branchScope: { type: "branch", branchId: payload.branchId } }
+      : { branchScope: "current" };
+
+  const { data } = await apiClient.post<
+    import("../types/appointment.types").UpsellSubscriptionResponse
+  >(
+    `/appointments/${appointmentId}/upsell-subscription`,
+    {
+      ...payload,
+      permittedBranchIds: sanitizedBranchIds,
+    },
+    config
+  );
+
+  const rawSub = data.data?.subscription as unknown as import("@/features/subscriptions/api/subscriptions.api").RawSubscriptionDTO;
+  const mappedSub = rawSub ? mapSubscriptionKeys(rawSub) : (data.data?.subscription as import("@/features/subscriptions/types/subscription.types").Subscription);
+
+  const rawInvoice = data.data?.invoice as Record<string, unknown> | undefined;
+  const normalizedInvoice = rawInvoice ? normalizeInvoice(rawInvoice) : undefined;
+  const invoiceId =
+    data.data?.invoiceId ||
+    normalizedInvoice?.id ||
+    mappedSub?.invoiceId ||
+    undefined;
+
+  return {
+    subscription: mappedSub,
+    invoice: normalizedInvoice,
+    invoiceId,
+    summary: data.data?.summary,
+  };
+};
+
+
 

@@ -102,7 +102,12 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
     );
   }
 
-  const isActive = subscription.status === "active";
+  const isFullyPaid =
+    subscription.isPaid === true ||
+    subscription.paymentStatus === "paid" ||
+    (subscription.paymentStatus === undefined && subscription.status === "active");
+  const isRedeemableActive = subscription.status === "active" && isFullyPaid;
+  const isActive = isRedeemableActive;
   const remainingCount = (subscription.entitlements || []).reduce(
     (sum: number, e: SubscriptionEntitlement) => sum + e.remainingQuantity,
     0
@@ -151,7 +156,10 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
                   <h1 className="text-base sm:text-lg font-bold text-foreground">
                     {subscription.subscriptionCode || subscription.id}
                   </h1>
-                  <SubscriptionStatusBadge status={subscription.status} />
+                  <SubscriptionStatusBadge
+                    status={subscription.status}
+                    paymentStatus={subscription.paymentStatus}
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Customer:{" "}
@@ -168,6 +176,20 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+            {subscription.invoiceId && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/billing/${subscription.invoiceId}`)}
+                className="h-9 text-xs gap-1.5 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+                title="View linked sale invoice"
+              >
+                <CreditCard className="h-4 w-4" />
+                View Invoice
+              </Button>
+            )}
+
             {canRedeem && isActive && (
               <Button
                 type="button"

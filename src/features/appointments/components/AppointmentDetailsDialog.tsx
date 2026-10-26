@@ -29,6 +29,10 @@ import {
   UserCheck,
   RefreshCw,
   Receipt,
+  CreditCard,
+  MoreHorizontal,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -36,11 +40,13 @@ import { hasPermission } from "@/lib/permissions";
 import {
   useAppointment,
   useTriggerAppointmentReminder,
+  useUpsellAppointmentSubscription,
 } from "../hooks/useAppointments";
 import Link from "next/link";
 import { toast } from "sonner";
 import { CreateInvoiceDialog } from "@/features/billing/components/CreateInvoiceDialog";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
+import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
 import type {
   Appointment,
   AppointmentServiceSnapshot,
@@ -80,7 +86,37 @@ export function AppointmentDetailsDialog({
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
   const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
+  const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const actionsMenuRef = React.useRef<HTMLDivElement>(null);
+
+  // Close "More Actions" popover menu when clicking outside or pressing Escape
+  React.useEffect(() => {
+    if (!isActionsMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        actionsMenuRef.current &&
+        !actionsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsActionsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsActionsMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isActionsMenuOpen]);
+
+  const upsellSubMutation = useUpsellAppointmentSubscription();
   const canCheckout = hasPermission(user, "billing.checkout");
+  const canSellSubscriptions = hasPermission(user, "subscriptions.sell");
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -104,11 +140,28 @@ export function AppointmentDetailsDialog({
 
   const subsList = customerSubsData?.data;
   const subscriptionMap = React.useMemo(() => {
-    const map = new Map<string, { code: string; planName?: string; id: string }>();
+    const map = new Map<
+      string,
+      {
+        code: string;
+        planName?: string;
+        id: string;
+        paymentStatus?: string;
+        amountDue?: number;
+        invoiceId?: string;
+      }
+    >();
     if (subsList) {
       for (const sub of subsList) {
         const planName = typeof sub.planId === "object" ? sub.planId?.name : undefined;
-        map.set(sub.id, { code: sub.subscriptionCode, planName, id: sub.id });
+        map.set(sub.id, {
+          code: sub.subscriptionCode,
+          planName,
+          id: sub.id,
+          paymentStatus: sub.paymentStatus,
+          amountDue: sub.amountDue,
+          invoiceId: sub.invoiceId,
+        });
       }
     }
     return map;
@@ -366,6 +419,15 @@ export function AppointmentDetailsDialog({
                                       [{displayCode || "Subscription"}]
                                     </span>
                                   )}
+                                  {subInfo?.paymentStatus === "unpaid" || subInfo?.paymentStatus === "pending_payment" ? (
+                                    <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                                      Payment Pending{subInfo?.amountDue != null && subInfo.amountDue > 0 ? ` (₹${subInfo.amountDue})` : ""}
+                                    </span>
+                                  ) : subInfo?.paymentStatus === "partially_paid" ? (
+                                    <span className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                                      Partially Paid{subInfo?.amountDue != null && subInfo.amountDue > 0 ? ` (Due: ₹${subInfo.amountDue})` : ""}
+                                    </span>
+                                  ) : null}
                                 </div>
                               );
                             })()
@@ -585,63 +647,153 @@ export function AppointmentDetailsDialog({
         </div>
 
         {/* Action Controls */}
-        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3.5 border-t border-border mt-3">
-          {/* Left / Bottom on Mobile: Destructive Action isolated from primary actions */}
-          <div>
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-border mt-3">
+          {/* Left / Bottom on Mobile: Destructive Action cleanly isolated and vertically aligned */}
+          <div className="flex items-center">
             {canDelete ? (
               <Button
                 variant="destructive"
                 size="sm"
                 onClick={onDelete}
-                className="text-xs h-8 gap-1.5 w-full sm:w-auto"
+                className="text-xs h-8 gap-1.5 w-full sm:w-auto font-medium"
                 title="Cancel or delete this appointment record"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete Appointment</span>
+                <span>Delete</span>
               </Button>
             ) : null}
           </div>
 
-          {/* Right / Top on Mobile: Operational Secondary Actions + Primary Lifecycle Action */}
+          {/* Right / Top on Mobile: Secondary actions grouped into More Actions + Primary Lifecycle CTA */}
           <div className="flex flex-wrap items-center justify-end gap-2">
-            {canEdit && !isTerminal && (
-              <>
+            {/* Operational Management Actions grouped in a compact Popover */}
+            {((canEdit && !isTerminal) || (canSellSubscriptions && customerId)) && (
+              <div className="relative" ref={actionsMenuRef}>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={onReschedule}
+                  onClick={() => setIsActionsMenuOpen((prev) => !prev)}
                   className="text-xs h-8 gap-1.5"
-                  title="Change appointment date or time slot"
+                  aria-haspopup="true"
+                  aria-expanded={isActionsMenuOpen}
                 >
-                  <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>Reschedule</span>
+                  <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Actions</span>
+                  {isActionsMenuOpen ? (
+                    <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  )}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onAssignStaff}
-                  className="text-xs h-8 gap-1.5"
-                  title="Assign or reassign staff member"
-                >
-                  <UserCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span>Assign Staff</span>
-                </Button>
-                {onEditServices && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onEditServices}
-                    className="text-xs h-8 gap-1.5 text-primary border-primary/30 hover:bg-primary/5"
-                    title="Add, remove, or modify services and custom prices"
+
+                {isActionsMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 bottom-full mb-1.5 w-52 rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg z-50 animate-in fade-in-0 zoom-in-95"
                   >
-                    <Scissors className="h-3.5 w-3.5" />
-                    <span>Modify Services</span>
-                  </Button>
+                    {canEdit && !isTerminal && (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsActionsMenuOpen(false);
+                            onReschedule();
+                          }}
+                          className="w-full flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-left text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                        >
+                          <CalendarClock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span>Reschedule Appointment</span>
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setIsActionsMenuOpen(false);
+                            onAssignStaff();
+                          }}
+                          className="w-full flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-left text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                        >
+                          <UserCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span>Assign / Change Staff</span>
+                        </button>
+                        {onEditServices && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setIsActionsMenuOpen(false);
+                              onEditServices();
+                            }}
+                            className="w-full flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-left text-foreground hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer"
+                          >
+                            <Scissors className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span>Modify Services</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+
+                    {canSellSubscriptions && customerId && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setIsSellSubscriptionOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-left text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer font-medium"
+                      >
+                        <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                        <span>Sell Subscription</span>
+                      </button>
+                    )}
+                  </div>
                 )}
-              </>
+              </div>
             )}
 
-            {/* Billing / Invoice Generation Flow: Restrict strictly to completed appointments only */}
+            {/* Quick Status Shift if in progress */}
+            {canStatus && !isTerminal && appointment.status === "in_progress" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onChangeStatus}
+                className="text-xs h-8 gap-1.5"
+                title="Change appointment status"
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>Change Status</span>
+              </Button>
+            )}
+
+            {/* PRIMARY CTA: In-Progress -> Complete Appointment */}
+            {canStatus && !isTerminal && appointment.status === "in_progress" && onCompleteAppointment && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => onCompleteAppointment(appointment)}
+                className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Complete Appointment</span>
+              </Button>
+            )}
+
+            {/* PRIMARY CTA: General Status Transition when not yet in-progress or completed */}
+            {canStatus && !isTerminal && appointment.status !== "in_progress" && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={onChangeStatus}
+                className="text-xs h-8 gap-1.5 shadow-2xs font-semibold"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>Change Status</span>
+              </Button>
+            )}
+
+            {/* PRIMARY CTA: Completed -> Create Invoice */}
             {canCheckout && appointment.status === "completed" && (
               <Button
                 variant="default"
@@ -653,34 +805,6 @@ export function AppointmentDetailsDialog({
                 <Receipt className="h-3.5 w-3.5" />
                 <span>Create Invoice</span>
               </Button>
-            )}
-
-            {canStatus && !isTerminal && (
-              <>
-                {appointment.status === "in_progress" &&
-                onCompleteAppointment ? (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => onCompleteAppointment(appointment)}
-                    className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>Complete Appointment</span>
-                  </Button>
-                ) : null}
-                <Button
-                  variant={
-                    appointment.status === "in_progress" ? "outline" : "default"
-                  }
-                  size="sm"
-                  onClick={onChangeStatus}
-                  className="text-xs h-8 gap-1.5 shadow-2xs font-semibold"
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  <span>Change Status</span>
-                </Button>
-              </>
             )}
           </div>
         </div>
@@ -695,6 +819,67 @@ export function AppointmentDetailsDialog({
           router.push(`/billing/${invoiceId}`);
         }}
       />
+
+      {/* Subscription Upsell Dialog from Appointment Context */}
+      <Dialog
+        isOpen={isSellSubscriptionOpen}
+        onClose={() => setIsSellSubscriptionOpen(false)}
+        title="Sell Subscription Package (Appointment Upsell)"
+      >
+        <CreateSubscriptionDialog
+          isOpen={isSellSubscriptionOpen}
+          onClose={() => setIsSellSubscriptionOpen(false)}
+          initialCustomerId={customerId}
+          isLoading={upsellSubMutation.isPending}
+          onSubmit={async (values) => {
+            try {
+              const res = await upsellSubMutation.mutateAsync({
+                appointmentId: appointment.id,
+                payload: {
+                  branchId: appointment.branchId,
+                  planId: values.planId,
+                  price: values.price,
+                  entitlements: values.entitlements,
+                  permittedBranchIds: values.permittedBranchIds,
+                  startDate: values.startDate,
+                  endDate: values.endDate,
+                  notes: values.notes,
+                },
+              });
+
+              setIsSellSubscriptionOpen(false);
+
+              // Surface the separate subscription invoice distinctly from appointment
+              const invoiceId = res.invoiceId || res.invoice?.id || res.subscription?.invoiceId;
+              const invoiceNum = res.invoice?.invoiceNumber || res.subscription?.invoiceNumber || "";
+
+              if (invoiceId) {
+                toast.success(
+                  `Subscription package sold! Separate invoice ${invoiceNum} generated for package sale.`,
+                  {
+                    action: {
+                      label: "Open Invoice",
+                      onClick: () => router.push(`/billing/${invoiceId}`),
+                    },
+                    duration: 6000,
+                  }
+                );
+                router.push(`/billing/${invoiceId}`);
+              } else {
+                toast.success("Subscription package sold successfully.");
+              }
+            } catch (err: unknown) {
+              const errorObj = err as Record<string, unknown> | null;
+              const responseObj = errorObj?.response as Record<string, unknown> | null;
+              const msg =
+                ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+                (errorObj?.message as string) ||
+                "Failed to sell subscription package.";
+              toast.error(msg);
+            }
+          }}
+        />
+      </Dialog>
     </Dialog>
   );
 }

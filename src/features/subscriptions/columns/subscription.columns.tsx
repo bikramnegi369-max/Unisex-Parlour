@@ -163,14 +163,23 @@ export const getSubscriptionColumns = ({
   {
     accessorKey: "status",
     header: "Status",
-    cell: ({ row }) => <SubscriptionStatusBadge status={row.original.status} />,
+    cell: ({ row }) => (
+      <SubscriptionStatusBadge
+        status={row.original.status}
+        paymentStatus={row.original.paymentStatus}
+      />
+    ),
   },
   {
     id: "actions",
     header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => {
       const sub = row.original;
-      const isActive = sub.status === "active";
+      const isPaid =
+        sub.isPaid === true ||
+        sub.paymentStatus === "paid" ||
+        (sub.paymentStatus === undefined && sub.status === "active");
+      const isActive = sub.status === "active" && isPaid;
 
       return (
         <div

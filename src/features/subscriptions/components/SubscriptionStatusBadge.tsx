@@ -4,10 +4,25 @@ import type { SubscriptionStatus } from "../types/subscription.types";
 
 interface SubscriptionStatusBadgeProps {
   status: SubscriptionStatus | string;
+  paymentStatus?: "unpaid" | "partially_paid" | "paid";
 }
 
-export function SubscriptionStatusBadge({ status }: SubscriptionStatusBadgeProps) {
+export function SubscriptionStatusBadge({ status, paymentStatus }: SubscriptionStatusBadgeProps) {
+  if (paymentStatus && paymentStatus !== "paid" && status === "active") {
+    return (
+      <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold text-[11px] capitalize">
+        Payment Pending
+      </Badge>
+    );
+  }
+
   switch (status) {
+    case "pending_payment":
+      return (
+        <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold text-[11px] capitalize">
+          Payment Pending
+        </Badge>
+      );
     case "active":
       return (
         <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[11px] capitalize">
@@ -40,3 +55,32 @@ export function SubscriptionStatusBadge({ status }: SubscriptionStatusBadgeProps
       );
   }
 }
+
+export function SubscriptionPaymentBadge({
+  status,
+}: {
+  status?: "unpaid" | "partially_paid" | "paid" | string;
+}) {
+  switch (status) {
+    case "paid":
+      return (
+        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-semibold text-[10px] uppercase">
+          Paid
+        </Badge>
+      );
+    case "partially_paid":
+      return (
+        <Badge variant="outline" className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-semibold text-[10px] uppercase">
+          Partially Paid
+        </Badge>
+      );
+    case "unpaid":
+    default:
+      return (
+        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-semibold text-[10px] uppercase">
+          Unpaid
+        </Badge>
+      );
+  }
+}
+

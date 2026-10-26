@@ -150,6 +150,43 @@ describe("Subscriptions API layer", () => {
       );
       expect(res.id).toBe("new_sub_1");
     });
+
+    it("surfaces returned invoice and invoiceId when backend responds with invoice reference", async () => {
+      const payload = {
+        customerId: "cust_1",
+        price: 3500,
+        entitlements: [{ serviceId: "srv_1", quantity: 5 }],
+        permittedBranchIds: [],
+        startDate: "2026-09-01",
+        endDate: "2027-03-01",
+      };
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: {
+            subscription: { _id: "sub_priced_1", ...payload },
+            invoiceId: "inv_sub_123",
+            invoiceNumber: "INV-SUB-001",
+            invoice: {
+              _id: "inv_sub_123",
+              invoiceNumber: "INV-SUB-001",
+              status: "finalized",
+              paymentStatus: "unpaid",
+              amountDue: 3500,
+            },
+          },
+        },
+      });
+
+      const res = await createSubscription(payload);
+
+      expect(res.id).toBe("sub_priced_1");
+      expect(res.invoiceId).toBe("inv_sub_123");
+      expect(res.invoiceNumber).toBe("INV-SUB-001");
+      expect(res.invoice?.amountDue).toBe(3500);
+    });
   });
 
   describe("updateSubscription", () => {
@@ -288,4 +325,44 @@ describe("Subscriptions API layer", () => {
       expect(res.data[0].id).toBe("usage_1");
     });
   });
+
+  describe("financial field mapping", () => {
+    it("correctly normalizes invoiceId, paymentStatus, amountPaid, amountDue, and isPaid", async () => {
+      const mockRawData = {
+        success: true,
+        status: "success",
+        data: [
+          {
+            _id: "sub_fin_1",
+            subscriptionCode: "SUB-FIN-1",
+            customerId: "cust_1",
+            price: 5000,
+            status: "active",
+            invoiceId: "inv_123",
+            invoiceNumber: "INV-2026-001",
+            paymentStatus: "paid",
+            amountPaid: 5000,
+            amountDue: 0,
+            isPaid: true,
+            entitlements: [],
+            permittedBranchIds: [],
+            startDate: "2026-09-01",
+            endDate: "2027-03-01",
+          },
+        ],
+      };
+
+      vi.mocked(apiClient.get).mockResolvedValueOnce({ data: mockRawData });
+
+      const res = await getSubscriptions({});
+
+      expect(res.data[0].invoiceId).toBe("inv_123");
+      expect(res.data[0].invoiceNumber).toBe("INV-2026-001");
+      expect(res.data[0].paymentStatus).toBe("paid");
+      expect(res.data[0].amountPaid).toBe(5000);
+      expect(res.data[0].amountDue).toBe(0);
+      expect(res.data[0].isPaid).toBe(true);
+    });
+  });
 });
+

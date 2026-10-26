@@ -172,4 +172,50 @@ describe("SubscriptionTable & Columns", () => {
     fireEvent.click(viewButtons[0]);
     expect(onView).toHaveBeenCalledWith(mockSubscriptions[0]);
   });
+
+  it("suppresses redeem action and displays Payment Pending for unpaid subscriptions", () => {
+    const unpaidSubscription: Subscription = {
+      ...mockSubscriptions[0],
+      id: "sub_unpaid",
+      subscriptionCode: "SUB-UNPAID",
+      paymentStatus: "unpaid",
+      isPaid: false,
+    };
+
+    const columns = getSubscriptionColumns({
+      onView,
+      onEdit,
+      onCancel,
+      onRedeem,
+      canView: true,
+      canEdit: true,
+      canCancel: true,
+      canRedeem: true,
+      getBranchName,
+    });
+
+    render(
+      <SubscriptionTable
+        columns={columns}
+        data={[unpaidSubscription]}
+        isLoading={false}
+        onView={onView}
+        onEdit={onEdit}
+        onCancel={onCancel}
+        onRedeem={onRedeem}
+        canView={true}
+        canEdit={true}
+        canCancel={true}
+        canRedeem={true}
+        getBranchName={getBranchName}
+      />
+    );
+
+    // Should display Payment Pending badge
+    expect(screen.getAllByText(/Payment Pending/i).length).toBeGreaterThan(0);
+
+    // Redeem button should NOT be rendered for unpaid subscription even if canRedeem is true
+    expect(screen.queryByTitle("Redeem Entitlements")).toBeNull();
+  });
 });
+

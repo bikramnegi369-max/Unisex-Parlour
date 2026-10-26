@@ -78,9 +78,7 @@ export default function DashboardLayout({
           <main className="flex-1 overflow-y-auto p-4 bg-slate-50/20 dark:bg-slate-900/10">
             <div className="max-w-7xl mx-auto flex flex-col min-h-full">
               <Breadcrumbs />
-              <div className="flex-1 pb-24 md:pb-32">
-                {children}
-              </div>
+              <div className="flex-1 pb-8">{children}</div>
             </div>
           </main>
         </div>

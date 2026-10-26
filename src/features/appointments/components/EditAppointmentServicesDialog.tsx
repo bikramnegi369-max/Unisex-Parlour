@@ -17,6 +17,7 @@ import {
   ArrowRight,
   Loader2,
   CheckCircle2,
+  Check,
   Sparkles,
   Search,
   RotateCcw,
@@ -80,19 +81,19 @@ export function EditAppointmentServicesDialog({
     [categoriesData?.data],
   );
 
-  // 1c. Fetch active customer subscriptions for automatic/suggested plan coverage
+  // 1c. Fetch active & pending_payment customer subscriptions for automatic/suggested plan coverage
   const customerId = appointment?.customerId;
   const { data: customerSubscriptionsData, isLoading: isLoadingCustomerSubs } =
     useSubscriptions(
-      { customerId: customerId || "", status: "active", limit: 20 },
+      { customerId: customerId || "", limit: 50 },
       { enabled: Boolean(isOpen && customerId) },
     );
 
   const activeCustomerSubscriptions: Subscription[] = useMemo(
     () =>
-      (customerSubscriptionsData?.data || []).filter(
-        (s: Subscription) => s.status === "active",
-      ),
+      (customerSubscriptionsData?.data || []).filter((s: Subscription) => {
+        return s.status === "active" || s.status === "pending_payment";
+      }),
     [customerSubscriptionsData?.data],
   );
 
@@ -107,6 +108,9 @@ export function EditAppointmentServicesDialog({
         total: number;
         used: number;
         remaining: number;
+        paymentStatus?: string;
+        amountDue?: number;
+        isRedeemable: boolean;
       }
     >();
 
@@ -117,8 +121,9 @@ export function EditAppointmentServicesDialog({
           : undefined;
 
       for (const ent of sub.entitlements || []) {
+        const isRedeemable = ent.isRedeemable !== false;
         const remaining = ent.totalQuantity - (ent.usedQuantity || 0);
-        if (remaining > 0) {
+        if (remaining > 0 && isRedeemable) {
           const current = map.get(ent.serviceId);
           if (!current || remaining > current.remaining) {
             map.set(ent.serviceId, {
@@ -128,6 +133,9 @@ export function EditAppointmentServicesDialog({
               total: ent.totalQuantity,
               used: ent.usedQuantity || 0,
               remaining,
+              paymentStatus: sub.paymentStatus,
+              amountDue: sub.amountDue,
+              isRedeemable,
             });
           }
         }
@@ -372,7 +380,7 @@ export function EditAppointmentServicesDialog({
         price: srv.pricing?.basePrice ?? 0,
         customPrice: srv.pricing?.basePrice ?? 0,
         appliedSubscriptionId: defaultSubId || null,
-        isRedeemedViaSubscription: Boolean(defaultSubId),
+        isRedeemedViaSubscription: false,
       },
     ]);
     setPreviewData(null); // Invalidate any computed preview
@@ -390,21 +398,18 @@ export function EditAppointmentServicesDialog({
         if (i !== index) return line;
         if (!line.serviceId) return line;
         const subQuota = subscriptionQuotaByService.get(line.serviceId);
-        const isCovered = Boolean(
-          line.appliedSubscriptionId || line.isRedeemedViaSubscription,
-        );
+        // Only toggle coverage intent (appliedSubscriptionId). Historical consumed redemption is preserved.
+        const hasCoverage = Boolean(line.appliedSubscriptionId);
 
-        if (isCovered) {
+        if (hasCoverage) {
           return {
             ...line,
             appliedSubscriptionId: null,
-            isRedeemedViaSubscription: false,
           };
         } else if (subQuota) {
           return {
             ...line,
             appliedSubscriptionId: subQuota.subscriptionId,
-            isRedeemedViaSubscription: true,
           };
         }
         return line;
@@ -1008,11 +1013,23 @@ export function EditAppointmentServicesDialog({
                             </Badge>
                           )}
 
-                          {!isCustomLine && (isCovered ? (
+                          {!isCustomLine && (line.isRedeemedViaSubscription ? (
+                            <div className="inline-flex items-center gap-1.5 flex-wrap">
+                              <span className="inline-flex items-center gap-1.5 text-[10px] py-0.5 px-2.5 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 rounded-full font-bold shadow-2xs">
+                                <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400 stroke-3" />
+                                <span>Redeemed via Plan</span>
+                                {subQuota?.subscriptionCode && (
+                                  <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400">
+                                    [{subQuota.subscriptionCode}]
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          ) : isCovered ? (
                             <div className="inline-flex items-center gap-1.5 flex-wrap">
                               <span className="inline-flex items-center gap-1.5 text-[10px] py-0.5 px-2.5 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 rounded-full font-bold shadow-2xs">
                                 <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                                <span>100% Plan Covered</span>
+                                <span>Plan Covered (Draft)</span>
                                 {subQuota && (
                                   <span className="text-emerald-700 dark:text-emerald-300 font-semibold border-l border-emerald-500/30 pl-1.5">
                                     {subQuota.remaining - 1} left after this
@@ -1043,7 +1060,7 @@ export function EditAppointmentServicesDialog({
                                 handleToggleSubscriptionCoverage(idx)
                               }
                               className="inline-flex items-center gap-1.5 text-[10px] py-0.5 px-2.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25 rounded-full font-semibold cursor-pointer hover:bg-purple-500/20 transition-colors shadow-2xs"
-                              title={`Apply customer plan credit (${subQuota.remaining} of ${subQuota.total} available)`}
+                              title={`Apply customer plan credit (${subQuota.remaining} of ${subQuota.total} available) • Payment: ${subQuota.paymentStatus || "paid"}`}
                             >
                               <Sparkles className="h-2.5 w-2.5 text-purple-600" />
                               <span>Apply Plan</span>
@@ -1054,6 +1071,15 @@ export function EditAppointmentServicesDialog({
                               <span className="font-mono text-[9px] opacity-75">
                                 [{subQuota.subscriptionCode}]
                               </span>
+                              {subQuota.paymentStatus === "unpaid" || subQuota.paymentStatus === "pending_payment" ? (
+                                <span className="text-[8.5px] bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider">
+                                  Pending Payment{subQuota.amountDue != null && subQuota.amountDue > 0 ? ` (₹${subQuota.amountDue})` : ""}
+                                </span>
+                              ) : subQuota.paymentStatus === "partially_paid" ? (
+                                <span className="text-[8.5px] bg-orange-500/25 text-orange-800 dark:text-orange-200 border border-orange-500/40 px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider">
+                                  Partially Paid{subQuota.amountDue != null && subQuota.amountDue > 0 ? ` (Due: ₹${subQuota.amountDue})` : ""}
+                                </span>
+                              ) : null}
                             </button>
                           ) : null)}
                         </div>
@@ -1495,8 +1521,16 @@ export function EditAppointmentServicesDialog({
                                             </span>
                                             {hasPlanCoverage && subQuota ? (
                                               <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold block">
-                                                Free w/ Plan (
-                                                {subQuota.remaining} left)
+                                                Free w/ Plan ({subQuota.remaining}/{subQuota.total} left)
+                                                {subQuota.paymentStatus === "unpaid" || subQuota.paymentStatus === "pending_payment" ? (
+                                                  <span className="text-[8px] text-amber-600 dark:text-amber-400 font-normal block">
+                                                    (Payment Pending)
+                                                  </span>
+                                                ) : subQuota.paymentStatus === "partially_paid" ? (
+                                                  <span className="text-[8px] text-orange-600 dark:text-orange-400 font-normal block">
+                                                    (Partially Paid)
+                                                  </span>
+                                                ) : null}
                                               </span>
                                             ) : (
                                               <span className="text-[9px] text-muted-foreground block">

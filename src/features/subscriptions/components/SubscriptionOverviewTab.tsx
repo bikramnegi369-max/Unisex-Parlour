@@ -78,6 +78,47 @@ export function SubscriptionOverviewTab({
                 </span>
               </div>
             )}
+            {subscription.paymentStatus && (
+              <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                <span className="text-muted-foreground">Payment Status:</span>
+                <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded ${
+                  subscription.paymentStatus === "paid"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : subscription.paymentStatus === "partially_paid"
+                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                }`}>
+                  {subscription.paymentStatus.replace("_", " ")}
+                </span>
+              </div>
+            )}
+            {subscription.amountPaid !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Amount Paid:</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(subscription.amountPaid)}
+                </span>
+              </div>
+            )}
+            {subscription.amountDue !== undefined && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Amount Due:</span>
+                <span className={`font-semibold ${subscription.amountDue > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>
+                  {formatCurrency(subscription.amountDue)}
+                </span>
+              </div>
+            )}
+            {subscription.invoiceId && (
+              <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                <span className="text-muted-foreground">Sale Invoice:</span>
+                <a
+                  href={`/billing/${subscription.invoiceId}`}
+                  className="font-bold text-xs text-primary underline underline-offset-2 hover:opacity-80"
+                >
+                  {subscription.invoiceNumber || `#${subscription.invoiceId.slice(-6)}`}
+                </a>
+              </div>
+            )}
           </div>
         </div>
       </div>

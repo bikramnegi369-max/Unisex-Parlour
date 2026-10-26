@@ -403,3 +403,29 @@ export interface CompleteWithSubscriptionPayload {
   branchId: string;
   otp: string;
 }
+
+export interface UpsellSubscriptionPayload {
+  branchId?: string;
+  planId?: string;
+  price: number;
+  entitlements: Array<{ serviceId: string; quantity: number }>;
+  permittedBranchIds?: string[];
+  startDate: string;
+  endDate: string;
+  notes?: string;
+}
+
+export interface UpsellSubscriptionResponseData {
+  subscription: import("@/features/subscriptions/types/subscription.types").Subscription;
+  invoice?: import("@/features/billing/types/billing.types").Invoice;
+  invoiceId?: string;
+  summary?: Record<string, unknown>;
+}
+
+export interface UpsellSubscriptionResponse {
+  success: boolean;
+  status: string;
+  message?: string;
+  data: UpsellSubscriptionResponseData;
+}
+

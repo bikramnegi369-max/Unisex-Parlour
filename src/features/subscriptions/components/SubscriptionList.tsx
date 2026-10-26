@@ -148,7 +148,7 @@ export function SubscriptionList() {
 
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
     try {
-      await createMutation.mutateAsync({
+      const createdSub = await createMutation.mutateAsync({
         customerId: values.customerId,
         planId: values.planId,
         price: values.price,
@@ -158,8 +158,27 @@ export function SubscriptionList() {
         endDate: values.endDate,
         notes: values.notes,
       });
-      toast.success("Subscription sold and created successfully.");
+
       setIsCreateOpen(false);
+
+      const invoiceId = createdSub.invoiceId || createdSub.invoice?.id;
+      const invoiceNumber = createdSub.invoiceNumber || createdSub.invoice?.invoiceNumber || "";
+
+      if (invoiceId) {
+        toast.success(
+          `Subscription sold! Sale invoice ${invoiceNumber} created (${createdSub.paymentStatus === "paid" ? "Paid" : "Pending Payment"}).`,
+          {
+            action: {
+              label: "View Invoice",
+              onClick: () => router.push(`/billing/${invoiceId}`),
+            },
+            duration: 6000,
+          }
+        );
+        router.push(`/billing/${invoiceId}`);
+      } else {
+        toast.success("Subscription sold and created successfully.");
+      }
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;

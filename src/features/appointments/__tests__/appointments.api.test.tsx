@@ -593,6 +593,70 @@ describe("Appointment Schema & API Contract Validation", () => {
       );
     });
   });
+
+  describe("upsellAppointmentSubscription API Contract", () => {
+    it("calls POST /appointments/:appointmentId/upsell-subscription and returns distinct subscription and invoice documents", async () => {
+      const { upsellAppointmentSubscription } = await import(
+        "../api/appointments.api"
+      );
+
+      const mockResponse = {
+        success: true,
+        status: "success",
+        data: {
+          subscription: {
+            _id: "sub_upsell_1",
+            subscriptionCode: "SUB-UP-001",
+            price: 5000,
+            status: "active",
+            paymentStatus: "unpaid",
+            invoiceId: "inv_upsell_sub_1",
+          },
+          invoiceId: "inv_upsell_sub_1",
+          invoice: {
+            _id: "inv_upsell_sub_1",
+            invoiceNumber: "INV-SUB-009",
+            status: "finalized",
+            paymentStatus: "unpaid",
+            amountDue: 5000,
+          },
+          summary: {
+            servicesIncluded: 10,
+          },
+        },
+      };
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: mockResponse,
+      });
+
+      const payload = {
+        branchId: "br_1",
+        price: 5000,
+        entitlements: [{ serviceId: "srv_haircut", quantity: 10 }],
+        permittedBranchIds: ["br_1", "all"],
+        startDate: "2026-10-24",
+        endDate: "2027-04-24",
+      };
+
+      const result = await upsellAppointmentSubscription("apt_123", payload);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/appointments/apt_123/upsell-subscription",
+        {
+          ...payload,
+          permittedBranchIds: ["br_1"],
+        },
+        { branchScope: { type: "branch", branchId: "br_1" } }
+      );
+
+      expect(result.subscription.id).toBe("sub_upsell_1");
+      expect(result.invoiceId).toBe("inv_upsell_sub_1");
+      expect(result.invoice?.invoiceNumber).toBe("INV-SUB-009");
+      expect(result.invoice?.amountDue).toBe(5000);
+    });
+  });
 });
+
 
 

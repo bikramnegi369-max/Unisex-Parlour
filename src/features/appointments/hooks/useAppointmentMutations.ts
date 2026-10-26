@@ -198,7 +198,7 @@ export function useCompleteWithSubscription() {
         });
       }
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", "list"],
+        queryKey: ["subscriptions"],
       });
 
       // If any service had appliedSubscriptionId, invalidate its detail & usage
@@ -299,5 +299,51 @@ export function useCommitAppointmentServices() {
     },
   });
 }
+
+export function useUpsellAppointmentSubscription() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+
+  return useMutation({
+    mutationFn: ({
+      appointmentId,
+      payload,
+    }: {
+      appointmentId: string;
+      payload: import("../types/appointment.types").UpsellSubscriptionPayload;
+    }) =>
+      import("../api/appointments.api").then((mod) =>
+        mod.upsellAppointmentSubscription(appointmentId, payload)
+      ),
+    onSuccess: (_data, variables) => {
+      // 1. Invalidate appointment details
+      queryClient.invalidateQueries({
+        queryKey: getBranchQueryKey("appointment", [variables.appointmentId]),
+      });
+      queryClient.invalidateQueries({
+        queryKey: getScopeQueryKey("appointment", null, [variables.appointmentId]),
+      });
+
+      // 2. Invalidate subscriptions, appointments, invoices, customers
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "subscriptions" ||
+            key === "invoices" ||
+            key === "invoice" ||
+            key === "appointments" ||
+            key === "appointment" ||
+            key === "customers" ||
+            key === "customer"
+          );
+        },
+      });
+
+      broadcastCrossTabInvalidation("appointments");
+    },
+  });
+}
+
 
 

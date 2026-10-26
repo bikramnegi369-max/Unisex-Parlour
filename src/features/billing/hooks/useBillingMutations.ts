@@ -144,6 +144,9 @@ export function useRecordPayment() {
           const key = query.queryKey[0];
           return (
             key === "invoices" ||
+            key === "subscriptions" ||
+            key === "appointments" ||
+            key === "appointment" ||
             key === "customers" ||
             key === "customer" ||
             key === "loyalty-ledger" ||
@@ -182,6 +185,9 @@ export function useVoidPayment() {
           const key = query.queryKey[0];
           return (
             key === "invoices" ||
+            key === "subscriptions" ||
+            key === "appointments" ||
+            key === "appointment" ||
             key === "customers" ||
             key === "customer" ||
             key === "loyalty-ledger" ||

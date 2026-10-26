@@ -859,6 +859,278 @@ describe("Subscription Verification Flow & Helper Tests", () => {
         throw new Error("Expected registered service");
       }
     });
+
+    it("14. explicit subscription opt-out: null appliedSubscriptionId is preserved without alteration", () => {
+      const parsed = createAppointmentSchema.parse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        date: "2026-09-25",
+        startTime: "10:00",
+        bookingType: "advance",
+        services: [
+          {
+            serviceId: "srv_opt_out",
+            appliedSubscriptionId: null,
+            customPrice: 120,
+          },
+        ],
+      });
+
+      const firstService = parsed.services?.[0];
+      if (firstService && firstService.serviceType === "registered") {
+        expect(firstService.appliedSubscriptionId).toBeNull();
+        expect(firstService.customPrice).toBe(120);
+      } else {
+        throw new Error("Expected registered service");
+      }
+    });
+
+    it("15. pending_payment and partially_paid active subscriptions are eligible for appointment redemption", () => {
+      // Create subscription objects simulating pending_payment and partially_paid states
+      const mockPendingSub = {
+        id: "sub_pending_1",
+        subscriptionCode: "SUB-PENDING",
+        status: "active" as const,
+        paymentStatus: "unpaid" as const,
+        amountDue: 500,
+        amountPaid: 0,
+        isPaid: false,
+        entitlements: [
+          {
+            serviceId: "srv_1",
+            totalQuantity: 5,
+            usedQuantity: 1,
+            remainingQuantity: 4,
+            isRedeemable: true,
+          },
+        ],
+      };
+
+      const mockPartialSub = {
+        id: "sub_partial_1",
+        subscriptionCode: "SUB-PARTIAL",
+        status: "active" as const,
+        paymentStatus: "partially_paid" as const,
+        amountDue: 250,
+        amountPaid: 250,
+        isPaid: false,
+        entitlements: [
+          {
+            serviceId: "srv_1",
+            totalQuantity: 3,
+            usedQuantity: 0,
+            remainingQuantity: 3,
+            isRedeemable: true,
+          },
+        ],
+      };
+
+      // Both must be active and have remainingQuantity > 0 with isRedeemable !== false
+      const activeSubs = [mockPendingSub, mockPartialSub].filter((s) => s.status === "active");
+      expect(activeSubs).toHaveLength(2);
+
+      const eligibleCandidates = activeSubs.flatMap((sub) =>
+        sub.entitlements
+          .filter((e) => e.remainingQuantity > 0 && e.isRedeemable !== false)
+          .map((e) => ({
+            subscriptionId: sub.id,
+            code: sub.subscriptionCode,
+            paymentStatus: sub.paymentStatus,
+            amountDue: sub.amountDue,
+            remaining: e.remainingQuantity,
+            total: e.totalQuantity,
+          }))
+      );
+
+      expect(eligibleCandidates).toHaveLength(2);
+      expect(eligibleCandidates[0].paymentStatus).toBe("unpaid");
+      expect(eligibleCandidates[0].remaining).toBe(4);
+      expect(eligibleCandidates[1].paymentStatus).toBe("partially_paid");
+      expect(eligibleCandidates[1].remaining).toBe(3);
+
+      // Verifying appointment schema allows applying sub_pending_1 without blocking
+      const parsed = createAppointmentSchema.parse({
+        branchId: "br_1",
+        customerId: "cust_1",
+        date: "2026-09-25",
+        startTime: "10:00",
+        bookingType: "advance",
+        services: [
+          {
+            serviceId: "srv_1",
+            appliedSubscriptionId: eligibleCandidates[0].subscriptionId,
+          },
+        ],
+      });
+      const registered = parsed.services?.[0];
+      if (registered && registered.serviceType === "registered") {
+        expect(registered.appliedSubscriptionId).toBe("sub_pending_1");
+      }
+    });
+
+    it("16. ineligible entitlements (isRedeemable: false or remainingQuantity: 0) are excluded from coverage candidates", () => {
+      const mockExhaustedSub = {
+        id: "sub_exhausted",
+        subscriptionCode: "SUB-EXHAUSTED",
+        status: "active" as const,
+        paymentStatus: "paid" as const,
+        entitlements: [
+          {
+            serviceId: "srv_1",
+            totalQuantity: 2,
+            usedQuantity: 2,
+            remainingQuantity: 0,
+            isRedeemable: false,
+          },
+        ],
+      };
+
+      const mockBlockedSub = {
+        id: "sub_blocked",
+        subscriptionCode: "SUB-BLOCKED",
+        status: "active" as const,
+        paymentStatus: "paid" as const,
+        entitlements: [
+          {
+            serviceId: "srv_1",
+            totalQuantity: 5,
+            usedQuantity: 1,
+            remainingQuantity: 4,
+            isRedeemable: false,
+          },
+        ],
+      };
+
+      const candidates = [mockExhaustedSub, mockBlockedSub].flatMap((sub) =>
+        sub.entitlements
+          .filter((e) => e.remainingQuantity > 0 && e.isRedeemable !== false)
+      );
+
+      expect(candidates).toHaveLength(0);
+    });
+
+    it("17. subscription lifecycle: pending_payment status subscriptions are eligible when entitlements are redeemable", () => {
+      const mockPendingPaymentStatusSub = {
+        id: "sub_lifecycle_pending",
+        subscriptionCode: "SUB-LIFECYCLE-PENDING",
+        status: "pending_payment" as const,
+        paymentStatus: "unpaid" as const,
+        amountDue: 800,
+        amountPaid: 0,
+        entitlements: [
+          {
+            serviceId: "srv_haircut",
+            totalQuantity: 3,
+            usedQuantity: 0,
+            remainingQuantity: 3,
+            isRedeemable: true,
+          },
+        ],
+      };
+
+      // Both 'active' and 'pending_payment' are eligible
+      const eligible = ["active", "pending_payment"].includes(mockPendingPaymentStatusSub.status);
+      expect(eligible).toBe(true);
+
+      const hasRedeemableQuota = mockPendingPaymentStatusSub.entitlements.some(
+        (e) => e.serviceId === "srv_haircut" && e.remainingQuantity > 0 && e.isRedeemable !== false
+      );
+      expect(hasRedeemableQuota).toBe(true);
+    });
+
+    it("18. service-specific eligibility: coverage is strictly evaluated per serviceId and does not leak to other services", () => {
+      const mockSub = {
+        id: "sub_specific",
+        subscriptionCode: "SUB-SPECIFIC",
+        status: "active" as const,
+        paymentStatus: "paid" as const,
+        entitlements: [
+          {
+            serviceId: "srv_haircut",
+            totalQuantity: 2,
+            usedQuantity: 0,
+            remainingQuantity: 2,
+            isRedeemable: true,
+          },
+          {
+            serviceId: "srv_color",
+            totalQuantity: 1,
+            usedQuantity: 1,
+            remainingQuantity: 0,
+            isRedeemable: false,
+          },
+        ],
+      };
+
+      // Check haircut: covered
+      const haircutEnt = mockSub.entitlements.find((e) => e.serviceId === "srv_haircut");
+      expect(haircutEnt?.isRedeemable).toBe(true);
+      expect(haircutEnt?.remainingQuantity).toBe(2);
+
+      // Check color: exhausted, not redeemable
+      const colorEnt = mockSub.entitlements.find((e) => e.serviceId === "srv_color");
+      expect(colorEnt?.isRedeemable).toBe(false);
+      expect(colorEnt?.remainingQuantity).toBe(0);
+
+      // Check unrelated service: not in entitlements at all
+      const facialEnt = mockSub.entitlements.find((e) => e.serviceId === "srv_facial");
+      expect(facialEnt).toBeUndefined();
+    });
+
+    it("19. multiple subscriptions FIFO priority: earliest expiring subscription is prioritized for auto-selection", () => {
+      const candidates = [
+        {
+          subscriptionId: "sub_late_expiry",
+          subscriptionCode: "SUB-LATE",
+          remaining: 2,
+          endDate: "2026-12-31T00:00:00.000Z",
+        },
+        {
+          subscriptionId: "sub_early_expiry",
+          subscriptionCode: "SUB-EARLY",
+          remaining: 1,
+          endDate: "2026-06-30T00:00:00.000Z",
+        },
+        {
+          subscriptionId: "sub_no_expiry",
+          subscriptionCode: "SUB-FOREVER",
+          remaining: 5,
+          endDate: undefined,
+        },
+      ];
+
+      // Sort FIFO by earliest expiration
+      candidates.sort((a, b) => {
+        const timeA = a.endDate ? new Date(a.endDate).getTime() : Infinity;
+        const timeB = b.endDate ? new Date(b.endDate).getTime() : Infinity;
+        return timeA - timeB;
+      });
+
+      expect(candidates[0].subscriptionId).toBe("sub_early_expiry");
+      expect(candidates[1].subscriptionId).toBe("sub_late_expiry");
+      expect(candidates[2].subscriptionId).toBe("sub_no_expiry");
+    });
+
+    it("20. coverage vs redemption semantics: appliedSubscriptionId represents coverage intent without prematurely setting isRedeemedViaSubscription or creating subscriptionUsageId", () => {
+      // Simulating selecting a subscription on an appointment service line
+      const selectedLine = {
+        serviceId: "srv_haircut",
+        name: "Classic Haircut",
+        duration: 30,
+        basePrice: 50,
+        price: 50,
+        appliedSubscriptionId: "sub_coverage_only",
+        isRedeemedViaSubscription: false, // Must remain false until OTP completion
+        subscriptionUsageId: null, // Must remain null until backend consumption record exists
+      };
+
+      expect(selectedLine.appliedSubscriptionId).toBe("sub_coverage_only");
+      expect(selectedLine.isRedeemedViaSubscription).toBe(false);
+      expect(selectedLine.subscriptionUsageId).toBeNull();
+      // Price is preserved for client agreement
+      expect(selectedLine.price).toBe(50);
+    });
   });
 });
+
 

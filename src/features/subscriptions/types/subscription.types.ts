@@ -1,6 +1,11 @@
 import type { ApiResponse, PaginatedResponse } from "@/types/api.types";
 
-export type SubscriptionStatus = "active" | "expired" | "exhausted" | "cancelled";
+export type SubscriptionStatus =
+  | "active"
+  | "pending_payment"
+  | "expired"
+  | "exhausted"
+  | "cancelled";
 
 export interface SubscriptionCustomerSummary {
   id: string;
@@ -15,6 +20,7 @@ export interface SubscriptionEntitlement {
   totalQuantity: number;
   usedQuantity: number;
   remainingQuantity: number;
+  isRedeemable?: boolean;
 }
 
 export interface SubscriptionPlanSummary {
@@ -22,6 +28,7 @@ export interface SubscriptionPlanSummary {
   id?: string;
   name: string;
 }
+
 
 export interface Subscription {
   id: string;
@@ -37,6 +44,12 @@ export interface Subscription {
   startDate: string;
   endDate: string;
   status: SubscriptionStatus;
+  paymentStatus?: "unpaid" | "partially_paid" | "paid";
+  invoiceId?: string;
+  invoiceNumber?: string;
+  amountPaid?: number;
+  amountDue?: number;
+  isPaid?: boolean;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -108,12 +121,21 @@ export interface GetSubscriptionUsageParams {
   limit?: number;
 }
 
+export interface CreateSubscriptionResult extends Subscription {
+  invoice?: import("@/features/billing/types/billing.types").Invoice;
+  invoiceId?: string;
+  invoiceNumber?: string;
+}
+
 export type SubscriptionListResponse = PaginatedResponse<Subscription>;
 export type SubscriptionDetailsResponse = ApiResponse<Subscription>;
-export type SubscriptionMutateResponse = ApiResponse<Subscription>;
+export type SubscriptionMutateResponse = ApiResponse<
+  Subscription | { subscription: Subscription; invoiceId?: string; invoice?: Record<string, unknown> }
+>;
 export type SubscriptionUsageResponse = PaginatedResponse<SubscriptionUsageRecord>;
 export type SendOtpResponse = ApiResponse<{ message?: string }>;
 export type RedeemResponse = ApiResponse<{
   subscription: Subscription;
   usageRecords: SubscriptionUsageRecord[];
 }>;
+

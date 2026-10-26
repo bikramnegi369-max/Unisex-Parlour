@@ -15,4 +15,6 @@ export {
   useCompleteWithSubscription,
   usePreviewAppointmentServices,
   useCommitAppointmentServices,
+  useUpsellAppointmentSubscription,
 } from "./useAppointmentMutations";
+

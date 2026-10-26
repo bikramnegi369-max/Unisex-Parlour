@@ -46,7 +46,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${poppins.className} min-h-full flex flex-col`} suppressHydrationWarning>
+      <body className={`${poppins.className} h-full overflow-hidden flex flex-col`} suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>

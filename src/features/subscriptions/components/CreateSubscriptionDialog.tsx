@@ -38,7 +38,7 @@ export function CreateSubscriptionDialog({
 }: CreateSubscriptionDialogProps) {
   const { availableBranches } = useBranchContext();
   const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [selectedQuantity, setSelectedQuantity] = useState("1");
   const [serviceAddError, setServiceAddError] = useState<string | null>(null);
   const [selectedPlanTemplateId, setSelectedPlanTemplateId] = useState<string>(
     initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || ""
@@ -109,6 +109,30 @@ export function CreateSubscriptionDialog({
     name: "entitlements",
   });
 
+  // Sync form values when initialCustomerId or initialPlan changes
+  React.useEffect(() => {
+    if (isOpen) {
+      const pId = initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || "";
+      reset({
+        customerId: initialCustomerId || "",
+        planId: pId || undefined,
+        price: initialPlan?.suggestedPrice ?? 0,
+        entitlements: initialPlan?.entitlements
+          ? initialPlan.entitlements.map((e, idx) => ({
+              serviceId: resolveServiceId(e.serviceId, idx),
+              quantity: e.quantity,
+            }))
+          : [],
+        permittedBranchIds: [],
+        startDate: format(new Date(), "yyyy-MM-dd"),
+        endDate: initialPlan?.validityMonths
+          ? format(addMonths(new Date(), initialPlan.validityMonths), "yyyy-MM-dd")
+          : format(addMonths(new Date(), 6), "yyyy-MM-dd"),
+        notes: "",
+      });
+    }
+  }, [isOpen, initialCustomerId, initialPlan, reset]);
+
   const watchedPermittedBranches =
     useWatch({
       control,
@@ -128,18 +152,19 @@ export function CreateSubscriptionDialog({
       return;
     }
 
-    if (selectedQuantity < 1) {
-      setServiceAddError("Quantity must be at least 1");
+    const parsedQty = parseInt(selectedQuantity, 10);
+    if (isNaN(parsedQty) || parsedQty < 1) {
+      setServiceAddError("Quantity must be a positive number (at least 1)");
       return;
     }
 
     append({
       serviceId: selectedServiceId,
-      quantity: Number(selectedQuantity),
+      quantity: parsedQty,
     });
 
     setSelectedServiceId("");
-    setSelectedQuantity(1);
+    setSelectedQuantity("1");
   };
 
   const handleApplyPlanTemplate = (planId: string) => {
@@ -309,9 +334,7 @@ export function CreateSubscriptionDialog({
             min="1"
             step="1"
             value={selectedQuantity}
-            onChange={(e) =>
-              setSelectedQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))
-            }
+            onChange={(e) => setSelectedQuantity(e.target.value)}
             placeholder="Qty"
             disabled={isLoading}
             className="h-9 text-xs w-full"
@@ -348,27 +371,40 @@ export function CreateSubscriptionDialog({
               return (
                 <div
                   key={fieldItem.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-background border border-border text-xs"
+                  className="flex items-center justify-between p-2 rounded-lg bg-background border border-border text-xs gap-2"
                 >
-                  <div className="flex items-center gap-2 truncate">
+                  <div className="flex items-center gap-2 truncate min-w-0 flex-1">
                     <span className="font-semibold text-foreground truncate">
                       {matchedService?.name || safeServiceId}
                     </span>
                     {matchedService?.code && (
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-[10px] text-muted-foreground shrink-0">
                         ({matchedService.code})
                       </span>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs font-bold text-primary">
-                      {fieldItem.quantity} {fieldItem.quantity === 1 ? "unit" : "units"}
-                    </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5">
+                      <label htmlFor={`entitlement-qty-${index}`} className="text-[10px] text-muted-foreground uppercase font-semibold">
+                        Qty:
+                      </label>
+                      <Input
+                        id={`entitlement-qty-${index}`}
+                        type="number"
+                        min="1"
+                        step="1"
+                        disabled={isLoading}
+                        className="h-7 w-20 text-xs px-2 text-right font-bold text-primary"
+                        {...register(`entitlements.${index}.quantity`, {
+                          valueAsNumber: true,
+                        })}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => remove(index)}
-                      className="text-destructive hover:bg-destructive/10 p-1 rounded cursor-pointer"
+                      className="text-destructive hover:bg-destructive/10 p-1 rounded cursor-pointer ml-1"
                       title="Remove Entitlement"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

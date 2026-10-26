@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CreditCard, ExternalLink, Calendar, Plus, Gift } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export function CustomerSubscriptionsTab({
     SUBSCRIPTIONS_CONFIG.permissions.redeem,
   );
 
+  const router = useRouter();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [redeemSubscriptionTarget, setRedeemSubscriptionTarget] =
     useState<Subscription | null>(null);
@@ -53,7 +55,7 @@ export function CustomerSubscriptionsTab({
 
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
     try {
-      await createMutation.mutateAsync({
+      const createdSub = await createMutation.mutateAsync({
         customerId: values.customerId,
         planId: values.planId,
         price: values.price,
@@ -63,9 +65,28 @@ export function CustomerSubscriptionsTab({
         endDate: values.endDate,
         notes: values.notes,
       });
-      toast.success("Subscription sold and created successfully.");
+
       setIsCreateOpen(false);
       refetch();
+
+      const invoiceId = createdSub.invoiceId || createdSub.invoice?.id;
+      const invoiceNumber = createdSub.invoiceNumber || createdSub.invoice?.invoiceNumber || "";
+
+      if (invoiceId) {
+        toast.success(
+          `Subscription sold! Sale invoice ${invoiceNumber} created (${createdSub.paymentStatus === "paid" ? "Paid" : "Pending Payment"}).`,
+          {
+            action: {
+              label: "View Invoice",
+              onClick: () => router.push(`/billing/${invoiceId}`),
+            },
+            duration: 6000,
+          }
+        );
+        router.push(`/billing/${invoiceId}`);
+      } else {
+        toast.success("Subscription sold and created successfully.");
+      }
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
@@ -231,7 +252,11 @@ export function CustomerSubscriptionsTab({
                     ((totalAllocated - totalRemaining) / totalAllocated) * 100,
                   )
                 : 0;
-            const isActive = sub.status === "active";
+            const isPaid =
+              sub.isPaid === true ||
+              sub.paymentStatus === "paid" ||
+              (sub.paymentStatus === undefined && sub.status === "active");
+            const isActive = sub.status === "active" && isPaid;
 
             return (
               <div
@@ -245,7 +270,7 @@ export function CustomerSubscriptionsTab({
                       <span className="font-mono font-bold text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded">
                         {sub.subscriptionCode || sub.id}
                       </span>
-                      <SubscriptionStatusBadge status={sub.status} />
+                      <SubscriptionStatusBadge status={sub.status} paymentStatus={sub.paymentStatus} />
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap pt-0.5">
                       <span className="flex items-center gap-1">

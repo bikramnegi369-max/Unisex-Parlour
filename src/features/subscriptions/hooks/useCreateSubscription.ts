@@ -9,7 +9,18 @@ export function useCreateSubscription() {
     mutationFn: (payload: CreateSubscriptionPayload) => createSubscription(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        queryKey: ["subscriptions", "list"],
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "subscriptions" ||
+            key === "invoices" ||
+            key === "invoice" ||
+            key === "customers" ||
+            key === "customer" ||
+            key === "appointments" ||
+            key === "appointment"
+          );
+        },
       });
     },
   });
