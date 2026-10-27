@@ -28,14 +28,14 @@ export const buildUserColumns = ({
       const user = info.row.original;
       const formattedName = capitalizeWords(user.name);
       return (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-44 whitespace-nowrap">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
             {formattedName.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <p className="font-semibold text-foreground">{formattedName}</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground whitespace-nowrap">{formattedName}</p>
             {user.hasOrgWideAccess && (
-              <span className="inline-flex mt-0.5 items-center px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[9px] font-semibold border border-amber-500/20">
+              <span className="inline-flex mt-0.5 items-center px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-500 text-[9px] font-semibold border border-amber-500/20 whitespace-nowrap">
                 Org-Wide
               </span>
             )}
@@ -52,7 +52,7 @@ export const buildUserColumns = ({
       return (
         <a
           href={`mailto:${val}`}
-          className="font-medium text-muted-foreground hover:underline"
+          className="font-medium text-muted-foreground hover:underline text-xs whitespace-nowrap min-w-36 inline-block"
         >
           {val}
         </a>
@@ -67,12 +67,12 @@ export const buildUserColumns = ({
       return val ? (
         <a
           href={`tel:${val}`}
-          className="font-medium text-muted-foreground hover:underline"
+          className="font-medium text-muted-foreground hover:underline text-xs whitespace-nowrap min-w-28 inline-block"
         >
           {val}
         </a>
       ) : (
-        <span className="text-muted-foreground">—</span>
+        <span className="text-muted-foreground whitespace-nowrap min-w-28 inline-block">—</span>
       );
     },
   },
@@ -87,12 +87,14 @@ export const buildUserColumns = ({
       const roleName =
         typeof role === "object" && role !== null ? role.name : role;
       return (
-        <Badge
-          variant="outline"
-          className="bg-primary/5 text-primary border-primary/10"
-        >
-          {roleName || "User"}
-        </Badge>
+        <div className="min-w-24 whitespace-nowrap">
+          <Badge
+            variant="outline"
+            className="bg-primary/5 text-primary border-primary/10 whitespace-nowrap shrink-0 px-2.5 py-0.5"
+          >
+            {roleName || "User"}
+          </Badge>
+        </div>
       );
     },
   },
@@ -108,9 +110,11 @@ export const buildUserColumns = ({
       if (status === "locked") badgeVariant = "warning";
 
       return (
-        <Badge variant={badgeVariant}>
-          <span className="capitalize">{status}</span>
-        </Badge>
+        <div className="min-w-24 whitespace-nowrap">
+          <Badge variant={badgeVariant} className="whitespace-nowrap shrink-0">
+            <span className="capitalize">{status}</span>
+          </Badge>
+        </div>
       );
     },
   },
@@ -121,22 +125,22 @@ export const buildUserColumns = ({
       const user = info.row.original;
       if (user.hasOrgWideAccess) {
         return (
-          <span className="text-xs text-muted-foreground font-medium">
+          <span className="text-xs text-muted-foreground font-medium whitespace-nowrap min-w-28 inline-block">
             All Branches
           </span>
         );
       }
       const activeBranches = user.branchAccess.filter((b) => b.isActive);
       if (activeBranches.length === 0) {
-        return <span className="text-xs text-muted-foreground">—</span>;
+        return <span className="text-xs text-muted-foreground whitespace-nowrap min-w-28 inline-block">—</span>;
       }
       return (
-        <div className="flex flex-wrap gap-1 max-w-50">
+        <div className="flex flex-wrap gap-1.5 min-w-36">
           {activeBranches.map((b) => (
             <Badge
               key={b.branchId}
               variant="outline"
-              className="text-[10px] px-1.5 py-0"
+              className="text-[10px] px-2 py-0.5 whitespace-nowrap shrink-0"
             >
               {b.branchName}
             </Badge>

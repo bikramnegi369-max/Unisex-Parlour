@@ -19,7 +19,6 @@ import UserForm from "./UserForm";
 import UserDetailsModal from "./UserDetailsModal";
 import UserStatusDialog from "./UserStatusDialog";
 import { UserListHeader } from "./UserListHeader";
-import { UserSearch } from "./UserSearch";
 import { UserFilters } from "./UserFilters";
 import { USERS_CONFIG } from "../config/users.config";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -125,11 +124,12 @@ export default function UserList() {
   };
 
   const handleClearFilters = () => {
-    const params = new URLSearchParams();
-    if (searchQueryParam) {
-      params.set("search", searchQueryParam);
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("status");
+    params.delete("sort");
+    params.delete("search");
     params.set("page", "1");
+    setSearch("");
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -267,24 +267,19 @@ export default function UserList() {
         onSync={handleSync}
       />
 
-      {/* Search and Filters Toolbar */}
-      <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-        <UserSearch
-          value={search}
-          onChange={setSearch}
-          isLoading={isRefetching}
-        />
-
-        <UserFilters
-          status={statusParam}
-          onStatusChange={handleStatusChange}
-          sort={sort}
-          onSortChange={handleSortChange}
-          onClearFilters={handleClearFilters}
-          activeScopeName="Organization-Wide"
-          isRefetching={isRefetching}
-        />
-      </div>
+      {/* Search and Filters Unified Production-Grade Toolbar */}
+      <UserFilters
+        search={search}
+        onSearchChange={setSearch}
+        status={statusParam}
+        onStatusChange={handleStatusChange}
+        sort={sort}
+        onSortChange={handleSortChange}
+        onClearFilters={handleClearFilters}
+        activeScopeName="Organization-Wide"
+        isRefetching={isRefetching}
+        totalResults={pagination?.total}
+      />
 
       {/* Loading Skeleton or Data Table */}
       {isLoading ? (

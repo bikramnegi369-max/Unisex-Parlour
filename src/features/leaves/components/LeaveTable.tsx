@@ -50,7 +50,11 @@ export default function LeaveTable({
       {
         accessorKey: "leaveCode",
         header: "Leave Code",
-        cell: (info) => <span className="font-mono font-bold text-foreground">{info.getValue() as string}</span>,
+        cell: (info) => (
+          <span className="font-mono font-bold text-foreground text-xs whitespace-nowrap min-w-28 inline-block">
+            {info.getValue() as string}
+          </span>
+        ),
       },
       {
         accessorKey: "staffId",
@@ -58,23 +62,29 @@ export default function LeaveTable({
         cell: (info) => {
           const leave = info.row.original;
           const staffName = leave.name || "Self Service";
-          return <span className="font-semibold text-foreground">{staffName}</span>;
+          return (
+            <span className="font-semibold text-foreground text-xs whitespace-nowrap min-w-36 inline-block">
+              {staffName}
+            </span>
+          );
         },
       },
       {
         accessorKey: "leaveType",
         header: "Leave Type",
         cell: (info) => (
-          <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 font-semibold">
-            {info.getValue() as string}
-          </Badge>
+          <div className="min-w-28 whitespace-nowrap">
+            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/10 font-semibold whitespace-nowrap shrink-0 px-2 py-0.5">
+              {info.getValue() as string}
+            </Badge>
+          </div>
         ),
       },
       {
         accessorKey: "startDate",
         header: "Start Date",
         cell: (info) => (
-          <span suppressHydrationWarning className="font-medium text-foreground">
+          <span suppressHydrationWarning className="font-medium text-foreground text-xs whitespace-nowrap min-w-24 inline-block">
             {formatDate(info.getValue() as string)}
           </span>
         ),
@@ -83,7 +93,7 @@ export default function LeaveTable({
         accessorKey: "endDate",
         header: "End Date",
         cell: (info) => (
-          <span suppressHydrationWarning className="font-medium text-foreground">
+          <span suppressHydrationWarning className="font-medium text-foreground text-xs whitespace-nowrap min-w-24 inline-block">
             {formatDate(info.getValue() as string)}
           </span>
         ),
@@ -94,9 +104,11 @@ export default function LeaveTable({
         cell: (info) => {
           const status = info.getValue() as string;
           return (
-            <Badge variant={getStatusVariant(status)}>
-              <span className="capitalize">{status}</span>
-            </Badge>
+            <div className="min-w-24 whitespace-nowrap">
+              <Badge variant={getStatusVariant(status)} className="whitespace-nowrap shrink-0">
+                <span className="capitalize">{status}</span>
+              </Badge>
+            </div>
           );
         },
       },

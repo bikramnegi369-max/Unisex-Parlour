@@ -36,7 +36,7 @@ export default function LeaveList() {
   const pathname = usePathname();
 
   const { user } = useAuth();
-  const { isAllBranchesSelected } = useBranchContext();
+  const { isAllBranchesSelected, currentBranch } = useBranchContext();
 
   const canCreate = hasPermission(user, "employees.leaves.view");
 
@@ -130,10 +130,12 @@ export default function LeaveList() {
   };
 
   const handleClearFilters = () => {
-    const params = new URLSearchParams();
-    if (searchQueryParam) {
-      params.set("search", searchQueryParam);
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("status");
+    params.delete("staffId");
+    params.delete("startDate");
+    params.delete("endDate");
+    params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
   };
 
@@ -291,6 +293,9 @@ export default function LeaveList() {
         endDate={endDateParam}
         onEndDateChange={(val) => updateParam("endDate", val)}
         onClear={handleClearFilters}
+        activeScopeName={isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name || ""}
+        isRefetching={isLoading}
+        totalResults={data?.meta?.total ?? data?.data?.length}
       />
 
       {error ? (

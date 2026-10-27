@@ -222,6 +222,8 @@ export function AuditLogList() {
         endDate={endDateParam}
         onEndDateChange={handleEndDateChange}
         onClear={handleClearFilters}
+        totalResults={total}
+        isRefetching={isFetching}
       />
 
       {/* Error State */}

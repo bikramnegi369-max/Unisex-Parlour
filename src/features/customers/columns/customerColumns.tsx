@@ -30,15 +30,15 @@ export const buildCustomerColumns = ({
       const customer = info.row.original;
       const formattedName = capitalizeWords(customer.name);
       return (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-50 whitespace-nowrap">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
             {formattedName.charAt(0).toUpperCase()}
           </div>
-          <div>
-            <p className="font-semibold text-foreground">{formattedName}</p>
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground whitespace-nowrap">{formattedName}</p>
             {customer.gender && (
-              <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
-                {customer.gender}
+              <p className="text-[10px] text-muted-foreground font-medium mt-0.5 capitalize whitespace-nowrap">
+                {customer.gender.replace(/_/g, " ")}
               </p>
             )}
           </div>

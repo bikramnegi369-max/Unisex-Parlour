@@ -35,7 +35,7 @@ export const buildEmployeeColumns = ({
         .slice(0, 2)
         .join("");
       return (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-48 whitespace-nowrap">
           <div className="relative h-9 w-9 shrink-0">
             {employee.avatarUrl ? (
               <Image
@@ -53,8 +53,8 @@ export const buildEmployeeColumns = ({
             )}
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-foreground truncate">{fullName}</p>
-            <p className="text-[10px] text-muted-foreground truncate">
+            <p className="font-semibold text-foreground whitespace-nowrap">{fullName}</p>
+            <p className="text-[10px] text-muted-foreground whitespace-nowrap">
               {employee.email}
             </p>
           </div>
@@ -86,12 +86,14 @@ export const buildEmployeeColumns = ({
       const designationStr =
         (info.getValue() as string) || info.row.original.designation;
       return (
-        <Badge
-          variant="outline"
-          className="bg-primary/5 text-primary border-primary/10 font-semibold"
-        >
-          {designationStr}
-        </Badge>
+        <div className="min-w-36 whitespace-nowrap">
+          <Badge
+            variant="outline"
+            className="bg-primary/5 text-primary border-primary/10 font-semibold whitespace-nowrap shrink-0 px-2.5 py-0.5"
+          >
+            {designationStr}
+          </Badge>
+        </div>
       );
     },
   },

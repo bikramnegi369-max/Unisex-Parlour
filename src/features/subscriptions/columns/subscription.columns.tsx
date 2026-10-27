@@ -39,14 +39,14 @@ export const getSubscriptionColumns = ({
     cell: ({ row }) => {
       const sub = row.original;
       return (
-        <div className="flex flex-col">
+        <div className="flex flex-col min-w-36 whitespace-nowrap">
           <span
-            className="font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
+            className="font-mono font-bold text-xs text-foreground hover:text-primary transition-colors cursor-pointer tracking-tight whitespace-nowrap"
             onClick={() => onView(sub)}
           >
             {sub.subscriptionCode || sub.id}
           </span>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
             Created {formatDate(sub.createdAt)}
           </span>
         </div>
@@ -103,9 +103,9 @@ export const getSubscriptionColumns = ({
     cell: ({ row }) => {
       const { startDate, endDate } = row.original;
       return (
-        <div className="text-xs flex flex-col text-muted-foreground">
-          <span className="text-foreground">{formatDate(startDate)}</span>
-          <span className="text-[10px]">to {formatDate(endDate)}</span>
+        <div className="text-xs flex flex-col text-muted-foreground min-w-32 whitespace-nowrap">
+          <span className="text-foreground font-medium whitespace-nowrap">{formatDate(startDate)}</span>
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">to {formatDate(endDate)}</span>
         </div>
       );
     },
@@ -126,11 +126,11 @@ export const getSubscriptionColumns = ({
       );
 
       return (
-        <div className="flex flex-col text-xs">
-          <span className="font-semibold text-foreground">
+        <div className="flex flex-col text-xs min-w-30 whitespace-nowrap">
+          <span className="font-semibold text-foreground whitespace-nowrap">
             {totalRemaining} / {totalAllocated} left
           </span>
-          <span className="text-[10px] text-muted-foreground truncate max-w-45">
+          <span className="text-[10px] text-muted-foreground whitespace-nowrap">
             {totalServices} {totalServices === 1 ? "service" : "services"}{" "}
             included
           </span>
@@ -145,17 +145,17 @@ export const getSubscriptionColumns = ({
       const branchIds = row.original.permittedBranchIds || [];
       if (branchIds.length === 0) {
         return (
-          <span className="text-[11px] font-medium text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+          <span className="text-[11px] font-medium text-muted-foreground bg-muted/60 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 whitespace-nowrap shrink-0">
             <Building2 className="h-3 w-3" /> All Branches
           </span>
         );
       }
       return (
-        <div className="flex items-center gap-1 flex-wrap max-w-45">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-44">
           {branchIds.map((bId) => (
             <span
               key={bId}
-              className="text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded"
+              className="text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded whitespace-nowrap shrink-0"
             >
               {getBranchName(bId)}
             </span>
@@ -168,10 +168,12 @@ export const getSubscriptionColumns = ({
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <SubscriptionStatusBadge
-        status={row.original.status}
-        paymentStatus={row.original.paymentStatus}
-      />
+      <div className="min-w-28 whitespace-nowrap">
+        <SubscriptionStatusBadge
+          status={row.original.status}
+          paymentStatus={row.original.paymentStatus}
+        />
+      </div>
     ),
   },
   {

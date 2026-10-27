@@ -54,8 +54,8 @@ export function SubscriptionTable({
         className="p-4 bg-card border border-border/80 rounded-xl space-y-3 shadow-2xs cursor-pointer hover:border-primary/50 transition-colors"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-xs text-foreground">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono font-bold text-xs text-foreground whitespace-nowrap">
               {sub.subscriptionCode || sub.id}
             </span>
             <SubscriptionStatusBadge status={sub.status} paymentStatus={sub.paymentStatus} />

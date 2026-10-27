@@ -146,10 +146,9 @@ export default function CustomerList() {
   };
 
   const handleClearFilters = () => {
-    const params = new URLSearchParams();
-    if (searchQueryParam) {
-      params.set("search", searchQueryParam);
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("status");
+    params.delete("sort");
     params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
   };
@@ -337,6 +336,8 @@ export default function CustomerList() {
           onStatusChange={handleStatusChange}
           sort={sort}
           onSortChange={handleSortChange}
+          searchQuery={search}
+          onClearSearch={() => setSearch("")}
           onClearFilters={handleClearFilters}
           activeScopeName={
             isAllBranchesSelected
@@ -344,6 +345,7 @@ export default function CustomerList() {
               : currentBranch?.name || ""
           }
           isRefetching={isRefetching}
+          totalResults={pagination?.total}
         />
       </div>
 

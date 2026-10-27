@@ -43,8 +43,8 @@ export default function EmployeeList() {
   // Read search parameter from URL
   const searchQueryParam = searchParams.get("search") || "";
 
-  // Read status filter parameter from URL
-  const statusParam = searchParams.get("status") || "active";
+  // Read status filter parameter from URL (defaults to "all" so All Statuses is active)
+  const statusParam = searchParams.get("status") || "all";
 
   // Read sort parameter from URL
   const sort = searchParams.get("sort") || "";
@@ -133,10 +133,9 @@ export default function EmployeeList() {
   };
 
   const handleClearFilters = () => {
-    const params = new URLSearchParams();
-    if (searchQueryParam) {
-      params.set("search", searchQueryParam);
-    }
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("status");
+    params.delete("sort");
     params.set("page", "1");
     router.push(`${pathname}?${params.toString()}`);
   };
@@ -293,24 +292,19 @@ export default function EmployeeList() {
         onSync={handleSync}
       />
 
-      {/* Search and Filters Toolbar */}
-      <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-        <EmployeeSearch 
-          value={search} 
-          onChange={setSearch} 
-          isLoading={isRefetching}
-        />
-        
-        <EmployeeFilters
-          status={statusParam}
-          onStatusChange={handleStatusChange}
-          sort={sort}
-          onSortChange={handleSortChange}
-          onClearFilters={handleClearFilters}
-          activeScopeName={isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name || ""}
-          isRefetching={isRefetching}
-        />
-      </div>
+      {/* Unified Directory Filters Toolbar */}
+      <EmployeeFilters
+        search={search}
+        onSearchChange={setSearch}
+        status={statusParam}
+        onStatusChange={handleStatusChange}
+        sort={sort}
+        onSortChange={handleSortChange}
+        onClearFilters={handleClearFilters}
+        activeScopeName={isAllBranchesSelected ? "All Branches (Consolidated)" : currentBranch?.name || ""}
+        isRefetching={isRefetching}
+        totalResults={pagination?.total}
+      />
 
       {/* Loading Skeleton or Data Table */}
       {isLoading ? (

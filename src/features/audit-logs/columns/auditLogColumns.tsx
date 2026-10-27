@@ -74,16 +74,14 @@ export const buildAuditLogColumns = ({
     cell: (info) => {
       const val = info.getValue() as string;
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-38 whitespace-nowrap">
           <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <div className="flex flex-col">
-            <span
-              suppressHydrationWarning
-              className="font-medium text-foreground text-xs whitespace-nowrap"
-            >
-              {formatDateTime(val)}
-            </span>
-          </div>
+          <span
+            suppressHydrationWarning
+            className="font-medium text-foreground text-xs whitespace-nowrap"
+          >
+            {formatDateTime(val)}
+          </span>
         </div>
       );
     },
@@ -97,16 +95,16 @@ export const buildAuditLogColumns = ({
       const email = actor?.email;
 
       return (
-        <div className="flex items-center gap-2.5 max-w-45">
+        <div className="flex items-center gap-2.5 min-w-40 whitespace-nowrap">
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">
             {name.charAt(0).toUpperCase()}
           </div>
-          <div className="truncate">
-            <p className="font-semibold text-xs text-foreground truncate">
+          <div className="min-w-0">
+            <p className="font-semibold text-xs text-foreground whitespace-nowrap">
               {name}
             </p>
             {email && (
-              <p className="text-[11px] text-muted-foreground truncate">
+              <p className="text-[11px] text-muted-foreground whitespace-nowrap">
                 {email}
               </p>
             )}
@@ -124,12 +122,14 @@ export const buildAuditLogColumns = ({
       const label = formatActionLabel(action);
 
       return (
-        <Badge
-          variant={variant}
-          className="text-[11px] font-medium whitespace-nowrap"
-        >
-          {label}
-        </Badge>
+        <div className="min-w-32 whitespace-nowrap">
+          <Badge
+            variant={variant}
+            className="text-[11px] font-medium whitespace-nowrap shrink-0"
+          >
+            {label}
+          </Badge>
+        </div>
       );
     },
   },
@@ -139,8 +139,8 @@ export const buildAuditLogColumns = ({
     cell: (info) => {
       const entity = info.getValue() as string;
       return (
-        <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className="text-xs bg-card border-border/80">
+        <div className="min-w-28 whitespace-nowrap">
+          <Badge variant="outline" className="text-xs bg-card border-border/80 whitespace-nowrap shrink-0">
             {entity || "—"}
           </Badge>
         </div>
@@ -154,7 +154,7 @@ export const buildAuditLogColumns = ({
       const desc = info.getValue() as string;
       return (
         <p
-          className="text-xs text-muted-foreground line-clamp-2 max-w-85"
+          className="text-xs text-muted-foreground min-w-56 max-w-xl"
           title={desc}
         >
           {desc || "—"}
@@ -173,14 +173,16 @@ export const buildAuditLogColumns = ({
           }) => {
             const branchId = info.getValue() as string | undefined;
             if (!branchId)
-              return <span className="text-muted-foreground text-xs">—</span>;
+              return <span className="text-muted-foreground text-xs whitespace-nowrap min-w-28 inline-block">—</span>;
             return (
-              <Badge
-                variant="outline"
-                className="bg-primary/5 text-primary border-primary/10 text-xs"
-              >
-                {getBranchName(branchId)}
-              </Badge>
+              <div className="min-w-28 whitespace-nowrap">
+                <Badge
+                  variant="outline"
+                  className="bg-primary/5 text-primary border-primary/10 text-xs whitespace-nowrap shrink-0"
+                >
+                  {getBranchName(branchId)}
+                </Badge>
+              </div>
             );
           },
         },
