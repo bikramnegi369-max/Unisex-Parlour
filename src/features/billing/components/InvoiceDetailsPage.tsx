@@ -34,7 +34,11 @@ import {
   useFinalizeInvoice,
   useCancelInvoice,
 } from "../hooks/useBillingMutations";
-import { InvoiceStatusBadge, PaymentStatusBadge } from "./InvoiceStatusBadge";
+import {
+  InvoiceStatusBadge,
+  PaymentStatusBadge,
+  InvoiceTypeBadge,
+} from "./InvoiceStatusBadge";
 import { EditDraftInvoiceDialog } from "./EditDraftInvoiceDialog";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { InvoicePaymentHistory } from "./InvoicePaymentHistory";
@@ -205,10 +209,11 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold tracking-tight text-foreground">
                 {invoice.invoiceNumber}
               </h1>
+              <InvoiceTypeBadge type={invoice.invoiceType} />
               <InvoiceStatusBadge status={invoice.status} />
               <PaymentStatusBadge status={invoice.paymentStatus} />
             </div>

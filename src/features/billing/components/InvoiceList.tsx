@@ -18,7 +18,11 @@ import { formatCurrency } from "@/lib/formatters";
 import { useInvoices, useCheckoutQueue } from "../hooks/useBillingQueries";
 import { downloadInvoicePdf } from "../api/billing.api";
 import { getInvoiceColumns } from "../columns/invoice.columns";
-import { InvoiceStatusBadge, PaymentStatusBadge } from "./InvoiceStatusBadge";
+import {
+  InvoiceStatusBadge,
+  PaymentStatusBadge,
+  InvoiceTypeBadge,
+} from "./InvoiceStatusBadge";
 import { BillingStatsCards } from "./BillingStatsCards";
 import { ReadyToBillQueue } from "./ReadyToBillQueue";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
@@ -515,16 +519,20 @@ export function InvoiceList() {
                   <span className="font-bold text-sm text-foreground">
                     {inv.invoiceNumber}
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    <InvoiceTypeBadge type={inv.invoiceType} />
                     <InvoiceStatusBadge status={inv.status} />
                     <PaymentStatusBadge status={inv.paymentStatus} />
                   </div>
                 </div>
 
                 <div className="text-xs space-y-1">
-                  <div className="flex justify-between text-muted-foreground">
+                  <div className="flex justify-between items-center text-muted-foreground gap-2">
                     <span>Customer:</span>
-                    <span className="font-medium text-foreground">
+                    <span
+                      className="font-medium text-foreground whitespace-nowrap truncate max-w-[200px]"
+                      title={inv.customer?.name || "Customer"}
+                    >
                       {inv.customer?.name || "Customer"}
                     </span>
                   </div>

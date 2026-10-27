@@ -207,6 +207,12 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
     customerId,
     appointmentId,
     appointmentCode: directAppointmentCode,
+    invoiceType:
+      typeof raw.invoiceType === "string"
+        ? (raw.invoiceType as Invoice["invoiceType"])
+        : typeof raw.type === "string"
+        ? (raw.type as Invoice["invoiceType"])
+        : "service",
     status: (raw.status as Invoice["status"]) || "draft",
     paymentStatus: (raw.paymentStatus as Invoice["paymentStatus"]) || "unpaid",
     items,

@@ -89,6 +89,7 @@ describe("Billing API Integration & Contract Verification", () => {
       expect(normalized.appointment?.date).toBe("2026-10-10");
       expect(normalized.subtotal).toBe(1000);
       expect(normalized.payableAmount).toBe(700);
+      expect(normalized.invoiceType).toBe("service");
       expect(normalized.items.length).toBe(2);
       expect(normalized.items[1].appliedSubscriptionId).toBe("sub-1");
       expect(normalized.items[1].subscriptionCoveredAmount).toBe(200);

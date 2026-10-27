@@ -121,3 +121,60 @@ export function PaymentRecordStatusBadge({ status, className }: PaymentRecordSta
       );
   }
 }
+
+interface InvoiceTypeBadgeProps {
+  type?: string;
+  className?: string;
+}
+
+export function InvoiceTypeBadge({ type = "service", className }: InvoiceTypeBadgeProps) {
+  const normalized = (type || "service").toLowerCase();
+  switch (normalized) {
+    case "subscription":
+      return (
+        <Badge
+          variant="outline"
+          className={`border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400 font-medium capitalize ${className || ""}`}
+        >
+          Subscription
+        </Badge>
+      );
+    case "membership":
+      return (
+        <Badge
+          variant="outline"
+          className={`border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 font-medium capitalize ${className || ""}`}
+        >
+          Membership
+        </Badge>
+      );
+    case "package":
+      return (
+        <Badge
+          variant="outline"
+          className={`border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400 font-medium capitalize ${className || ""}`}
+        >
+          Package
+        </Badge>
+      );
+    case "retail":
+      return (
+        <Badge
+          variant="outline"
+          className={`border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-400 font-medium capitalize ${className || ""}`}
+        >
+          Retail
+        </Badge>
+      );
+    case "service":
+    default:
+      return (
+        <Badge
+          variant="outline"
+          className={`border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-400 font-medium capitalize ${className || ""}`}
+        >
+          {normalized}
+        </Badge>
+      );
+  }
+}

@@ -6,7 +6,12 @@ import { Provider } from "react-redux";
 import { configureStore } from "@reduxjs/toolkit";
 import branchReducer from "@/store/slices/branchSlice";
 import uiReducer from "@/store/slices/uiSlice";
-import { InvoiceStatusBadge, PaymentStatusBadge } from "../components/InvoiceStatusBadge";
+import {
+  InvoiceStatusBadge,
+  PaymentStatusBadge,
+  InvoiceTypeBadge,
+} from "../components/InvoiceStatusBadge";
+import { getInvoiceColumns } from "../columns/invoice.columns";
 import { InvoicePaymentHistory } from "../components/InvoicePaymentHistory";
 import { CreateInvoiceDialog } from "../components/CreateInvoiceDialog";
 import { RecordPaymentDialog } from "../components/RecordPaymentDialog";
@@ -142,6 +147,43 @@ describe("Billing UI Components & Financial Rules", () => {
 
       rerender(<PaymentStatusBadge status="paid" />);
       expect(screen.getByText("Paid")).toBeDefined();
+    });
+
+    it("renders invoice type badges correctly with proper text and styling", () => {
+      const { rerender } = render(<InvoiceTypeBadge type="service" />);
+      expect(screen.getByText("service")).toBeDefined();
+
+      rerender(<InvoiceTypeBadge type="subscription" />);
+      expect(screen.getByText("Subscription")).toBeDefined();
+
+      rerender(<InvoiceTypeBadge type="membership" />);
+      expect(screen.getByText("Membership")).toBeDefined();
+
+      rerender(<InvoiceTypeBadge type="package" />);
+      expect(screen.getByText("Package")).toBeDefined();
+
+      rerender(<InvoiceTypeBadge type="retail" />);
+      expect(screen.getByText("Retail")).toBeDefined();
+
+      rerender(<InvoiceTypeBadge />);
+      expect(screen.getByText("service")).toBeDefined();
+    });
+  });
+
+  describe("Invoice Table Columns", () => {
+    it("includes invoiceType column and customer cell with non-wrapping styling", () => {
+      const columns = getInvoiceColumns({
+        onView: vi.fn(),
+        getBranchName: () => "Main Branch",
+        isAllBranchesSelected: false,
+      });
+
+      const typeCol = columns.find((c) => "accessorKey" in c && c.accessorKey === "invoiceType");
+      expect(typeCol).toBeDefined();
+      expect(typeCol?.header).toBe("Type");
+
+      const custCol = columns.find((c) => "accessorKey" in c && c.accessorKey === "customer");
+      expect(custCol).toBeDefined();
     });
   });
 

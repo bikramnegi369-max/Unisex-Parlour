@@ -27,6 +27,7 @@ import { useInvoices } from "@/features/billing/hooks/useBillingQueries";
 import {
   InvoiceStatusBadge,
   PaymentStatusBadge,
+  InvoiceTypeBadge,
 } from "@/features/billing/components/InvoiceStatusBadge";
 import type {
   Invoice,
@@ -94,6 +95,11 @@ export function CustomerBillingTab({ customerId }: CustomerBillingTabProps) {
           </div>
         );
       },
+    },
+    {
+      accessorKey: "invoiceType",
+      header: "Type",
+      cell: ({ row }) => <InvoiceTypeBadge type={row.original.invoiceType} />,
     },
     {
       accessorKey: "payableAmount",

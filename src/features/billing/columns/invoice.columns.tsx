@@ -6,6 +6,7 @@ import { formatCurrency, formatDate } from "@/lib/formatters";
 import {
   InvoiceStatusBadge,
   PaymentStatusBadge,
+  InvoiceTypeBadge,
 } from "../components/InvoiceStatusBadge";
 import type { Invoice } from "../types/billing.types";
 
@@ -48,16 +49,26 @@ export const getInvoiceColumns = ({
     },
   },
   {
+    accessorKey: "invoiceType",
+    header: "Type",
+    cell: ({ row }) => {
+      return <InvoiceTypeBadge type={row.original.invoiceType} />;
+    },
+  },
+  {
     accessorKey: "customer",
     header: "Customer",
     cell: ({ row }) => {
       const cust = row.original.customer;
       return (
-        <div className="flex flex-col text-xs">
-          <span className="font-medium text-foreground">
+        <div className="flex flex-col text-xs min-w-36 max-w-60 whitespace-nowrap">
+          <span
+            className="font-medium text-foreground truncate whitespace-nowrap"
+            title={cust?.name || "Customer"}
+          >
             {cust?.name || "Customer"}
           </span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground whitespace-nowrap">
             {cust?.phone || "—"}
           </span>
         </div>

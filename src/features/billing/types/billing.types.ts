@@ -6,6 +6,8 @@ export type PaymentMethod = "cash" | "card" | "upi" | "other";
 
 export type PaymentRecordStatus = "recorded" | "voided";
 
+export type InvoiceType = "service" | "membership" | "subscription" | "package" | "retail" | "custom" | string;
+
 export interface InvoiceCustomerSummary {
   id: string;
   name: string;
@@ -55,6 +57,7 @@ export interface Invoice {
   customerId: string;
   appointmentId: string;
   appointmentCode?: string;
+  invoiceType?: InvoiceType;
   status: InvoiceStatus;
   paymentStatus: PaymentStatus;
   items: InvoiceLineItem[];
