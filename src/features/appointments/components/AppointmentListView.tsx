@@ -81,10 +81,35 @@ export function AppointmentListView({
       appt.services?.reduce((acc, s) => acc + s.price, 0) ??
       0;
 
+    let statusCardStyles =
+      "bg-card border-border/80 border-l-4 border-l-primary/40";
+    switch (appt.status) {
+      case "in_progress":
+        statusCardStyles =
+          "bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/30 border-l-4 border-l-amber-500";
+        break;
+      case "completed":
+        statusCardStyles =
+          "bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/30 border-l-4 border-l-emerald-500";
+        break;
+      case "scheduled":
+        statusCardStyles =
+          "bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/30 border-l-4 border-l-blue-500";
+        break;
+      case "cancelled":
+        statusCardStyles =
+          "bg-rose-500/5 dark:bg-rose-500/10 border-border/70 border-l-4 border-l-rose-500/70 opacity-75";
+        break;
+      case "no_show":
+        statusCardStyles =
+          "bg-slate-500/5 dark:bg-slate-500/10 border-border/70 border-l-4 border-l-slate-400 opacity-75";
+        break;
+    }
+
     return (
       <div
         key={appt.id}
-        className="p-3.5 bg-card border border-border/80 rounded-xl space-y-3 shadow-xs"
+        className={`p-3.5 border rounded-xl space-y-3 shadow-xs transition-colors ${statusCardStyles}`}
       >
         <div className="flex items-start justify-between gap-2">
           <div>

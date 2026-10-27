@@ -884,9 +884,9 @@ export function AppointmentCalendarView({
               <div
                 data-no-pan="true"
                 data-testid="calendar-time-column"
-                className="w-20 shrink-0 border-r border-border bg-card z-30 sticky left-0 shadow-sm cursor-default select-none"
+                className="w-20 shrink-0 border-r border-border bg-card z-40 sticky left-0 shadow-sm cursor-default select-none"
               >
-                <div className="h-11 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-40 shadow-xs">
+                <div className="h-11 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-50 shadow-xs">
                   Time
                 </div>
                 <div
@@ -960,7 +960,7 @@ export function AppointmentCalendarView({
                     >
                       {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
                       <div
-                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-20 shadow-xs ${
+                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-40 shadow-xs ${
                           lane.isOnLeave
                             ? "bg-amber-500/15 dark:bg-amber-950/40 border-b-amber-500/30"
                             : "bg-muted/95"
@@ -1257,11 +1257,33 @@ export function AppointmentCalendarView({
                               : isActive
                                 ? "z-20 hover:z-35"
                                 : "z-20 hover:z-35";
-                            const cardBgBorder = isCompleted
-                              ? "bg-card border-emerald-500/50 hover:border-emerald-500 hover:shadow-md"
-                              : isCancelled
-                                ? "bg-muted border-border/80 opacity-70 hover:opacity-100 hover:border-border hover:shadow-md"
-                                : "bg-card border-primary/50 hover:border-primary shadow-xs hover:shadow-md";
+                            // Status-driven styling: subtle tinted background + left accent indicator border (Gold Standard UI/UX)
+                            let cardBgBorder = "bg-card border-border/80 border-l-4 hover:shadow-md";
+                            switch (appt.status) {
+                              case "in_progress":
+                                cardBgBorder =
+                                  "bg-amber-500/10 dark:bg-amber-500/15 border-amber-500/35 border-l-4 border-l-amber-500 hover:border-amber-500 hover:shadow-md";
+                                break;
+                              case "completed":
+                                cardBgBorder =
+                                  "bg-emerald-500/5 dark:bg-emerald-500/10 border-emerald-500/35 border-l-4 border-l-emerald-500 hover:border-emerald-500 hover:shadow-md";
+                                break;
+                              case "scheduled":
+                                cardBgBorder =
+                                  "bg-blue-500/5 dark:bg-blue-500/10 border-blue-500/35 border-l-4 border-l-blue-500 hover:border-blue-500 hover:shadow-md";
+                                break;
+                              case "cancelled":
+                                cardBgBorder =
+                                  "bg-rose-500/5 dark:bg-rose-500/10 border-border/70 border-l-4 border-l-rose-500/70 opacity-70 hover:opacity-100 hover:shadow-md";
+                                break;
+                              case "no_show":
+                                cardBgBorder =
+                                  "bg-slate-500/5 dark:bg-slate-500/10 border-border/70 border-l-4 border-l-slate-400 opacity-70 hover:opacity-100 hover:shadow-md";
+                                break;
+                              default:
+                                cardBgBorder =
+                                  "bg-card border-primary/50 border-l-4 border-l-primary hover:border-primary shadow-xs hover:shadow-md";
+                            }
 
                             const isDraggable =
                               canEdit &&
