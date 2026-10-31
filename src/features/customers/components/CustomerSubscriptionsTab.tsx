@@ -1,10 +1,19 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CreditCard, ExternalLink, Calendar, Plus, Gift } from "lucide-react";
+import {
+  CreditCard,
+  ExternalLink,
+  Calendar,
+  Plus,
+  Gift,
+  UserCheck,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SyncButton } from "@/components/ui/sync-button";
 import { Dialog } from "@/components/ui/dialog";
@@ -28,6 +37,8 @@ interface CustomerSubscriptionsTabProps {
   customerId: string;
 }
 
+export type SubscriptionFilterMode = "all" | "payer" | "beneficiary";
+
 export function CustomerSubscriptionsTab({
   customerId,
 }: CustomerSubscriptionsTabProps) {
@@ -43,6 +54,7 @@ export function CustomerSubscriptionsTab({
   const [redeemSubscriptionTarget, setRedeemSubscriptionTarget] =
     useState<Subscription | null>(null);
 
+  // Enterprise pattern: Fetch subscriptions associated with this customer
   const { data, isLoading, isFetching, isError, refetch } = useSubscriptions({
     customerId,
     limit: 50,
@@ -70,7 +82,8 @@ export function CustomerSubscriptionsTab({
       refetch();
 
       const invoiceId = createdSub.invoiceId || createdSub.invoice?.id;
-      const invoiceNumber = createdSub.invoiceNumber || createdSub.invoice?.invoiceNumber || "";
+      const invoiceNumber =
+        createdSub.invoiceNumber || createdSub.invoice?.invoiceNumber || "";
 
       if (invoiceId) {
         toast.success(
@@ -81,7 +94,7 @@ export function CustomerSubscriptionsTab({
               onClick: () => router.push(`/billing/${invoiceId}`),
             },
             duration: 6000,
-          }
+          },
         );
         router.push(`/billing/${invoiceId}`);
       } else {
@@ -99,22 +112,61 @@ export function CustomerSubscriptionsTab({
     }
   };
 
-  const [filterMode, setFilterMode] = useState<"all" | "payer" | "beneficiary">("all");
+  const [filterMode, setFilterMode] = useState<SubscriptionFilterMode>("all");
 
-  const subscriptions = data?.data || [];
+  const subscriptions: Subscription[] = useMemo(
+    () => data?.data || [],
+    [data?.data],
+  );
 
-  const filteredSubscriptions = subscriptions.filter((sub: Subscription) => {
-    const isPayer =
-      (sub.payerId && sub.payerId === customerId) ||
-      sub.customerId === customerId;
-    const isBeneficiary = (sub.members || []).some(
-      (m) => m.customerId === customerId
-    );
+  // Pre-calculate categorised counts for badge displays
+  const { payerCount, beneficiaryCount } = useMemo(() => {
+    let payer = 0;
+    let beneficiary = 0;
 
-    if (filterMode === "payer") return isPayer;
-    if (filterMode === "beneficiary") return isBeneficiary;
-    return true;
-  });
+    for (const sub of subscriptions) {
+      const rawPayerId =
+        sub.payerCustomerId ||
+        sub.payerId ||
+        sub.payer?.id ||
+        sub.customerId ||
+        sub.customer?.id;
+      const isPayer = rawPayerId === customerId;
+      if (isPayer) payer++;
+
+      // A subscription belongs in "Beneficiary Entitlements" if the customer is receiving
+      // entitlements as a beneficiary member on a subscription paid/purchased by someone else.
+      const isBeneficiaryMember =
+        !isPayer &&
+        (sub.members || []).some(
+          (m) => m.customerId === customerId || m.customer?.id === customerId,
+        );
+      if (isBeneficiaryMember) beneficiary++;
+    }
+
+    return { payerCount: payer, beneficiaryCount: beneficiary };
+  }, [subscriptions, customerId]);
+
+  const filteredSubscriptions = useMemo(() => {
+    return subscriptions.filter((sub: Subscription) => {
+      const isPayer =
+        (sub.payerCustomerId ||
+          sub.payerId ||
+          sub.payer?.id ||
+          sub.customerId ||
+          sub.customer?.id) === customerId;
+
+      const isBeneficiaryMember =
+        !isPayer &&
+        (sub.members || []).some(
+          (m) => m.customerId === customerId || m.customer?.id === customerId,
+        );
+
+      if (filterMode === "payer") return isPayer;
+      if (filterMode === "beneficiary") return isBeneficiaryMember;
+      return true;
+    });
+  }, [subscriptions, filterMode, customerId]);
 
   const isSyncing = isFetching && !isLoading;
 
@@ -236,39 +288,73 @@ export function CustomerSubscriptionsTab({
       {/* Filter and View Toggle */}
       {subscriptions.length > 0 && (
         <div className="flex items-center gap-2 border-b border-border/80 pb-2">
-          <span className="text-[11px] font-semibold text-muted-foreground">Show:</span>
+          <span className="text-[11px] font-semibold text-muted-foreground mr-1">
+            Show:
+          </span>
+
           <button
             type="button"
             onClick={() => setFilterMode("all")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               filterMode === "all"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
-            All ({subscriptions.length})
+            All Subscriptions
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                filterMode === "all"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-background/80 text-foreground border border-border"
+              }`}
+            >
+              {subscriptions.length}
+            </span>
           </button>
+
           <button
             type="button"
             onClick={() => setFilterMode("payer")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               filterMode === "payer"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
+            <ShieldCheck className="h-3.5 w-3.5" />
             Purchased as Payer
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                filterMode === "payer"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-background/80 text-foreground border border-border"
+              }`}
+            >
+              {payerCount}
+            </span>
           </button>
+
           <button
             type="button"
             onClick={() => setFilterMode("beneficiary")}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
               filterMode === "beneficiary"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
             }`}
           >
+            <UserCheck className="h-3.5 w-3.5" />
             Beneficiary Entitlements
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                filterMode === "beneficiary"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-background/80 text-foreground border border-border"
+              }`}
+            >
+              {beneficiaryCount}
+            </span>
           </button>
         </div>
       )}
@@ -276,11 +362,19 @@ export function CustomerSubscriptionsTab({
       {filteredSubscriptions.length === 0 ? (
         <EmptyState
           icon={CreditCard}
-          title={filterMode === "all" ? "No Active Subscriptions" : "No Subscriptions in Selected Category"}
+          title={
+            filterMode === "all"
+              ? "No Active Subscriptions"
+              : filterMode === "payer"
+                ? "No Purchased Subscriptions"
+                : "No Beneficiary Entitlements"
+          }
           description={
             filterMode === "all"
               ? "This customer does not have any active or past subscriptions registered."
-              : `No subscriptions found where this customer is acting as ${filterMode}.`
+              : filterMode === "payer"
+                ? "This customer has not directly purchased or financed any subscriptions as a payer."
+                : "This customer has not been registered as an entitlement beneficiary on any family or group subscription."
           }
           action={
             canSell && filterMode === "all"
@@ -293,15 +387,27 @@ export function CustomerSubscriptionsTab({
           }
         />
       ) : (
-        <div className={`space-y-4 transition-opacity duration-200 ${isSyncing ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
+        <div
+          className={`space-y-4 transition-opacity duration-200 ${isSyncing ? "opacity-60 pointer-events-none" : "opacity-100"}`}
+        >
           {filteredSubscriptions.map((sub: Subscription) => {
-            const isPayer = (sub.payerId && sub.payerId === customerId) || sub.customerId === customerId;
-            const memberEntry = (sub.members || []).find((m) => m.customerId === customerId);
-            const isBeneficiary = Boolean(memberEntry);
+            const isPayer =
+              (sub.payerCustomerId ||
+                sub.payerId ||
+                sub.payer?.id ||
+                sub.customerId ||
+                sub.customer?.id) === customerId;
+            const memberEntry = (sub.members || []).find(
+              (m) =>
+                m.customerId === customerId || m.customer?.id === customerId,
+            );
+            const isBeneficiary = !isPayer && Boolean(memberEntry);
 
             // If customer is beneficiary, display customer's specific entitlement quota
             const relevantEntitlements =
-              isBeneficiary && memberEntry?.entitlements && memberEntry.entitlements.length > 0
+              isBeneficiary &&
+              memberEntry?.entitlements &&
+              memberEntry.entitlements.length > 0
                 ? memberEntry.entitlements
                 : sub.entitlements || [];
 
@@ -327,6 +433,13 @@ export function CustomerSubscriptionsTab({
               (sub.paymentStatus === undefined && sub.status === "active");
             const isActive = sub.status === "active" && isPaid;
 
+            // Resolve payer info when customer is looking at a beneficiary entitlement
+            const payerDisplayName =
+              sub.payer?.name ||
+              sub.customer?.name ||
+              (isPayer ? "This Customer" : "Primary Account");
+            const payerPhone = sub.payer?.phone || sub.customer?.phone;
+
             return (
               <div
                 key={sub.id}
@@ -335,22 +448,28 @@ export function CustomerSubscriptionsTab({
                 {/* Header row: Code, Status, Price, and Actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono font-bold text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded">
                         {sub.subscriptionCode || sub.id}
                       </span>
-                      <SubscriptionStatusBadge status={sub.status} paymentStatus={sub.paymentStatus} />
+                      <SubscriptionStatusBadge
+                        status={sub.status}
+                        paymentStatus={sub.paymentStatus}
+                      />
                       {isPayer && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
-                          Payer
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                          <ShieldCheck className="h-3 w-3 text-muted-foreground" />
+                          Payer Role
                         </span>
                       )}
                       {isBeneficiary && (
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-primary/10 text-primary">
-                          Beneficiary
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          <UserCheck className="h-3 w-3 text-primary" />
+                          Beneficiary Role
                         </span>
                       )}
                     </div>
+
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap pt-0.5">
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -360,6 +479,24 @@ export function CustomerSubscriptionsTab({
                       <span className="font-semibold text-foreground">
                         {formatCurrency(sub.price)}
                       </span>
+
+                      {!isPayer && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 text-muted-foreground font-medium">
+                            <User className="h-3 w-3" />
+                            Payer:{" "}
+                            <strong className="text-foreground">
+                              {payerDisplayName}
+                            </strong>
+                            {payerPhone && (
+                              <span className="font-mono text-[10px]">
+                                ({payerPhone})
+                              </span>
+                            )}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -390,7 +527,9 @@ export function CustomerSubscriptionsTab({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground font-medium text-[11px]">
-                      Package Usage Consumption
+                      {isBeneficiary
+                        ? "Member Quota Consumption"
+                        : "Package Usage Consumption"}
                     </span>
                     <span className="font-semibold text-foreground text-[11px]">
                       {totalAllocated - totalRemaining} used / {totalAllocated}{" "}
@@ -418,7 +557,9 @@ export function CustomerSubscriptionsTab({
                 {/* Entitlements Breakdown Chips */}
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    {isBeneficiary ? "Your Member Entitlement Quotas" : "Service Entitlements Quotas"}
+                    {isBeneficiary
+                      ? "Assigned Member Service Quotas"
+                      : "Service Entitlements Quotas"}
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {relevantEntitlements.map((ent, idx) => {
@@ -493,6 +634,7 @@ export function CustomerSubscriptionsTab({
             subscription={redeemSubscriptionTarget}
             isOpen={Boolean(redeemSubscriptionTarget)}
             onClose={() => setRedeemSubscriptionTarget(null)}
+            memberCustomerId={customerId}
             onSuccess={() => {
               refetch();
             }}

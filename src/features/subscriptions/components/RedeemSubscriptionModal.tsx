@@ -28,6 +28,7 @@ interface RedeemSubscriptionModalProps {
   onClose: () => void;
   onSuccess: () => void;
   initialAppointmentId?: string;
+  memberCustomerId?: string;
 }
 
 export function RedeemSubscriptionModal({
@@ -36,6 +37,7 @@ export function RedeemSubscriptionModal({
   onClose,
   onSuccess,
   initialAppointmentId,
+  memberCustomerId,
 }: RedeemSubscriptionModalProps) {
   const { user } = useAuth();
   const componentInstanceId = useId();
@@ -63,7 +65,16 @@ export function RedeemSubscriptionModal({
     return { resolvedId, resolvedName };
   };
 
-  const usableEntitlements = (subscription.entitlements || []).filter(
+  const targetMember = memberCustomerId
+    ? (subscription.members || []).find((m) => m.customerId === memberCustomerId)
+    : undefined;
+
+  const relevantEntitlementsList =
+    targetMember && targetMember.entitlements && targetMember.entitlements.length > 0
+      ? targetMember.entitlements
+      : subscription.entitlements || [];
+
+  const usableEntitlements = relevantEntitlementsList.filter(
     (e) => e.remainingQuantity > 0,
   );
 
@@ -184,6 +195,7 @@ export function RedeemSubscriptionModal({
           otp: isManual ? undefined : otp.trim(),
           services: selectedServices,
           appointmentId: selectedAppointmentId.trim() || undefined,
+          memberCustomerId: memberCustomerId || undefined,
           idempotencyKey,
         },
       });
