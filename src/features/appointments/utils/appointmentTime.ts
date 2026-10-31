@@ -1,6 +1,13 @@
+export interface AppointmentCompletionMetrics {
+  lateDelayMins: number | null;
+  earlyMins: number | null;
+  actualCompletedTimeStr: string | null;
+}
+
 /**
- * Helper to calculate late completion delay (in minutes) taking into account
- * calendar date boundaries (cross-midnight appointments) and the specific branch timezone.
+ * Helper to calculate late completion delay or early completion (in minutes)
+ * taking into account calendar date boundaries (cross-midnight appointments)
+ * and the specific branch timezone.
  *
  * It projects both the scheduled end instant and the actual completedAt ISO instant
  * into epoch milliseconds, calculating the exact signed difference in minutes:
@@ -18,16 +25,17 @@ export function calculateLateDelayMins({
   branchTimezone?: string;
 }): {
   lateDelayMins: number | null;
+  earlyMins: number | null;
   actualCompletedTimeStr: string | null;
 } {
   if (!completedAt || !endTime) {
-    return { lateDelayMins: null, actualCompletedTimeStr: null };
+    return { lateDelayMins: null, earlyMins: null, actualCompletedTimeStr: null };
   }
 
   try {
     const compDate = new Date(completedAt);
     if (isNaN(compDate.getTime())) {
-      return { lateDelayMins: null, actualCompletedTimeStr: null };
+      return { lateDelayMins: null, earlyMins: null, actualCompletedTimeStr: null };
     }
 
     // Format actual completion time in branch timezone
@@ -86,10 +94,11 @@ export function calculateLateDelayMins({
         const scheduledEndEpoch = tzDate.getTime() - diffMinutes * 60000;
 
         const delayMs = compDate.getTime() - scheduledEndEpoch;
-        const delayMins = Math.round(delayMs / 60000);
+        const diffMins = Math.round(delayMs / 60000);
 
         return {
-          lateDelayMins: delayMins > 0 ? delayMins : null,
+          lateDelayMins: diffMins > 0 ? diffMins : null,
+          earlyMins: diffMins < -2 ? Math.abs(diffMins) : null,
           actualCompletedTimeStr,
         };
       }
@@ -112,16 +121,18 @@ export function calculateLateDelayMins({
       }
       return {
         lateDelayMins: diff > 0 ? diff : null,
+        earlyMins: diff < -2 ? Math.abs(diff) : null,
         actualCompletedTimeStr,
       };
     }
 
     return {
       lateDelayMins: null,
+      earlyMins: null,
       actualCompletedTimeStr,
     };
   } catch {
-    return { lateDelayMins: null, actualCompletedTimeStr: null };
+    return { lateDelayMins: null, earlyMins: null, actualCompletedTimeStr: null };
   }
 }
 

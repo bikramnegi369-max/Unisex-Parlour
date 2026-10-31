@@ -641,6 +641,30 @@ export function AppointmentsClient() {
           canEdit={canEdit}
           staffFilter={staffFilter}
           onStaffFilterChange={setStaffFilter}
+          onQuickStartEarly={async (appt: Appointment) => {
+            if (!canStatus) {
+              toast.error("You do not have permission to update appointment status.");
+              return;
+            }
+            try {
+              await updateStatusMutation.mutateAsync({
+                id: appt.id,
+                payload: {
+                  branchId: appt.branchId,
+                  status: "in_progress",
+                  forceEarlyStart: true,
+                },
+              });
+              toast.success(`Appointment started early for ${appt.customer?.name || "Customer"}.`);
+            } catch (err: unknown) {
+              const msg = (err as Error)?.message || "Failed to start appointment.";
+              toast.error(msg);
+            }
+          }}
+          onQuickWalkIn={(staffId, startTime) => {
+            setCreateBookingType("walk_in");
+            setIsCreateOpen(true);
+          }}
           onDropAppointment={async (apptId, newDate, newStartTime, newStaffId) => {
             const targetAppt = rawAppointments.find((a: Appointment) => a.id === apptId);
             if (!targetAppt) return;
@@ -750,6 +774,27 @@ export function AppointmentsClient() {
         }}
         onCompleteAppointment={(appt) => {
           handleCompleteAppointment(appt);
+        }}
+        onStartAppointment={async (appt) => {
+          if (!canStatus) {
+            toast.error("You do not have permission to update appointment status.");
+            return;
+          }
+          try {
+            await updateStatusMutation.mutateAsync({
+              id: appt.id,
+              payload: {
+                branchId: appt.branchId,
+                status: "in_progress",
+                forceEarlyStart: true,
+              },
+            });
+            setIsDetailsOpen(false);
+            toast.success(`Service started for ${appt.customer?.name || "Customer"}.`);
+          } catch (err: unknown) {
+            const msg = (err as Error)?.message || "Failed to start appointment.";
+            toast.error(msg);
+          }
         }}
         canEdit={canEdit}
         canStatus={canStatus}

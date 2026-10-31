@@ -63,6 +63,7 @@ interface AppointmentDetailsDialogProps {
   onChangeStatus: () => void;
   onDelete: () => void;
   onCompleteAppointment?: (appointment: Appointment) => void;
+  onStartAppointment?: (appointment: Appointment) => Promise<void> | void;
   canEdit: boolean;
   canStatus: boolean;
   canDelete: boolean;
@@ -78,6 +79,7 @@ export function AppointmentDetailsDialog({
   onChangeStatus,
   onDelete,
   onCompleteAppointment,
+  onStartAppointment,
   canEdit,
   canStatus,
   canDelete,
@@ -806,10 +808,28 @@ export function AppointmentDetailsDialog({
                 </Button>
               )}
 
-            {/* PRIMARY CTA: General Status Transition when not yet in-progress or completed */}
+            {/* PRIMARY CTA: Scheduled -> Start Service Now */}
             {canStatus &&
               !isTerminal &&
-              appointment.status !== "in_progress" && (
+              appointment.status === "scheduled" &&
+              onStartAppointment && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => onStartAppointment(appointment)}
+                  className="text-xs h-8 gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs font-semibold"
+                  title="Start service now"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>Start Service Now</span>
+                </Button>
+              )}
+
+            {/* SECONDARY / FALLBACK CTA: Change Status dropdown when not in_progress, completed, or scheduled with quick-start */}
+            {canStatus &&
+              !isTerminal &&
+              appointment.status !== "in_progress" &&
+              !(appointment.status === "scheduled" && onStartAppointment) && (
                 <Button
                   variant="default"
                   size="sm"

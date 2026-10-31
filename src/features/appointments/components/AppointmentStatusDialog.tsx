@@ -349,14 +349,33 @@ export function AppointmentStatusDialog({
                 </p>
 
                 {canForceEarlyStart ? (
-                  <label className="flex items-center gap-2 cursor-pointer pt-1 text-[11px] font-semibold text-primary">
-                    <input
-                      type="checkbox"
-                      {...register("forceEarlyStart")}
-                      className="rounded border-input text-primary focus:ring-primary h-4 w-4"
-                    />
-                    <span>Authorize early start override (requires force_early_start permission)</span>
-                  </label>
+                  <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-amber-500/20">
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px] font-semibold text-primary">
+                      <input
+                        type="checkbox"
+                        {...register("forceEarlyStart")}
+                        className="rounded border-input text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <span>Authorize early start override</span>
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      className="text-xs h-7 px-2.5 bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                      onClick={() => {
+                        reset({
+                          ...control._formValues,
+                          status: "in_progress",
+                          forceEarlyStart: true,
+                        });
+                        handleSubmit(handleFormSubmit)();
+                      }}
+                      disabled={isLoading}
+                    >
+                      ⚡ Start Now (Early Override)
+                    </Button>
+                  </div>
                 ) : (
                   <div className="text-[11px] text-destructive bg-destructive/10 p-2 rounded border border-destructive/20 font-medium">
                     ⚠️ You do not have the required permission (<code>appointments.force_early_start</code>) to start this appointment more than 15 minutes early.

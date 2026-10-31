@@ -53,6 +53,8 @@ interface AppointmentCalendarViewProps {
     targetStartTime: string,
     targetStaffId: string | null,
   ) => Promise<void> | void;
+  onQuickStartEarly?: (appointment: Appointment) => Promise<void> | void;
+  onQuickWalkIn?: (staffId: string | null, startTime: string) => void;
 }
 
 // Visual viewport time slots from 08:00 to 20:00 (12 hours)
@@ -115,6 +117,16 @@ interface PositionedOverrunSegment {
   isOutsideViewport: boolean;
 }
 
+interface PositionedEarlyReleaseSegment {
+  topPx: number;
+  heightPx: number;
+  leftPct: number;
+  widthPct: number;
+  durationMins: number;
+  releaseStartTimeStr: string;
+  scheduledEndTimeStr: string;
+}
+
 interface PositionedAppointment {
   appt: Appointment;
   topPx: number;
@@ -123,7 +135,9 @@ interface PositionedAppointment {
   widthPct: number;
   actualCompletedTimeStr?: string | null;
   lateDelayMins?: number | null;
+  earlyMins?: number | null;
   overrun?: PositionedOverrunSegment | null;
+  earlyRelease?: PositionedEarlyReleaseSegment | null;
   isOutsideViewport: boolean;
   isClippedTop: boolean;
   isClippedBottom: boolean;
@@ -154,6 +168,7 @@ function layoutAppointments(
     durationMins: number;
     actualCompletedTimeStr: string | null;
     lateDelayMins?: number | null;
+    earlyMins?: number | null;
     overrunInfo: AppointmentOverrunInfo | null;
     isCompletedAppt: boolean;
     column: number;
@@ -193,14 +208,19 @@ function layoutAppointments(
     });
 
     const isCompletedAppt = appt.status === "completed";
-    const { lateDelayMins, actualCompletedTimeStr } = isCompletedAppt && appt.completedAt
-      ? calculateLateDelayMins({
-          date: appt.date,
-          endTime: appt.endTime,
-          completedAt: appt.completedAt,
-          branchTimezone,
-        })
-      : { lateDelayMins: null, actualCompletedTimeStr: null };
+    const { lateDelayMins, earlyMins, actualCompletedTimeStr } =
+      isCompletedAppt && appt.completedAt
+        ? calculateLateDelayMins({
+            date: appt.date,
+            endTime: appt.endTime,
+            completedAt: appt.completedAt,
+            branchTimezone,
+          })
+        : {
+            lateDelayMins: null,
+            earlyMins: null,
+            actualCompletedTimeStr: null,
+          };
 
     parsed.push({
       appt,
@@ -209,6 +229,7 @@ function layoutAppointments(
       durationMins,
       actualCompletedTimeStr,
       lateDelayMins,
+      earlyMins,
       overrunInfo,
       isCompletedAppt,
       column: 0,
@@ -311,10 +332,18 @@ function layoutAppointments(
     // Preserves lane alignment (same leftPct and widthPct as parent appointment).
     let positionedOverrun: PositionedOverrunSegment | null = null;
     if (overrunInfo && overrunInfo.hasOverrun) {
-      const overrunStartFromViewport = overrunInfo.overrunStartMin - VIEWPORT_START_HOUR * 60;
-      const overrunTopPx = Math.max(0, (overrunStartFromViewport / 60) * hourPx);
-      const rawOverrunHeightPx = (overrunInfo.overrunDurationMins / 60) * hourPx;
-      const overrunHeightPx = Math.max(24, Math.min(rawOverrunHeightPx, viewportHeightPx - overrunTopPx));
+      const overrunStartFromViewport =
+        overrunInfo.overrunStartMin - VIEWPORT_START_HOUR * 60;
+      const overrunTopPx = Math.max(
+        0,
+        (overrunStartFromViewport / 60) * hourPx,
+      );
+      const rawOverrunHeightPx =
+        (overrunInfo.overrunDurationMins / 60) * hourPx;
+      const overrunHeightPx = Math.max(
+        24,
+        Math.min(rawOverrunHeightPx, viewportHeightPx - overrunTopPx),
+      );
       const isOverrunOutside =
         overrunInfo.overrunStartMin >= VIEWPORT_END_HOUR * 60 ||
         overrunInfo.overrunEndMin <= VIEWPORT_START_HOUR * 60;
@@ -331,15 +360,58 @@ function layoutAppointments(
       };
     }
 
+    // Early release segment calculation:
+    // When completed early (earlyMins >= 5), the scheduled slot between actual completion and scheduled end
+    // is released back to the floor. We compute its exact position so it can render as a distinct,
+    // interactive capacity release area.
+    let positionedEarlyRelease: PositionedEarlyReleaseSegment | null = null;
+    let actualCardHeightPx = Math.max(minCardHeight, clampedHeightPx);
+
+    if (
+      isCompletedAppt &&
+      item.earlyMins &&
+      item.earlyMins >= 5 &&
+      actualCompletedTimeStr
+    ) {
+      const actualEndMinutes = parseTimeToMinutes(actualCompletedTimeStr);
+      if (actualEndMinutes !== null) {
+        const actualDurationMins = Math.max(
+          15,
+          actualEndMinutes - effectiveStart,
+        );
+        actualCardHeightPx = Math.max(48, (actualDurationMins / 60) * hourPx);
+
+        const releaseStartFromViewport =
+          actualEndMinutes - VIEWPORT_START_HOUR * 60;
+        const releaseTopPx = Math.max(
+          0,
+          (releaseStartFromViewport / 60) * hourPx,
+        );
+        const releaseHeightPx = Math.max(20, (item.earlyMins / 60) * hourPx);
+
+        positionedEarlyRelease = {
+          topPx: releaseTopPx,
+          heightPx: releaseHeightPx,
+          leftPct,
+          widthPct,
+          durationMins: item.earlyMins,
+          releaseStartTimeStr: actualCompletedTimeStr,
+          scheduledEndTimeStr: appt.endTime || "",
+        };
+      }
+    }
+
     positioned.push({
       appt,
       topPx,
-      heightPx: Math.max(minCardHeight, clampedHeightPx),
+      heightPx: actualCardHeightPx,
       leftPct,
       widthPct,
       actualCompletedTimeStr,
       lateDelayMins: item.lateDelayMins,
+      earlyMins: item.earlyMins,
       overrun: positionedOverrun,
+      earlyRelease: positionedEarlyRelease,
       isOutsideViewport:
         effectiveStart >= VIEWPORT_END_HOUR * 60 ||
         effectiveEnd <= VIEWPORT_START_HOUR * 60,
@@ -364,6 +436,7 @@ export function AppointmentCalendarView({
   staffFilter,
   onStaffFilterChange,
   onDropAppointment,
+  onQuickWalkIn,
 }: AppointmentCalendarViewProps) {
   const [internalStaffFilter, setInternalStaffFilter] = useState<
     string | "all"
@@ -1205,6 +1278,7 @@ export function AppointmentCalendarView({
                             actualCompletedTimeStr,
                             lateDelayMins,
                             overrun,
+                            earlyRelease,
                             isOutsideViewport,
                             isClippedTop,
                             isClippedBottom,
@@ -1258,7 +1332,8 @@ export function AppointmentCalendarView({
                                 ? "z-20 hover:z-35"
                                 : "z-20 hover:z-35";
                             // Status-driven styling: subtle tinted background + left accent indicator border (Gold Standard UI/UX)
-                            let cardBgBorder = "bg-card border-border/80 border-l-4 hover:shadow-md";
+                            let cardBgBorder =
+                              "bg-card border-border/80 border-l-4 hover:shadow-md";
                             switch (appt.status) {
                               case "in_progress":
                                 cardBgBorder =
@@ -1368,18 +1443,23 @@ export function AppointmentCalendarView({
                                         )}
                                         <span className="truncate">
                                           {appt.startTime}
-                                          {appt.endTime ? ` - ${appt.endTime}` : ""}
+                                          {appt.endTime
+                                            ? ` - ${appt.endTime}`
+                                            : ""}
                                         </span>
                                       </div>
-                                      <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
-                                        {isCompleted && lateDelayMins !== null && lateDelayMins !== undefined && lateDelayMins > 0 && (
-                                          <span
-                                            className="text-[9px] px-1 py-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold"
-                                            title={`Completed at ${actualCompletedTimeStr || "later"} (${lateDelayMins}m late)`}
-                                          >
-                                            +{lateDelayMins}m late
-                                          </span>
-                                        )}
+                                      <div className="flex items-center gap-1 shrink-0 flex-nowrap justify-end">
+                                        {isCompleted &&
+                                          lateDelayMins !== null &&
+                                          lateDelayMins !== undefined &&
+                                          lateDelayMins > 0 && (
+                                            <span
+                                              className="text-[9px] px-1 py-0 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-semibold shrink-0"
+                                              title={`Completed at ${actualCompletedTimeStr || "later"} (${lateDelayMins}m late)`}
+                                            >
+                                              +{lateDelayMins}m late
+                                            </span>
+                                          )}
                                         {appt.reminder?.enabled && (
                                           <AppointmentReminderStatus
                                             reminder={appt.reminder}
@@ -1426,7 +1506,9 @@ export function AppointmentCalendarView({
                                     </span>
                                     {(appt.pricing?.total ?? 0) > 0 && (
                                       <span className="font-semibold text-foreground shrink-0">
-                                        {formatCurrency(appt.pricing?.total ?? 0)}
+                                        {formatCurrency(
+                                          appt.pricing?.total ?? 0,
+                                        )}
                                       </span>
                                     )}
                                   </div>
@@ -1439,6 +1521,47 @@ export function AppointmentCalendarView({
                                   )}
                                 </div>
 
+                                {/* Released Capacity Segment (Early Finish Slack) */}
+                                {/* Renders when an appointment completes early, visibly freeing up the lane */}
+                                {earlyRelease && (
+                                  <div
+                                    data-testid={`appointment-early-release-${appt.id}`}
+                                    data-no-pan="true"
+                                    style={{
+                                      top: `${earlyRelease.topPx}px`,
+                                      height: `${earlyRelease.heightPx}px`,
+                                      left: `${earlyRelease.leftPct}%`,
+                                      width: `${earlyRelease.widthPct}%`,
+                                    }}
+                                    className="absolute rounded-md border border-dashed border-emerald-500/40 bg-[repeating-linear-gradient(135deg,rgba(16,185,129,0.04),rgba(16,185,129,0.04)_6px,transparent_6px,transparent_12px)] p-1 text-[10px] select-none overflow-hidden flex items-center justify-between gap-1 z-10 hover:z-25 transition-all group"
+                                    title={`Finished ${earlyRelease.durationMins}m early at ${earlyRelease.releaseStartTimeStr}. Capacity released until scheduled end ${earlyRelease.scheduledEndTimeStr}.`}
+                                  >
+                                    <div className="flex items-center gap-1 min-w-0 text-emerald-800 dark:text-emerald-300 font-semibold text-[9px] truncate">
+                                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                      <span className="truncate">
+                                        Free: {earlyRelease.releaseStartTimeStr}{" "}
+                                        → {earlyRelease.scheduledEndTimeStr}
+                                      </span>
+                                    </div>
+                                    {onQuickWalkIn && (
+                                      <button
+                                        type="button"
+                                        data-no-pan="true"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onQuickWalkIn(
+                                            lane.id,
+                                            earlyRelease.releaseStartTimeStr,
+                                          );
+                                        }}
+                                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-600/10 hover:bg-emerald-600 text-emerald-700 dark:text-emerald-200 hover:text-white border border-emerald-600/30 transition-colors shrink-0 shadow-2xs"
+                                      >
+                                        + Walk-In
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+
                                 {/* Separate, Clearly Differentiated Actual-Overrun Segment */}
                                 {/* In resting state: renders at z-10 behind subsequent cards (z-20) */}
                                 {/* On hover of parent card or overrun: automatically elevates to z-35 on top */}
@@ -1447,7 +1570,9 @@ export function AppointmentCalendarView({
                                     data-testid={`appointment-overrun-${appt.id}`}
                                     data-appointment-overrun="true"
                                     data-no-pan="true"
-                                    onMouseEnter={() => setHoveredApptId(appt.id)}
+                                    onMouseEnter={() =>
+                                      setHoveredApptId(appt.id)
+                                    }
                                     onMouseLeave={() =>
                                       setHoveredApptId((prev) =>
                                         prev === appt.id ? null : prev,
@@ -1487,7 +1612,10 @@ export function AppointmentCalendarView({
                                         onSelectAppointment(appt);
                                       }}
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === " ") {
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
                                           e.preventDefault();
                                           e.stopPropagation();
                                           onSelectAppointment(appt);
@@ -1502,7 +1630,9 @@ export function AppointmentCalendarView({
                                       )}
                                       <span className="truncate">
                                         <span className="font-bold">
-                                          {overrun.isLive ? "Active Overrun: " : "Late Overrun: "}
+                                          {overrun.isLive
+                                            ? "Active Overrun: "
+                                            : "Late Overrun: "}
                                         </span>
                                         {appt.endTime} → {overrun.endTimeStr}
                                       </span>
