@@ -1323,14 +1323,14 @@ export function AppointmentCalendarView({
                             const isApptHovered = hoveredApptId === appt.id;
 
                             // Card styling based on status and layering:
-                            // Scheduled cards normally rest at z-20. When an appointment is hovered,
-                            // both the scheduled card and its overrun segment rise to z-35, putting the full
-                            // overrun on top in clear focus!
+                            // Scheduled cards normally rest at z-10. When an appointment is hovered,
+                            // both the scheduled card and its overrun segment rise to z-15, staying neatly underneath
+                            // the sticky staff headers (z-20) when scrolling vertically!
                             const cardZIndex = isApptHovered
-                              ? "z-35 shadow-xl"
+                              ? "z-15 shadow-xl"
                               : isActive
-                                ? "z-20 hover:z-35"
-                                : "z-20 hover:z-35";
+                                ? "z-10 hover:z-15"
+                                : "z-10 hover:z-15";
                             // Status-driven styling: subtle tinted background + left accent indicator border (Gold Standard UI/UX)
                             let cardBgBorder =
                               "bg-card border-border/80 border-l-4 hover:shadow-md";
@@ -1533,7 +1533,7 @@ export function AppointmentCalendarView({
                                       left: `${earlyRelease.leftPct}%`,
                                       width: `${earlyRelease.widthPct}%`,
                                     }}
-                                    className="absolute rounded-md border border-dashed border-emerald-500/40 bg-[repeating-linear-gradient(135deg,rgba(16,185,129,0.04),rgba(16,185,129,0.04)_6px,transparent_6px,transparent_12px)] p-1 text-[10px] select-none overflow-hidden flex items-center justify-between gap-1 z-10 hover:z-25 transition-all group"
+                                    className="absolute rounded-md border border-dashed border-emerald-500/40 bg-[repeating-linear-gradient(135deg,rgba(16,185,129,0.04),rgba(16,185,129,0.04)_6px,transparent_6px,transparent_12px)] p-1 text-[10px] select-none overflow-hidden flex items-center justify-between gap-1 z-10 hover:z-15 transition-all group"
                                     title={`Finished ${earlyRelease.durationMins}m early at ${earlyRelease.releaseStartTimeStr}. Capacity released until scheduled end ${earlyRelease.scheduledEndTimeStr}.`}
                                   >
                                     <div className="flex items-center gap-1 min-w-0 text-emerald-800 dark:text-emerald-300 font-semibold text-[9px] truncate">
@@ -1596,7 +1596,7 @@ export function AppointmentCalendarView({
                                     }}
                                     className={`absolute rounded-b-lg border-x-2 border-b-2 border-t-0 p-1 text-[10px] select-none overflow-hidden flex items-start justify-between gap-1 transition-all ${
                                       isApptHovered
-                                        ? "z-35 opacity-100 shadow-lg pointer-events-auto ring-2 ring-primary/40"
+                                        ? "z-15 opacity-100 shadow-lg pointer-events-auto ring-2 ring-primary/40"
                                         : "z-10 pointer-events-none opacity-85"
                                     } ${
                                       overrun.isLive
