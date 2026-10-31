@@ -55,8 +55,6 @@ export function CreateInvoiceDialog({
     }, 0);
   }, [services]);
 
-  const initialDiscount = appointment?.pricing?.discount || 0;
-
   const effectiveBranchId =
     appointment?.branchId ||
     appointment?.branch?.id ||
@@ -76,7 +74,6 @@ export function CreateInvoiceDialog({
     defaultValues: {
       branchId: effectiveBranchId,
       appointmentId: effectiveAppointmentId,
-      discountTotal: initialDiscount,
       redeemLoyaltyPoints: 0,
       notes: appointment?.notes || "",
     },
@@ -84,18 +81,11 @@ export function CreateInvoiceDialog({
       ? {
           branchId: effectiveBranchId,
           appointmentId: effectiveAppointmentId,
-          discountTotal: initialDiscount,
           redeemLoyaltyPoints: 0,
           notes: appointment.notes || "",
         }
       : undefined,
   });
-
-  const enteredDiscount = useWatch({
-    control,
-    name: "discountTotal",
-    defaultValue: initialDiscount,
-  }) || 0;
 
   const enteredLoyaltyPoints =
     Number(
@@ -110,7 +100,7 @@ export function CreateInvoiceDialog({
   const debouncedLoyaltyPoints = useDebounce(enteredLoyaltyPoints, 350);
 
   // Bill amount for pre-creation preview: gross uncovered amount
-  const preliminaryBillAmount = Math.max(0, subtotal - subscriptionCoveredAmount - (Number(enteredDiscount) || 0));
+  const preliminaryBillAmount = Math.max(0, subtotal - subscriptionCoveredAmount);
 
   // Read-only server-authoritative redemption preview using supported billAmount parameter
   const { data: previewData, isLoading: isPreviewLoading } = useRedemptionPreview(
@@ -124,7 +114,7 @@ export function CreateInvoiceDialog({
     { enabled: Boolean(isOpen && customerId && debouncedLoyaltyPoints > 0) }
   );
 
-  const grossPayable = Math.max(0, subtotal - (Number(enteredDiscount) || 0));
+  const grossPayable = subtotal;
   const estimatedPayable = previewData?.effectivePayable ?? Math.max(0, grossPayable - subscriptionCoveredAmount - (previewData?.appliedDiscount || 0));
 
   const onSubmit = async (values: CreateInvoiceFormValues) => {
@@ -133,7 +123,6 @@ export function CreateInvoiceDialog({
       const invoice = await createInvoiceMutation.mutateAsync({
         branchId: values.branchId || effectiveBranchId,
         appointmentId: values.appointmentId || effectiveAppointmentId,
-        discountTotal: values.discountTotal,
         redeemLoyaltyPoints: values.redeemLoyaltyPoints && values.redeemLoyaltyPoints > 0 ? values.redeemLoyaltyPoints : undefined,
         notes: values.notes,
       });
@@ -161,7 +150,6 @@ export function CreateInvoiceDialog({
     const firstErrorMessage =
       formErrors.branchId?.message ||
       formErrors.appointmentId?.message ||
-      formErrors.discountTotal?.message ||
       formErrors.redeemLoyaltyPoints?.message ||
       "Please check the invoice form fields.";
     toast.error(firstErrorMessage);
@@ -357,43 +345,9 @@ export function CreateInvoiceDialog({
             </div>
           )}
 
-          {/* Discount Input */}
-          <div className="pt-2 border-t border-border/60">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1">
-                <label className="text-xs font-semibold text-foreground block">
-                  Invoice Discount (₹)
-                </label>
-                <p className="text-[11px] text-muted-foreground">
-                  Applied to draft invoice
-                </p>
-              </div>
-              <div className="w-36">
-                <Input
-                  type="number"
-                  step="any"
-                  min="0"
-                  {...register("discountTotal")}
-                  className="h-8 text-right font-medium text-xs"
-                />
-                {errors.discountTotal && (
-                  <p className="text-[10px] text-destructive mt-0.5 text-right">
-                    {errors.discountTotal.message}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Gross Payable (Subtotal - Discount)</span>
-            <span className="font-medium text-foreground">
-              {formatCurrency(grossPayable)}
-            </span>
-          </div>
-
+          {/* Customer Payable */}
           <div className="flex items-center justify-between pt-2 border-t border-border/80 font-bold text-sm text-foreground">
-            <span>Final Customer Payable</span>
+            <span>Customer Payable</span>
             <span className="text-base text-primary font-black">
               {formatCurrency(estimatedPayable)}
             </span>

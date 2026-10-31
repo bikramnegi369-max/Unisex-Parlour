@@ -123,7 +123,7 @@ export function AppointmentDetailsDialog({
   const { data: fetchedAppointment, isLoading: isFetchingDetails } =
     useAppointment(
       isOpen ? initialAppointment?.id : undefined,
-      initialAppointment?.branchId
+      initialAppointment?.branchId,
     );
 
   // Use fresh fetched single appointment data, falling back to initial list item snapshot
@@ -153,7 +153,8 @@ export function AppointmentDetailsDialog({
     >();
     if (subsList) {
       for (const sub of subsList) {
-        const planName = typeof sub.planId === "object" ? sub.planId?.name : undefined;
+        const planName =
+          typeof sub.planId === "object" ? sub.planId?.name : undefined;
         map.set(sub.id, {
           code: sub.subscriptionCode,
           planName,
@@ -317,19 +318,24 @@ export function AppointmentDetailsDialog({
                 {appointment.endTime ? `- ${appointment.endTime}` : ""}
               </span>
             </div>
-            {appointment.status === "completed" && appointment.completedAt && (
+            {appointment.status === "completed" &&
+              appointment.completedAt &&
               (() => {
-                const { lateDelayMins, actualCompletedTimeStr } = calculateLateDelayMins({
-                  date: appointment.date,
-                  endTime: appointment.endTime,
-                  completedAt: appointment.completedAt,
-                  branchTimezone,
-                });
+                const { lateDelayMins, actualCompletedTimeStr } =
+                  calculateLateDelayMins({
+                    date: appointment.date,
+                    endTime: appointment.endTime,
+                    completedAt: appointment.completedAt,
+                    branchTimezone,
+                  });
 
                 return (
                   <div className="text-[11px] text-muted-foreground pl-5 flex items-center gap-1.5 pt-0.5 flex-wrap">
                     <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                      Actual Completion: {actualCompletedTimeStr ? `${actualCompletedTimeStr} (${branchTimezone})` : formatDate(appointment.completedAt, "hh:mm a")}
+                      Actual Completion:{" "}
+                      {actualCompletedTimeStr
+                        ? `${actualCompletedTimeStr} (${branchTimezone})`
+                        : formatDate(appointment.completedAt, "hh:mm a")}
                     </span>
                     {lateDelayMins !== null && lateDelayMins > 0 && (
                       <span className="text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded-full">
@@ -338,8 +344,7 @@ export function AppointmentDetailsDialog({
                     )}
                   </div>
                 );
-              })()
-            )}
+              })()}
           </div>
 
           <div className="space-y-1">
@@ -377,7 +382,9 @@ export function AppointmentDetailsDialog({
                           <span className="font-semibold text-foreground">
                             {srv.name}
                           </span>
-                          {(srv.isCustom || srv.serviceType === "custom" || !srv.serviceId) && (
+                          {(srv.isCustom ||
+                            srv.serviceType === "custom" ||
+                            !srv.serviceId) && (
                             <span className="text-[9px] bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-semibold whitespace-nowrap">
                               Custom Service
                             </span>
@@ -385,7 +392,7 @@ export function AppointmentDetailsDialog({
                         </div>
                         <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-0.5">
                           <span>{srv.duration} mins</span>
-                          {isCoveredBySub && (
+                          {isCoveredBySub &&
                             (() => {
                               const subInfo = srv.appliedSubscriptionId
                                 ? subscriptionMap.get(srv.appliedSubscriptionId)
@@ -393,12 +400,15 @@ export function AppointmentDetailsDialog({
                               const displayCode =
                                 srv.subscriptionCode ||
                                 subInfo?.code ||
-                                (srv.appliedSubscriptionId !== "auto" && srv.appliedSubscriptionId
+                                (srv.appliedSubscriptionId !== "auto" &&
+                                srv.appliedSubscriptionId
                                   ? `#${srv.appliedSubscriptionId.slice(-6)}`
                                   : null);
                               const subTargetId =
                                 subInfo?.id ||
-                                (srv.appliedSubscriptionId !== "auto" ? srv.appliedSubscriptionId : null);
+                                (srv.appliedSubscriptionId !== "auto"
+                                  ? srv.appliedSubscriptionId
+                                  : null);
 
                               return (
                                 <div className="whitespace-nowrap text-[11px] font-medium flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
@@ -419,19 +429,29 @@ export function AppointmentDetailsDialog({
                                       [{displayCode || "Subscription"}]
                                     </span>
                                   )}
-                                  {subInfo?.paymentStatus === "unpaid" || subInfo?.paymentStatus === "pending_payment" ? (
+                                  {subInfo?.paymentStatus === "unpaid" ||
+                                  subInfo?.paymentStatus ===
+                                    "pending_payment" ? (
                                     <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
-                                      Payment Pending{subInfo?.amountDue != null && subInfo.amountDue > 0 ? ` (₹${subInfo.amountDue})` : ""}
+                                      Payment Pending
+                                      {subInfo?.amountDue != null &&
+                                      subInfo.amountDue > 0
+                                        ? ` (₹${subInfo.amountDue})`
+                                        : ""}
                                     </span>
-                                  ) : subInfo?.paymentStatus === "partially_paid" ? (
+                                  ) : subInfo?.paymentStatus ===
+                                    "partially_paid" ? (
                                     <span className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
-                                      Partially Paid{subInfo?.amountDue != null && subInfo.amountDue > 0 ? ` (Due: ₹${subInfo.amountDue})` : ""}
+                                      Partially Paid
+                                      {subInfo?.amountDue != null &&
+                                      subInfo.amountDue > 0
+                                        ? ` (Due: ₹${subInfo.amountDue})`
+                                        : ""}
                                     </span>
                                   ) : null}
                                 </div>
                               );
-                            })()
-                          )}
+                            })()}
                         </div>
                       </div>
                     </div>
@@ -667,7 +687,8 @@ export function AppointmentDetailsDialog({
           {/* Right / Top on Mobile: Secondary actions grouped into More Actions + Primary Lifecycle CTA */}
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* Operational Management Actions grouped in a compact Popover */}
-            {((canEdit && !isTerminal) || (canSellSubscriptions && customerId)) && (
+            {((canEdit && !isTerminal) ||
+              (canSellSubscriptions && customerId)) && (
               <div className="relative" ref={actionsMenuRef}>
                 <Button
                   variant="outline"
@@ -754,44 +775,51 @@ export function AppointmentDetailsDialog({
             )}
 
             {/* Quick Status Shift if in progress */}
-            {canStatus && !isTerminal && appointment.status === "in_progress" && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onChangeStatus}
-                className="text-xs h-8 gap-1.5"
-                title="Change appointment status"
-              >
-                <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>Change Status</span>
-              </Button>
-            )}
+            {canStatus &&
+              !isTerminal &&
+              appointment.status === "in_progress" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onChangeStatus}
+                  className="text-xs h-8 gap-1.5"
+                  title="Change appointment status"
+                >
+                  <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>Change Status</span>
+                </Button>
+              )}
 
             {/* PRIMARY CTA: In-Progress -> Complete Appointment */}
-            {canStatus && !isTerminal && appointment.status === "in_progress" && onCompleteAppointment && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => onCompleteAppointment(appointment)}
-                className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>Complete Appointment</span>
-              </Button>
-            )}
+            {canStatus &&
+              !isTerminal &&
+              appointment.status === "in_progress" &&
+              onCompleteAppointment && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => onCompleteAppointment(appointment)}
+                  className="text-xs h-8 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Complete Appointment</span>
+                </Button>
+              )}
 
             {/* PRIMARY CTA: General Status Transition when not yet in-progress or completed */}
-            {canStatus && !isTerminal && appointment.status !== "in_progress" && (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={onChangeStatus}
-                className="text-xs h-8 gap-1.5 shadow-2xs font-semibold"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                <span>Change Status</span>
-              </Button>
-            )}
+            {canStatus &&
+              !isTerminal &&
+              appointment.status !== "in_progress" && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={onChangeStatus}
+                  className="text-xs h-8 gap-1.5 shadow-2xs font-semibold"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  <span>Change Status</span>
+                </Button>
+              )}
 
             {/* PRIMARY CTA: Completed -> Create Invoice */}
             {canCheckout && appointment.status === "completed" && (
@@ -824,7 +852,6 @@ export function AppointmentDetailsDialog({
       <Dialog
         isOpen={isSellSubscriptionOpen}
         onClose={() => setIsSellSubscriptionOpen(false)}
-        maxWidth="2xl"
         title="Sell Subscription Package (Appointment Upsell)"
       >
         <CreateSubscriptionDialog
@@ -841,7 +868,7 @@ export function AppointmentDetailsDialog({
                   branchId: appointment.branchId,
                   planId: values.planId,
                   price: values.price,
-                  entitlements: values.entitlements,
+                  entitlements: values.entitlements || [],
                   permittedBranchIds: values.permittedBranchIds,
                   startDate: values.startDate,
                   endDate: values.endDate,
@@ -852,8 +879,12 @@ export function AppointmentDetailsDialog({
               setIsSellSubscriptionOpen(false);
 
               // Surface the separate subscription invoice distinctly from appointment
-              const invoiceId = res.invoiceId || res.invoice?.id || res.subscription?.invoiceId;
-              const invoiceNum = res.invoice?.invoiceNumber || res.subscription?.invoiceNumber || "";
+              const invoiceId =
+                res.invoiceId || res.invoice?.id || res.subscription?.invoiceId;
+              const invoiceNum =
+                res.invoice?.invoiceNumber ||
+                res.subscription?.invoiceNumber ||
+                "";
 
               if (invoiceId) {
                 toast.success(
@@ -864,7 +895,7 @@ export function AppointmentDetailsDialog({
                       onClick: () => router.push(`/billing/${invoiceId}`),
                     },
                     duration: 6000,
-                  }
+                  },
                 );
                 router.push(`/billing/${invoiceId}`);
               } else {
@@ -872,9 +903,13 @@ export function AppointmentDetailsDialog({
               }
             } catch (err: unknown) {
               const errorObj = err as Record<string, unknown> | null;
-              const responseObj = errorObj?.response as Record<string, unknown> | null;
+              const responseObj = errorObj?.response as Record<
+                string,
+                unknown
+              > | null;
               const msg =
-                ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+                ((responseObj?.data as Record<string, unknown> | null)
+                  ?.message as string) ||
                 (errorObj?.message as string) ||
                 "Failed to sell subscription package.";
               toast.error(msg);

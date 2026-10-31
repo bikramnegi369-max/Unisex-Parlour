@@ -75,7 +75,7 @@ export default function DashboardLayout({
           <Header />
 
           {/* Dynamic Route Content */}
-          <main className="flex-1 overflow-y-auto p-4 bg-slate-50/20 dark:bg-slate-900/10">
+          <main className="flex-1 overflow-y-auto p-4 bg-slate-50/20 dark:bg-slate-900/10 relative z-0">
             <div className="max-w-7xl mx-auto flex flex-col min-h-full">
               <Breadcrumbs />
               <div className="flex-1 pb-8">{children}</div>

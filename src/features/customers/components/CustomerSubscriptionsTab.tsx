@@ -99,7 +99,22 @@ export function CustomerSubscriptionsTab({
     }
   };
 
+  const [filterMode, setFilterMode] = useState<"all" | "payer" | "beneficiary">("all");
+
   const subscriptions = data?.data || [];
+
+  const filteredSubscriptions = subscriptions.filter((sub: Subscription) => {
+    const isPayer =
+      (sub.payerId && sub.payerId === customerId) ||
+      sub.customerId === customerId;
+    const isBeneficiary = (sub.members || []).some(
+      (m) => m.customerId === customerId
+    );
+
+    if (filterMode === "payer") return isPayer;
+    if (filterMode === "beneficiary") return isBeneficiary;
+    return true;
+  });
 
   const isSyncing = isFetching && !isLoading;
 
@@ -218,13 +233,57 @@ export function CustomerSubscriptionsTab({
         </div>
       </div>
 
-      {subscriptions.length === 0 ? (
+      {/* Filter and View Toggle */}
+      {subscriptions.length > 0 && (
+        <div className="flex items-center gap-2 border-b border-border/80 pb-2">
+          <span className="text-[11px] font-semibold text-muted-foreground">Show:</span>
+          <button
+            type="button"
+            onClick={() => setFilterMode("all")}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+              filterMode === "all"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            All ({subscriptions.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterMode("payer")}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+              filterMode === "payer"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            Purchased as Payer
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterMode("beneficiary")}
+            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+              filterMode === "beneficiary"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            Beneficiary Entitlements
+          </button>
+        </div>
+      )}
+
+      {filteredSubscriptions.length === 0 ? (
         <EmptyState
           icon={CreditCard}
-          title="No Active Subscriptions"
-          description="This customer does not have any active or past subscriptions registered."
+          title={filterMode === "all" ? "No Active Subscriptions" : "No Subscriptions in Selected Category"}
+          description={
+            filterMode === "all"
+              ? "This customer does not have any active or past subscriptions registered."
+              : `No subscriptions found where this customer is acting as ${filterMode}.`
+          }
           action={
-            canSell
+            canSell && filterMode === "all"
               ? {
                   label: "Sell Customer Subscription",
                   onClick: () => setIsCreateOpen(true),
@@ -235,13 +294,23 @@ export function CustomerSubscriptionsTab({
         />
       ) : (
         <div className={`space-y-4 transition-opacity duration-200 ${isSyncing ? "opacity-60 pointer-events-none" : "opacity-100"}`}>
-          {subscriptions.map((sub: Subscription) => {
-            const totalRemaining = (sub.entitlements || []).reduce(
+          {filteredSubscriptions.map((sub: Subscription) => {
+            const isPayer = (sub.payerId && sub.payerId === customerId) || sub.customerId === customerId;
+            const memberEntry = (sub.members || []).find((m) => m.customerId === customerId);
+            const isBeneficiary = Boolean(memberEntry);
+
+            // If customer is beneficiary, display customer's specific entitlement quota
+            const relevantEntitlements =
+              isBeneficiary && memberEntry?.entitlements && memberEntry.entitlements.length > 0
+                ? memberEntry.entitlements
+                : sub.entitlements || [];
+
+            const totalRemaining = relevantEntitlements.reduce(
               (sum: number, e: { remainingQuantity: number }) =>
                 sum + e.remainingQuantity,
               0,
             );
-            const totalAllocated = (sub.entitlements || []).reduce(
+            const totalAllocated = relevantEntitlements.reduce(
               (sum: number, e: { totalQuantity: number }) =>
                 sum + e.totalQuantity,
               0,
@@ -271,6 +340,16 @@ export function CustomerSubscriptionsTab({
                         {sub.subscriptionCode || sub.id}
                       </span>
                       <SubscriptionStatusBadge status={sub.status} paymentStatus={sub.paymentStatus} />
+                      {isPayer && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                          Payer
+                        </span>
+                      )}
+                      {isBeneficiary && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-primary/10 text-primary">
+                          Beneficiary
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap pt-0.5">
                       <span className="flex items-center gap-1">
@@ -339,10 +418,10 @@ export function CustomerSubscriptionsTab({
                 {/* Entitlements Breakdown Chips */}
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    Service Entitlements Quotas
+                    {isBeneficiary ? "Your Member Entitlement Quotas" : "Service Entitlements Quotas"}
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                    {(sub.entitlements || []).map((ent, idx) => {
+                    {relevantEntitlements.map((ent, idx) => {
                       const srv = services.find((s) => s.id === ent.serviceId);
                       const isDepleted = ent.remainingQuantity === 0;
 

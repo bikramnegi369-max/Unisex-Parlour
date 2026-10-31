@@ -46,6 +46,101 @@ export interface InvoiceLineItem {
   subscriptionUsageId?: string | null;
   subscriptionCoveredAmount?: number;
   customerPayable?: number;
+  appliedDiscounts?: AppliedDiscount[];
+  discountTotal?: number;
+}
+
+export type DiscountLevel = "line" | "selected_lines" | "invoice";
+export type DiscountType = "fixed" | "percentage";
+
+export interface AppliedDiscount {
+  id: string;
+  _id?: string;
+  discountId?: string;
+  level: DiscountLevel;
+  discountLevel?: DiscountLevel;
+  type: DiscountType;
+  discountType?: DiscountType;
+  lineId?: string | null;
+  lineIds?: string[];
+  name?: string;
+  enteredValue: number;
+  calculatedDiscount: number;
+  amount?: number;
+  reason: string;
+  appliedBy?: string;
+  appliedAt?: string;
+}
+
+export interface FinancialSnapshot {
+  subtotal: number;
+  lineDiscountsTotal: number;
+  invoiceDiscountsTotal: number;
+  discountTotal: number;
+  grossPayable: number;
+  subscriptionCoveredAmount: number;
+  payableAmount: number;
+  amountPaid: number;
+  amountDue: number;
+}
+
+export interface DiscountAllocation {
+  lineId: string;
+  lineName?: string;
+  allocatedAmount: number;
+}
+
+export interface DiscountHistoryEntry {
+  id: string;
+  _id?: string;
+  invoiceId: string;
+  discountId: string;
+  action: "applied" | "modified" | "removed";
+  discountLevel: DiscountLevel;
+  discountType: DiscountType;
+  lineId?: string | null;
+  lineIds?: string[];
+  lineName?: string;
+  allocations?: DiscountAllocation[];
+  name?: string;
+  enteredValue: number;
+  calculatedDiscount: number;
+  reason: string;
+  performedBy: {
+    id: string;
+    name: string;
+    email?: string;
+  } | string;
+  performedAt: string;
+  beforeSnapshot?: FinancialSnapshot;
+  afterSnapshot?: FinancialSnapshot;
+}
+
+export interface ApplyDiscountPayload {
+  branchId: string;
+  discountLevel: DiscountLevel;
+  lineId?: string;
+  lineIds?: string[];
+  name?: string;
+  discountType: DiscountType;
+  enteredValue: number;
+  reason: string;
+}
+
+export interface ModifyDiscountPayload {
+  branchId: string;
+  enteredValue: number;
+  reason: string;
+}
+
+export interface RemoveDiscountPayload {
+  branchId: string;
+  reason: string;
+}
+
+export interface InvoiceDiscountMutationResult {
+  invoice: Invoice;
+  historyEntry?: DiscountHistoryEntry;
 }
 
 export interface Invoice {
@@ -63,9 +158,12 @@ export interface Invoice {
   items: InvoiceLineItem[];
   lines?: InvoiceLineItem[];
   subtotal: number;
+  lineDiscountsTotal?: number;
+  invoiceDiscountsTotal?: number;
   discountTotal: number;
   grossPayable: number;
   subscriptionCoveredAmount: number;
+  appliedDiscounts?: AppliedDiscount[];
   redeemLoyaltyPoints?: number;
   loyaltyRedeemedPoints?: number;
   loyaltyDiscountAmount?: number;

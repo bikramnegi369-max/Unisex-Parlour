@@ -29,16 +29,36 @@ export interface SubscriptionPlanSummary {
   name: string;
 }
 
+export type SubscriptionMemberStatus =
+  | "active"
+  | "suspended"
+  | "inactive";
+
+export interface SubscriptionMember {
+  customerId: string;
+  customer?: SubscriptionCustomerSummary;
+  status?: SubscriptionMemberStatus;
+  entitlements: SubscriptionEntitlement[];
+  joinedAt?: string;
+  notes?: string;
+}
 
 export interface Subscription {
   id: string;
   _id?: string;
   organizationId: string;
   planId?: string | SubscriptionPlanSummary;
+  // Payer customer (purchased and owns invoice)
   customerId: string;
   customer?: SubscriptionCustomerSummary;
+  payerCustomerId?: string;
+  payerId?: string;
+  payer?: SubscriptionCustomerSummary;
+  // Multi-customer beneficiary members
+  members?: SubscriptionMember[];
   subscriptionCode: string;
   price: number;
+  // Legacy / top-level aggregated entitlements
   entitlements: SubscriptionEntitlement[];
   permittedBranchIds: string[];
   startDate: string;
@@ -61,6 +81,8 @@ export interface SubscriptionUsageRecord {
   subscriptionId: string;
   serviceId: string;
   serviceName?: string;
+  memberCustomerId?: string;
+  memberCustomer?: SubscriptionCustomerSummary;
   quantity: number;
   branchId: string;
   branchName?: string;
@@ -72,15 +94,33 @@ export interface SubscriptionUsageRecord {
   redeemedBy?: { id?: string; _id?: string; name: string } | string;
 }
 
-export interface CreateSubscriptionPayload {
+export interface MemberEntitlementPayload {
+  serviceId: string;
+  quantity: number;
+}
+
+export interface SubscriptionMemberPayload {
   customerId: string;
+  permittedBranchIds?: string[];
+  entitlements: MemberEntitlementPayload[];
+  notes?: string;
+}
+
+export interface CreateSubscriptionPayload {
+  // Payer identification: payerCustomerId is canonical for multi-member, customerId supported for legacy
+  payerCustomerId?: string;
+  customerId?: string;
+  payerId?: string;
   planId?: string;
   price: number;
-  entitlements: Array<{ serviceId: string; quantity: number }>;
-  permittedBranchIds: string[];
+  // Either multi-member structure or single customer entitlements
+  members?: SubscriptionMemberPayload[];
+  entitlements?: MemberEntitlementPayload[];
+  permittedBranchIds?: string[];
   startDate: string;
   endDate: string;
   notes?: string;
+  billImmediately?: boolean;
 }
 
 export interface UpdateSubscriptionPayload {
@@ -105,12 +145,15 @@ export interface RedeemSubscriptionPayload {
   idempotencyKey?: string;
   services: RedeemServiceItem[];
   appointmentId?: string;
+  memberCustomerId?: string;
 }
 
 export interface GetSubscriptionsParams {
   page?: number;
   limit?: number;
   customerId?: string;
+  payerId?: string;
+  memberId?: string;
   status?: string;
   branchId?: string;
   search?: string;

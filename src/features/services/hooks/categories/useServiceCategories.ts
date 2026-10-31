@@ -6,7 +6,9 @@ import { getScopeQueryKey } from "@/lib/api/queryKeys";
 import type { ServiceCategoryFilters } from "../../types/filters.types";
 
 export function useServiceCategories(filters: ServiceCategoryFilters = {}) {
-  const { isAuthenticated, user } = useAuth();
+  const auth = useAuth();
+  const isAuthenticated = auth?.isAuthenticated ?? false;
+  const user = auth?.user ?? null;
 
   const hasViewPermission = hasPermission(user, "services.view");
   const isEnabled = isAuthenticated && hasViewPermission;

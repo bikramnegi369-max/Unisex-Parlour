@@ -32,6 +32,7 @@ export function useAppointments(
   return useQuery({
     queryKey,
     queryFn: () => getAppointments(params),
+    refetchInterval: 30000,
     ...options,
     enabled: isEnabled,
   });

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import { updateCustomer } from "../api/customers.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import type { CustomerPayload } from "../types/customer.types";
@@ -20,7 +21,7 @@ export function useUpdateCustomer() {
       queryClient.invalidateQueries({
         queryKey: getBranchQueryKey("customer", [data.id]),
       });
+      broadcastCrossTabInvalidation("customers");
     },
   });
 }
-

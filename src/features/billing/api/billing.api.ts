@@ -12,6 +12,12 @@ import type {
   InvoiceLineItem,
   InvoiceListResponseMeta,
   CustomerBillingSummary,
+  AppliedDiscount,
+  DiscountHistoryEntry,
+  ApplyDiscountPayload,
+  ModifyDiscountPayload,
+  RemoveDiscountPayload,
+  InvoiceDiscountMutationResult,
 } from "../types/billing.types";
 import { normalizeAppointment } from "@/features/appointments/api/appointments.api";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
@@ -31,6 +37,108 @@ const toFlatId = (val: unknown): string => {
     return String(obj._id || obj.id || "");
   }
   return String(val);
+};
+
+export const normalizeAppliedDiscount = (rawInput: unknown): AppliedDiscount => {
+  const raw = (typeof rawInput === "object" && rawInput !== null ? rawInput : {}) as Record<string, unknown>;
+  const id = toFlatId(raw._id || raw.id || raw.discountId);
+  const level = (raw.discountLevel || raw.level || "invoice") as AppliedDiscount["level"];
+  const type = (raw.discountType || raw.type || "fixed") as AppliedDiscount["type"];
+  const enteredValue = typeof raw.enteredValue === "number" ? raw.enteredValue : Number(raw.enteredValue) || 0;
+  const calculatedDiscount =
+    typeof raw.calculatedDiscount === "number"
+      ? raw.calculatedDiscount
+      : typeof raw.amount === "number"
+      ? raw.amount
+      : typeof raw.calculatedAmount === "number"
+      ? raw.calculatedAmount
+      : enteredValue;
+
+  const rawLineIds = Array.isArray(raw.lineIds)
+    ? raw.lineIds.map((lid) => toFlatId(lid))
+    : undefined;
+
+  return {
+    id,
+    _id: id,
+    discountId: id,
+    level,
+    discountLevel: level,
+    type,
+    discountType: type,
+    lineId: raw.lineId ? toFlatId(raw.lineId) : null,
+    lineIds: rawLineIds,
+    name: typeof raw.name === "string" ? raw.name : undefined,
+    enteredValue,
+    calculatedDiscount,
+    amount: calculatedDiscount,
+    reason: typeof raw.reason === "string" ? raw.reason : "",
+    appliedBy: raw.appliedBy ? toFlatId(raw.appliedBy) : undefined,
+    appliedAt: typeof raw.appliedAt === "string" ? raw.appliedAt : undefined,
+  };
+};
+
+export const normalizeDiscountHistoryEntry = (rawInput: unknown): DiscountHistoryEntry => {
+  const raw = (typeof rawInput === "object" && rawInput !== null ? rawInput : {}) as Record<string, unknown>;
+  const id = toFlatId(raw.historyId || raw._id || raw.id);
+  const discountLevel = (raw.discountLevel || raw.level || "invoice") as DiscountHistoryEntry["discountLevel"];
+  const discountType = (raw.discountType || raw.type || "fixed") as DiscountHistoryEntry["discountType"];
+
+  let performedBy: DiscountHistoryEntry["performedBy"] = "System";
+  if (typeof raw.performedBy === "object" && raw.performedBy !== null) {
+    const p = raw.performedBy as Record<string, unknown>;
+    performedBy = {
+      id: toFlatId(p._id || p.id),
+      name: (p.name as string) || "Staff",
+      email: (p.email as string) || undefined,
+    };
+  } else if (typeof raw.performedBy === "string") {
+    performedBy = raw.performedBy;
+  }
+
+  const rawBefore = raw.beforeSnapshot || raw.snapshotBefore;
+  const rawAfter = raw.afterSnapshot || raw.snapshotAfter;
+
+  const rawLineIds = Array.isArray(raw.lineIds)
+    ? raw.lineIds.map((lid) => toFlatId(lid))
+    : undefined;
+
+  const rawAllocations = Array.isArray(raw.allocations)
+    ? raw.allocations.map((alloc: Record<string, unknown>) => ({
+        lineId: toFlatId(alloc.lineId),
+        lineName: typeof alloc.lineName === "string" ? alloc.lineName : undefined,
+        allocatedAmount: typeof alloc.allocatedAmount === "number" ? alloc.allocatedAmount : 0,
+      }))
+    : undefined;
+
+  return {
+    id,
+    _id: id,
+    invoiceId: toFlatId(raw.invoiceId),
+    discountId: toFlatId(raw.discountId),
+    action: (raw.action as DiscountHistoryEntry["action"]) || "applied",
+    discountLevel,
+    discountType,
+    lineId: raw.lineId ? toFlatId(raw.lineId) : null,
+    lineIds: rawLineIds,
+    lineName: typeof raw.lineName === "string" ? raw.lineName : undefined,
+    allocations: rawAllocations,
+    name: typeof raw.name === "string" ? raw.name : undefined,
+    enteredValue: typeof raw.enteredValue === "number" ? raw.enteredValue : Number(raw.enteredValue) || 0,
+    calculatedDiscount:
+      typeof raw.calculatedDiscount === "number"
+        ? raw.calculatedDiscount
+        : typeof raw.calculatedAmount === "number"
+        ? raw.calculatedAmount
+        : typeof raw.amount === "number"
+        ? raw.amount
+        : 0,
+    reason: typeof raw.reason === "string" ? raw.reason : "",
+    performedBy,
+    performedAt: (raw.performedAt as string) || (raw.createdAt as string) || new Date().toISOString(),
+    beforeSnapshot: rawBefore as DiscountHistoryEntry["beforeSnapshot"],
+    afterSnapshot: rawAfter as DiscountHistoryEntry["afterSnapshot"],
+  };
 };
 
 export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => {
@@ -151,6 +259,10 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
         ? item.customerPayable
         : calculatedPayable;
 
+    const appliedDiscounts = Array.isArray(item.appliedDiscounts)
+      ? item.appliedDiscounts.map(normalizeAppliedDiscount)
+      : undefined;
+
     return {
       id: toFlatId(item._id || item.id),
       serviceId: toFlatId(item.serviceId),
@@ -168,6 +280,8 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
       subscriptionUsageId: item.subscriptionUsageId ? toFlatId(item.subscriptionUsageId) : null,
       subscriptionCoveredAmount: subCoveredAmount,
       customerPayable,
+      appliedDiscounts,
+      discountTotal: typeof item.discountTotal === "number" ? item.discountTotal : undefined,
     };
   });
 
@@ -218,9 +332,40 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
     items,
     lines: items,
     subtotal: rawSubtotal,
+    lineDiscountsTotal: typeof raw.lineDiscountsTotal === "number" ? raw.lineDiscountsTotal : undefined,
+    invoiceDiscountsTotal: typeof raw.invoiceDiscountsTotal === "number" ? raw.invoiceDiscountsTotal : undefined,
     discountTotal: rawDiscount,
     grossPayable: rawGross,
     subscriptionCoveredAmount: resolvedSubscriptionCovered,
+    appliedDiscounts: (() => {
+      const topLevelDiscounts = Array.isArray(raw.appliedDiscounts)
+        ? raw.appliedDiscounts.map(normalizeAppliedDiscount)
+        : [];
+      const lineLevelDiscounts = items.flatMap((item) => item.appliedDiscounts || []);
+
+      // Deduplicate discounts while strictly preserving the chronological order of application
+      const discountMap = new Map<string, AppliedDiscount>();
+      for (const d of [...topLevelDiscounts, ...lineLevelDiscounts]) {
+        if (d.id && !discountMap.has(d.id)) {
+          discountMap.set(d.id, d);
+        }
+      }
+
+      if (discountMap.size === 0) return undefined;
+      const list = Array.from(discountMap.values());
+
+      // If appliedAt timestamp is available, sort chronologically so order matches application history
+      const hasTimestamps = list.some((d) => Boolean(d.appliedAt));
+      if (hasTimestamps) {
+        list.sort((a, b) => {
+          if (!a.appliedAt) return 1;
+          if (!b.appliedAt) return -1;
+          return new Date(a.appliedAt).getTime() - new Date(b.appliedAt).getTime();
+        });
+      }
+
+      return list;
+    })(),
     redeemLoyaltyPoints:
       typeof raw.redeemLoyaltyPoints === "number"
         ? raw.redeemLoyaltyPoints
@@ -618,4 +763,135 @@ export async function downloadInvoicePdf(
     window.URL.revokeObjectURL(objectUrl);
   }, 10000);
 }
+
+/**
+ * Apply a line-level or invoice-level discount to a draft invoice.
+ * POST /billing/invoices/:id/discounts
+ */
+export async function applyInvoiceDiscount(
+  invoiceId: string,
+  payload: ApplyDiscountPayload
+): Promise<InvoiceDiscountMutationResult> {
+  const { data } = await apiClient.post<ApiResponse<{
+    invoice?: Record<string, unknown>;
+    historyEntry?: Record<string, unknown>;
+  } | Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/discounts`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+
+  const rawData = data.data || {};
+  const rawInvoice =
+    "invoice" in rawData && rawData.invoice && typeof rawData.invoice === "object"
+      ? (rawData.invoice as Record<string, unknown>)
+      : rawData;
+
+  const rawHistory =
+    "historyEntry" in rawData && rawData.historyEntry && typeof rawData.historyEntry === "object"
+      ? rawData.historyEntry
+      : undefined;
+
+  return {
+    invoice: normalizeInvoice(rawInvoice),
+    historyEntry: rawHistory ? normalizeDiscountHistoryEntry(rawHistory) : undefined,
+  };
+}
+
+/**
+ * Modify an existing discount value on a draft invoice.
+ * PATCH /billing/invoices/:id/discounts/:discountId
+ */
+export async function modifyInvoiceDiscount(
+  invoiceId: string,
+  discountId: string,
+  payload: ModifyDiscountPayload
+): Promise<InvoiceDiscountMutationResult> {
+  const { data } = await apiClient.patch<ApiResponse<{
+    invoice?: Record<string, unknown>;
+    historyEntry?: Record<string, unknown>;
+  } | Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/discounts/${discountId}`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+
+  const rawData = data.data || {};
+  const rawInvoice =
+    "invoice" in rawData && rawData.invoice && typeof rawData.invoice === "object"
+      ? (rawData.invoice as Record<string, unknown>)
+      : rawData;
+
+  const rawHistory =
+    "historyEntry" in rawData && rawData.historyEntry && typeof rawData.historyEntry === "object"
+      ? rawData.historyEntry
+      : undefined;
+
+  return {
+    invoice: normalizeInvoice(rawInvoice),
+    historyEntry: rawHistory ? normalizeDiscountHistoryEntry(rawHistory) : undefined,
+  };
+}
+
+/**
+ * Remove an existing discount from a draft invoice.
+ * DELETE /billing/invoices/:id/discounts/:discountId
+ */
+export async function removeInvoiceDiscount(
+  invoiceId: string,
+  discountId: string,
+  payload: RemoveDiscountPayload
+): Promise<InvoiceDiscountMutationResult> {
+  const { data } = await apiClient.delete<ApiResponse<{
+    invoice?: Record<string, unknown>;
+    historyEntry?: Record<string, unknown>;
+  } | Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/discounts/${discountId}`,
+    {
+      data: payload,
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+
+  const rawData = data.data || {};
+  const rawInvoice =
+    "invoice" in rawData && rawData.invoice && typeof rawData.invoice === "object"
+      ? (rawData.invoice as Record<string, unknown>)
+      : rawData;
+
+  const rawHistory =
+    "historyEntry" in rawData && rawData.historyEntry && typeof rawData.historyEntry === "object"
+      ? rawData.historyEntry
+      : undefined;
+
+  return {
+    invoice: normalizeInvoice(rawInvoice),
+    historyEntry: rawHistory ? normalizeDiscountHistoryEntry(rawHistory) : undefined,
+  };
+}
+
+/**
+ * Fetch discount audit history for an invoice.
+ * GET /billing/invoices/:id/discount-history
+ */
+export async function getInvoiceDiscountHistory(
+  invoiceId: string,
+  branchId?: string
+): Promise<DiscountHistoryEntry[]> {
+  const { data } = await apiClient.get<ApiResponse<Record<string, unknown>[]>>(
+    `/billing/invoices/${invoiceId}/discount-history`,
+    {
+      branchScope: branchId
+        ? { type: "branch", branchId }
+        : "current",
+    }
+  );
+
+  return (data.data || []).map(normalizeDiscountHistoryEntry);
+}
+
 

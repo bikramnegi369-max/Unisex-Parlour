@@ -248,12 +248,12 @@ describe("Billing UI Components & Financial Rules", () => {
       expect(screen.getByText("Subscription Redeemed")).toBeDefined();
 
       // Verify read-only prices rendered
-      expect(screen.getByText("₹1,500.00")).toBeDefined();
+      expect(screen.getAllByText("₹1,500.00").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("₹2,000.00")).toBeDefined(); // subtotal
       expect(screen.getByText("-₹500.00")).toBeDefined(); // subscription covered
     });
 
-    it("submits create invoice mutation without redeemLoyaltyPoints when points are 0 or empty", async () => {
+    it("submits create invoice mutation without discount or redeemLoyaltyPoints when points are 0 or empty", async () => {
       const createSpy = vi.fn().mockResolvedValue({
         id: "inv-new",
         invoiceNumber: "INV-NEW-001",
@@ -273,7 +273,7 @@ describe("Billing UI Components & Financial Rules", () => {
         />
       );
 
-      // Verify submit without points sends no redeemLoyaltyPoints
+      // Verify submit without points sends no redeemLoyaltyPoints and no discountTotal
       fireEvent.click(screen.getByRole("button", { name: /Generate Draft Invoice/i }));
 
       await waitFor(() => {
@@ -281,8 +281,12 @@ describe("Billing UI Components & Financial Rules", () => {
           expect.objectContaining({
             branchId: "branch-1",
             appointmentId: "apt-1",
-            discountTotal: 100,
             redeemLoyaltyPoints: undefined,
+          })
+        );
+        expect(createSpy).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            discountTotal: expect.anything(),
           })
         );
       });
@@ -352,7 +356,6 @@ describe("Billing UI Components & Financial Rules", () => {
           expect.objectContaining({
             branchId: "branch-1",
             appointmentId: "apt-1",
-            discountTotal: 100,
             redeemLoyaltyPoints: 50,
           })
         );

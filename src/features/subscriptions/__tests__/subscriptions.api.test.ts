@@ -412,6 +412,137 @@ describe("Subscriptions API layer", () => {
       expect(res.data[0].amountDue).toBe(0);
       expect(res.data[0].isPaid).toBe(true);
     });
+
+    it("normalizes multi-customer beneficiary members and payer fields correctly", async () => {
+      const mockMultiMemberRaw = {
+        success: true,
+        status: "success",
+        data: {
+          _id: "sub_multi_1",
+          subscriptionCode: "SUB-FAMILY-1",
+          customerId: { _id: "cust_payer", name: "Payer John", phone: "9876543210" },
+          payerId: "cust_payer",
+          price: 6000,
+          status: "active",
+          members: [
+            {
+              customerId: { _id: "cust_payer", name: "Payer John", phone: "9876543210" },
+              status: "active",
+              entitlements: [
+                {
+                  serviceId: { _id: "srv_haircut", name: "Haircut" },
+                  totalQuantity: 4,
+                  usedQuantity: 1,
+                  remainingQuantity: 3,
+                },
+              ],
+            },
+            {
+              customerId: { _id: "cust_member_2", name: "Jane Member", phone: "9876543211" },
+              status: "active",
+              entitlements: [
+                {
+                  serviceId: { _id: "srv_spa", name: "Head Spa" },
+                  totalQuantity: 2,
+                  usedQuantity: 0,
+                  remainingQuantity: 2,
+                },
+              ],
+            },
+          ],
+          entitlements: [
+            {
+              serviceId: "srv_haircut",
+              serviceName: "Haircut",
+              totalQuantity: 4,
+              usedQuantity: 1,
+              remainingQuantity: 3,
+            },
+            {
+              serviceId: "srv_spa",
+              serviceName: "Head Spa",
+              totalQuantity: 2,
+              usedQuantity: 0,
+              remainingQuantity: 2,
+            },
+          ],
+          permittedBranchIds: ["br_1"],
+          startDate: "2026-09-01",
+          endDate: "2027-03-01",
+        },
+      };
+
+      vi.mocked(apiClient.get).mockResolvedValueOnce({ data: mockMultiMemberRaw });
+
+      const res = await getSubscription("sub_multi_1");
+
+      expect(res.id).toBe("sub_multi_1");
+      expect(res.customerId).toBe("cust_payer");
+      expect(res.payer?.name).toBe("Payer John");
+      expect(res.members).toHaveLength(2);
+      expect(res.members?.[0].customerId).toBe("cust_payer");
+      expect(res.members?.[0].entitlements[0].remainingQuantity).toBe(3);
+      expect(res.members?.[1].customerId).toBe("cust_member_2");
+      expect(res.members?.[1].customer?.name).toBe("Jane Member");
+      expect(res.members?.[1].entitlements[0].remainingQuantity).toBe(2);
+    });
+
+    it("sends canonical payerCustomerId when creating multi-member subscription", async () => {
+      const mockCreatedSub = {
+        _id: "sub_multi_new",
+        subscriptionCode: "SUB-NEW-1",
+        payerCustomerId: "cust_payer_1",
+        price: 5000,
+        status: "active",
+        members: [
+          {
+            customerId: "cust_payer_1",
+            entitlements: [{ serviceId: "srv_1", totalQuantity: 3, usedQuantity: 0, remainingQuantity: 3 }],
+          },
+        ],
+        permittedBranchIds: ["br_1"],
+        startDate: "2026-10-01",
+        endDate: "2027-04-01",
+      };
+
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { subscription: mockCreatedSub },
+        },
+      });
+
+      await createSubscription(
+        {
+          customerId: "cust_payer_1",
+          price: 5000,
+          startDate: "2026-10-01",
+          endDate: "2027-04-01",
+          permittedBranchIds: ["br_1"],
+          members: [
+            {
+              customerId: "cust_payer_1",
+              entitlements: [{ serviceId: "srv_1", quantity: 3 }],
+            },
+          ],
+        },
+        "br_1"
+      );
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/subscriptions",
+        expect.objectContaining({
+          payerCustomerId: "cust_payer_1",
+          price: 5000,
+          permittedBranchIds: ["br_1"],
+          members: expect.any(Array),
+        }),
+        expect.objectContaining({
+          branchScope: { type: "branch", branchId: "br_1" },
+        })
+      );
+    });
   });
 });
 

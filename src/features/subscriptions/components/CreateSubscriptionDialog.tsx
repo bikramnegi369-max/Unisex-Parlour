@@ -17,7 +17,6 @@ import {
   AlertCircle,
   Loader2,
   Sparkles,
-  Crown,
   Calendar,
   Layers,
   ShieldCheck,
@@ -27,10 +26,10 @@ import {
   ChevronDown,
   X,
   Clock,
-  ChevronRight,
   PackageCheck,
   CheckCircle2,
-  Info,
+  User,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,16 +66,20 @@ export function CreateSubscriptionDialog({
   initialPlan,
   branchId: propBranchId,
 }: CreateSubscriptionDialogProps) {
-  const { availableBranches, currentBranch, currentBranchId, isAllBranchesSelected } =
-    useBranchContext();
+  const {
+    availableBranches,
+    currentBranch,
+    currentBranchId,
+    isAllBranchesSelected,
+  } = useBranchContext();
 
   // Derive active selling branch
   const effectiveBranchId =
     propBranchId && propBranchId !== "all"
       ? propBranchId
       : currentBranchId && currentBranchId !== "all" && !isAllBranchesSelected
-      ? currentBranchId
-      : null;
+        ? currentBranchId
+        : null;
 
   const effectiveBranch =
     availableBranches.find((b) => b.id === effectiveBranchId) ||
@@ -86,7 +89,20 @@ export function CreateSubscriptionDialog({
     effectiveBranch?.name ||
     (effectiveBranchId ? `Branch #${effectiveBranchId.slice(-4)}` : null);
 
-  const [branchValidationError, setBranchValidationError] = useState<string | null>(null);
+  const [branchValidationError, setBranchValidationError] = useState<
+    string | null
+  >(null);
+
+  // Multi-Customer Beneficiary Members Mode
+  const [isMultiMemberMode, setIsMultiMemberMode] = useState<boolean>(false);
+  const [beneficiaryCustomerIds, setBeneficiaryCustomerIds] = useState<
+    string[]
+  >([]);
+  const [activeMemberTab, setActiveMemberTab] = useState<string>("");
+  const [memberEntitlementsMap, setMemberEntitlementsMap] = useState<
+    Record<string, Array<{ serviceId: string; quantity: number }>>
+  >({});
+  const [newMemberCandidateId, setNewMemberCandidateId] = useState<string>("");
 
   // --- TEMPLATE SELECTOR STATE ---
   const [templateSearchQuery, setTemplateSearchQuery] = useState("");
@@ -94,7 +110,7 @@ export function CreateSubscriptionDialog({
   const templateSelectorRef = useRef<HTMLDivElement>(null);
 
   const [selectedPlanTemplateId, setSelectedPlanTemplateId] = useState<string>(
-    initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || ""
+    initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || "",
   );
 
   // --- SERVICE SELECTION SEARCH & CATEGORY FILTER STATE ---
@@ -123,22 +139,35 @@ export function CreateSubscriptionDialog({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
+  // Stable fallback array constants outside/at module level or memoized
+  const EMPTY_TEMPLATES: SubscriptionPlan[] = useMemo(() => [], []);
+  const EMPTY_SERVICES: Service[] = useMemo(() => [], []);
+
   // Fetch plan templates
   const { data: plansData } = useSubscriptionPlans({
     isActive: true,
   });
-  const planTemplates: SubscriptionPlan[] = plansData?.data || [];
+  const planTemplates: SubscriptionPlan[] = useMemo(
+    () => plansData?.data || EMPTY_TEMPLATES,
+    [plansData?.data, EMPTY_TEMPLATES],
+  );
 
   // Fetch categories
   const { data: categoriesData } = useServiceCategories();
   const categories: ServiceCategory[] = categoriesData?.data || [];
 
   // Fetch organization-global services
-  const { data: servicesData, isLoading: isLoadingServices } = useServices({
+  const { data: servicesData } = useServices({
     limit: "all",
   });
-  const allServices: Service[] = servicesData?.data || [];
-  const activeServices = allServices.filter((s) => s.isActive);
+  const allServices: Service[] = useMemo(
+    () => servicesData?.data || EMPTY_SERVICES,
+    [servicesData?.data, EMPTY_SERVICES],
+  );
+  const activeServices = useMemo(
+    () => allServices.filter((s) => s.isActive),
+    [allServices],
+  );
 
   // Lookup map for fast O(1) service info & retail price resolution
   const serviceMap = useMemo(() => {
@@ -188,7 +217,7 @@ export function CreateSubscriptionDialog({
     formState: { errors },
   } = useForm<CreateSubscriptionFormValues>({
     resolver: zodResolver(
-      createSubscriptionSchema
+      createSubscriptionSchema,
     ) as unknown as Resolver<CreateSubscriptionFormValues>,
     defaultValues: {
       customerId: initialCustomerId || "",
@@ -211,7 +240,10 @@ export function CreateSubscriptionDialog({
   React.useEffect(() => {
     if (isOpen) {
       const pId =
-        initialPlan?.id || (initialPlan as unknown as { _id?: string })?._id || "";
+        initialPlan?.id ||
+        (initialPlan as unknown as { _id?: string })?._id ||
+        "";
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedPlanTemplateId(pId);
       setTemplateSearchQuery("");
       setIsTemplateSelectorOpen(false);
@@ -232,7 +264,10 @@ export function CreateSubscriptionDialog({
         permittedBranchIds: [],
         startDate: format(new Date(), "yyyy-MM-dd"),
         endDate: initialPlan?.validityMonths
-          ? format(addMonths(new Date(), initialPlan.validityMonths), "yyyy-MM-dd")
+          ? format(
+              addMonths(new Date(), initialPlan.validityMonths),
+              "yyyy-MM-dd",
+            )
           : format(addMonths(new Date(), 6), "yyyy-MM-dd"),
         notes: "",
       });
@@ -241,7 +276,11 @@ export function CreateSubscriptionDialog({
 
   // Reactive form watchers
   const watchedPrice = useWatch({ control, name: "price" }) ?? 0;
-  const watchedEntitlements = useWatch({ control, name: "entitlements" }) || [];
+  const rawEntitlements = useWatch({ control, name: "entitlements" });
+  const watchedEntitlements = useMemo(
+    () => rawEntitlements || [],
+    [rawEntitlements],
+  );
   const watchedPermittedBranches =
     useWatch({ control, name: "permittedBranchIds" }) || [];
 
@@ -252,7 +291,7 @@ export function CreateSubscriptionDialog({
       planTemplates.find(
         (t) =>
           t.id === selectedPlanTemplateId ||
-          (t as unknown as { _id?: string })._id === selectedPlanTemplateId
+          (t as unknown as { _id?: string })._id === selectedPlanTemplateId,
       ) || null
     );
   }, [planTemplates, selectedPlanTemplateId]);
@@ -264,7 +303,7 @@ export function CreateSubscriptionDialog({
     return planTemplates.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q))
+        (t.description && t.description.toLowerCase().includes(q)),
     );
   }, [planTemplates, templateSearchQuery]);
 
@@ -280,7 +319,8 @@ export function CreateSubscriptionDialog({
       if (selectedCategoryId !== "all") {
         const rawCatId =
           typeof service.categoryId === "object" && service.categoryId !== null
-            ? service.categoryId._id || (service.categoryId as unknown as { id?: string }).id
+            ? service.categoryId._id ||
+              (service.categoryId as unknown as { id?: string }).id
             : service.categoryId;
         if (rawCatId !== selectedCategoryId) return false;
       }
@@ -295,7 +335,12 @@ export function CreateSubscriptionDialog({
 
       return true;
     });
-  }, [activeServices, watchedEntitlements, selectedCategoryId, serviceSearchQuery]);
+  }, [
+    activeServices,
+    watchedEntitlements,
+    selectedCategoryId,
+    serviceSearchQuery,
+  ]);
 
   // Compute total retail value, total session count, and customer savings
   const financialSummary = useMemo(() => {
@@ -305,12 +350,18 @@ export function CreateSubscriptionDialog({
     watchedEntitlements.forEach((ent) => {
       const svc = serviceMap.get(ent.serviceId);
       const retailPrice = svc?.basePrice ?? svc?.pricing?.basePrice ?? 0;
-      const qty = typeof ent.quantity === "number" && !isNaN(ent.quantity) ? ent.quantity : 0;
+      const qty =
+        typeof ent.quantity === "number" && !isNaN(ent.quantity)
+          ? ent.quantity
+          : 0;
       totalRetailValue += retailPrice * qty;
       totalSessions += qty;
     });
 
-    const numericSalePrice = typeof watchedPrice === "number" && !isNaN(watchedPrice) ? watchedPrice : 0;
+    const numericSalePrice =
+      typeof watchedPrice === "number" && !isNaN(watchedPrice)
+        ? watchedPrice
+        : 0;
     const customerSavings = Math.max(0, totalRetailValue - numericSalePrice);
     const savingsPercent =
       totalRetailValue > 0 && customerSavings > 0
@@ -331,6 +382,18 @@ export function CreateSubscriptionDialog({
       serviceId,
       quantity: 1,
     });
+
+    if (isMultiMemberMode && activeMemberTab) {
+      setMemberEntitlementsMap((prev) => {
+        const currentList = prev[activeMemberTab] || [];
+        if (currentList.some((e) => e.serviceId === serviceId)) return prev;
+        return {
+          ...prev,
+          [activeMemberTab]: [...currentList, { serviceId, quantity: 1 }],
+        };
+      });
+    }
+
     setServiceSearchQuery("");
     setIsServiceDropdownOpen(false);
   };
@@ -346,7 +409,7 @@ export function CreateSubscriptionDialog({
     }
     const match = planTemplates.find(
       (p: SubscriptionPlan) =>
-        p.id === planId || (p as unknown as { _id?: string })._id === planId
+        p.id === planId || (p as unknown as { _id?: string })._id === planId,
     );
     if (!match) return;
 
@@ -355,7 +418,7 @@ export function CreateSubscriptionDialog({
 
     const end = format(
       addMonths(new Date(), match.validityMonths || 6),
-      "yyyy-MM-dd"
+      "yyyy-MM-dd",
     );
     setValue("endDate", end, { shouldValidate: true });
 
@@ -365,7 +428,7 @@ export function CreateSubscriptionDialog({
         serviceId: resolveServiceId(e.serviceId, idx),
         quantity: e.quantity,
       })),
-      { shouldValidate: true }
+      { shouldValidate: true },
     );
   };
 
@@ -375,7 +438,7 @@ export function CreateSubscriptionDialog({
       setValue(
         "permittedBranchIds",
         current.filter((id) => id !== branchId),
-        { shouldValidate: true }
+        { shouldValidate: true },
       );
     } else {
       setValue("permittedBranchIds", [...current, branchId], {
@@ -388,11 +451,40 @@ export function CreateSubscriptionDialog({
     setBranchValidationError(null);
     if (!effectiveBranchId) {
       setBranchValidationError(
-        "Please select a specific selling branch before creating a subscription. Subscription sale invoices cannot be issued under 'All Branches' or without an active branch selection."
+        "Please select a specific selling branch before creating a subscription. Subscription sale invoices cannot be issued under 'All Branches' or without an active branch selection.",
       );
       return;
     }
-    await onSubmit(data);
+
+    // Build payload supporting multi-member or single member
+    let finalPayload: CreateSubscriptionFormValues = { ...data };
+
+    if (isMultiMemberMode && beneficiaryCustomerIds.length > 0) {
+      const membersPayload = beneficiaryCustomerIds.map((cId) => ({
+        customerId: cId,
+        entitlements: (memberEntitlementsMap[cId] || []).map((e) => ({
+          serviceId: e.serviceId,
+          quantity: Number(e.quantity) || 1,
+        })),
+      }));
+
+      // In accordance with backend contract:
+      // root `entitlements` is a compatibility projection of the primary member.
+      // Canonical member entitlements live under members[].entitlements.
+      const primaryMember = membersPayload[0];
+      const primaryCompatibilityEntitlements = primaryMember
+        ? primaryMember.entitlements
+        : data.entitlements || [];
+
+      finalPayload = {
+        ...data,
+        payerCustomerId: data.customerId,
+        members: membersPayload,
+        entitlements: primaryCompatibilityEntitlements,
+      };
+    }
+
+    await onSubmit(finalPayload);
     reset();
   };
 
@@ -404,7 +496,7 @@ export function CreateSubscriptionDialog({
       className="space-y-6 pt-1 text-foreground"
     >
       {/* 1. HERO CONTEXT BANNER & SELLING BRANCH STATUS */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 sm:p-5 shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 via-primary/5 to-transparent p-4 sm:p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -416,7 +508,8 @@ export function CreateSubscriptionDialog({
               </h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Issue prepaid service entitlements, configure package validity, and generate a sale invoice.
+              Issue prepaid service entitlements, configure package validity,
+              and generate a sale invoice.
             </p>
           </div>
 
@@ -445,7 +538,9 @@ export function CreateSubscriptionDialog({
           <div className="mt-3 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>
-              Subscription creation and sale invoice generation require an active branch selection. Please select an active branch from the top header switcher before proceeding.
+              Subscription creation and sale invoice generation require an
+              active branch selection. Please select an active branch from the
+              top header switcher before proceeding.
             </span>
           </div>
         )}
@@ -466,7 +561,8 @@ export function CreateSubscriptionDialog({
             <span>Package Template</span>
           </label>
           <span className="text-[11px] text-muted-foreground">
-            {planTemplates.length} configured package{planTemplates.length === 1 ? "" : "s"}
+            {planTemplates.length} configured package
+            {planTemplates.length === 1 ? "" : "s"}
           </span>
         </div>
 
@@ -501,7 +597,7 @@ export function CreateSubscriptionDialog({
                   {currentSelectedTemplate
                     ? currentSelectedTemplate.description ||
                       `Suggested ₹${currentSelectedTemplate.suggestedPrice?.toLocaleString(
-                        "en-IN"
+                        "en-IN",
                       )} • Valid for ${
                         currentSelectedTemplate.validityMonths || 6
                       } months • ${
@@ -519,7 +615,10 @@ export function CreateSubscriptionDialog({
                     Suggested Price
                   </span>
                   <span className="text-xs sm:text-sm font-extrabold text-foreground">
-                    ₹{currentSelectedTemplate.suggestedPrice?.toLocaleString("en-IN")}
+                    ₹
+                    {currentSelectedTemplate.suggestedPrice?.toLocaleString(
+                      "en-IN",
+                    )}
                   </span>
                 </div>
               )}
@@ -536,7 +635,7 @@ export function CreateSubscriptionDialog({
 
           {/* Interactive Popover Modal/Panel with Complete Details & Filter */}
           {isTemplateSelectorOpen && (
-            <div className="absolute z-40 left-0 right-0 mt-2 p-3.5 bg-popover text-popover-foreground rounded-2xl border border-border shadow-2xl space-y-3 animate-in fade-in zoom-in-95 duration-150 max-h-[420px] flex flex-col">
+            <div className="absolute z-40 left-0 right-0 mt-2 p-3.5 bg-popover text-popover-foreground rounded-2xl border border-border shadow-2xl space-y-3 animate-in fade-in zoom-in-95 duration-150 max-h-105 flex flex-col">
               {/* Search Bar */}
               <div className="relative shrink-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -580,7 +679,8 @@ export function CreateSubscriptionDialog({
                         Custom Package (Start from scratch)
                       </span>
                       <p className="text-[11px] text-muted-foreground">
-                        Freely configure custom service entitlements, rates, and validity periods.
+                        Freely configure custom service entitlements, rates, and
+                        validity periods.
                       </p>
                     </div>
                   </div>
@@ -639,7 +739,8 @@ export function CreateSubscriptionDialog({
                           <Layers className="h-3.5 w-3.5 text-primary/70 shrink-0 mt-0.5" />
                           <span className="leading-snug">
                             <strong>Includes:</strong>{" "}
-                            {serviceNamesSummary || `${template.entitlements?.length || 0} services`}
+                            {serviceNamesSummary ||
+                              `${template.entitlements?.length || 0} services`}
                           </span>
                         </div>
                       </div>
@@ -667,27 +768,227 @@ export function CreateSubscriptionDialog({
         </div>
       </div>
 
-      {/* 3. CUSTOMER SELECTION */}
-      <div className="space-y-1.5">
-        <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-          <span>Customer <span className="text-destructive">*</span></span>
-          <span className="text-[10px] font-normal text-muted-foreground lowercase">
-            Search by name or mobile number
-          </span>
-        </label>
-        <Controller
-          name="customerId"
-          control={control}
-          render={({ field }) => (
-            <CustomerSelector
-              value={field.value}
-              onChange={(id) => field.onChange(id)}
-              branchId={effectiveBranchId || undefined}
-              error={errors.customerId?.message}
-              disabled={isLoading}
-            />
-          )}
-        />
+      {/* 3. PAYER & BENEFICIARIES SELECTION */}
+      <div className="space-y-4 p-4 rounded-2xl border border-border/90 bg-card shadow-2xs">
+        <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-primary" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Customer Membership & Financial Responsibility
+            </h4>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const currentPayer = getValues("customerId");
+              if (!isMultiMemberMode) {
+                setIsMultiMemberMode(true);
+                if (
+                  currentPayer &&
+                  !beneficiaryCustomerIds.includes(currentPayer)
+                ) {
+                  setBeneficiaryCustomerIds([currentPayer]);
+                  setActiveMemberTab(currentPayer);
+                  setMemberEntitlementsMap({
+                    [currentPayer]: [...(getValues("entitlements") || [])],
+                  });
+                }
+              } else {
+                setIsMultiMemberMode(false);
+              }
+            }}
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <Users className="h-3.5 w-3.5" />
+            {isMultiMemberMode
+              ? "Switch to Single Customer"
+              : "+ Enable Family / Multi-Member (Multi-Customer)"}
+          </button>
+        </div>
+
+        {/* Payer Selection */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span>Payer Customer (Purchases & Pays for Package)</span>
+              <span className="text-destructive">*</span>
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary">
+              Invoice Owner
+            </span>
+          </label>
+          <Controller
+            name="customerId"
+            control={control}
+            render={({ field }) => (
+              <CustomerSelector
+                value={field.value}
+                onChange={(id) => {
+                  field.onChange(id);
+                  // If in multi-member mode and no members added yet, seed payer
+                  if (
+                    isMultiMemberMode &&
+                    beneficiaryCustomerIds.length === 0 &&
+                    id
+                  ) {
+                    setBeneficiaryCustomerIds([id]);
+                    setActiveMemberTab(id);
+                    setMemberEntitlementsMap({
+                      [id]: [...(getValues("entitlements") || [])],
+                    });
+                  }
+                }}
+                branchId={effectiveBranchId || undefined}
+                error={errors.customerId?.message}
+                disabled={isLoading}
+              />
+            )}
+          />
+        </div>
+
+        {/* Multi-Member Beneficiaries Management */}
+        {isMultiMemberMode && (
+          <div className="pt-3 border-t border-border/60 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-primary" />
+                  Beneficiary Members ({beneficiaryCustomerIds.length})
+                </span>
+                <p className="text-[11px] text-muted-foreground">
+                  Add family members or friends who can consume this
+                  subscription&apos;s services.
+                </p>
+              </div>
+
+              {/* Include Payer Quick Button */}
+              {getValues("customerId") &&
+                !beneficiaryCustomerIds.includes(getValues("customerId")) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const payer = getValues("customerId");
+                      if (payer) {
+                        setBeneficiaryCustomerIds((prev) => [payer, ...prev]);
+                        setActiveMemberTab(payer);
+                        setMemberEntitlementsMap((prev) => ({
+                          ...prev,
+                          [payer]: prev[payer] || [
+                            ...(getValues("entitlements") || []),
+                          ],
+                        }));
+                      }
+                    }}
+                    className="text-xs px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-semibold transition-colors flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Include Payer as Beneficiary
+                  </button>
+                )}
+            </div>
+
+            {/* Add New Beneficiary Selector */}
+            <div className="p-3 rounded-xl border border-dashed border-border bg-muted/10 space-y-2">
+              <span className="text-[11px] font-semibold text-muted-foreground block">
+                Add another beneficiary customer:
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <CustomerSelector
+                    value={newMemberCandidateId}
+                    onChange={(id) => setNewMemberCandidateId(id)}
+                    branchId={effectiveBranchId || undefined}
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    !newMemberCandidateId ||
+                    beneficiaryCustomerIds.includes(newMemberCandidateId)
+                  }
+                  onClick={() => {
+                    if (
+                      newMemberCandidateId &&
+                      !beneficiaryCustomerIds.includes(newMemberCandidateId)
+                    ) {
+                      setBeneficiaryCustomerIds((prev) => [
+                        ...prev,
+                        newMemberCandidateId,
+                      ]);
+                      setActiveMemberTab(newMemberCandidateId);
+                      setMemberEntitlementsMap((prev) => ({
+                        ...prev,
+                        [newMemberCandidateId]:
+                          prev[newMemberCandidateId] || [],
+                      }));
+                      setNewMemberCandidateId("");
+                    }
+                  }}
+                  className="h-10 text-xs px-3 font-bold"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add Member
+                </Button>
+              </div>
+            </div>
+
+            {/* Beneficiaries List Chips */}
+            {beneficiaryCustomerIds.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                  Configured Members:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {beneficiaryCustomerIds.map((cId) => {
+                    const isPayer = cId === getValues("customerId");
+                    const isSelected = activeMemberTab === cId;
+                    const entCount = (memberEntitlementsMap[cId] || []).length;
+
+                    return (
+                      <div
+                        key={cId}
+                        onClick={() => setActiveMemberTab(cId)}
+                        className={`px-3 py-1.5 rounded-xl border text-xs flex items-center gap-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                            : "bg-background text-foreground border-border hover:bg-muted/40 font-medium"
+                        }`}
+                      >
+                        <User className="h-3 w-3" />
+                        <span>
+                          {isPayer
+                            ? "Payer (Member)"
+                            : `Member #${cId.slice(-4)}`}{" "}
+                          ({entCount} svc)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBeneficiaryCustomerIds((prev) =>
+                              prev.filter((id) => id !== cId),
+                            );
+                            if (activeMemberTab === cId) {
+                              const remaining = beneficiaryCustomerIds.filter(
+                                (id) => id !== cId,
+                              );
+                              setActiveMemberTab(remaining[0] || "");
+                            }
+                          }}
+                          className={`p-0.5 rounded-full hover:bg-black/20 ${isSelected ? "text-primary-foreground" : "text-muted-foreground hover:text-destructive"}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 4. SERVICE ENTITLEMENTS BUILDER WITH ADVANCED DISCOVERY & SELECTION */}
@@ -696,11 +997,13 @@ export function CreateSubscriptionDialog({
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-primary" />
             <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-              Package Service Entitlements <span className="text-destructive">*</span>
+              Package Service Entitlements{" "}
+              <span className="text-destructive">*</span>
             </h4>
           </div>
           <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
-            {financialSummary.totalSessions} Total Sessions ({fields.length} {fields.length === 1 ? "Service" : "Services"})
+            {financialSummary.totalSessions} Total Sessions ({fields.length}{" "}
+            {fields.length === 1 ? "Service" : "Services"})
           </span>
         </div>
 
@@ -819,7 +1122,9 @@ export function CreateSubscriptionDialog({
                               {service.duration} mins
                             </span>
                             {service.gender && (
-                              <span className="capitalize">• {service.gender}</span>
+                              <span className="capitalize">
+                                • {service.gender}
+                              </span>
                             )}
                           </div>
                         </div>
@@ -851,7 +1156,10 @@ export function CreateSubscriptionDialog({
         {fields.length > 0 ? (
           <div className="space-y-2 pt-1">
             {fields.map((fieldItem, index) => {
-              const safeServiceId = resolveServiceId(fieldItem.serviceId, index);
+              const safeServiceId = resolveServiceId(
+                fieldItem.serviceId,
+                index,
+              );
               const matchedService = serviceMap.get(safeServiceId);
               const unitRetail =
                 matchedService?.basePrice ??
@@ -924,7 +1232,8 @@ export function CreateSubscriptionDialog({
         ) : (
           <div className="p-4 rounded-xl border border-dashed border-border/80 bg-background/50 text-center">
             <p className="text-xs text-muted-foreground">
-              No service entitlements added yet. Use the search picker above to include services in this package.
+              No service entitlements added yet. Use the search picker above to
+              include services in this package.
             </p>
           </div>
         )}
@@ -942,7 +1251,10 @@ export function CreateSubscriptionDialog({
         {/* Customer Agreed Sale Price Input */}
         <div className="space-y-1.5 p-4 rounded-2xl border border-border/80 bg-background shadow-2xs">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-            <span>Customer Sale Price (₹) <span className="text-destructive">*</span></span>
+            <span>
+              Customer Sale Price (₹){" "}
+              <span className="text-destructive">*</span>
+            </span>
             <span className="text-[10px] font-normal text-muted-foreground">
               agreed billable amount
             </span>
@@ -962,7 +1274,9 @@ export function CreateSubscriptionDialog({
             />
           </div>
           {errors.price && (
-            <p className="text-[11px] text-destructive">{errors.price.message}</p>
+            <p className="text-[11px] text-destructive">
+              {errors.price.message}
+            </p>
           )}
           <p className="text-[10px] text-muted-foreground">
             This amount will be billed to the customer upon invoice creation.
@@ -1057,7 +1371,8 @@ export function CreateSubscriptionDialog({
           })}
         </div>
         <p className="text-[10px] text-muted-foreground">
-          Leave on &ldquo;All Branches&rdquo; to allow customer redemptions anywhere across the franchise.
+          Leave on &ldquo;All Branches&rdquo; to allow customer redemptions
+          anywhere across the franchise.
         </p>
       </div>
 
@@ -1066,7 +1381,9 @@ export function CreateSubscriptionDialog({
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5 text-primary" />
-            <span>Start Date <span className="text-destructive">*</span></span>
+            <span>
+              Start Date <span className="text-destructive">*</span>
+            </span>
           </label>
           <Input
             type="date"
@@ -1075,14 +1392,18 @@ export function CreateSubscriptionDialog({
             className="h-9 text-xs rounded-xl"
           />
           {errors.startDate && (
-            <p className="text-[11px] text-destructive">{errors.startDate.message}</p>
+            <p className="text-[11px] text-destructive">
+              {errors.startDate.message}
+            </p>
           )}
         </div>
 
         <div className="space-y-1">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5 text-primary" />
-            <span>End Date <span className="text-destructive">*</span></span>
+            <span>
+              End Date <span className="text-destructive">*</span>
+            </span>
           </label>
           <Input
             type="date"
@@ -1091,7 +1412,9 @@ export function CreateSubscriptionDialog({
             className="h-9 text-xs rounded-xl"
           />
           {errors.endDate && (
-            <p className="text-[11px] text-destructive">{errors.endDate.message}</p>
+            <p className="text-[11px] text-destructive">
+              {errors.endDate.message}
+            </p>
           )}
         </div>
       </div>
@@ -1115,7 +1438,10 @@ export function CreateSubscriptionDialog({
         <div className="text-xs text-muted-foreground hidden sm:block">
           {fields.length > 0 && financialSummary.numericSalePrice > 0 ? (
             <span>
-              Billable: <strong className="text-foreground">₹{financialSummary.numericSalePrice.toLocaleString("en-IN")}</strong>
+              Billable:{" "}
+              <strong className="text-foreground">
+                ₹{financialSummary.numericSalePrice.toLocaleString("en-IN")}
+              </strong>
             </span>
           ) : (
             <span>Configure subscription details to issue package</span>

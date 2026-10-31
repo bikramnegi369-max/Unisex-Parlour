@@ -8,6 +8,7 @@ import { ALL_BRANCHES_KEY } from "@/types/branch";
 import type { Branch, Organization } from "@/types/branch";
 import { useQueryClient } from "@tanstack/react-query";
 import { getScopeQueryKey } from "@/lib/api/queryKeys";
+import { broadcastBranchChanged } from "@/lib/api/crossTabSync";
 
 /**
  * useBranchContext
@@ -76,6 +77,9 @@ export function useBranchContext() {
           return true;
         },
       });
+
+      // Broadcast branch switch to all other open tabs
+      broadcastBranchChanged(branchId);
     },
     [dispatch, queryClient]
   );

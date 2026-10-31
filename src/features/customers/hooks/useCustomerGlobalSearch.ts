@@ -22,7 +22,9 @@ export function useCustomerGlobalSearch({
   limit = 10,
   enabled = true,
 }: UseCustomerGlobalSearchParams) {
-  const { isAuthenticated, user } = useAuth();
+  const auth = useAuth();
+  const isAuthenticated = auth?.isAuthenticated ?? false;
+  const user = auth?.user ?? null;
   const trimmedSearch = search.trim();
 
   const hasAccess =

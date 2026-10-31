@@ -4,6 +4,7 @@ import {
   getInvoice,
   getInvoicePayments,
   getCheckoutQueue,
+  getInvoiceDiscountHistory,
   type CheckoutQueueQuery,
 } from "../api/billing.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -83,6 +84,26 @@ export function useCheckoutQueue(query: CheckoutQueueQuery = {}) {
     queryFn: () => getCheckoutQueue(query),
     enabled: isEnabled,
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useInvoiceDiscountHistory(invoiceId: string | undefined, branchId?: string) {
+  const { currentBranchId, getBranchQueryKey } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+
+  const isOrgWide = user?.hasOrgWideAccess === true;
+  const hasViewPermission = hasPermission(user, "billing.view");
+
+  const effectiveBranch = branchId || currentBranchId;
+  const isEnabled =
+    isAuthenticated && hasViewPermission && !!invoiceId && (effectiveBranch !== null || isOrgWide);
+
+  const queryKey = getBranchQueryKey("invoice-discount-history", [invoiceId || ""]);
+
+  return useQuery({
+    queryKey,
+    queryFn: () => getInvoiceDiscountHistory(invoiceId!, branchId),
+    enabled: isEnabled,
   });
 }
 

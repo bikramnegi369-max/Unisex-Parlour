@@ -145,7 +145,7 @@ export const getInvoiceColumns = ({
   },
   {
     id: "actions",
-    header: () => <span className="sr-only">Actions</span>,
+    header: () => <div className="text-right pr-2">Actions</div>,
     cell: ({ row }) => {
       const inv = row.original;
       const canPay = inv.status === "finalized" && inv.amountDue > 0;

@@ -26,7 +26,8 @@ export function CustomerSelector({
   error,
   disabled = false,
 }: CustomerSelectorProps) {
-  const { user } = useAuth();
+  const auth = useAuth();
+  const user = auth?.user ?? null;
   const { isAllBranchesSelected, currentBranchId } = useBranchContext();
 
   const [searchTerm, setSearchTerm] = useState("");

@@ -8,21 +8,67 @@ export const entitlementItemSchema = z.object({
     .positive("Quantity must be a positive integer"),
 });
 
+export const memberItemSchema = z.object({
+  customerId: z.string().min(1, "Customer member is required"),
+  permittedBranchIds: z.array(z.string()).optional(),
+  entitlements: z
+    .array(entitlementItemSchema)
+    .min(1, "At least one service entitlement is required for this member")
+    .refine(
+      (entitlements) => {
+        const ids = entitlements.map((e) => e.serviceId);
+        return new Set(ids).size === ids.length;
+      },
+      {
+        message: "Duplicate services are not allowed for the same member",
+      }
+    ),
+  notes: z.string().trim().optional(),
+});
+
 export const createSubscriptionSchema = z
   .object({
-    customerId: z.string().min(1, "Customer is required"),
+    // Payer customer: accepts customerId or payerCustomerId
+    customerId: z.string().min(1, "Payer customer is required"),
+    payerCustomerId: z.string().optional(),
     planId: z.string().trim().optional(),
     price: z.coerce
       .number()
       .positive("Subscription sale price must be greater than 0"),
-    entitlements: z
-      .array(entitlementItemSchema)
-      .min(1, "At least one service entitlement is required"),
+    // Multi-member beneficiaries
+    members: z.array(memberItemSchema).optional(),
+    // Legacy flat entitlements (supported when members is omitted)
+    entitlements: z.array(entitlementItemSchema).optional(),
     permittedBranchIds: z.array(z.string()).default([]),
     startDate: z.string().min(1, "Start date is required"),
     endDate: z.string().min(1, "End date is required"),
     notes: z.string().trim().optional(),
+    billImmediately: z.boolean().default(true),
   })
+  .refine(
+    (data) => {
+      const hasMembers = Array.isArray(data.members) && data.members.length > 0;
+      const hasEntitlements =
+        Array.isArray(data.entitlements) && data.entitlements.length > 0;
+      return hasMembers || hasEntitlements;
+    },
+    {
+      message: "At least one member or service entitlement is required",
+      path: ["members"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (!data.members || data.members.length === 0) return true;
+      const memberIds = data.members.map((m) => m.customerId);
+      const uniqueIds = new Set(memberIds);
+      return uniqueIds.size === memberIds.length;
+    },
+    {
+      message: "Duplicate beneficiary members are not allowed",
+      path: ["members"],
+    }
+  )
   .refine(
     (data) => {
       const start = new Date(data.startDate);
@@ -37,6 +83,7 @@ export const createSubscriptionSchema = z
   )
   .refine(
     (data) => {
+      if (!data.entitlements || data.entitlements.length === 0) return true;
       const serviceIds = data.entitlements.map((e) => e.serviceId);
       const unique = new Set(serviceIds);
       return unique.size === serviceIds.length;

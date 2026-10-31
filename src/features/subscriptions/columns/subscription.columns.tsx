@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { Eye, Edit, Ban, Gift, Building2, User, RefreshCw } from "lucide-react";
+import { Eye, Edit, Ban, Gift, Building2, User, Users, RefreshCw } from "lucide-react";
 import type { Subscription } from "../types/subscription.types";
 import { SubscriptionStatusBadge } from "../components/SubscriptionStatusBadge";
 
@@ -55,28 +55,39 @@ export const getSubscriptionColumns = ({
   },
   {
     accessorKey: "customerId",
-    header: "Customer",
+    header: "Payer / Customer",
     cell: ({ row }) => {
       const sub = row.original;
-      const customer = sub.customer;
+      const payer = sub.payer || sub.customer;
+      const memberCount = sub.members?.length || 1;
       return (
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
             <User className="h-3.5 w-3.5" />
           </div>
           <div className="flex flex-col min-w-0">
-            {customer ? (
+            {payer ? (
               <>
-                <Link
-                  href={`/customers/${customer.id || (typeof sub.customerId === "string" ? sub.customerId : "")}`}
-                  onClick={(e) => e.stopPropagation()}
-                  className="font-semibold text-xs text-foreground hover:text-primary truncate underline-offset-2 hover:underline"
-                >
-                  {customer.name}
-                </Link>
-                <span className="text-[10px] text-muted-foreground truncate">
-                  {customer.phone}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Link
+                    href={`/customers/${payer.id || (typeof sub.customerId === "string" ? sub.customerId : "")}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-semibold text-xs text-foreground hover:text-primary truncate underline-offset-2 hover:underline"
+                  >
+                    {payer.name}
+                  </Link>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                    Payer
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground truncate">
+                  <span>{payer.phone}</span>
+                  {memberCount > 1 && (
+                    <span className="inline-flex items-center gap-0.5 text-primary font-medium">
+                      <Users className="h-3 w-3" /> {memberCount} members
+                    </span>
+                  )}
+                </div>
               </>
             ) : (
               <span className="text-xs text-muted-foreground truncate">
@@ -114,7 +125,40 @@ export const getSubscriptionColumns = ({
     id: "entitlements",
     header: "Entitlements",
     cell: ({ row }) => {
-      const entitlements = row.original.entitlements || [];
+      const sub = row.original;
+      const isMultiMember = sub.members && sub.members.length > 0;
+      const memberCount = sub.members?.length || 1;
+
+      // In accordance with backend contract:
+      // Canonical member entitlements live under members[].entitlements.
+      // Root entitlements is a compatibility projection of the primary member, NOT an aggregate.
+      if (isMultiMember) {
+        let totalRemaining = 0;
+        let totalAllocated = 0;
+        const serviceIdSet = new Set<string>();
+
+        (sub.members || []).forEach((m) => {
+          (m.entitlements || []).forEach((e) => {
+            totalRemaining += e.remainingQuantity;
+            totalAllocated += e.totalQuantity;
+            if (e.serviceId) serviceIdSet.add(e.serviceId);
+          });
+        });
+
+        return (
+          <div className="flex flex-col text-xs min-w-30 whitespace-nowrap">
+            <span className="font-semibold text-foreground whitespace-nowrap">
+              {totalRemaining} / {totalAllocated} left
+            </span>
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+              Across {memberCount} {memberCount === 1 ? "member" : "members"} ({serviceIdSet.size} svc)
+            </span>
+          </div>
+        );
+      }
+
+      // Legacy single-customer projection
+      const entitlements = sub.entitlements || [];
       const totalServices = entitlements.length;
       const totalRemaining = entitlements.reduce(
         (sum, e) => sum + e.remainingQuantity,

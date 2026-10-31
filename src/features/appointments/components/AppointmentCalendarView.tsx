@@ -886,7 +886,7 @@ export function AppointmentCalendarView({
                 data-testid="calendar-time-column"
                 className="w-20 shrink-0 border-r border-border bg-card z-40 sticky left-0 shadow-sm cursor-default select-none"
               >
-                <div className="h-11 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-50 shadow-xs">
+                <div className="h-11 border-b border-border bg-muted p-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-center sticky top-0 z-40 shadow-xs">
                   Time
                 </div>
                 <div
@@ -960,7 +960,7 @@ export function AppointmentCalendarView({
                     >
                       {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
                       <div
-                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-40 shadow-xs ${
+                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-20 shadow-xs ${
                           lane.isOnLeave
                             ? "bg-amber-500/15 dark:bg-amber-950/40 border-b-amber-500/30"
                             : "bg-muted/95"

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import { createCustomer } from "../api/customers.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import type { CustomerPayload } from "../types/customer.types";
@@ -15,9 +16,9 @@ export function useCreateCustomer() {
       return createCustomer(payload);
     },
     onSuccess: () => {
-      // Invalidate only directory views in the current branch scope context
+      // Invalidate directory views in current branch scope context
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("customers") });
+      broadcastCrossTabInvalidation("customers");
     },
   });
 }
-

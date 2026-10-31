@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import { createSubscription } from "../api/subscriptions.api";
 import type { CreateSubscriptionPayload } from "../types/subscription.types";
 
@@ -31,6 +32,9 @@ export function useCreateSubscription() {
           );
         },
       });
+      broadcastCrossTabInvalidation("subscriptions");
+      broadcastCrossTabInvalidation("invoices");
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }

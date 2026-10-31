@@ -103,6 +103,77 @@ describe("Subscription Zod Schemas", () => {
       });
       expect(result.success).toBe(false);
     });
+    it("accepts valid multi-member subscription input", () => {
+      const multiMemberData = {
+        customerId: "cust_payer_1",
+        price: 3000,
+        members: [
+          {
+            customerId: "cust_payer_1",
+            entitlements: [{ serviceId: "srv_haircut", quantity: 3 }],
+          },
+          {
+            customerId: "cust_family_2",
+            entitlements: [{ serviceId: "srv_facial", quantity: 2 }],
+          },
+        ],
+        permittedBranchIds: ["br_1"],
+        startDate: "2026-09-01",
+        endDate: "2027-03-01",
+        notes: "Family Package",
+      };
+      const result = createSubscriptionSchema.safeParse(multiMemberData);
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects duplicate beneficiary members in multi-member subscription", () => {
+      const duplicateMemberData = {
+        customerId: "cust_payer_1",
+        price: 3000,
+        members: [
+          {
+            customerId: "cust_family_2",
+            entitlements: [{ serviceId: "srv_haircut", quantity: 3 }],
+          },
+          {
+            customerId: "cust_family_2",
+            entitlements: [{ serviceId: "srv_facial", quantity: 2 }],
+          },
+        ],
+        permittedBranchIds: ["br_1"],
+        startDate: "2026-09-01",
+        endDate: "2027-03-01",
+      };
+      const result = createSubscriptionSchema.safeParse(duplicateMemberData);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain("Duplicate beneficiary members");
+      }
+    });
+
+    it("rejects duplicate services within the same member entitlements", () => {
+      const duplicateServiceMemberData = {
+        customerId: "cust_payer_1",
+        price: 3000,
+        members: [
+          {
+            customerId: "cust_family_2",
+            entitlements: [
+              { serviceId: "srv_haircut", quantity: 3 },
+              { serviceId: "srv_haircut", quantity: 2 },
+            ],
+          },
+        ],
+        permittedBranchIds: ["br_1"],
+        startDate: "2026-09-01",
+        endDate: "2027-03-01",
+      };
+      const result = createSubscriptionSchema.safeParse(duplicateServiceMemberData);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain("Duplicate services");
+      }
+    });
   });
 
   describe("cancelSubscriptionSchema", () => {

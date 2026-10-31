@@ -598,7 +598,27 @@ export function CreateAppointmentDialog({
     >();
 
     for (const sub of activeSubscriptions) {
-      for (const ent of sub.entitlements || []) {
+      // Find the specific entitlements applicable to the appointment customer (as beneficiary member or primary customer)
+      const memberEntry = (sub.members || []).find((m) => m.customerId === watchedCustomerId);
+      const isBeneficiary = Boolean(memberEntry);
+
+      // Branch restriction check: If permittedBranchIds is specified and non-empty, current appointment branch must be permitted
+      if (
+        effectiveBranchId &&
+        sub.permittedBranchIds &&
+        sub.permittedBranchIds.length > 0 &&
+        !sub.permittedBranchIds.includes(effectiveBranchId)
+      ) {
+        continue;
+      }
+
+      // If multi-member subscription, only use entitlements assigned to this customer as a member
+      const candidateEntitlements =
+        isBeneficiary && memberEntry?.entitlements && memberEntry.entitlements.length > 0
+          ? memberEntry.entitlements
+          : sub.entitlements || [];
+
+      for (const ent of candidateEntitlements) {
         const isRedeemable = ent.isRedeemable !== false;
         if (ent.remainingQuantity > 0 && isRedeemable) {
           const list = map.get(ent.serviceId) || [];
@@ -630,7 +650,7 @@ export function CreateAppointmentDialog({
     });
 
     return map;
-  }, [activeSubscriptions]);
+  }, [activeSubscriptions, effectiveBranchId, watchedCustomerId]);
 
   // Set of all registered service IDs for which this customer has at least 1 remaining entitlement
   const subscribedServiceIds = useMemo(() => {
@@ -711,7 +731,12 @@ export function CreateAppointmentDialog({
 
   const effectiveCustomerGender = useMemo(() => {
     const g = selectedCustomer?.gender;
-    if (g === "male" || g === "female" || g === "other" || g === "prefer_not_to_say") {
+    if (
+      g === "male" ||
+      g === "female" ||
+      g === "other" ||
+      g === "prefer_not_to_say"
+    ) {
       return g;
     }
     return undefined;
@@ -719,7 +744,10 @@ export function CreateAppointmentDialog({
 
   // Fetch services catalog & categories (scoped by customerGender when customer is selected)
   const servicesFilters = useMemo(() => {
-    const filters: { limit: "all"; customerGender?: "male" | "female" | "other" | "prefer_not_to_say" } = {
+    const filters: {
+      limit: "all";
+      customerGender?: "male" | "female" | "other" | "prefer_not_to_say";
+    } = {
       limit: "all",
     };
     if (effectiveCustomerGender) {
@@ -792,7 +820,8 @@ export function CreateAppointmentDialog({
     const availableServiceIdSet = new Set(services.map((s) => s.id));
     return selectedServices.filter(
       (s): s is Extract<typeof s, { serviceType: "registered" }> =>
-        s.serviceType === "registered" && !availableServiceIdSet.has(s.serviceId),
+        s.serviceType === "registered" &&
+        !availableServiceIdSet.has(s.serviceId),
     );
   }, [
     isSuccessServices,
@@ -1222,7 +1251,8 @@ export function CreateAppointmentDialog({
     setConflictError(null);
 
     if (hasIncompatibleServices) {
-      const msg = "Please remove or replace incompatible services before booking.";
+      const msg =
+        "Please remove or replace incompatible services before booking.";
       setConflictError(msg);
       toast.error(msg);
       return;
@@ -2132,7 +2162,9 @@ export function CreateAppointmentDialog({
                     const isExplicitlyOpen =
                       collapsedCategories[group.categoryId] === false;
                     const isCollapsed =
-                      isSearchingActively || isSubscribedView || isSingleCategoryView
+                      isSearchingActively ||
+                      isSubscribedView ||
+                      isSingleCategoryView
                         ? collapsedCategories[group.categoryId] === true
                         : !isExplicitlyOpen;
 

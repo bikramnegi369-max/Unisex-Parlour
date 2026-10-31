@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import {
   createLeave,
   updateLeave,
@@ -20,6 +21,8 @@ export function useCreateLeave() {
     mutationFn: (payload: CreateLeavePayload) => createLeave(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("leaves") });
+      broadcastCrossTabInvalidation("leaves");
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
@@ -40,6 +43,8 @@ export function useUpdateLeave() {
       queryClient.invalidateQueries({
         queryKey: getBranchQueryKey("leave", [data.id]),
       });
+      broadcastCrossTabInvalidation("leaves");
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
@@ -55,6 +60,8 @@ export function useApproveLeave() {
       queryClient.invalidateQueries({
         queryKey: getBranchQueryKey("leave", [data.id]),
       });
+      broadcastCrossTabInvalidation("leaves");
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
@@ -70,6 +77,8 @@ export function useRejectLeave() {
       queryClient.invalidateQueries({
         queryKey: getBranchQueryKey("leave", [data.id]),
       });
+      broadcastCrossTabInvalidation("leaves");
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }
@@ -85,6 +94,8 @@ export function useCancelLeave() {
       queryClient.invalidateQueries({
         queryKey: getBranchQueryKey("leave", [data.id]),
       });
+      broadcastCrossTabInvalidation("leaves");
+      broadcastCrossTabInvalidation("appointments");
     },
   });
 }

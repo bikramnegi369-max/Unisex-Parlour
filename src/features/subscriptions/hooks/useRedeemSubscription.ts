@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import { redeemSubscription } from "../api/subscriptions.api";
 import type { RedeemSubscriptionPayload } from "../types/subscription.types";
 
@@ -27,6 +28,9 @@ export function useRedeemSubscription() {
           queryKey: ["appointment", payload.appointmentId],
         });
       }
+      broadcastCrossTabInvalidation("subscriptions");
+      broadcastCrossTabInvalidation("appointments");
+      broadcastCrossTabInvalidation("invoices");
     },
   });
 }

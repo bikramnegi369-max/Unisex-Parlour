@@ -19,7 +19,8 @@ import type {
   RedeemResponse,
 } from "../types/subscription.types";
 
-export interface RawSubscriptionDTO extends Omit<Partial<Subscription>, "customerId"> {
+export interface RawSubscriptionDTO
+  extends Omit<Partial<Subscription>, "customerId" | "payerCustomerId" | "payerId" | "payer" | "members"> {
   _id?: string;
   id?: string;
   customerId?: string | {
@@ -29,6 +30,54 @@ export interface RawSubscriptionDTO extends Omit<Partial<Subscription>, "custome
     phone?: string;
     email?: string;
   };
+  payerCustomerId?: string | {
+    _id?: string;
+    id?: string;
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  payerId?: string | {
+    _id?: string;
+    id?: string;
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  payer?: {
+    id?: string;
+    _id?: string;
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  members?: Array<{
+    customerId: string | {
+      _id?: string;
+      id?: string;
+      name?: string;
+      phone?: string;
+      email?: string;
+    };
+    customer?: {
+      id?: string;
+      _id?: string;
+      name?: string;
+      phone?: string;
+      email?: string;
+    };
+    status?: "active" | "suspended" | "inactive";
+    entitlements?: Array<{
+      serviceId: string | { _id?: string; id?: string; name?: string };
+      serviceName?: string;
+      totalQuantity?: number;
+      usedQuantity?: number;
+      remainingQuantity?: number;
+      isRedeemable?: boolean;
+    }>;
+    joinedAt?: string;
+    notes?: string;
+  }>;
 }
 
 export interface RawUsageDTO extends Partial<SubscriptionUsageRecord> {
@@ -66,11 +115,143 @@ export const mapSubscriptionKeys = (s: RawSubscriptionDTO): Subscription => {
         }
       : undefined);
 
+  // Normalize canonical payerCustomerId / payerId (defaults to customerId if not explicitly set)
+  const rawPayerField = s.payerCustomerId || s.payerId;
+  const isPopulatedPayer = typeof rawPayerField === "object" && rawPayerField !== null;
+  const populatedPayerObj = isPopulatedPayer
+    ? (rawPayerField as { _id?: string; id?: string; name?: string; phone?: string; email?: string })
+    : undefined;
+
+  const payerCustomerId = populatedPayerObj
+    ? populatedPayerObj._id || populatedPayerObj.id || ""
+    : typeof rawPayerField === "string"
+    ? rawPayerField
+    : customerId;
+
+  const payerId = payerCustomerId;
+
+  const payer =
+    s.payer
+      ? {
+          id: s.payer.id || s.payer._id || payerCustomerId,
+          name: s.payer.name || "",
+          phone: s.payer.phone || "",
+          email: s.payer.email,
+        }
+      : populatedPayerObj
+      ? {
+          id: populatedPayerObj._id || populatedPayerObj.id || payerCustomerId,
+          name: populatedPayerObj.name || "",
+          phone: populatedPayerObj.phone || "",
+          email: populatedPayerObj.email,
+        }
+      : customer;
+
+  // Normalize members array
+  const mappedMembers: import("../types/subscription.types").SubscriptionMember[] = (s.members || []).map((m) => {
+    const isPopulatedMemberCustomer =
+      typeof m.customerId === "object" && m.customerId !== null;
+    const popMemberObj = isPopulatedMemberCustomer
+      ? (m.customerId as { _id?: string; id?: string; name?: string; phone?: string; email?: string })
+      : undefined;
+
+    const mCustomerId = popMemberObj
+      ? popMemberObj._id || popMemberObj.id || ""
+      : typeof m.customerId === "string"
+      ? m.customerId
+      : "";
+
+    const mCustomer =
+      m.customer
+        ? {
+            id: m.customer.id || m.customer._id || mCustomerId,
+            name: m.customer.name || "",
+            phone: m.customer.phone || "",
+            email: m.customer.email,
+          }
+        : popMemberObj
+        ? {
+            id: popMemberObj._id || popMemberObj.id || mCustomerId,
+            name: popMemberObj.name || "",
+            phone: popMemberObj.phone || "",
+            email: popMemberObj.email,
+          }
+        : undefined;
+
+    const mEntitlements = (m.entitlements || []).map((e) => {
+      const rawSrv = e.serviceId as unknown;
+      const isPopulated = typeof rawSrv === "object" && rawSrv !== null;
+      const srvObj = isPopulated
+        ? (rawSrv as { _id?: string; id?: string; name?: string })
+        : undefined;
+
+      const serviceId = srvObj
+        ? srvObj._id || srvObj.id || ""
+        : typeof e.serviceId === "string"
+        ? e.serviceId
+        : "";
+
+      const serviceName = e.serviceName || srvObj?.name || "";
+      const remainingQuantity = e.remainingQuantity ?? 0;
+      const isRedeemable =
+        typeof e.isRedeemable === "boolean"
+          ? e.isRedeemable
+          : remainingQuantity > 0 &&
+            (s.status === "active" || s.status === "pending_payment");
+
+      return {
+        serviceId,
+        serviceName,
+        totalQuantity: e.totalQuantity ?? 0,
+        usedQuantity: e.usedQuantity ?? 0,
+        remainingQuantity,
+        isRedeemable,
+      };
+    });
+
+    return {
+      customerId: mCustomerId,
+      customer: mCustomer,
+      status: m.status || "active",
+      entitlements: mEntitlements,
+      joinedAt: m.joinedAt,
+      notes: m.notes,
+    };
+  });
+
+  // If no multi-member array is present from backend, synthesize a default 1-member entry using the primary customer
+  const finalMembers = mappedMembers.length > 0 ? mappedMembers : (customerId ? [{
+    customerId,
+    customer,
+    status: "active" as const,
+    entitlements: (s.entitlements || []).map((e) => {
+      const rawSrv = e.serviceId as unknown;
+      const isPopulated = typeof rawSrv === "object" && rawSrv !== null;
+      const srvObj = isPopulated
+        ? (rawSrv as { _id?: string; id?: string; name?: string })
+        : undefined;
+      const serviceId = srvObj ? srvObj._id || srvObj.id || "" : typeof e.serviceId === "string" ? e.serviceId : "";
+      const remainingQuantity = e.remainingQuantity ?? 0;
+      return {
+        serviceId,
+        serviceName: e.serviceName || srvObj?.name || "",
+        totalQuantity: e.totalQuantity ?? 0,
+        usedQuantity: e.usedQuantity ?? 0,
+        remainingQuantity,
+        isRedeemable: typeof e.isRedeemable === "boolean" ? e.isRedeemable : remainingQuantity > 0 && (s.status === "active" || s.status === "pending_payment"),
+      };
+    }),
+  }] : []);
+
   return {
     ...(s as unknown as Subscription),
     id: s._id || s.id || "",
     customerId,
     customer,
+    payerCustomerId,
+    payerId,
+    payer,
+    members: finalMembers,
     invoiceId: typeof s.invoiceId === "string" 
       ? s.invoiceId 
       : (typeof s.invoiceId === "object" && s.invoiceId !== null)
@@ -229,12 +410,24 @@ export const createSubscription = async (
       ? { branchScope: { type: "branch" as const, branchId: branchIdOverride } }
       : { branchScope: "current" as const };
 
+  // Ensure canonical payload alignment:
+  // For multi-member payload, backend expects payerCustomerId.
+  // For legacy single-customer, backend accepts customerId.
+  const canonicalPayload = {
+    ...payload,
+    ...(payload.members && payload.members.length > 0
+      ? {
+          payerCustomerId: payload.payerCustomerId || payload.customerId || payload.payerId,
+          // Retain customerId for dual-compatibility if backend expects it
+          customerId: payload.customerId || payload.payerCustomerId || payload.payerId,
+        }
+      : {}),
+    permittedBranchIds: sanitizedBranchIds,
+  };
+
   const { data } = await apiClient.post<SubscriptionMutateResponse>(
     "/subscriptions",
-    {
-      ...payload,
-      permittedBranchIds: sanitizedBranchIds,
-    },
+    canonicalPayload,
     branchConfig
   );
 

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import {
   createInvoice,
   updateDraftInvoice,
@@ -6,6 +7,9 @@ import {
   cancelInvoice,
   recordPayment,
   voidPayment,
+  applyInvoiceDiscount,
+  modifyInvoiceDiscount,
+  removeInvoiceDiscount,
 } from "../api/billing.api";
 import type {
   CreateInvoicePayload,
@@ -13,6 +17,9 @@ import type {
   RecordPaymentPayload,
   VoidPaymentPayload,
   CancelInvoicePayload,
+  ApplyDiscountPayload,
+  ModifyDiscountPayload,
+  RemoveDiscountPayload,
 } from "../types/billing.types";
 
 export function useCreateInvoice() {
@@ -32,6 +39,8 @@ export function useCreateInvoice() {
           );
         },
       });
+      broadcastCrossTabInvalidation("appointments");
+      broadcastCrossTabInvalidation("invoices");
     },
   });
 }
@@ -163,6 +172,8 @@ export function useRecordPayment() {
           );
         },
       });
+      broadcastCrossTabInvalidation("appointments");
+      broadcastCrossTabInvalidation("invoices");
     },
   });
 }
@@ -204,6 +215,138 @@ export function useVoidPayment() {
           );
         },
       });
+      broadcastCrossTabInvalidation("appointments");
+      broadcastCrossTabInvalidation("invoices");
+    },
+  });
+}
+
+export function useApplyInvoiceDiscount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      payload,
+    }: {
+      invoiceId: string;
+      payload: ApplyDiscountPayload;
+    }) => applyInvoiceDiscount(invoiceId, payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId)))) ||
+            (key === "invoice-discount-history" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))))
+          );
+        },
+      });
+      if (result.invoice) {
+        queryClient.setQueriesData(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
+          },
+          () => result.invoice
+        );
+      }
+    },
+  });
+}
+
+export function useModifyInvoiceDiscount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      discountId,
+      payload,
+    }: {
+      invoiceId: string;
+      discountId: string;
+      payload: ModifyDiscountPayload;
+    }) => modifyInvoiceDiscount(invoiceId, discountId, payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId)))) ||
+            (key === "invoice-discount-history" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))))
+          );
+        },
+      });
+      if (result.invoice) {
+        queryClient.setQueriesData(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
+          },
+          () => result.invoice
+        );
+      }
+    },
+  });
+}
+
+export function useRemoveInvoiceDiscount() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      discountId,
+      payload,
+    }: {
+      invoiceId: string;
+      discountId: string;
+      payload: RemoveDiscountPayload;
+    }) => removeInvoiceDiscount(invoiceId, discountId, payload),
+    onSuccess: (result, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId)))) ||
+            (key === "invoice-discount-history" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))))
+          );
+        },
+      });
+      if (result.invoice) {
+        queryClient.setQueriesData(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
+          },
+          () => result.invoice
+        );
+      }
     },
   });
 }

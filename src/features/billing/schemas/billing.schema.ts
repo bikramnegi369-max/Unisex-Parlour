@@ -6,7 +6,7 @@ export const createInvoiceSchema = z.object({
   discountTotal: z.coerce
     .number()
     .min(0, "Discount cannot be negative")
-    .default(0),
+    .optional(),
   redeemLoyaltyPoints: z.coerce
     .number()
     .int("Loyalty points must be an integer")

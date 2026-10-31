@@ -160,10 +160,31 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
     (subscription.paymentStatus === undefined && subscription.status === "active");
   const isRedeemableActive = subscription.status === "active" && isFullyPaid;
   const isActive = isRedeemableActive;
-  const remainingCount = (subscription.entitlements || []).reduce(
-    (sum: number, e: SubscriptionEntitlement) => sum + e.remainingQuantity,
-    0
-  );
+  // Calculate remaining and total allocated counts across all beneficiary members if multi-member,
+  // falling back to root entitlements compatibility projection for legacy subscriptions.
+  const isMultiMember = Boolean(subscription.members && subscription.members.length > 0);
+  const { remainingCount, totalCount } = isMultiMember
+    ? (subscription.members || []).reduce(
+        (acc, member) => {
+          (member.entitlements || []).forEach((e) => {
+            acc.remainingCount += e.remainingQuantity || 0;
+            acc.totalCount += e.totalQuantity || 0;
+          });
+          return acc;
+        },
+        { remainingCount: 0, totalCount: 0 }
+      )
+    : (subscription.entitlements || []).reduce(
+        (acc, e: SubscriptionEntitlement) => {
+          acc.remainingCount += e.remainingQuantity || 0;
+          acc.totalCount += e.totalQuantity || 0;
+          return acc;
+        },
+        { remainingCount: 0, totalCount: 0 }
+      );
+
+  const entitlementBadge =
+    totalCount > 0 ? `${remainingCount} / ${totalCount}` : undefined;
 
   const tabs: ProfileTabItem[] = [
     {
@@ -175,7 +196,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
       id: "entitlements",
       label: "Entitlements",
       icon: <Layers className="h-4 w-4" />,
-      badge: remainingCount > 0 ? remainingCount : undefined,
+      badge: entitlementBadge,
     },
     {
       id: "usage",
@@ -214,13 +235,18 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Customer:{" "}
+                  Payer:{" "}
                   <span className="font-semibold text-foreground">
-                    {subscription.customer?.name ||
+                    {(subscription.payer || subscription.customer)?.name ||
                       (typeof subscription.customerId === "string"
                         ? subscription.customerId
                         : (subscription.customerId as { _id?: string; id?: string })?._id || "N/A")}
                   </span>
+                  {subscription.members && subscription.members.length > 0 && (
+                    <span className="ml-2 px-1.5 py-0.5 rounded bg-muted text-[10px] font-medium text-foreground">
+                      {subscription.members.length} {subscription.members.length === 1 ? "member" : "members"}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
@@ -315,6 +341,8 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
         {activeTab === "entitlements" && (
           <SubscriptionEntitlementsTab
             entitlements={subscription.entitlements || []}
+            members={subscription.members}
+            payerCustomerId={subscription.payerId || subscription.customerId}
           />
         )}
 
