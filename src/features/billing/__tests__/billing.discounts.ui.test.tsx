@@ -233,6 +233,126 @@ describe("Billing Discounts — UI Components & Flow Verification", () => {
         expect(onConflictRefresh).toHaveBeenCalledTimes(1);
       });
     });
+
+    it("submits invoice-level discount mutation payload with neither lineId nor lineIds", async () => {
+      const mockMutateAsync = vi.fn().mockResolvedValue({});
+      vi.mocked(billingMutations.useApplyInvoiceDiscount).mockReturnValue({
+        mutateAsync: mockMutateAsync,
+        isPending: false,
+      } as unknown as ReturnType<typeof billingMutations.useApplyInvoiceDiscount>);
+
+      const onClose = vi.fn();
+      render(
+        <Provider store={createTestStore()}>
+          <QueryClientProvider client={queryClient}>
+            <ApplyDiscountDialog
+              isOpen={true}
+              onClose={onClose}
+              invoice={mockDraftInvoice}
+            />
+          </QueryClientProvider>
+        </Provider>
+      );
+
+      // Default scope is "invoice"
+      fireEvent.change(screen.getByPlaceholderText("10"), { target: { value: "10" } });
+      fireEvent.change(
+        screen.getByPlaceholderText(/Provide mandatory operational or business justification/i),
+        { target: { value: "Goodwill discount" } }
+      );
+
+      const form = document.querySelector("form")!;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+      });
+
+      const calledArgs = mockMutateAsync.mock.calls[0][0];
+      expect(calledArgs.invoiceId).toBe("inv-1");
+
+      const payload = calledArgs.payload;
+      expect(payload.discountLevel).toBe("invoice");
+      expect(payload.discountType).toBe("percentage");
+      expect(payload.enteredValue).toBe(10);
+      expect(payload.reason).toBe("Goodwill discount");
+      expect(payload.branchId).toBe("branch-1");
+
+      // Strict contract assertion: invoice discounts must NOT include lineId or lineIds
+      expect(payload).not.toHaveProperty("lineId");
+      expect(payload).not.toHaveProperty("lineIds");
+      expect(payload.lineId).toBeUndefined();
+      expect(payload.lineIds).toBeUndefined();
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it("clamps fixed selected-lines preview to eligible balance and calculates proportional allocation when entered value exceeds balance", () => {
+      const multiLineInvoice: Invoice = {
+        ...mockDraftInvoice,
+        subtotal: 1000,
+        grossPayable: 1000,
+        payableAmount: 1000,
+        amountDue: 1000,
+        items: [
+          {
+            id: "line-1",
+            serviceId: "srv-1",
+            serviceName: "Haircut",
+            unitPrice: 300,
+            quantity: 1,
+            lineTotal: 300,
+            customerPayable: 300,
+          },
+          {
+            id: "line-2",
+            serviceId: "srv-2",
+            serviceName: "Shampoo & Style",
+            unitPrice: 200,
+            quantity: 1,
+            lineTotal: 200,
+            customerPayable: 200,
+          },
+        ],
+      };
+
+      render(
+        <Provider store={createTestStore()}>
+          <QueryClientProvider client={queryClient}>
+            <ApplyDiscountDialog
+              isOpen={true}
+              onClose={vi.fn()}
+              invoice={multiLineInvoice}
+            />
+          </QueryClientProvider>
+        </Provider>
+      );
+
+      // Switch to Selected Services scope
+      fireEvent.click(screen.getByRole("button", { name: /Selected Services/i }));
+
+      // Switch to Fixed amount discount type
+      fireEvent.click(screen.getByRole("button", { name: /Fixed Total/i }));
+
+      // Total eligible amount for line-1 (300) + line-2 (200) = 500
+      // Enter 800 which is greater than the eligible balance (500)
+      const valInput = screen.getByPlaceholderText("150");
+      fireEvent.change(valInput, { target: { value: "800" } });
+
+      // Check that preview rendered
+      expect(screen.getByText(/Live Allocation Breakdown/i)).toBeDefined();
+
+      // Total discount must be clamped to eligible total (₹500.00), not ₹800.00
+      expect(screen.getAllByText("-₹500.00").length).toBeGreaterThanOrEqual(1);
+
+      // Verify proportional line allocation:
+      // Line 1: (300 / 500) * 500 = 300 -> final = 0
+      // Line 2: remainder 500 - 300 = 200 -> final = 0
+      expect(screen.getAllByText("-₹300.00").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText("-₹200.00").length).toBeGreaterThanOrEqual(1);
+
+      // Est. New Payable should be 1000 - 500 = 500
+      expect(screen.getAllByText("₹500.00").length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   describe("ModifyDiscountDialog & RemoveDiscountDialog", () => {

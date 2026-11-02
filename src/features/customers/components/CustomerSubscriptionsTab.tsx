@@ -68,14 +68,17 @@ export function CustomerSubscriptionsTab({
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
     try {
       const createdSub = await createMutation.mutateAsync({
+        payerCustomerId: values.payerCustomerId || values.customerId,
         customerId: values.customerId,
         planId: values.planId,
         price: values.price,
+        members: values.members,
         entitlements: values.entitlements,
         permittedBranchIds: values.permittedBranchIds,
         startDate: values.startDate,
         endDate: values.endDate,
         notes: values.notes,
+        billImmediately: values.billImmediately,
       });
 
       setIsCreateOpen(false);
@@ -610,7 +613,7 @@ export function CustomerSubscriptionsTab({
         <Dialog
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}
-          maxWidth="2xl"
+          maxWidth="3xl"
           title="Sell Customer Subscription"
         >
           <CreateSubscriptionDialog

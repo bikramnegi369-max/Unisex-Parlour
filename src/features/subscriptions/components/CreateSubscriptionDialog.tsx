@@ -24,6 +24,7 @@ import {
   Check,
   Search,
   ChevronDown,
+  Filter,
   X,
   Clock,
   PackageCheck,
@@ -34,7 +35,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/formatters";
 import { CustomerSelector } from "@/features/customers/components/CustomerSelector";
+import type { Customer } from "@/features/customers/types/customer.types";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import { useServiceCategories } from "@/features/services/hooks/categories/useServiceCategories";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -102,6 +106,12 @@ export function CreateSubscriptionDialog({
   const [memberEntitlementsMap, setMemberEntitlementsMap] = useState<
     Record<string, Array<{ serviceId: string; quantity: number }>>
   >({});
+  const [customerProfiles, setCustomerProfiles] = useState<
+    Record<string, Customer>
+  >({});
+  const [memberValidationError, setMemberValidationError] = useState<
+    string | null
+  >(null);
   const [newMemberCandidateId, setNewMemberCandidateId] = useState<string>("");
 
   // --- TEMPLATE SELECTOR STATE ---
@@ -117,6 +127,9 @@ export function CreateSubscriptionDialog({
   const [serviceSearchQuery, setServiceSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [isServiceDropdownOpen, setIsServiceDropdownOpen] = useState(false);
+  // Optional staff override for gender filtering (default: strict alignment with customer gender)
+  const [allowOppositeGenderServices, setAllowOppositeGenderServices] =
+    useState<boolean>(false);
   const serviceDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns when clicking outside
@@ -231,7 +244,7 @@ export function CreateSubscriptionDialog({
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { append, remove } = useFieldArray({
     control,
     name: "entitlements",
   });
@@ -250,6 +263,14 @@ export function CreateSubscriptionDialog({
       setServiceSearchQuery("");
       setSelectedCategoryId("all");
       setIsServiceDropdownOpen(false);
+      setIsMultiMemberMode(false);
+      setBeneficiaryCustomerIds([]);
+      setActiveMemberTab("");
+      setMemberEntitlementsMap({});
+      setCustomerProfiles({});
+      setMemberValidationError(null);
+      setNewMemberCandidateId("");
+      setAllowOppositeGenderServices(false);
 
       reset({
         customerId: initialCustomerId || "",
@@ -307,11 +328,69 @@ export function CreateSubscriptionDialog({
     );
   }, [planTemplates, templateSearchQuery]);
 
+  // Active beneficiary customer profile & gender context
+  const activeBeneficiaryProfile = useMemo(() => {
+    if (isMultiMemberMode && activeMemberTab) {
+      return customerProfiles[activeMemberTab] || null;
+    }
+    const currentPayerId = getValues("customerId");
+    return (currentPayerId && customerProfiles[currentPayerId]) || null;
+  }, [isMultiMemberMode, activeMemberTab, customerProfiles, getValues]);
+
+  // Unified displayed entitlements for current active member or single-member form
+  const currentDisplayedEntitlements = useMemo(() => {
+    if (isMultiMemberMode && activeMemberTab) {
+      return memberEntitlementsMap[activeMemberTab] || [];
+    }
+    return watchedEntitlements;
+  }, [
+    isMultiMemberMode,
+    activeMemberTab,
+    memberEntitlementsMap,
+    watchedEntitlements,
+  ]);
+
+  // Services strictly eligible for the active customer\'s gender context
+  const genderEligibleServices = useMemo(() => {
+    return activeServices.filter((service) => {
+      if (
+        !allowOppositeGenderServices &&
+        activeBeneficiaryProfile?.gender &&
+        (activeBeneficiaryProfile.gender === "male" ||
+          activeBeneficiaryProfile.gender === "female") &&
+        service.gender &&
+        service.gender !== "unisex" &&
+        service.gender !== activeBeneficiaryProfile.gender
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [activeServices, activeBeneficiaryProfile, allowOppositeGenderServices]);
+
+  // Eligible count per category based on active gender context
+  const categoryEligibleCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const service of genderEligibleServices) {
+      const rawCatId =
+        typeof service.categoryId === "object" && service.categoryId !== null
+          ? service.categoryId._id ||
+            (service.categoryId as unknown as { id?: string }).id
+          : service.categoryId;
+      if (rawCatId) {
+        map.set(rawCatId, (map.get(rawCatId) || 0) + 1);
+      }
+    }
+    return map;
+  }, [genderEligibleServices]);
+
   // Filtered Services for Search & Category Selection
   const filteredServices = useMemo(() => {
-    const selectedIds = new Set(watchedEntitlements.map((e) => e.serviceId));
+    const selectedIds = new Set(
+      currentDisplayedEntitlements.map((e) => e.serviceId),
+    );
 
-    return activeServices.filter((service) => {
+    return genderEligibleServices.filter((service) => {
       // 1. Exclude already added services
       if (selectedIds.has(service.id)) return false;
 
@@ -336,18 +415,25 @@ export function CreateSubscriptionDialog({
       return true;
     });
   }, [
-    activeServices,
-    watchedEntitlements,
+    genderEligibleServices,
+    currentDisplayedEntitlements,
     selectedCategoryId,
     serviceSearchQuery,
   ]);
 
-  // Compute total retail value, total session count, and customer savings
+  // Compute total retail value, total session count, and customer savings across all members
   const financialSummary = useMemo(() => {
     let totalRetailValue = 0;
     let totalSessions = 0;
 
-    watchedEntitlements.forEach((ent) => {
+    const allAllocations: Array<{ serviceId: string; quantity: number }> =
+      isMultiMemberMode && beneficiaryCustomerIds.length > 0
+        ? beneficiaryCustomerIds.flatMap(
+            (cId) => memberEntitlementsMap[cId] || [],
+          )
+        : watchedEntitlements;
+
+    allAllocations.forEach((ent) => {
       const svc = serviceMap.get(ent.serviceId);
       const retailPrice = svc?.basePrice ?? svc?.pricing?.basePrice ?? 0;
       const qty =
@@ -375,27 +461,110 @@ export function CreateSubscriptionDialog({
       customerSavings,
       savingsPercent,
     };
-  }, [watchedEntitlements, watchedPrice, serviceMap]);
+  }, [
+    isMultiMemberMode,
+    beneficiaryCustomerIds,
+    memberEntitlementsMap,
+    watchedEntitlements,
+    watchedPrice,
+    serviceMap,
+  ]);
 
   const handleSelectService = (serviceId: string) => {
-    append({
-      serviceId,
-      quantity: 1,
-    });
-
+    setMemberValidationError(null);
     if (isMultiMemberMode && activeMemberTab) {
       setMemberEntitlementsMap((prev) => {
         const currentList = prev[activeMemberTab] || [];
         if (currentList.some((e) => e.serviceId === serviceId)) return prev;
-        return {
-          ...prev,
-          [activeMemberTab]: [...currentList, { serviceId, quantity: 1 }],
-        };
+        const updatedList = [...currentList, { serviceId, quantity: 1 }];
+        const nextMap = { ...prev, [activeMemberTab]: updatedList };
+        // Sync RHF members
+        setValue(
+          "members",
+          beneficiaryCustomerIds.map((cId) => ({
+            customerId: cId,
+            permittedBranchIds: getValues("permittedBranchIds") || [],
+            notes: getValues("notes") || undefined,
+            entitlements: (nextMap[cId] || []).map((e) => ({
+              serviceId: e.serviceId,
+              quantity: Math.max(1, Number(e.quantity) || 1),
+            })),
+          })),
+          { shouldValidate: true },
+        );
+        return nextMap;
+      });
+    } else {
+      append({
+        serviceId,
+        quantity: 1,
       });
     }
 
     setServiceSearchQuery("");
     setIsServiceDropdownOpen(false);
+  };
+
+  const handleRemoveService = (serviceId: string, index: number) => {
+    setMemberValidationError(null);
+    if (isMultiMemberMode && activeMemberTab) {
+      setMemberEntitlementsMap((prev) => {
+        const nextList = (prev[activeMemberTab] || []).filter(
+          (e) => e.serviceId !== serviceId,
+        );
+        const nextMap = { ...prev, [activeMemberTab]: nextList };
+        setValue(
+          "members",
+          beneficiaryCustomerIds.map((cId) => ({
+            customerId: cId,
+            permittedBranchIds: getValues("permittedBranchIds") || [],
+            notes: getValues("notes") || undefined,
+            entitlements: (nextMap[cId] || []).map((e) => ({
+              serviceId: e.serviceId,
+              quantity: Math.max(1, Number(e.quantity) || 1),
+            })),
+          })),
+          { shouldValidate: true },
+        );
+        return nextMap;
+      });
+    } else {
+      remove(index);
+    }
+  };
+
+  const handleQuantityChange = (
+    serviceId: string,
+    index: number,
+    newQuantity: number,
+  ) => {
+    const qty = Math.max(1, Math.floor(newQuantity) || 1);
+    if (isMultiMemberMode && activeMemberTab) {
+      setMemberEntitlementsMap((prev) => {
+        const nextList = (prev[activeMemberTab] || []).map((e) =>
+          e.serviceId === serviceId ? { ...e, quantity: qty } : e,
+        );
+        const nextMap = { ...prev, [activeMemberTab]: nextList };
+        setValue(
+          "members",
+          beneficiaryCustomerIds.map((cId) => ({
+            customerId: cId,
+            permittedBranchIds: getValues("permittedBranchIds") || [],
+            notes: getValues("notes") || undefined,
+            entitlements: (nextMap[cId] || []).map((e) => ({
+              serviceId: e.serviceId,
+              quantity: Math.max(1, Number(e.quantity) || 1),
+            })),
+          })),
+          { shouldValidate: true },
+        );
+        return nextMap;
+      });
+    } else {
+      setValue(`entitlements.${index}.quantity`, qty, {
+        shouldValidate: true,
+      });
+    }
   };
 
   const handleApplyPlanTemplate = (planId: string) => {
@@ -422,14 +591,21 @@ export function CreateSubscriptionDialog({
     );
     setValue("endDate", end, { shouldValidate: true });
 
-    setValue(
-      "entitlements",
-      match.entitlements.map((e, idx) => ({
-        serviceId: resolveServiceId(e.serviceId, idx),
-        quantity: e.quantity,
-      })),
-      { shouldValidate: true },
-    );
+    const resolvedPlanEntitlements = match.entitlements.map((e, idx) => ({
+      serviceId: resolveServiceId(e.serviceId, idx),
+      quantity: e.quantity,
+    }));
+
+    setValue("entitlements", resolvedPlanEntitlements, {
+      shouldValidate: true,
+    });
+
+    if (isMultiMemberMode && activeMemberTab) {
+      setMemberEntitlementsMap((prev) => ({
+        ...prev,
+        [activeMemberTab]: resolvedPlanEntitlements,
+      }));
+    }
   };
 
   const toggleBranch = (branchId: string) => {
@@ -449,6 +625,8 @@ export function CreateSubscriptionDialog({
 
   const handleFormSubmit = async (data: CreateSubscriptionFormValues) => {
     setBranchValidationError(null);
+    setMemberValidationError(null);
+
     if (!effectiveBranchId) {
       setBranchValidationError(
         "Please select a specific selling branch before creating a subscription. Subscription sale invoices cannot be issued under 'All Branches' or without an active branch selection.",
@@ -456,31 +634,67 @@ export function CreateSubscriptionDialog({
       return;
     }
 
-    // Build payload supporting multi-member or single member
-    let finalPayload: CreateSubscriptionFormValues = { ...data };
+    let finalPayload: CreateSubscriptionFormValues;
 
     if (isMultiMemberMode && beneficiaryCustomerIds.length > 0) {
+      // Validate that every beneficiary has at least 1 service entitlement
+      for (const cId of beneficiaryCustomerIds) {
+        const memEnts = memberEntitlementsMap[cId] || [];
+        if (memEnts.length === 0) {
+          const profile = customerProfiles[cId];
+          const memberLabel = profile
+            ? profile.name
+            : `Member #${cId.slice(-4)}`;
+          setMemberValidationError(
+            `Please configure at least one service entitlement for ${memberLabel}.`,
+          );
+          setActiveMemberTab(cId);
+          return;
+        }
+      }
+
       const membersPayload = beneficiaryCustomerIds.map((cId) => ({
         customerId: cId,
+        permittedBranchIds: data.permittedBranchIds || [],
+        notes: data.notes?.trim() || undefined,
         entitlements: (memberEntitlementsMap[cId] || []).map((e) => ({
           serviceId: e.serviceId,
-          quantity: Number(e.quantity) || 1,
+          quantity: Math.max(1, Number(e.quantity) || 1),
         })),
       }));
 
-      // In accordance with backend contract:
-      // root `entitlements` is a compatibility projection of the primary member.
-      // Canonical member entitlements live under members[].entitlements.
-      const primaryMember = membersPayload[0];
-      const primaryCompatibilityEntitlements = primaryMember
-        ? primaryMember.entitlements
-        : data.entitlements || [];
+      // Canonical multi-member payload:
+      // Canonical customer entitlements reside exclusively under members[].
+      // Root-level entitlements is omitted to prevent legacy single-member overwrites.
+      finalPayload = {
+        ...data,
+        payerCustomerId: data.customerId,
+        customerId: data.customerId,
+        members: membersPayload,
+        entitlements: undefined,
+      };
+    } else {
+      // Canonical single-member payload:
+      // In accordance with canonical schema, single-member subscriptions are represented
+      // as one entry in members[] while maintaining dual-compatibility entitlements.
+      const singleMemberEntitlements = (data.entitlements || []).map((e) => ({
+        serviceId: e.serviceId,
+        quantity: Math.max(1, Number(e.quantity) || 1),
+      }));
 
       finalPayload = {
         ...data,
         payerCustomerId: data.customerId,
-        members: membersPayload,
-        entitlements: primaryCompatibilityEntitlements,
+        customerId: data.customerId,
+        members: [
+          {
+            customerId: data.customerId,
+            permittedBranchIds: data.permittedBranchIds || [],
+            notes: data.notes?.trim() || undefined,
+            entitlements: singleMemberEntitlements,
+          },
+        ],
+        entitlements: singleMemberEntitlements,
       };
     }
 
@@ -496,37 +710,38 @@ export function CreateSubscriptionDialog({
       className="space-y-6 pt-1 text-foreground"
     >
       {/* 1. HERO CONTEXT BANNER & SELLING BRANCH STATUS */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 via-primary/5 to-transparent p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/20 text-primary">
+      <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-linear-to-br from-primary/10 via-primary/5 to-transparent p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5 flex-1 min-w-0">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/20 text-primary shrink-0 ring-1 ring-primary/30">
                 <Layers className="h-4 w-4" />
               </span>
-              <h3 className="text-sm sm:text-base font-bold tracking-tight text-foreground">
+              <h3 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
                 Sell Customer Subscription
               </h3>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Issue prepaid service entitlements, configure package validity,
-              and generate a sale invoice.
+              Issue prepaid service entitlements, allocate sessions to family
+              members or beneficiaries, configure validity, and generate a sale
+              invoice.
             </p>
           </div>
 
           {/* Branch Pill */}
           {!effectiveBranchId ? (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs font-semibold shrink-0">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs font-semibold shrink-0">
+              <AlertCircle className="h-4 w-4 shrink-0" />
               <span>Active Selling Branch Required</span>
             </div>
           ) : (
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-background/80 backdrop-blur-sm border border-border shadow-2xs shrink-0">
-              <Building2 className="h-4 w-4 text-primary" />
+            <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-background/90 backdrop-blur-md border border-border shadow-xs shrink-0">
+              <Building2 className="h-4 w-4 text-primary shrink-0" />
               <div className="text-left text-xs">
                 <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block">
                   Selling Branch:
                 </span>
-                <span className="font-semibold text-foreground">
+                <span className="font-bold text-foreground">
                   {effectiveBranchName}
                 </span>
               </div>
@@ -535,7 +750,7 @@ export function CreateSubscriptionDialog({
         </div>
 
         {!effectiveBranchId && (
-          <div className="mt-3 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
+          <div className="mt-3.5 p-3 rounded-xl bg-destructive/10 border border-destructive/25 text-xs text-destructive flex items-center gap-2.5">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>
               Subscription creation and sale invoice generation require an
@@ -547,20 +762,20 @@ export function CreateSubscriptionDialog({
       </div>
 
       {branchValidationError && (
-        <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-xl text-xs text-destructive flex items-center gap-2">
+        <div className="p-3.5 bg-destructive/10 border border-destructive/30 rounded-xl text-xs text-destructive flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span>{branchValidationError}</span>
         </div>
       )}
 
-      {/* 2. PRODUCTION-GRADE SEARCHABLE TEMPLATE SELECTOR WITH FULL DETAIL PREVIEW */}
+      {/* 2. PRODUCTION-GRADE SEARCHABLE TEMPLATE SELECTOR */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-primary" />
             <span>Package Template</span>
           </label>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground font-medium">
             {planTemplates.length} configured package
             {planTemplates.length === 1 ? "" : "s"}
           </span>
@@ -570,37 +785,38 @@ export function CreateSubscriptionDialog({
           {/* Main Selected Template Display / Dropdown Trigger */}
           <div
             onClick={() => setIsTemplateSelectorOpen((prev) => !prev)}
-            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-input bg-background hover:border-primary/50 transition-all cursor-pointer shadow-2xs group"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-input bg-background hover:border-primary/50 transition-all cursor-pointer shadow-xs group"
           >
-            <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20 group-hover:bg-primary/15 transition-colors">
+            <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+              <div className="h-11 w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20 group-hover:bg-primary/15 transition-colors">
                 <PackageCheck className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-bold text-xs sm:text-sm text-foreground">
+                  <span className="font-bold text-sm text-foreground">
                     {currentSelectedTemplate
                       ? currentSelectedTemplate.name
                       : "Custom Package (From Scratch)"}
                   </span>
                   {currentSelectedTemplate ? (
-                    <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full border border-primary/20">
+                    <Badge variant="default" className="text-[10px] font-bold">
                       Standardized Plan
-                    </span>
+                    </Badge>
                   ) : (
-                    <span className="text-[10px] bg-muted text-muted-foreground font-semibold px-2 py-0.5 rounded-full">
+                    <Badge
+                      variant="muted"
+                      className="text-[10px] font-semibold"
+                    >
                       Bespoke Package
-                    </span>
+                    </Badge>
                   )}
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                   {currentSelectedTemplate
                     ? currentSelectedTemplate.description ||
-                      `Suggested ₹${currentSelectedTemplate.suggestedPrice?.toLocaleString(
-                        "en-IN",
-                      )} • Valid for ${
+                      `Suggested ${formatCurrency(currentSelectedTemplate.suggestedPrice || 0)}  Valid for ${
                         currentSelectedTemplate.validityMonths || 6
-                      } months • ${
+                      } months  ${
                         currentSelectedTemplate.entitlements?.length || 0
                       } bundled services`
                     : "No preset template selected. Freely pick services and set custom pricing."}
@@ -608,16 +824,15 @@ export function CreateSubscriptionDialog({
               </div>
             </div>
 
-            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/60">
+            <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-border/60">
               {currentSelectedTemplate && (
                 <div className="text-right">
                   <span className="text-[10px] uppercase font-bold text-muted-foreground block">
                     Suggested Price
                   </span>
-                  <span className="text-xs sm:text-sm font-extrabold text-foreground">
-                    ₹
-                    {currentSelectedTemplate.suggestedPrice?.toLocaleString(
-                      "en-IN",
+                  <span className="text-sm font-extrabold text-foreground">
+                    {formatCurrency(
+                      currentSelectedTemplate.suggestedPrice || 0,
                     )}
                   </span>
                 </div>
@@ -658,27 +873,27 @@ export function CreateSubscriptionDialog({
                 )}
               </div>
 
-              {/* Scrollable Templates List (Full details without awkward truncation) */}
+              {/* Scrollable Templates List */}
               <div className="overflow-y-auto space-y-2 pr-1 flex-1 scrollbar-thin">
                 {/* Custom / From Scratch Item */}
                 <button
                   type="button"
                   onClick={() => handleApplyPlanTemplate("")}
-                  className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  className={`w-full text-left p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                     !selectedPlanTemplateId
                       ? "border-primary bg-primary/10 shadow-xs"
                       : "border-border/70 bg-background hover:bg-muted/40 hover:border-border"
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
                       <Sparkles className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div>
                       <span className="font-bold text-xs text-foreground block">
                         Custom Package (Start from scratch)
                       </span>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         Freely configure custom service entitlements, rates, and
                         validity periods.
                       </p>
@@ -696,7 +911,6 @@ export function CreateSubscriptionDialog({
                     selectedPlanTemplateId ===
                       (template as unknown as { _id?: string })._id;
 
-                  // Resolve entitlement service names for clear transparency
                   const serviceNamesSummary = template.entitlements
                     ?.map((ent, idx) => {
                       const id = resolveServiceId(ent.serviceId, idx);
@@ -729,13 +943,13 @@ export function CreateSubscriptionDialog({
                         </div>
 
                         {template.description && (
-                          <p className="text-[11px] text-muted-foreground leading-normal">
+                          <p className="text-xs text-muted-foreground leading-normal">
                             {template.description}
                           </p>
                         )}
 
                         {/* Complete Services List Preview */}
-                        <div className="flex items-start gap-1.5 text-[10px] text-muted-foreground pt-0.5">
+                        <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground pt-0.5">
                           <Layers className="h-3.5 w-3.5 text-primary/70 shrink-0 mt-0.5" />
                           <span className="leading-snug">
                             <strong>Includes:</strong>{" "}
@@ -747,7 +961,7 @@ export function CreateSubscriptionDialog({
 
                       <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
                         <span className="text-xs sm:text-sm font-extrabold text-foreground">
-                          ₹{template.suggestedPrice?.toLocaleString("en-IN")}
+                          {formatCurrency(template.suggestedPrice || 0)}
                         </span>
                         <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md font-medium">
                           {template.validityMonths || 6} months validity
@@ -769,41 +983,65 @@ export function CreateSubscriptionDialog({
       </div>
 
       {/* 3. PAYER & BENEFICIARIES SELECTION */}
-      <div className="space-y-4 p-4 rounded-2xl border border-border/90 bg-card shadow-2xs">
-        <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-primary" />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+      <div className="space-y-4 p-4 sm:p-5 rounded-2xl border border-border/90 bg-card shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <User className="h-4 w-4 text-primary shrink-0" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground truncate">
               Customer Membership & Financial Responsibility
             </h4>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const currentPayer = getValues("customerId");
-              if (!isMultiMemberMode) {
-                setIsMultiMemberMode(true);
-                if (
-                  currentPayer &&
-                  !beneficiaryCustomerIds.includes(currentPayer)
-                ) {
-                  setBeneficiaryCustomerIds([currentPayer]);
-                  setActiveMemberTab(currentPayer);
-                  setMemberEntitlementsMap({
-                    [currentPayer]: [...(getValues("entitlements") || [])],
-                  });
+
+          {/* Production-Grade Segmented Membership Switch */}
+          <div className="inline-flex items-center p-1 rounded-lg bg-muted/80 border border-border/80 shadow-2xs shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => {
+                if (isMultiMemberMode) {
+                  setIsMultiMemberMode(false);
+                  setMemberValidationError(null);
                 }
-              } else {
-                setIsMultiMemberMode(false);
-              }
-            }}
-            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-          >
-            <Users className="h-3.5 w-3.5" />
-            {isMultiMemberMode
-              ? "Switch to Single Customer"
-              : "+ Enable Family / Multi-Member (Multi-Customer)"}
-          </button>
+              }}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                !isMultiMemberMode
+                  ? "bg-background text-foreground shadow-xs ring-1 ring-border/60 font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span>Single</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!isMultiMemberMode) {
+                  setIsMultiMemberMode(true);
+                  setMemberValidationError(null);
+                  const currentPayer = getValues("customerId");
+                  if (
+                    currentPayer &&
+                    !beneficiaryCustomerIds.includes(currentPayer)
+                  ) {
+                    setBeneficiaryCustomerIds([currentPayer]);
+                    setActiveMemberTab(currentPayer);
+                    setMemberEntitlementsMap({
+                      [currentPayer]: [...(getValues("entitlements") || [])],
+                    });
+                  }
+                }
+              }}
+              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                isMultiMemberMode
+                  ? "bg-primary text-primary-foreground shadow-xs font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <span>Multi-Member</span>
+              <span className="sr-only">+ Enable Family / Multi-Member</span>
+            </button>
+          </div>
         </div>
 
         {/* Payer Selection */}
@@ -823,9 +1061,14 @@ export function CreateSubscriptionDialog({
             render={({ field }) => (
               <CustomerSelector
                 value={field.value}
-                onChange={(id) => {
+                onChange={(id, customer) => {
                   field.onChange(id);
-                  // If in multi-member mode and no members added yet, seed payer
+                  if (customer && id) {
+                    setCustomerProfiles((prev) => ({
+                      ...prev,
+                      [id]: customer,
+                    }));
+                  }
                   if (
                     isMultiMemberMode &&
                     beneficiaryCustomerIds.length === 0 &&
@@ -848,16 +1091,16 @@ export function CreateSubscriptionDialog({
 
         {/* Multi-Member Beneficiaries Management */}
         {isMultiMemberMode && (
-          <div className="pt-3 border-t border-border/60 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="pt-4 border-t border-border/60 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div>
                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                   <Users className="h-3.5 w-3.5 text-primary" />
                   Beneficiary Members ({beneficiaryCustomerIds.length})
                 </span>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   Add family members or friends who can consume this
-                  subscription&apos;s services.
+                  subscription&apos;s prepaid services.
                 </p>
               </div>
 
@@ -879,24 +1122,32 @@ export function CreateSubscriptionDialog({
                         }));
                       }
                     }}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-semibold transition-colors flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-bold transition-colors flex items-center gap-1 cursor-pointer self-start sm:self-auto"
                   >
-                    <Plus className="h-3 w-3" />
+                    <Plus className="h-3.5 w-3.5" />
                     Include Payer as Beneficiary
                   </button>
                 )}
             </div>
 
             {/* Add New Beneficiary Selector */}
-            <div className="p-3 rounded-xl border border-dashed border-border bg-muted/10 space-y-2">
-              <span className="text-[11px] font-semibold text-muted-foreground block">
+            <div className="p-3.5 rounded-xl border border-dashed border-border bg-muted/20 space-y-2">
+              <span className="text-xs font-semibold text-muted-foreground block">
                 Add another beneficiary customer:
               </span>
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
+              <div className="flex items-center gap-2.5">
+                <div className="flex-1 min-w-0">
                   <CustomerSelector
                     value={newMemberCandidateId}
-                    onChange={(id) => setNewMemberCandidateId(id)}
+                    onChange={(id, customer) => {
+                      setNewMemberCandidateId(id);
+                      if (customer && id) {
+                        setCustomerProfiles((prev) => ({
+                          ...prev,
+                          [id]: customer,
+                        }));
+                      }
+                    }}
                     branchId={effectiveBranchId || undefined}
                     disabled={isLoading}
                   />
@@ -913,6 +1164,7 @@ export function CreateSubscriptionDialog({
                       newMemberCandidateId &&
                       !beneficiaryCustomerIds.includes(newMemberCandidateId)
                     ) {
+                      setMemberValidationError(null);
                       setBeneficiaryCustomerIds((prev) => [
                         ...prev,
                         newMemberCandidateId,
@@ -926,7 +1178,7 @@ export function CreateSubscriptionDialog({
                       setNewMemberCandidateId("");
                     }
                   }}
-                  className="h-10 text-xs px-3 font-bold"
+                  className="h-10 text-xs px-3.5 font-bold cursor-pointer shrink-0"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   Add Member
@@ -938,38 +1190,57 @@ export function CreateSubscriptionDialog({
             {beneficiaryCustomerIds.length > 0 && (
               <div className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                  Configured Members:
+                  Configured Members (Click to select & allocate services):
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {beneficiaryCustomerIds.map((cId) => {
                     const isPayer = cId === getValues("customerId");
                     const isSelected = activeMemberTab === cId;
                     const entCount = (memberEntitlementsMap[cId] || []).length;
+                    const profile = customerProfiles[cId];
+                    const memberName = profile
+                      ? profile.name
+                      : isPayer
+                        ? "Payer (Member)"
+                        : `Member #${cId.slice(-4)}`;
 
                     return (
                       <div
                         key={cId}
-                        onClick={() => setActiveMemberTab(cId)}
-                        className={`px-3 py-1.5 rounded-xl border text-xs flex items-center gap-2 cursor-pointer transition-all ${
+                        onClick={() => {
+                          setMemberValidationError(null);
+                          setActiveMemberTab(cId);
+                        }}
+                        className={`px-3.5 py-2 rounded-xl border text-xs flex items-center gap-2.5 cursor-pointer transition-all ${
                           isSelected
-                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
-                            : "bg-background text-foreground border-border hover:bg-muted/40 font-medium"
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold ring-2 ring-primary/20"
+                            : "bg-background text-foreground border-border hover:bg-muted/50 font-medium"
                         }`}
                       >
-                        <User className="h-3 w-3" />
-                        <span>
-                          {isPayer
-                            ? "Payer (Member)"
-                            : `Member #${cId.slice(-4)}`}{" "}
-                          ({entCount} svc)
+                        <User className="h-3.5 w-3.5" />
+                        <span className="whitespace-normal">{memberName}</span>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                            isSelected
+                              ? "bg-primary-foreground/20 text-primary-foreground"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {entCount} svc
                         </span>
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
+                            setMemberValidationError(null);
                             setBeneficiaryCustomerIds((prev) =>
                               prev.filter((id) => id !== cId),
                             );
+                            setMemberEntitlementsMap((prev) => {
+                              const copy = { ...prev };
+                              delete copy[cId];
+                              return copy;
+                            });
                             if (activeMemberTab === cId) {
                               const remaining = beneficiaryCustomerIds.filter(
                                 (id) => id !== cId,
@@ -977,7 +1248,12 @@ export function CreateSubscriptionDialog({
                               setActiveMemberTab(remaining[0] || "");
                             }
                           }}
-                          className={`p-0.5 rounded-full hover:bg-black/20 ${isSelected ? "text-primary-foreground" : "text-muted-foreground hover:text-destructive"}`}
+                          className={`p-1 rounded-full hover:bg-black/20 ${
+                            isSelected
+                              ? "text-primary-foreground"
+                              : "text-muted-foreground hover:text-destructive"
+                          }`}
+                          title="Remove Beneficiary"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -991,34 +1267,79 @@ export function CreateSubscriptionDialog({
         )}
       </div>
 
-      {/* 4. SERVICE ENTITLEMENTS BUILDER WITH ADVANCED DISCOVERY & SELECTION */}
-      <div className="space-y-3 rounded-2xl border border-border/90 bg-muted/20 p-4">
-        <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-          <div className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-primary" />
-            <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
-              Package Service Entitlements{" "}
-              <span className="text-destructive">*</span>
-            </h4>
+      {/* 4. SERVICE ENTITLEMENTS BUILDER */}
+      <div className="space-y-4 rounded-2xl border border-border/90 bg-muted/20 p-4 sm:p-5">
+        <div className="space-y-2.5 border-b border-border/60 pb-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <Layers className="h-4 w-4 text-primary shrink-0" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-foreground truncate">
+                Package Service Entitlements{" "}
+                <span className="text-destructive">*</span>
+              </h4>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-bold shrink-0 whitespace-nowrap shadow-2xs">
+              <span>{financialSummary.totalSessions} Total Sessions</span>
+              <span className="opacity-40">•</span>
+              <span className="font-medium text-[11px]">
+                {isMultiMemberMode
+                  ? `${beneficiaryCustomerIds.length} ${beneficiaryCustomerIds.length === 1 ? "Member" : "Members"}`
+                  : `${currentDisplayedEntitlements.length} ${currentDisplayedEntitlements.length === 1 ? "Service" : "Services"}`}
+              </span>
+            </div>
           </div>
-          <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">
-            {financialSummary.totalSessions} Total Sessions ({fields.length}{" "}
-            {fields.length === 1 ? "Service" : "Services"})
-          </span>
+
+          {/* Dedicated Sub-bar for Multi-Member Active Allocation Target */}
+          {isMultiMemberMode && activeMemberTab && (
+            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-background border border-primary/20 shadow-2xs">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />
+                <span className="text-xs text-muted-foreground shrink-0 font-medium">
+                  Allocating services for:
+                </span>
+                <span
+                  className="text-xs font-bold text-foreground truncate max-w-60 sm:max-w-90"
+                  title={customerProfiles[activeMemberTab]?.name || "Member"}
+                >
+                  {customerProfiles[activeMemberTab]?.name ||
+                    (activeMemberTab === getValues("customerId")
+                      ? "Payer"
+                      : `Member #${activeMemberTab.slice(-4)}`)}
+                </span>
+                {customerProfiles[activeMemberTab]?.gender && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground shrink-0">
+                    {customerProfiles[activeMemberTab].gender}
+                  </span>
+                )}
+                {customerProfiles[activeMemberTab]?.phone && (
+                  <span className="text-[11px] text-muted-foreground hidden sm:inline shrink-0 font-mono">
+                    ({customerProfiles[activeMemberTab].phone})
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                {currentDisplayedEntitlements.length}{" "}
+                {currentDisplayedEntitlements.length === 1
+                  ? "service"
+                  : "services"}{" "}
+                added
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Searchable & Filterable Service Picker Dropdown */}
         <div ref={serviceDropdownRef} className="relative">
-          <label className="text-[11px] font-medium text-muted-foreground block mb-1.5">
+          <label className="text-xs font-semibold text-muted-foreground block mb-1.5">
             Add service to package:
           </label>
 
           {/* Trigger Input */}
           <div
             onClick={() => setIsServiceDropdownOpen((prev) => !prev)}
-            className="flex items-center justify-between w-full h-10 px-3.5 rounded-xl border border-input bg-background cursor-pointer hover:border-primary/50 transition-colors shadow-2xs text-xs"
+            className="flex items-center justify-between w-full h-11 px-4 rounded-xl border border-input bg-background cursor-pointer hover:border-primary/50 transition-colors shadow-2xs text-xs"
           >
-            <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="flex items-center gap-2.5 text-muted-foreground">
               <Search className="h-4 w-4 text-primary/70 shrink-0" />
               <span>
                 {isServiceDropdownOpen
@@ -1027,8 +1348,8 @@ export function CreateSubscriptionDialog({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                {activeServices.length} available
+              <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-md font-medium">
+                {genderEligibleServices.length} eligible
               </span>
               <ChevronDown
                 className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
@@ -1040,10 +1361,10 @@ export function CreateSubscriptionDialog({
 
           {/* Popover / Dropdown Menu with Category Filter & Instant Search */}
           {isServiceDropdownOpen && (
-            <div className="absolute z-30 left-0 right-0 mt-2 p-3 bg-popover text-popover-foreground rounded-2xl border border-border shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute z-30 left-0 right-0 mt-2 p-3.5 bg-popover text-popover-foreground rounded-2xl border border-border shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
               {/* Search Bar Inside Dropdown */}
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
                   type="text"
                   autoFocus
@@ -1063,37 +1384,76 @@ export function CreateSubscriptionDialog({
                 )}
               </div>
 
+              {/* Gender Eligibility Indicator & Staff Override Toggle */}
+              {activeBeneficiaryProfile?.gender &&
+                (activeBeneficiaryProfile.gender === "male" ||
+                  activeBeneficiaryProfile.gender === "female") && (
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-muted/60 border border-border/70 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <Filter className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-[11px] text-muted-foreground truncate">
+                        Filtered for{" "}
+                        <strong className="text-foreground capitalize">
+                          {activeBeneficiaryProfile.gender}
+                        </strong>{" "}
+                        &amp;{" "}
+                        <span className="font-semibold text-foreground">
+                          Unisex
+                        </span>{" "}
+                        services
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-1.5 cursor-pointer shrink-0 select-none">
+                      <input
+                        type="checkbox"
+                        checked={allowOppositeGenderServices}
+                        onChange={(e) =>
+                          setAllowOppositeGenderServices(e.target.checked)
+                        }
+                        className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary/25 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-semibold text-muted-foreground hover:text-foreground">
+                        Show all genders
+                      </span>
+                    </label>
+                  </div>
+                )}
+
               {/* Category Pills Filter */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none text-xs">
                 <button
                   type="button"
                   onClick={() => setSelectedCategoryId("all")}
-                  className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                     selectedCategoryId === "all"
                       ? "bg-primary text-primary-foreground shadow-xs"
                       : "bg-muted/70 text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  All ({activeServices.length})
+                  All ({genderEligibleServices.length})
                 </button>
-                {categories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setSelectedCategoryId(cat.id)}
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                      selectedCategoryId === cat.id
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "bg-muted/70 text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {cat.name}
-                  </button>
-                ))}
+                {categories.map((cat) => {
+                  const eligibleCatCount =
+                    categoryEligibleCountMap.get(cat.id) || 0;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedCategoryId(cat.id)}
+                      className={`px-3 py-1 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                        selectedCategoryId === cat.id
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "bg-muted/70 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {cat.name} ({eligibleCatCount})
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Service Items List */}
-              <div className="max-h-56 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
+              <div className="max-h-60 overflow-y-auto space-y-1 pr-1 scrollbar-thin">
                 {filteredServices.length > 0 ? (
                   filteredServices.map((service) => {
                     const retail =
@@ -1103,38 +1463,46 @@ export function CreateSubscriptionDialog({
                         key={service.id}
                         type="button"
                         onClick={() => handleSelectService(service.id)}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-primary/10 hover:border-primary/20 border border-transparent transition-colors text-left cursor-pointer group"
+                        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-primary/10 hover:border-primary/20 border border-transparent transition-colors text-left cursor-pointer group gap-3"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-xs text-foreground group-hover:text-primary transition-colors">
                               {service.name}
                             </span>
                             {service.code && (
-                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
                                 {service.code}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                            <span className="flex items-center gap-0.5">
+                          <div className="flex items-center gap-2.5 text-xs text-muted-foreground mt-0.5">
+                            <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {service.duration} mins
                             </span>
                             {service.gender && (
-                              <span className="capitalize">
-                                • {service.gender}
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-semibold capitalize ${
+                                  service.gender === "unisex"
+                                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                    : service.gender === "female"
+                                      ? "bg-pink-500/10 text-pink-600 dark:text-pink-400"
+                                      : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                }`}
+                              >
+                                {service.gender}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="font-bold text-xs text-foreground">
-                            ₹{retail.toLocaleString("en-IN")}
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          <span className="font-extrabold text-xs text-foreground">
+                            {formatCurrency(retail)}
                           </span>
-                          <span className="h-6 w-6 rounded-lg bg-primary/15 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                            <Plus className="h-3.5 w-3.5" />
+                          <span className="h-7 w-7 rounded-lg bg-primary/15 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                            <Plus className="h-4 w-4" />
                           </span>
                         </div>
                       </button>
@@ -1153,53 +1521,51 @@ export function CreateSubscriptionDialog({
         </div>
 
         {/* Configured Entitlements List */}
-        {fields.length > 0 ? (
-          <div className="space-y-2 pt-1">
-            {fields.map((fieldItem, index) => {
-              const safeServiceId = resolveServiceId(
-                fieldItem.serviceId,
-                index,
-              );
+        {currentDisplayedEntitlements.length > 0 ? (
+          <div className="space-y-2.5 pt-1">
+            {currentDisplayedEntitlements.map((entItem, index) => {
+              const safeServiceId = resolveServiceId(entItem.serviceId, index);
               const matchedService = serviceMap.get(safeServiceId);
               const unitRetail =
                 matchedService?.basePrice ??
                 matchedService?.pricing?.basePrice ??
                 0;
-              const currentQty =
-                watchedEntitlements[index]?.quantity ?? fieldItem.quantity ?? 1;
+              const currentQty = entItem.quantity ?? 1;
               const lineTotal = unitRetail * (currentQty || 0);
 
               return (
                 <div
-                  key={fieldItem.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-background border border-border/80 shadow-2xs hover:border-primary/40 transition-colors gap-3"
+                  key={`${safeServiceId}-${index}`}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-2xl bg-background border border-border/80 shadow-2xs hover:border-primary/40 transition-colors gap-3.5"
                 >
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-xs text-foreground truncate">
+                  <div className="flex flex-col min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-xs sm:text-sm text-foreground">
                         {matchedService?.name || safeServiceId}
                       </span>
                       {matchedService?.code && (
-                        <span className="text-[10px] text-muted-foreground shrink-0 bg-muted px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded font-mono font-medium">
                           {matchedService.code}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-                      <span>Retail: ₹{unitRetail} / session</span>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>
+                        Retail: {formatCurrency(unitRetail)} / session
+                      </span>
                       {unitRetail > 0 && currentQty > 1 && (
-                        <span className="text-[10px] font-semibold text-primary">
-                          (₹{lineTotal.toLocaleString("en-IN")} total value)
+                        <span className="text-xs font-semibold text-primary">
+                          ({formatCurrency(lineTotal)} total value)
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                    <div className="flex items-center gap-2">
                       <label
                         htmlFor={`entitlement-qty-${index}`}
-                        className="text-[10px] uppercase font-bold text-muted-foreground"
+                        className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider"
                       >
                         Sessions:
                       </label>
@@ -1209,17 +1575,22 @@ export function CreateSubscriptionDialog({
                         min="1"
                         step="1"
                         disabled={isLoading}
-                        className="h-8 w-20 text-xs px-2 text-center font-extrabold text-primary border-primary/30"
-                        {...register(`entitlements.${index}.quantity`, {
-                          valueAsNumber: true,
-                        })}
+                        className="h-8.5 w-20 text-xs px-2 text-center font-extrabold text-primary border-primary/30 rounded-lg"
+                        value={currentQty}
+                        onChange={(e) =>
+                          handleQuantityChange(
+                            safeServiceId,
+                            index,
+                            Number(e.target.value),
+                          )
+                        }
                       />
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => remove(index)}
-                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-1.5 rounded-lg cursor-pointer transition-colors"
+                      onClick={() => handleRemoveService(safeServiceId, index)}
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-2 rounded-xl cursor-pointer transition-colors"
                       title="Remove Entitlement"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -1230,101 +1601,115 @@ export function CreateSubscriptionDialog({
             })}
           </div>
         ) : (
-          <div className="p-4 rounded-xl border border-dashed border-border/80 bg-background/50 text-center">
-            <p className="text-xs text-muted-foreground">
-              No service entitlements added yet. Use the search picker above to
-              include services in this package.
+          <div className="p-5 rounded-2xl border border-dashed border-border/80 bg-background/50 text-center space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              {isMultiMemberMode && activeMemberTab
+                ? `No service entitlements added yet for this member. Select services using the search picker above.`
+                : `No service entitlements added yet. Use the search picker above to include services in this package.`}
             </p>
           </div>
         )}
 
-        {errors.entitlements && (
-          <p className="text-xs text-destructive flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        {memberValidationError && (
+          <p className="text-xs text-destructive flex items-center gap-1.5 font-medium">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {memberValidationError}
+          </p>
+        )}
+
+        {errors.entitlements && !memberValidationError && (
+          <p className="text-xs text-destructive flex items-center gap-1.5 font-medium">
+            <AlertCircle className="h-4 w-4 shrink-0" />
             {errors.entitlements.message}
           </p>
         )}
       </div>
 
-      {/* 5. PRICING & VALUE COMPARISON CARD WITH FIXED BADGE ALIGNMENT */}
+      {/* 5. PRICING & VALUE COMPARISON CARD */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Customer Agreed Sale Price Input */}
-        <div className="space-y-1.5 p-4 rounded-2xl border border-border/80 bg-background shadow-2xs">
-          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-            <span>
-              Customer Sale Price (₹){" "}
-              <span className="text-destructive">*</span>
-            </span>
-            <span className="text-[10px] font-normal text-muted-foreground">
-              agreed billable amount
-            </span>
-          </label>
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">
-              ₹
-            </span>
-            <Input
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="0.00"
-              disabled={isLoading}
-              {...register("price", { valueAsNumber: true })}
-              className="h-10 pl-8 text-sm font-bold text-foreground rounded-xl"
-            />
+        <div className="space-y-2.5 p-4.5 rounded-2xl border border-border/80 bg-background shadow-2xs flex flex-col justify-between">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <span>Customer Sale Price</span>
+                <span className="text-destructive">*</span>
+              </label>
+              <span className="text-[10px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                Agreed billable amount
+              </span>
+            </div>
+
+            <div className="relative mt-1">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs select-none">
+                INR
+              </span>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="0.00"
+                disabled={isLoading}
+                {...register("price", { valueAsNumber: true })}
+                className="h-11 pl-12 text-sm font-bold text-foreground rounded-xl"
+              />
+            </div>
+            {errors.price && (
+              <p className="text-xs text-destructive mt-1 font-medium">
+                {errors.price.message}
+              </p>
+            )}
           </div>
-          {errors.price && (
-            <p className="text-[11px] text-destructive">
-              {errors.price.message}
-            </p>
-          )}
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
             This amount will be billed to the customer upon invoice creation.
           </p>
         </div>
 
-        {/* Customer Value Breakdown Card (Aligned Properly with ml-auto) */}
-        <div className="p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col justify-between">
+        {/* Customer Value Breakdown Card */}
+        <div className="p-4.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              <TrendingUp className="h-4 w-4 shrink-0" />
               <span>Customer Value Breakdown</span>
             </span>
             {financialSummary.savingsPercent > 0 && (
-              <span className="ml-auto inline-flex items-center text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 whitespace-nowrap shadow-2xs">
+              <Badge
+                variant="success"
+                className="ml-auto text-[10px] font-extrabold px-2.5 py-0.5 whitespace-nowrap"
+              >
                 {financialSummary.savingsPercent}% OFF
-              </span>
+              </Badge>
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 my-2.5 text-xs">
+          <div className="grid grid-cols-2 gap-4 text-xs">
             <div>
-              <span className="text-[10px] text-muted-foreground block font-medium">
+              <span className="text-xs text-muted-foreground block font-medium">
                 Total Retail Worth:
               </span>
-              <span className="font-bold text-foreground text-sm">
-                ₹{financialSummary.totalRetailValue.toLocaleString("en-IN")}
+              <span className="font-bold text-foreground text-base">
+                {formatCurrency(financialSummary.totalRetailValue)}
               </span>
             </div>
             <div>
-              <span className="text-[10px] text-muted-foreground block font-medium">
+              <span className="text-xs text-muted-foreground block font-medium">
                 Customer Saves:
               </span>
-              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-sm">
-                ₹{financialSummary.customerSavings.toLocaleString("en-IN")}
+              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-base">
+                {formatCurrency(financialSummary.customerSavings)}
               </span>
             </div>
           </div>
 
-          <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 pt-1 border-t border-emerald-500/10">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-2 border-t border-emerald-500/15">
+            <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />
             <span>Prepaid credits valid across designated branches</span>
           </div>
         </div>
       </div>
 
       {/* 6. PERMITTED BRANCHES (MULTI-BRANCH AVAILABILITY) */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5 text-primary" />
@@ -1337,13 +1722,13 @@ export function CreateSubscriptionDialog({
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-2 p-2.5 rounded-xl border border-border/80 bg-background">
+        <div className="flex flex-wrap gap-2 p-3 rounded-2xl border border-border/80 bg-background">
           <button
             type="button"
             onClick={() =>
               setValue("permittedBranchIds", [], { shouldValidate: true })
             }
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               watchedPermittedBranches.length === 0
                 ? "bg-primary text-primary-foreground shadow-xs"
                 : "bg-muted text-muted-foreground hover:text-foreground"
@@ -1359,9 +1744,9 @@ export function CreateSubscriptionDialog({
                 key={branch.id}
                 type="button"
                 onClick={() => toggleBranch(branch.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isSelected
-                    ? "bg-primary/20 text-primary border border-primary/40 font-bold shadow-2xs"
+                    ? "bg-primary/20 text-primary border border-primary/40 shadow-xs"
                     : "bg-muted/60 text-muted-foreground hover:text-foreground border border-transparent"
                 }`}
               >
@@ -1370,15 +1755,15 @@ export function CreateSubscriptionDialog({
             );
           })}
         </div>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Leave on &ldquo;All Branches&rdquo; to allow customer redemptions
           anywhere across the franchise.
         </p>
       </div>
 
       {/* 7. VALIDITY SCHEDULE */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl border border-border/80 bg-background shadow-2xs">
-        <div className="space-y-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl border border-border/80 bg-background shadow-2xs">
+        <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5 text-primary" />
             <span>
@@ -1389,16 +1774,16 @@ export function CreateSubscriptionDialog({
             type="date"
             disabled={isLoading}
             {...register("startDate")}
-            className="h-9 text-xs rounded-xl"
+            className="h-10 text-xs rounded-xl"
           />
           {errors.startDate && (
-            <p className="text-[11px] text-destructive">
+            <p className="text-xs text-destructive font-medium">
               {errors.startDate.message}
             </p>
           )}
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
             <Calendar className="h-3.5 w-3.5 text-primary" />
             <span>
@@ -1409,10 +1794,10 @@ export function CreateSubscriptionDialog({
             type="date"
             disabled={isLoading}
             {...register("endDate")}
-            className="h-9 text-xs rounded-xl"
+            className="h-10 text-xs rounded-xl"
           />
           {errors.endDate && (
-            <p className="text-[11px] text-destructive">
+            <p className="text-xs text-destructive font-medium">
               {errors.endDate.message}
             </p>
           )}
@@ -1420,7 +1805,7 @@ export function CreateSubscriptionDialog({
       </div>
 
       {/* 8. NOTES & TERMS */}
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Customer Notes & Agreement Terms (Optional)
         </label>
@@ -1434,13 +1819,15 @@ export function CreateSubscriptionDialog({
       </div>
 
       {/* 9. MODAL ACTIONS FOOTER */}
-      <div className="flex items-center justify-between pt-4 border-t border-border">
-        <div className="text-xs text-muted-foreground hidden sm:block">
-          {fields.length > 0 && financialSummary.numericSalePrice > 0 ? (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-border">
+        <div className="text-xs text-muted-foreground text-center sm:text-left">
+          {((isMultiMemberMode && beneficiaryCustomerIds.length > 0) ||
+            currentDisplayedEntitlements.length > 0) &&
+          financialSummary.numericSalePrice > 0 ? (
             <span>
-              Billable:{" "}
-              <strong className="text-foreground">
-                ₹{financialSummary.numericSalePrice.toLocaleString("en-IN")}
+              Total Billable:{" "}
+              <strong className="text-foreground text-sm font-extrabold">
+                {formatCurrency(financialSummary.numericSalePrice)}
               </strong>
             </span>
           ) : (
@@ -1448,14 +1835,14 @@ export function CreateSubscriptionDialog({
           )}
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={onClose}
             disabled={isLoading}
-            className="h-10 px-4 text-xs cursor-pointer rounded-xl"
+            className="h-10 px-5 text-xs cursor-pointer rounded-xl font-semibold"
           >
             Cancel
           </Button>
@@ -1463,7 +1850,7 @@ export function CreateSubscriptionDialog({
             type="submit"
             size="sm"
             disabled={isLoading || !effectiveBranchId}
-            className="h-10 px-5 text-xs cursor-pointer gap-2 rounded-xl font-bold bg-primary text-primary-foreground shadow-sm hover:opacity-95"
+            className="h-10 px-6 text-xs cursor-pointer gap-2 rounded-xl font-bold bg-primary text-primary-foreground shadow-sm hover:opacity-95"
             title={
               !effectiveBranchId
                 ? "Select an active branch to sell subscriptions"
