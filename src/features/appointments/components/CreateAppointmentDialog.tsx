@@ -372,7 +372,10 @@ const RegisteredServiceBookingSummaryRow = React.memo(
                 <button
                   type="button"
                   onClick={() =>
-                    onToggleSubscription(registeredItem.serviceId, "auto")
+                    onToggleSubscription(
+                      registeredItem.serviceId,
+                      subQuota!.subscriptionId,
+                    )
                   }
                   className={`h-7 inline-flex items-center gap-1.5 px-2 rounded-lg text-[0.625rem] font-semibold transition-all cursor-pointer border whitespace-nowrap shrink-0 shadow-2xs ${
                     hasSub
@@ -1465,10 +1468,10 @@ export function CreateAppointmentDialog({
     if (isSelected) {
       handleRemoveService(service.id);
     } else {
-      // Auto-attach active subscription entitlement if available for this customer ("auto" lets backend deterministically resolve earliest-expiring)
+      // Auto-attach active subscription entitlement if available for this customer (explicit subscriptionId ensures WYSIWYG binding for both primary and beneficiary members)
       const subQuota = subscriptionQuotaByService.get(service.id);
       const appliedSubscriptionId =
-        subQuota && subQuota.remaining > 0 ? "auto" : null;
+        subQuota && subQuota.remaining > 0 ? subQuota.subscriptionId : null;
 
       const updated = [
         ...selectedServices,
