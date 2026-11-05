@@ -1058,30 +1058,30 @@ export function EditAppointmentServicesDialog({
 
                           {!isCustomLine &&
                             (line.isRedeemedViaSubscription ? (
-                              <div className="inline-flex items-center gap-1.5 flex-wrap">
-                                <span className="inline-flex items-center gap-1.5 text-[10px] py-0.5 px-2.5 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 rounded-full font-bold shadow-2xs">
-                                  <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400 stroke-3" />
+                              <div className="inline-flex items-center gap-1.5 flex-nowrap shrink-0">
+                                <span className="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 whitespace-nowrap shadow-2xs shrink-0">
+                                  <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400 stroke-3 shrink-0" />
                                   <span>Redeemed via Plan</span>
                                   {subQuota?.subscriptionCode && (
-                                    <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400">
+                                    <span className="font-mono text-[10px] text-emerald-600 dark:text-emerald-400 opacity-90">
                                       [{subQuota.subscriptionCode}]
                                     </span>
                                   )}
                                 </span>
                               </div>
                             ) : isCovered ? (
-                              <div className="inline-flex items-center gap-1.5 flex-wrap">
-                                <span className="inline-flex items-center gap-1.5 text-[10px] py-0.5 px-2.5 bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 rounded-full font-bold shadow-2xs">
-                                  <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                                  <span>Plan Covered (Draft)</span>
-                                  {subQuota && (
-                                    <span className="text-emerald-700 dark:text-emerald-300 font-semibold border-l border-emerald-500/30 pl-1.5">
-                                      {subQuota.remaining - 1} left after this
+                              <div className="inline-flex items-center gap-1.5 flex-nowrap shrink-0">
+                                <span className="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30 whitespace-nowrap shadow-2xs shrink-0">
+                                  <Sparkles className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span>Plan Applied</span>
+                                  {subQuota?.subscriptionCode && (
+                                    <span className="font-mono text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold opacity-90">
+                                      [{subQuota.subscriptionCode}]
                                     </span>
                                   )}
-                                  {subQuota?.subscriptionCode && (
-                                    <span className="font-mono text-[9px] text-emerald-600 dark:text-emerald-400">
-                                      [{subQuota.subscriptionCode}]
+                                  {subQuota && (
+                                    <span className="font-mono text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold border-l border-emerald-500/30 pl-1.5">
+                                      {subQuota.remaining - 1} left after
                                     </span>
                                   )}
                                 </span>
@@ -1090,35 +1090,41 @@ export function EditAppointmentServicesDialog({
                                   onClick={() =>
                                     handleToggleSubscriptionCoverage(idx)
                                   }
-                                  className="inline-flex items-center gap-1 text-[10px] py-0.5 px-2 bg-muted hover:bg-destructive/10 text-muted-foreground hover:text-destructive border border-border rounded-full font-semibold cursor-pointer transition-colors"
+                                  className="h-6 inline-flex items-center gap-1 px-2 text-[10px] bg-muted/60 hover:bg-destructive/15 text-muted-foreground hover:text-destructive border border-border/80 hover:border-destructive/30 rounded-full font-semibold cursor-pointer transition-colors whitespace-nowrap shrink-0"
                                   title="Remove subscription coverage and revert to normal price"
                                 >
-                                  <X className="h-2.5 w-2.5" />
-                                  Remove Plan
+                                  <X className="h-3 w-3 shrink-0" />
+                                  <span>Remove</span>
                                 </button>
                               </div>
                             ) : subQuota ? (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleToggleSubscriptionCoverage(idx)
-                                }
-                                className="inline-flex items-center gap-1.5 text-[10px] py-0.5 px-2.5 bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25 rounded-full font-semibold cursor-pointer hover:bg-purple-500/20 transition-colors shadow-2xs"
-                                title={`Apply customer plan credit (${subQuota.remaining} of ${subQuota.total} available) • Payment: ${subQuota.paymentStatus || "paid"}`}
-                              >
-                                <Sparkles className="h-2.5 w-2.5 text-purple-600" />
-                                <span>Apply Plan</span>
-                                <span className="font-bold bg-purple-500/20 px-1.5 py-0.2 rounded-full text-purple-900 dark:text-purple-100">
-                                  {subQuota.remaining} of {subQuota.total}{" "}
-                                  available
-                                </span>
-                                <span className="font-mono text-[9px] opacity-75">
-                                  [{subQuota.subscriptionCode}]
-                                </span>
+                              <div className="inline-flex items-center gap-1.5 flex-nowrap shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleToggleSubscriptionCoverage(idx)
+                                  }
+                                  className="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-full text-[11px] font-semibold bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 hover:border-purple-500/50 whitespace-nowrap shadow-2xs transition-colors cursor-pointer shrink-0"
+                                  title={`Apply ${subQuota.subscriptionCode} (${subQuota.remaining} of ${subQuota.total} available)${subQuota.amountDue ? ` • Due: ₹${subQuota.amountDue}` : ""}`}
+                                >
+                                  <Sparkles className="h-3 w-3 text-purple-600 dark:text-purple-400 shrink-0" />
+                                  <span>Apply Plan</span>
+                                  {subQuota.subscriptionCode && (
+                                    <span className="font-mono text-[10px] font-medium opacity-85">
+                                      [{subQuota.subscriptionCode}]
+                                    </span>
+                                  )}
+                                  <span className="font-mono text-[10px] font-bold bg-purple-500/20 px-1.5 py-0.2 rounded-full text-purple-900 dark:text-purple-100">
+                                    {subQuota.remaining} left
+                                  </span>
+                                </button>
                                 {subQuota.paymentStatus === "unpaid" ||
                                 subQuota.paymentStatus === "pending_payment" ? (
-                                  <span className="text-[8.5px] bg-amber-500/25 text-amber-800 dark:text-amber-200 border border-amber-500/40 px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider">
-                                    Pending Payment
+                                  <span
+                                    className="h-6 inline-flex items-center text-[9px] bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/35 px-2 rounded-full font-bold uppercase tracking-wider whitespace-nowrap shrink-0"
+                                    title={`Plan payment pending: ₹${subQuota.amountDue || 0} due`}
+                                  >
+                                    Unpaid
                                     {subQuota.amountDue != null &&
                                     subQuota.amountDue > 0
                                       ? ` (₹${subQuota.amountDue})`
@@ -1126,15 +1132,18 @@ export function EditAppointmentServicesDialog({
                                   </span>
                                 ) : subQuota.paymentStatus ===
                                   "partially_paid" ? (
-                                  <span className="text-[8.5px] bg-orange-500/25 text-orange-800 dark:text-orange-200 border border-orange-500/40 px-1.5 py-0.2 rounded-full font-bold uppercase tracking-wider">
-                                    Partially Paid
+                                  <span
+                                    className="h-6 inline-flex items-center text-[9px] bg-orange-500/20 text-orange-800 dark:text-orange-200 border border-orange-500/35 px-2 rounded-full font-bold uppercase tracking-wider whitespace-nowrap shrink-0"
+                                    title={`Plan partially paid: ₹${subQuota.amountDue || 0} due`}
+                                  >
+                                    Partial
                                     {subQuota.amountDue != null &&
                                     subQuota.amountDue > 0
                                       ? ` (Due: ₹${subQuota.amountDue})`
                                       : ""}
                                   </span>
                                 ) : null}
-                              </button>
+                              </div>
                             ) : null)}
                         </div>
                         <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-2 mt-1">
