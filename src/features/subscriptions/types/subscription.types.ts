@@ -31,8 +31,9 @@ export interface SubscriptionPlanSummary {
 
 export type SubscriptionMemberStatus =
   | "active"
-  | "suspended"
-  | "inactive";
+  | "pending_payment"
+  | "exhausted"
+  | "cancelled";
 
 export interface SubscriptionMember {
   customerId: string;
@@ -87,6 +88,13 @@ export interface SubscriptionUsageRecord {
   branchId: string;
   branchName?: string;
   appointmentId?: string;
+  subscriptionInvoice?: {
+    id?: string;
+    _id?: string;
+    invoiceNumber?: string;
+    status?: string;
+    paymentStatus?: string;
+  } | string;
   verificationMethod?: "otp" | "manual";
   reason?: string | null;
   redeemedAt: string;
@@ -120,7 +128,6 @@ export interface CreateSubscriptionPayload {
   startDate: string;
   endDate: string;
   notes?: string;
-  billImmediately?: boolean;
 }
 
 export interface UpdateSubscriptionPayload {
@@ -182,13 +189,23 @@ export interface RenewSubscriptionResult extends Subscription {
   invoiceNumber?: string;
 }
 
+export interface SendOtpPayload {
+  memberCustomerId?: string;
+}
+
+export interface SendOtpResult {
+  message?: string;
+  expiresIn?: number;
+  resendAfter?: number;
+}
+
 export type SubscriptionListResponse = PaginatedResponse<Subscription>;
 export type SubscriptionDetailsResponse = ApiResponse<Subscription>;
 export type SubscriptionMutateResponse = ApiResponse<
   Subscription | { subscription: Subscription; invoiceId?: string; invoice?: Record<string, unknown> }
 >;
 export type SubscriptionUsageResponse = PaginatedResponse<SubscriptionUsageRecord>;
-export type SendOtpResponse = ApiResponse<{ message?: string }>;
+export type SendOtpResponse = ApiResponse<SendOtpResult>;
 export type RedeemResponse = ApiResponse<{
   subscription: Subscription;
   usageRecords: SubscriptionUsageRecord[];

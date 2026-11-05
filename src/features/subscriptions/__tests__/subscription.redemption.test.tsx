@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import "@testing-library/jest-dom/vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RedeemSubscriptionModal } from "../components/RedeemSubscriptionModal";
@@ -140,7 +141,9 @@ describe("RedeemSubscriptionModal", () => {
     fireEvent.click(sendOtpButton);
 
     await waitFor(() => {
-      expect(mockSendOtp).toHaveBeenCalledWith("sub_1");
+      expect(mockSendOtp).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "sub_1" }),
+      );
       expect(screen.getByPlaceholderText("Enter 4-6 digit SMS OTP...")).not.toBeNull();
     });
 
@@ -254,5 +257,182 @@ describe("RedeemSubscriptionModal", () => {
       expect(onSuccess).not.toHaveBeenCalled();
       expect(onClose).not.toHaveBeenCalled();
     });
+  });
+
+  it("sends memberCustomerId in OTP and redemption requests and scopes appointments to memberCustomerId", async () => {
+    const multiMemberSub: Subscription = {
+      ...mockSubscription,
+      id: "sub_multi_modal",
+      customerId: "cust_payer_root",
+      customer: {
+        id: "cust_payer_root",
+        name: "Payer John",
+        phone: "+91 99999 11111",
+      },
+      members: [
+        {
+          customerId: "cust_beneficiary_2",
+          customer: {
+            id: "cust_beneficiary_2",
+            name: "Beneficiary Bob",
+            phone: "+91 88888 22222",
+          },
+          status: "active",
+          entitlements: [
+            {
+              serviceId: "srv_1",
+              serviceName: "Haircut",
+              totalQuantity: 5,
+              usedQuantity: 1,
+              remainingQuantity: 4,
+            },
+          ],
+        },
+      ],
+    };
+
+    mockSendOtp.mockResolvedValueOnce({
+      message: "OTP sent to Bob",
+      expiresIn: 300,
+      resendAfter: 60,
+    });
+    mockRedeem.mockResolvedValueOnce({
+      subscription: multiMemberSub,
+      usageRecords: [],
+    });
+
+    const onClose = vi.fn();
+    const onSuccess = vi.fn();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RedeemSubscriptionModal
+          subscription={multiMemberSub}
+          memberCustomerId="cust_beneficiary_2"
+          isOpen={true}
+          onClose={onClose}
+          onSuccess={onSuccess}
+        />
+      </QueryClientProvider>
+    );
+
+    // Entitlement shown must be Bob's Haircut (remaining 4 of 5)
+    expect(screen.getByText("Haircut")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText(/Remaining:/i)).toBeInTheDocument();
+
+    // Select 1 unit
+    fireEvent.click(screen.getByRole("button", { name: "Increase quantity" }));
+
+    // Send OTP
+    fireEvent.click(screen.getByRole("button", { name: "Send Customer OTP" }));
+
+    await waitFor(() => {
+      // Must pass memberCustomerId to sendOtp mutation
+      expect(mockSendOtp).toHaveBeenCalledWith({
+        id: "sub_multi_modal",
+        payload: { memberCustomerId: "cust_beneficiary_2" },
+      });
+      // Displays Bob's phone number, not Payer's phone
+      expect(screen.getByText(/\+91 88888 22222/i)).toBeInTheDocument();
+    });
+
+    // Enter OTP and redeem
+    fireEvent.change(screen.getByPlaceholderText("Enter 4-6 digit SMS OTP..."), {
+      target: { value: "112233" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Complete Redemption" }));
+
+    await waitFor(() => {
+      // Must pass memberCustomerId to redeem mutation matching OTP target
+      expect(mockRedeem).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "sub_multi_modal",
+          payload: expect.objectContaining({
+            memberCustomerId: "cust_beneficiary_2",
+            otp: "112233",
+            services: [{ serviceId: "srv_1", quantity: 1 }],
+          }),
+        }),
+      );
+      expect(onSuccess).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("strictly isolates member entitlements: empty member entitlement array does NOT fall back to root aggregate", () => {
+    const emptyMemberSub: Subscription = {
+      ...mockSubscription,
+      id: "sub_empty_member_modal",
+      entitlements: [
+        {
+          serviceId: "srv_1",
+          serviceName: "Haircut",
+          totalQuantity: 10,
+          usedQuantity: 0,
+          remainingQuantity: 10,
+        },
+      ],
+      members: [
+        {
+          customerId: "cust_empty_mem",
+          status: "active",
+          entitlements: [], // Empty
+        },
+      ],
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RedeemSubscriptionModal
+          subscription={emptyMemberSub}
+          memberCustomerId="cust_empty_mem"
+          isOpen={true}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+
+    // Haircut from root aggregate should NOT be displayed
+    expect(screen.queryByText("Haircut")).not.toBeInTheDocument();
+    expect(screen.getByText(/No service entitlements remaining to redeem/i)).toBeInTheDocument();
+  });
+
+  it("prevents redemption when member status is exhausted or cancelled", () => {
+    const exhaustedMemberSub: Subscription = {
+      ...mockSubscription,
+      id: "sub_exhausted_member_modal",
+      members: [
+        {
+          customerId: "cust_exhausted_mem",
+          status: "exhausted",
+          entitlements: [
+            {
+              serviceId: "srv_1",
+              serviceName: "Haircut",
+              totalQuantity: 5,
+              usedQuantity: 5,
+              remainingQuantity: 0,
+            },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RedeemSubscriptionModal
+          subscription={exhaustedMemberSub}
+          memberCustomerId="cust_exhausted_mem"
+          isOpen={true}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+        />
+      </QueryClientProvider>
+    );
+
+    expect(screen.queryByText("Haircut")).not.toBeInTheDocument();
+    expect(screen.getByText(/No service entitlements remaining to redeem/i)).toBeInTheDocument();
   });
 });

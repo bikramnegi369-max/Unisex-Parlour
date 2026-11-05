@@ -2,25 +2,17 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import type { SubscriptionStatus } from "../types/subscription.types";
 
-interface SubscriptionStatusBadgeProps {
+export interface SubscriptionStatusBadgeProps {
   status: SubscriptionStatus | string;
   paymentStatus?: "unpaid" | "partially_paid" | "paid";
 }
 
-export function SubscriptionStatusBadge({ status, paymentStatus }: SubscriptionStatusBadgeProps) {
-  if (paymentStatus && paymentStatus !== "paid" && status === "active") {
-    return (
-      <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold text-[11px] capitalize">
-        Payment Pending
-      </Badge>
-    );
-  }
-
+export function SubscriptionStatusBadge({ status }: SubscriptionStatusBadgeProps) {
   switch (status) {
     case "pending_payment":
       return (
         <Badge variant="outline" className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 font-semibold text-[11px] capitalize">
-          Payment Pending
+          Pending Payment
         </Badge>
       );
     case "active":

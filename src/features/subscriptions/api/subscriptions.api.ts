@@ -15,8 +15,11 @@ import type {
   SubscriptionDetailsResponse,
   SubscriptionMutateResponse,
   SubscriptionUsageResponse,
+  SendOtpPayload,
+  SendOtpResult,
   SendOtpResponse,
   RedeemResponse,
+  SubscriptionMemberStatus,
 } from "../types/subscription.types";
 
 export interface RawSubscriptionDTO
@@ -66,7 +69,7 @@ export interface RawSubscriptionDTO
       phone?: string;
       email?: string;
     };
-    status?: "active" | "suspended" | "inactive";
+    status?: SubscriptionMemberStatus;
     entitlements?: Array<{
       serviceId: string | { _id?: string; id?: string; name?: string };
       serviceName?: string;
@@ -554,11 +557,17 @@ export const cancelSubscription = async (
 /**
  * Branch-scoped OTP trigger for redemption.
  * Uses the client's current active branch context.
+ * Supports optional memberCustomerId to send OTP to the specific beneficiary customer.
  */
-export const sendSubscriptionOtp = async (id: string): Promise<{ message?: string }> => {
+export const sendSubscriptionOtp = async (
+  id: string,
+  payload?: SendOtpPayload
+): Promise<SendOtpResult> => {
   const { data } = await apiClient.post<SendOtpResponse>(
     `/subscriptions/${id}/send-otp`,
-    {},
+    payload && payload.memberCustomerId
+      ? { memberCustomerId: payload.memberCustomerId }
+      : {},
     {
       branchScope: "current",
     }

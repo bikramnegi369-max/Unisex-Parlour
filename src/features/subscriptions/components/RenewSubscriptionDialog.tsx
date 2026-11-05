@@ -153,7 +153,7 @@ export function RenewSubscriptionDialog({
           <p className="text-[11px] text-destructive">{errors.price.message}</p>
         )}
         <p className="text-[10px] text-muted-foreground">
-          Generates a sale invoice for this renewal amount under the active selling branch.
+          Generates a separate subscription renewal invoice under the active selling branch. Entitlements are redeemable immediately.
         </p>
       </div>
 

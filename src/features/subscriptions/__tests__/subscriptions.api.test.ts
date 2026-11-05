@@ -289,9 +289,13 @@ describe("Subscriptions API layer", () => {
   });
 
   describe("sendSubscriptionOtp", () => {
-    it("calls POST /subscriptions/:id/send-otp with current branch scope", async () => {
+    it("calls POST /subscriptions/:id/send-otp with current branch scope and empty body when no payload", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
-        data: { success: true, status: "success", data: { message: "OTP sent" } },
+        data: {
+          success: true,
+          status: "success",
+          data: { message: "OTP sent", expiresIn: 300, resendAfter: 60 },
+        },
       });
 
       const res = await sendSubscriptionOtp("sub_1");
@@ -302,6 +306,31 @@ describe("Subscriptions API layer", () => {
         { branchScope: "current" }
       );
       expect(res.message).toBe("OTP sent");
+      expect(res.expiresIn).toBe(300);
+      expect(res.resendAfter).toBe(60);
+    });
+
+    it("sends memberCustomerId when targeting a specific beneficiary customer", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { message: "Beneficiary OTP sent", expiresIn: 300, resendAfter: 60 },
+        },
+      });
+
+      const res = await sendSubscriptionOtp("sub_1", {
+        memberCustomerId: "target-customer-id",
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/subscriptions/sub_1/send-otp",
+        { memberCustomerId: "target-customer-id" },
+        { branchScope: "current" }
+      );
+      expect(res.message).toBe("Beneficiary OTP sent");
+      expect(res.expiresIn).toBe(300);
+      expect(res.resendAfter).toBe(60);
     });
   });
 

@@ -16,7 +16,7 @@ import { useSubscription } from "../hooks/useSubscription";
 import { useUpdateSubscription } from "../hooks/useUpdateSubscription";
 import { useCancelSubscription } from "../hooks/useCancelSubscription";
 import { useRenewSubscription } from "../hooks/useRenewSubscription";
-import { SubscriptionStatusBadge } from "./SubscriptionStatusBadge";
+import { SubscriptionStatusBadge , SubscriptionPaymentBadge} from "./SubscriptionStatusBadge";
 import { SubscriptionOverviewTab } from "./SubscriptionOverviewTab";
 import { SubscriptionEntitlementsTab } from "./SubscriptionEntitlementsTab";
 import { SubscriptionUsageTab } from "./SubscriptionUsageTab";
@@ -154,11 +154,9 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
     );
   }
 
-  const isFullyPaid =
-    subscription.isPaid === true ||
-    subscription.paymentStatus === "paid" ||
-    (subscription.paymentStatus === undefined && subscription.status === "active");
-  const isRedeemableActive = subscription.status === "active" && isFullyPaid;
+  const isRedeemableActive =
+    subscription.status === "active" ||
+    subscription.status === "pending_payment";
   const isActive = isRedeemableActive;
   // Calculate remaining and total allocated counts across all beneficiary members if multi-member,
   // falling back to root entitlements compatibility projection for legacy subscriptions.
@@ -229,10 +227,8 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
                   <h1 className="text-base sm:text-lg font-bold text-foreground">
                     {subscription.subscriptionCode || subscription.id}
                   </h1>
-                  <SubscriptionStatusBadge
-                    status={subscription.status}
-                    paymentStatus={subscription.paymentStatus}
-                  />
+                  <SubscriptionStatusBadge status={subscription.status} />
+                  <SubscriptionPaymentBadge status={subscription.paymentStatus} />
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Payer:{" "}

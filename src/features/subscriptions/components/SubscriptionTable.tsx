@@ -2,7 +2,7 @@ import React from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import type { Subscription } from "../types/subscription.types";
-import { SubscriptionStatusBadge } from "./SubscriptionStatusBadge";
+import { SubscriptionStatusBadge , SubscriptionPaymentBadge} from "./SubscriptionStatusBadge";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Eye, Edit, Ban, Gift, Building2, User } from "lucide-react";
 
@@ -38,11 +38,7 @@ export function SubscriptionTable({
   getBranchName,
 }: SubscriptionTableProps) {
   const renderMobileRow = (sub: Subscription) => {
-    const isPaid =
-      sub.isPaid === true ||
-      sub.paymentStatus === "paid" ||
-      (sub.paymentStatus === undefined && sub.status === "active");
-    const isActive = sub.status === "active" && isPaid;
+    const isActive = sub.status === "active" || sub.status === "pending_payment";
     const entitlements = sub.entitlements || [];
     const totalRemaining = entitlements.reduce((sum, e) => sum + e.remainingQuantity, 0);
     const totalAllocated = entitlements.reduce((sum, e) => sum + e.totalQuantity, 0);
@@ -58,7 +54,8 @@ export function SubscriptionTable({
             <span className="font-mono font-bold text-xs text-foreground whitespace-nowrap">
               {sub.subscriptionCode || sub.id}
             </span>
-            <SubscriptionStatusBadge status={sub.status} paymentStatus={sub.paymentStatus} />
+            <SubscriptionStatusBadge status={sub.status} />
+            <SubscriptionPaymentBadge status={sub.paymentStatus} />
           </div>
           <span className="font-bold text-xs text-foreground">
             {formatCurrency(sub.price)}

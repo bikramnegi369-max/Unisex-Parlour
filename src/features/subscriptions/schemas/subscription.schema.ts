@@ -43,7 +43,6 @@ export const createSubscriptionSchema = z
     startDate: z.string().min(1, "Start date is required"),
     endDate: z.string().min(1, "End date is required"),
     notes: z.string().trim().optional(),
-    billImmediately: z.boolean().default(true),
   })
   .refine(
     (data) => {

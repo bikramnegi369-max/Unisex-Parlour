@@ -4,7 +4,7 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { formatCurrency, formatDate } from "@/lib/formatters";
 import { Eye, Edit, Ban, Gift, Building2, User, Users, RefreshCw } from "lucide-react";
 import type { Subscription } from "../types/subscription.types";
-import { SubscriptionStatusBadge } from "../components/SubscriptionStatusBadge";
+import { SubscriptionStatusBadge , SubscriptionPaymentBadge} from "../components/SubscriptionStatusBadge";
 
 interface SubscriptionColumnsOptions {
   onView: (subscription: Subscription) => void;
@@ -212,11 +212,9 @@ export const getSubscriptionColumns = ({
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <div className="min-w-28 whitespace-nowrap">
-        <SubscriptionStatusBadge
-          status={row.original.status}
-          paymentStatus={row.original.paymentStatus}
-        />
+      <div className="flex items-center gap-1.5 min-w-36 whitespace-nowrap">
+        <SubscriptionStatusBadge status={row.original.status} />
+        <SubscriptionPaymentBadge status={row.original.paymentStatus} />
       </div>
     ),
   },
@@ -225,11 +223,7 @@ export const getSubscriptionColumns = ({
     header: () => <div className="text-right">Actions</div>,
     cell: ({ row }) => {
       const sub = row.original;
-      const isPaid =
-        sub.isPaid === true ||
-        sub.paymentStatus === "paid" ||
-        (sub.paymentStatus === undefined && sub.status === "active");
-      const isActive = sub.status === "active" && isPaid;
+      const isActive = sub.status === "active" || sub.status === "pending_payment";
 
       return (
         <div

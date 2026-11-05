@@ -66,17 +66,48 @@ export function RedeemSubscriptionModal({
   };
 
   const targetMember = memberCustomerId
-    ? (subscription.members || []).find((m) => m.customerId === memberCustomerId)
+    ? (subscription.members || []).find(
+        (m) =>
+          m.customerId === memberCustomerId ||
+          m.customer?.id === memberCustomerId,
+      )
     : undefined;
 
-  const relevantEntitlementsList =
-    targetMember && targetMember.entitlements && targetMember.entitlements.length > 0
-      ? targetMember.entitlements
+  // Has explicit member targeting occurred?
+  // When a member exists, use that member's entitlements strictly (empty array remains empty; NEVER fall back to root aggregate).
+  // If targetMember does not exist:
+  // - If memberCustomerId was provided, or subscription has members defined and this customer is not a member, they have NO personal entitlements.
+  // - For legacy / non-multi-member single customer subscriptions where no members array exists, use subscription.entitlements.
+  const hasMembersArray = Boolean(
+    subscription.members && subscription.members.length > 0,
+  );
+
+  const relevantEntitlementsList = targetMember
+    ? targetMember.entitlements || []
+    : memberCustomerId || hasMembersArray
+      ? []
       : subscription.entitlements || [];
 
-  const usableEntitlements = relevantEntitlementsList.filter(
-    (e) => e.remainingQuantity > 0,
-  );
+  const targetCustomerPhone =
+    targetMember?.customer?.phone || subscription.customer?.phone;
+
+  const targetCustomerName =
+    targetMember?.customer?.name || subscription.customer?.name;
+
+  // Member eligibility check:
+  // Backend member statuses: "active" | "pending_payment" | "exhausted" | "cancelled"
+  // Allowed redemption: "active" and "pending_payment"
+  const isMemberEligible = targetMember
+    ? targetMember.status === "active" || targetMember.status === "pending_payment"
+    : true; // If not in member mode (legacy), parent subscription status handles it
+
+  const isMemberExhaustedOrCancelled = targetMember
+    ? targetMember.status === "exhausted" || targetMember.status === "cancelled"
+    : false;
+
+  const usableEntitlements = (
+    isMemberEligible && !isMemberExhaustedOrCancelled ? relevantEntitlementsList : []
+  ).filter((e) => e.remainingQuantity > 0);
 
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [isManual, setIsManual] = useState(false);
@@ -91,14 +122,15 @@ export function RedeemSubscriptionModal({
   const sendOtpMutation = useSendSubscriptionOtp();
   const redeemMutation = useRedeemSubscription();
 
-  // Load customer appointments for convenient association rather than typing opaque IDs
-  const customerId =
-    typeof subscription.customerId === "string"
+  // Load target customer's appointments (beneficiary member if specified, otherwise subscription payer)
+  const effectiveCustomerId =
+    memberCustomerId ||
+    (typeof subscription.customerId === "string"
       ? subscription.customerId
-      : subscription.customer?.id || "";
+      : subscription.customer?.id || "");
 
   const { data: appointmentsData } = useAppointments(
-    customerId ? { customerId, limit: 20 } : { limit: 20 },
+    effectiveCustomerId ? { customerId: effectiveCustomerId, limit: 20 } : { limit: 20 },
   );
   // Filter appointments: ensure belonging to customer and not in terminal states (completed/cancelled)
   const appointmentsList = (appointmentsData?.data || []).filter(
@@ -138,7 +170,10 @@ export function RedeemSubscriptionModal({
     }
 
     try {
-      await sendOtpMutation.mutateAsync(subscription.id);
+      await sendOtpMutation.mutateAsync({
+        id: subscription.id,
+        payload: memberCustomerId ? { memberCustomerId } : undefined,
+      });
       setOtpSent(true);
       toast.success("Customer OTP sent successfully via SMS.");
     } catch (err: unknown) {
@@ -470,11 +505,8 @@ export function RedeemSubscriptionModal({
               <div className="space-y-2 animate-in fade-in duration-200">
                 <div className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-medium">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  OTP has been sent to customer{" "}
-                  {subscription.customer?.phone
-                    ? `(${subscription.customer.phone})`
-                    : ""}
-                  .
+                  OTP has been sent to {targetCustomerName || "customer"}{" "}
+                  {targetCustomerPhone ? `(${targetCustomerPhone})` : ""}.
                 </div>
 
                 <div className="space-y-1">

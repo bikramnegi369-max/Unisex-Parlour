@@ -170,7 +170,6 @@ export function SubscriptionList() {
         startDate: values.startDate,
         endDate: values.endDate,
         notes: values.notes,
-        billImmediately: values.billImmediately,
       });
 
       setIsCreateOpen(false);

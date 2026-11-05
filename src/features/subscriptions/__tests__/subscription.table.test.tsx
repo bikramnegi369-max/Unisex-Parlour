@@ -173,11 +173,12 @@ describe("SubscriptionTable & Columns", () => {
     expect(onView).toHaveBeenCalledWith(mockSubscriptions[0]);
   });
 
-  it("suppresses redeem action and displays Payment Pending for unpaid subscriptions", () => {
+  it("displays separate payment status and allows redemption for pending_payment/unpaid subscriptions", () => {
     const unpaidSubscription: Subscription = {
       ...mockSubscriptions[0],
       id: "sub_unpaid",
       subscriptionCode: "SUB-UNPAID",
+      status: "pending_payment",
       paymentStatus: "unpaid",
       isPaid: false,
     };
@@ -211,11 +212,13 @@ describe("SubscriptionTable & Columns", () => {
       />
     );
 
-    // Should display Payment Pending badge
-    expect(screen.getAllByText(/Payment Pending/i).length).toBeGreaterThan(0);
+    // Should display Pending Payment badge for subscription status and Unpaid for payment status
+    expect(screen.getAllByText(/Pending Payment/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Unpaid/i).length).toBeGreaterThan(0);
 
-    // Redeem button should NOT be rendered for unpaid subscription even if canRedeem is true
-    expect(screen.queryByTitle("Redeem Entitlements")).toBeNull();
+    // Redeem button should be accessible even for pending payment
+    const redeemButtons = screen.getAllByTitle("Manual Redemption");
+    expect(redeemButtons.length).toBeGreaterThan(0);
   });
 
   it("renders Renew button when canRenew is true and onRenew is provided", () => {

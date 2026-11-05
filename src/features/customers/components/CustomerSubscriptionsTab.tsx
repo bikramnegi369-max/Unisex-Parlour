@@ -25,7 +25,10 @@ import { hasPermission } from "@/lib/permissions";
 import { SUBSCRIPTIONS_CONFIG } from "@/features/subscriptions/config/subscriptions.config";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { useCreateSubscription } from "@/features/subscriptions/hooks/useCreateSubscription";
-import { SubscriptionStatusBadge } from "@/features/subscriptions/components/SubscriptionStatusBadge";
+import {
+  SubscriptionStatusBadge,
+  SubscriptionPaymentBadge,
+} from "@/features/subscriptions/components/SubscriptionStatusBadge";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
 import { RedeemSubscriptionModal } from "@/features/subscriptions/components/RedeemSubscriptionModal";
 import { useServices } from "@/features/services/hooks/services/useServices";
@@ -78,7 +81,6 @@ export function CustomerSubscriptionsTab({
         startDate: values.startDate,
         endDate: values.endDate,
         notes: values.notes,
-        billImmediately: values.billImmediately,
       });
 
       setIsCreateOpen(false);
@@ -137,14 +139,11 @@ export function CustomerSubscriptionsTab({
       const isPayer = rawPayerId === customerId;
       if (isPayer) payer++;
 
-      // A subscription belongs in "Beneficiary Entitlements" if the customer is receiving
-      // entitlements as a beneficiary member on a subscription paid/purchased by someone else.
-      const isBeneficiaryMember =
-        !isPayer &&
-        (sub.members || []).some(
-          (m) => m.customerId === customerId || m.customer?.id === customerId,
-        );
-      if (isBeneficiaryMember) beneficiary++;
+      // A subscription qualifies under member entitlements if the customer is a registered member
+      const isMember = (sub.members || []).some(
+        (m) => m.customerId === customerId || m.customer?.id === customerId,
+      );
+      if (isMember) beneficiary++;
     }
 
     return { payerCount: payer, beneficiaryCount: beneficiary };
@@ -159,14 +158,12 @@ export function CustomerSubscriptionsTab({
           sub.customerId ||
           sub.customer?.id) === customerId;
 
-      const isBeneficiaryMember =
-        !isPayer &&
-        (sub.members || []).some(
-          (m) => m.customerId === customerId || m.customer?.id === customerId,
-        );
+      const isMember = (sub.members || []).some(
+        (m) => m.customerId === customerId || m.customer?.id === customerId,
+      );
 
       if (filterMode === "payer") return isPayer;
-      if (filterMode === "beneficiary") return isBeneficiaryMember;
+      if (filterMode === "beneficiary") return isMember;
       return true;
     });
   }, [subscriptions, filterMode, customerId]);
@@ -404,15 +401,35 @@ export function CustomerSubscriptionsTab({
               (m) =>
                 m.customerId === customerId || m.customer?.id === customerId,
             );
-            const isBeneficiary = !isPayer && Boolean(memberEntry);
+            const isMember = Boolean(memberEntry);
+            const isBeneficiary = !isPayer && isMember;
 
-            // If customer is beneficiary, display customer's specific entitlement quota
-            const relevantEntitlements =
-              isBeneficiary &&
-              memberEntry?.entitlements &&
-              memberEntry.entitlements.length > 0
-                ? memberEntry.entitlements
+            // Entitlement isolation logic:
+            // 1. If matching memberEntry exists, use that member's personal entitlements strictly
+            //    (even if empty; never fall back to root aggregate pool).
+            // 2. If no memberEntry exists, but the subscription has multi-customer members defined,
+            //    a customer who is only a payer (not enrolled as a member) has NO personal entitlements to redeem.
+            // 3. For legacy single-customer subscriptions where members array is absent,
+            //    fall back to root-level entitlements for the direct customer.
+            const hasMembersList = Boolean(sub.members && sub.members.length > 0);
+            const relevantEntitlements = memberEntry
+              ? memberEntry.entitlements || []
+              : hasMembersList
+                ? []
                 : sub.entitlements || [];
+
+            // Backend member statuses: "active" | "pending_payment" | "exhausted" | "cancelled"
+            // Both "active" and "pending_payment" allocations are eligible for redemption.
+            // "exhausted" and "cancelled" members cannot redeem.
+            const isMemberExhaustedOrCancelled =
+              Boolean(memberEntry) &&
+              (memberEntry?.status === "exhausted" ||
+                memberEntry?.status === "cancelled");
+
+            const isMemberEligible =
+              !memberEntry ||
+              memberEntry.status === "active" ||
+              memberEntry.status === "pending_payment";
 
             const totalRemaining = relevantEntitlements.reduce(
               (sum: number, e: { remainingQuantity: number }) =>
@@ -430,13 +447,20 @@ export function CustomerSubscriptionsTab({
                     ((totalAllocated - totalRemaining) / totalAllocated) * 100,
                   )
                 : 0;
-            const isPaid =
-              sub.isPaid === true ||
-              sub.paymentStatus === "paid" ||
-              (sub.paymentStatus === undefined && sub.status === "active");
-            const isActive = sub.status === "active" && isPaid;
+            const isActive =
+              sub.status === "active" || sub.status === "pending_payment";
 
-            // Resolve payer info when customer is looking at a beneficiary entitlement
+            // A customer who is payer-only (not enrolled as a member in a multi-customer sub)
+            // must NOT be offered personal entitlement redemption.
+            const canRedeemThisSubscription =
+              canRedeem &&
+              isActive &&
+              isMemberEligible &&
+              !isMemberExhaustedOrCancelled &&
+              totalRemaining > 0 &&
+              (!hasMembersList || isMember);
+
+            // Resolve payer info when customer is not the payer
             const payerDisplayName =
               sub.payer?.name ||
               sub.customer?.name ||
@@ -455,11 +479,15 @@ export function CustomerSubscriptionsTab({
                       <span className="font-mono font-bold text-xs bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded">
                         {sub.subscriptionCode || sub.id}
                       </span>
-                      <SubscriptionStatusBadge
-                        status={sub.status}
-                        paymentStatus={sub.paymentStatus}
-                      />
-                      {isPayer && (
+                      <SubscriptionStatusBadge status={sub.status} />
+                      <SubscriptionPaymentBadge status={sub.paymentStatus} />
+                      {isPayer && isMember && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          <ShieldCheck className="h-3 w-3 text-primary" />
+                          Payer & Member Role
+                        </span>
+                      )}
+                      {isPayer && !isMember && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                           <ShieldCheck className="h-3 w-3 text-muted-foreground" />
                           Payer Role
@@ -471,6 +499,13 @@ export function CustomerSubscriptionsTab({
                           Beneficiary Role
                         </span>
                       )}
+                      {memberEntry &&
+                        memberEntry.status &&
+                        memberEntry.status !== "active" && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                            Member {memberEntry.status}
+                          </span>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap pt-0.5">
@@ -504,7 +539,7 @@ export function CustomerSubscriptionsTab({
                   </div>
 
                   <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
-                    {canRedeem && isActive && totalRemaining > 0 && (
+                    {canRedeemThisSubscription && (
                       <Button
                         type="button"
                         size="sm"
@@ -530,7 +565,7 @@ export function CustomerSubscriptionsTab({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground font-medium text-[11px]">
-                      {isBeneficiary
+                      {isMember
                         ? "Member Quota Consumption"
                         : "Package Usage Consumption"}
                     </span>
@@ -560,47 +595,59 @@ export function CustomerSubscriptionsTab({
                 {/* Entitlements Breakdown Chips */}
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    {isBeneficiary
+                    {isMember
                       ? "Assigned Member Service Quotas"
-                      : "Service Entitlements Quotas"}
+                      : hasMembersList
+                        ? "Personal Member Service Quotas"
+                        : "Service Entitlements Quotas"}
                   </span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                    {relevantEntitlements.map((ent, idx) => {
-                      const srv = services.find((s) => s.id === ent.serviceId);
-                      const isDepleted = ent.remainingQuantity === 0;
+                  {relevantEntitlements.length === 0 ? (
+                    <div className="p-3 rounded-lg border border-dashed border-border/80 bg-muted/20 text-center text-xs text-muted-foreground">
+                      {isPayer && !isMember && hasMembersList
+                        ? "Payer account: no personal member service entitlements assigned to this profile."
+                        : "No service entitlements allocated for this member."}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      {relevantEntitlements.map((ent, idx) => {
+                        const srv = services.find(
+                          (s) => s.id === ent.serviceId,
+                        );
+                        const isDepleted = ent.remainingQuantity === 0;
 
-                      return (
-                        <div
-                          key={ent.serviceId || `ent-${idx}`}
-                          className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
-                            isDepleted
-                              ? "bg-muted/30 border-border/60 text-muted-foreground opacity-60"
-                              : "bg-muted/10 border-border text-foreground"
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1 truncate">
-                            <div className="font-semibold truncate">
-                              {srv?.name ||
-                                ent.serviceName ||
-                                `Service #${ent.serviceId.slice(-4)}`}
-                            </div>
-                            <div className="text-[10px] text-muted-foreground">
-                              {ent.usedQuantity} used of {ent.totalQuantity}
-                            </div>
-                          </div>
-                          <span
-                            className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                        return (
+                          <div
+                            key={ent.serviceId || `ent-${idx}`}
+                            className={`p-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
                               isDepleted
-                                ? "bg-muted text-muted-foreground"
-                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                ? "bg-muted/30 border-border/60 text-muted-foreground opacity-60"
+                                : "bg-muted/10 border-border text-foreground"
                             }`}
                           >
-                            {ent.remainingQuantity} left
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            <div className="min-w-0 flex-1 truncate">
+                              <div className="font-semibold truncate">
+                                {srv?.name ||
+                                  ent.serviceName ||
+                                  `Service #${ent.serviceId.slice(-4)}`}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                {ent.usedQuantity} used of {ent.totalQuantity}
+                              </div>
+                            </div>
+                            <span
+                              className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                isDepleted
+                                  ? "bg-muted text-muted-foreground"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                              }`}
+                            >
+                              {ent.remainingQuantity} left
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             );

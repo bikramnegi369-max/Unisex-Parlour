@@ -1661,7 +1661,7 @@ export function CreateSubscriptionDialog({
             )}
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            This amount will be billed to the customer upon invoice creation.
+            Every subscription purchase automatically generates a separate subscription invoice. Entitlements are redeemable immediately.
           </p>
         </div>
 

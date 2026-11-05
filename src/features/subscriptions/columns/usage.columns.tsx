@@ -1,3 +1,4 @@
+import Link from "next/link";
 import React from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import { formatDateTime } from "@/lib/formatters";
@@ -99,6 +100,38 @@ export const getSubscriptionUsageColumns = ({
         <span className="text-xs font-mono text-muted-foreground">
           {displayApt}
         </span>
+      );
+    },
+  },
+  {
+    accessorKey: "subscriptionInvoice",
+    header: "Subscription Invoice",
+    cell: ({ row }) => {
+      const inv = row.original.subscriptionInvoice as unknown;
+      if (!inv) return <span className="text-xs text-muted-foreground">-</span>;
+
+      let invoiceId = "";
+      let invoiceNumber = "";
+
+      if (typeof inv === "string") {
+        invoiceId = inv;
+        invoiceNumber = `#${inv.slice(-6)}`;
+      } else if (typeof inv === "object" && inv !== null) {
+        const invObj = inv as { id?: string; _id?: string; invoiceNumber?: string };
+        invoiceId = invObj.id || invObj._id || "";
+        invoiceNumber = invObj.invoiceNumber || (invoiceId ? `#${invoiceId.slice(-6)}` : "Invoice");
+      }
+
+      if (!invoiceId) return <span className="text-xs text-muted-foreground">-</span>;
+
+      return (
+        <Link
+          href={`/billing/${invoiceId}`}
+          className="text-xs font-mono font-medium text-primary hover:underline underline-offset-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {invoiceNumber}
+        </Link>
       );
     },
   },
