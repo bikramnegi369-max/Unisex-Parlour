@@ -734,7 +734,7 @@ export function SubscriptionList() {
             setIsCreateOpen(false);
             setSelectedPlanForCustomer(null);
           }}
-          maxWidth="3xl"
+          maxWidth="5xl"
           title="Sell Customer Subscription"
         >
           <CreateSubscriptionDialog

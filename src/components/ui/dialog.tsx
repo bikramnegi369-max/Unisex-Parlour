@@ -7,7 +7,7 @@ interface DialogProps {
   onClose: () => void;
   children: React.ReactNode;
   title?: string;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
   className?: string;
 }
 
@@ -126,6 +126,8 @@ export function Dialog({
             ? "max-w-3xl"
             : maxWidth === "4xl"
             ? "max-w-4xl"
+            : maxWidth === "5xl"
+            ? "max-w-5xl"
             : "max-w-lg"
         } max-h-[90vh] overflow-y-auto rounded-xl border border-border bg-popover text-popover-foreground p-6 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 outline-none ${className}`}
       >

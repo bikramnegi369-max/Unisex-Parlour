@@ -660,7 +660,7 @@ export function CustomerSubscriptionsTab({
         <Dialog
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}
-          maxWidth="3xl"
+          maxWidth="5xl"
           title="Sell Customer Subscription"
         >
           <CreateSubscriptionDialog

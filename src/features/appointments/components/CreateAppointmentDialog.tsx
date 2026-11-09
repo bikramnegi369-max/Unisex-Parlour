@@ -2992,7 +2992,7 @@ export function CreateAppointmentDialog({
       <Dialog
         isOpen={isSellSubscriptionOpen}
         onClose={() => setIsSellSubscriptionOpen(false)}
-        maxWidth="2xl"
+        maxWidth="5xl"
         title="Sell Subscription Package"
       >
         <CreateSubscriptionDialog
