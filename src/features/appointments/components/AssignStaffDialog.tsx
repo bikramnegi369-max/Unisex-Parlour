@@ -228,7 +228,7 @@ export function AssignStaffDialog({
     }
 
     try {
-      // If user chose to start service immediately or scheduled time has elapsed with sync enabled,
+      // If user chose to sync start time to current time or scheduled time has elapsed with sync enabled,
       // align start time to current time (+1 min buffer to prevent backend clock skew)
       const shouldAlignTimeToNow =
         data.staffId &&
@@ -245,9 +245,7 @@ export function AssignStaffDialog({
             branchId: appointment.branchId,
             date: appointment.date,
             startTime: currentTimeStr,
-            reason: startServiceImmediately
-              ? "Staff assignment: service started immediately at current time"
-              : "Staff assignment: service start time aligned to current time",
+            reason: "Staff assignment: start time aligned to current time",
           },
         });
       }
@@ -286,7 +284,7 @@ export function AssignStaffDialog({
           branchId: appointment.branchId,
           date: appointment.date,
           startTime: currentTimeStr,
-          reason: "Staff assignment: service started at current time",
+          reason: "Staff assignment: start time aligned to current time to resolve conflict",
         },
       });
       await onSubmit(appointment.id, {
@@ -301,7 +299,7 @@ export function AssignStaffDialog({
         response?: { data?: { message?: string } };
       };
       toast.error(
-        axiosError.response?.data?.message || "Failed to start service now.",
+        axiosError.response?.data?.message || "Failed to update start time and assign staff.",
       );
     }
   };
@@ -325,7 +323,7 @@ export function AssignStaffDialog({
             {selectedStaffId && (
               <div className="pt-2 border-t border-destructive/20 flex items-center justify-between gap-2 text-[11px]">
                 <span className="text-foreground">
-                  Was staff busy earlier? Start service at current time instead:
+                  Was staff busy earlier? Sync start time to current time instead:
                 </span>
                 <Button
                   type="button"
@@ -334,8 +332,8 @@ export function AssignStaffDialog({
                   onClick={handleSyncAndAssignNow}
                   className="h-7 text-xs gap-1 shrink-0"
                 >
-                  <Play className="h-3 w-3" />
-                  Start Service Now ({format(new Date(), "HH:mm")})
+                  <Clock className="h-3 w-3" />
+                  Sync to Current Time ({format(new Date(), "HH:mm")})
                 </Button>
               </div>
             )}
@@ -461,7 +459,7 @@ export function AssignStaffDialog({
               )}
           </div>
 
-          {/* Start Service Immediately Option */}
+          {/* Sync Start Time to Now Option */}
           {selectedStaffId && isTodayAppointment && (
             <div className="p-2.5 bg-primary/5 border border-primary/20 rounded-lg text-xs space-y-1 text-foreground">
               <label className="flex items-center gap-2 cursor-pointer font-medium">
@@ -472,12 +470,11 @@ export function AssignStaffDialog({
                   className="rounded border-input text-primary focus:ring-primary h-4 w-4"
                 />
                 <span className="font-semibold text-primary">
-                  Start service immediately
+                  Set appointment start time to now ({format(new Date(), "HH:mm")})
                 </span>
               </label>
               <p className="text-[10px] text-muted-foreground pl-6">
-                Client is seated now. Aligns appointment start time to current
-                time ({format(new Date(), "HH:mm")}).
+                Adjusts scheduled time so the assigned staff member&apos;s calendar is blocked starting now. (Status can be set to &quot;In Progress&quot; via Start Service in details or status menu).
               </p>
             </div>
           )}
