@@ -13,6 +13,7 @@ import {
   UserCheck,
   ShieldCheck,
   User,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SyncButton } from "@/components/ui/sync-button";
@@ -20,6 +21,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { formatCurrency, formatDate } from "@/lib/formatters";
+import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { SUBSCRIPTIONS_CONFIG } from "@/features/subscriptions/config/subscriptions.config";
@@ -38,14 +40,24 @@ import type { CreateSubscriptionFormValues } from "@/features/subscriptions/sche
 
 interface CustomerSubscriptionsTabProps {
   customerId: string;
+  getBranchName?: (branchId: string) => string;
 }
 
 export type SubscriptionFilterMode = "all" | "payer" | "beneficiary";
 
 export function CustomerSubscriptionsTab({
   customerId,
+  getBranchName: externalGetBranchName,
 }: CustomerSubscriptionsTabProps) {
   const { user } = useAuth();
+  let contextGetBranchName: ((id: string) => string) | undefined;
+  try {
+    const branchCtx = useBranchContext();
+    contextGetBranchName = branchCtx?.getBranchName;
+  } catch {
+    contextGetBranchName = undefined;
+  }
+  const getBranchName = externalGetBranchName || contextGetBranchName || ((id: string) => id);
   const canSell = hasPermission(user, SUBSCRIPTIONS_CONFIG.permissions.sell);
   const canRedeem = hasPermission(
     user,
@@ -535,6 +547,49 @@ export function CustomerSubscriptionsTab({
                           </span>
                         </>
                       )}
+                    </div>
+
+                    {/* Member or subscription permitted branches */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
+                      <span className="text-muted-foreground font-medium flex items-center gap-1">
+                        <Building2 className="h-3 w-3 text-primary" />
+                        Branch Access:
+                      </span>
+                      {(() => {
+                        const memberBranches = memberEntry?.permittedBranchIds;
+                        if (memberBranches && memberBranches.length > 0) {
+                          return memberBranches.map((bId) => (
+                            <span
+                              key={bId}
+                              className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.2 rounded font-medium"
+                            >
+                              {getBranchName(bId)}
+                            </span>
+                          ));
+                        }
+                        if (sub.permittedBranchIds && sub.permittedBranchIds.length > 0) {
+                          return (
+                            <>
+                              <span className="text-[10px] text-muted-foreground italic mr-0.5">
+                                (Plan inherited)
+                              </span>
+                              {sub.permittedBranchIds.map((bId) => (
+                                <span
+                                  key={bId}
+                                  className="text-[10px] bg-muted text-muted-foreground border border-border px-1.5 py-0.2 rounded font-medium"
+                                >
+                                  {getBranchName(bId)}
+                                </span>
+                              ))}
+                            </>
+                          );
+                        }
+                        return (
+                          <span className="text-[10px] text-muted-foreground/80 italic">
+                            All Branches
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 

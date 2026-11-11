@@ -602,10 +602,20 @@ export function CreateAppointmentDialog({
 
     for (const sub of activeSubscriptions) {
       // Find the specific entitlements applicable to the appointment customer (as beneficiary member or primary customer)
-      const memberEntry = (sub.members || []).find((m) => m.customerId === watchedCustomerId);
-      const isBeneficiary = Boolean(memberEntry);
+      const members = sub.members;
+      const hasMembersArray = Array.isArray(members);
+      const memberEntry = hasMembersArray
+        ? members.find((m) => m.customerId === watchedCustomerId)
+        : undefined;
 
-      // Branch restriction check: If permittedBranchIds is specified and non-empty, current appointment branch must be permitted
+      // If subscription has a members array defined:
+      // - Must contain the appointment customer as a member.
+      // - If customer is not a member, exclude this subscription entirely from eligible coverage.
+      if (hasMembersArray && !memberEntry) {
+        continue;
+      }
+
+      // Subscription-level branch restriction check:
       if (
         effectiveBranchId &&
         sub.permittedBranchIds &&
@@ -615,11 +625,22 @@ export function CreateAppointmentDialog({
         continue;
       }
 
-      // If multi-member subscription, only use entitlements assigned to this customer as a member
-      const candidateEntitlements =
-        isBeneficiary && memberEntry?.entitlements && memberEntry.entitlements.length > 0
-          ? memberEntry.entitlements
-          : sub.entitlements || [];
+      // Member-level branch restriction check:
+      if (
+        effectiveBranchId &&
+        memberEntry?.permittedBranchIds &&
+        memberEntry.permittedBranchIds.length > 0 &&
+        !memberEntry.permittedBranchIds.includes(effectiveBranchId)
+      ) {
+        continue;
+      }
+
+      // Determine candidate entitlements:
+      // - For member-based subscriptions, strictly use the matching customer's own member entitlements. Never fall back to root entitlements.
+      // - For genuine legacy single-customer subscriptions (where members array is absent), fall back to sub.entitlements.
+      const candidateEntitlements = memberEntry
+        ? memberEntry.entitlements || []
+        : sub.entitlements || [];
 
       for (const ent of candidateEntitlements) {
         const isRedeemable = ent.isRedeemable !== false;
@@ -654,6 +675,75 @@ export function CreateAppointmentDialog({
 
     return map;
   }, [activeSubscriptions, effectiveBranchId, watchedCustomerId]);
+
+  // Clear invalid appliedSubscriptionId when customer or effective branch changes
+  useEffect(() => {
+    const currentServices = (getValues("services") || []) as NonNullable<
+      CreateAppointmentSchemaType["services"]
+    >;
+    let hasChanged = false;
+
+    const sanitized = currentServices.map((s) => {
+      if (s.serviceType === "registered" && s.appliedSubscriptionId) {
+        const subCandidates = subscriptionsByService.get(s.serviceId) || [];
+        const isStillValid = subCandidates.some(
+          (c) => c.subscriptionId === s.appliedSubscriptionId && c.remaining > 0,
+        );
+        if (!isStillValid) {
+          hasChanged = true;
+          return {
+            ...s,
+            appliedSubscriptionId: null,
+          };
+        }
+      }
+      return s;
+    });
+
+    if (hasChanged) {
+      setValue("services", sanitized, { shouldValidate: true });
+    }
+  }, [effectiveBranchId, getValues, setValue, subscriptionsByService, watchedCustomerId]);
+
+  // Diagnose ineligible active subscriptions for the selected customer to provide clear UX explanation
+  const subscriptionIneligibilityNotice = useMemo(() => {
+    if (!watchedCustomerId || activeSubscriptions.length === 0) return null;
+
+    // Check if customer has active subscriptions that are blocked specifically by branch restriction
+    const branchBlockedSubs = activeSubscriptions.filter((sub) => {
+      const members = sub.members;
+      const hasMembersArray = Array.isArray(members);
+      const memberEntry = hasMembersArray
+        ? members.find((m) => m.customerId === watchedCustomerId)
+        : undefined;
+
+      // Must be a member (or legacy sub)
+      if (hasMembersArray && !memberEntry) return false;
+
+      // Check if blocked by subscription branch or member branch
+      const isSubBranchBlocked = Boolean(
+        effectiveBranchId &&
+        sub.permittedBranchIds &&
+        sub.permittedBranchIds.length > 0 &&
+        !sub.permittedBranchIds.includes(effectiveBranchId)
+      );
+
+      const isMemberBranchBlocked = Boolean(
+        effectiveBranchId &&
+        memberEntry?.permittedBranchIds &&
+        memberEntry.permittedBranchIds.length > 0 &&
+        !memberEntry.permittedBranchIds.includes(effectiveBranchId)
+      );
+
+      return isSubBranchBlocked || isMemberBranchBlocked;
+    });
+
+    if (branchBlockedSubs.length > 0 && subscriptionsByService.size === 0) {
+      return "This customer's subscription plan is not permitted for redemption at the current branch.";
+    }
+
+    return null;
+  }, [activeSubscriptions, effectiveBranchId, subscriptionsByService.size, watchedCustomerId]);
 
   // Set of all registered service IDs for which this customer has at least 1 remaining entitlement
   const subscribedServiceIds = useMemo(() => {
@@ -1883,6 +1973,14 @@ export function CreateAppointmentDialog({
                       Verified
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* Branch restriction notice for customer subscriptions */}
+              {subscriptionIneligibilityNotice && (
+                <div className="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />
+                  <span>{subscriptionIneligibilityNotice}</span>
                 </div>
               )}
             </div>

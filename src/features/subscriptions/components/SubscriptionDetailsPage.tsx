@@ -339,6 +339,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
             entitlements={subscription.entitlements || []}
             members={subscription.members}
             payerCustomerId={subscription.payerId || subscription.customerId}
+            getBranchName={getBranchName}
           />
         )}
 

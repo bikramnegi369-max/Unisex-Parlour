@@ -179,6 +179,29 @@ export function SubscriptionOverviewTab({
                       <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
                         {m.customer?.phone ? `Phone: ${m.customer.phone}` : `ID: ${m.customerId}`}
                       </div>
+
+                      {/* Member-specific branch access indicator */}
+                      <div className="mt-1 flex items-center gap-1 flex-wrap">
+                        {m.permittedBranchIds && m.permittedBranchIds.length > 0 ? (
+                          <>
+                            <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Branch:
+                            </span>
+                            {m.permittedBranchIds.map((bId) => (
+                              <span
+                                key={bId}
+                                className="text-[9px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.2 rounded font-medium"
+                              >
+                                {getBranchName(bId)}
+                              </span>
+                            ))}
+                          </>
+                        ) : (
+                          <span className="text-[9px] text-muted-foreground/80 italic">
+                            Branch: Inherited (All Plan Branches)
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right shrink-0">
                       <span className="text-xs font-bold text-foreground">

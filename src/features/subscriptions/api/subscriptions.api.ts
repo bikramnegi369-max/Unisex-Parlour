@@ -70,6 +70,7 @@ export interface RawSubscriptionDTO
       email?: string;
     };
     status?: SubscriptionMemberStatus;
+    permittedBranchIds?: Array<string | { _id?: string; id?: string }>;
     entitlements?: Array<{
       serviceId: string | { _id?: string; id?: string; name?: string };
       serviceName?: string;
@@ -212,18 +213,31 @@ export const mapSubscriptionKeys = (s: RawSubscriptionDTO): Subscription => {
       };
     });
 
+    const mPermittedBranchIds = (m.permittedBranchIds || []).map((b) => {
+      if (typeof b === "string") return b;
+      if (typeof b === "object" && b !== null) {
+        const bObj = b as { _id?: string; id?: string };
+        return bObj._id || bObj.id || "";
+      }
+      return "";
+    }).filter(Boolean);
+
     return {
       customerId: mCustomerId,
       customer: mCustomer,
       status: m.status || "active",
       entitlements: mEntitlements,
+      permittedBranchIds: mPermittedBranchIds,
       joinedAt: m.joinedAt,
       notes: m.notes,
     };
   });
 
-  // If no multi-member array is present from backend, synthesize a default 1-member entry using the primary customer
-  const finalMembers = mappedMembers.length > 0 ? mappedMembers : (customerId ? [{
+  // Preserve explicit empty membership array if provided by backend (members: []).
+  // Only synthesize a legacy 1-member entry when the members field is genuinely absent (s.members === undefined).
+  const finalMembers = s.members !== undefined
+    ? mappedMembers
+    : (customerId ? [{
     customerId,
     customer,
     status: "active" as const,
@@ -530,6 +544,31 @@ export const updateSubscription = async (
       ...payload,
       ...(sanitizedBranchIds !== undefined ? { permittedBranchIds: sanitizedBranchIds } : {}),
     },
+    {
+      branchScope: "none",
+    }
+  );
+  return mapSubscriptionKeys(data.data);
+};
+
+/**
+ * Organization-scoped update of a member's permitted branch access.
+ * PUT /subscriptions/:id/members/:memberCustomerId/branches
+ * Request body: { permittedBranchIds: string[] }
+ * An empty array [] signifies inherited subscription-level branch access.
+ */
+export const updateMemberBranchAccess = async (
+  subscriptionId: string,
+  memberCustomerId: string,
+  permittedBranchIds: string[]
+): Promise<Subscription> => {
+  const sanitizedBranchIds = permittedBranchIds.filter(
+    (bId) => bId !== "all" && bId.trim() !== ""
+  );
+
+  const { data } = await apiClient.put<SubscriptionMutateResponse>(
+    `/subscriptions/${subscriptionId}/members/${memberCustomerId}/branches`,
+    { permittedBranchIds: sanitizedBranchIds },
     {
       branchScope: "none",
     }

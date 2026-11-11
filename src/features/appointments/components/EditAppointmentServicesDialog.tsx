@@ -116,7 +116,18 @@ export function EditAppointmentServicesDialog({
     >();
 
     for (const sub of activeCustomerSubscriptions) {
-      // Check branch access restriction
+      const members = sub.members;
+      const hasMembersArray = Array.isArray(members);
+      const memberEntry = hasMembersArray
+        ? members.find((m) => m.customerId === customerId)
+        : undefined;
+
+      // If subscription has a members array defined, customer must be an enrolled member
+      if (hasMembersArray && !memberEntry) {
+        continue;
+      }
+
+      // Check subscription branch access restriction
       if (
         appointmentBranchId &&
         sub.permittedBranchIds &&
@@ -126,17 +137,19 @@ export function EditAppointmentServicesDialog({
         continue;
       }
 
-      const memberEntry = (sub.members || []).find(
-        (m) => m.customerId === customerId,
-      );
-      const isBeneficiary = Boolean(memberEntry);
+      // Check member branch access restriction
+      if (
+        appointmentBranchId &&
+        memberEntry?.permittedBranchIds &&
+        memberEntry.permittedBranchIds.length > 0 &&
+        !memberEntry.permittedBranchIds.includes(appointmentBranchId)
+      ) {
+        continue;
+      }
 
-      const candidateEntitlements =
-        isBeneficiary &&
-        memberEntry?.entitlements &&
-        memberEntry.entitlements.length > 0
-          ? memberEntry.entitlements
-          : sub.entitlements || [];
+      const candidateEntitlements = memberEntry
+        ? memberEntry.entitlements || []
+        : sub.entitlements || [];
 
       const planName =
         sub.planId && typeof sub.planId === "object"
@@ -290,7 +303,10 @@ export function EditAppointmentServicesDialog({
 
   // Derived active category filter: if "subscribed" is selected but no subscribed services exist, fall back to "all"
   const activeCategoryFilter = useMemo(() => {
-    if (selectedCategoryFilter === "subscribed" && subscribedServiceIds.size === 0) {
+    if (
+      selectedCategoryFilter === "subscribed" &&
+      subscribedServiceIds.size === 0
+    ) {
       return "all";
     }
     return selectedCategoryFilter;
@@ -330,7 +346,12 @@ export function EditAppointmentServicesDialog({
     }
 
     return result;
-  }, [allServices, serviceSearchQuery, activeCategoryFilter, subscribedServiceIds]);
+  }, [
+    allServices,
+    serviceSearchQuery,
+    activeCategoryFilter,
+    subscribedServiceIds,
+  ]);
 
   // Group services by category for clean, non-truncated catalog browsing
   const categorizedServices = useMemo(() => {
@@ -1381,7 +1402,9 @@ export function EditAppointmentServicesDialog({
                             </div>
                             <button
                               type="button"
-                              onClick={() => setSelectedCategoryFilter("subscribed")}
+                              onClick={() =>
+                                setSelectedCategoryFilter("subscribed")
+                              }
                               className="shrink-0 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:text-emerald-900 dark:hover:text-emerald-100 bg-emerald-500/20 hover:bg-emerald-500/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                             >
                               <span>View Subscribed</span>
@@ -1419,7 +1442,9 @@ export function EditAppointmentServicesDialog({
                           {subscribedServiceIds.size > 0 && (
                             <button
                               type="button"
-                              onClick={() => setSelectedCategoryFilter("subscribed")}
+                              onClick={() =>
+                                setSelectedCategoryFilter("subscribed")
+                              }
                               className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-all flex items-center gap-1.5 cursor-pointer border ${
                                 activeCategoryFilter === "subscribed"
                                   ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs font-bold"
@@ -1527,10 +1552,13 @@ export function EditAppointmentServicesDialog({
                           );
                           const isSingleCatSelected =
                             activeCategoryFilter !== "all";
-                          const isSubscribedGroup = group.categoryId === "subscribed";
+                          const isSubscribedGroup =
+                            group.categoryId === "subscribed";
                           // Closed by default: expand only if user is actively searching, a specific category is filtered, or user clicked to open
                           const isExpanded =
-                            isSearching || isSingleCatSelected || isSubscribedGroup
+                            isSearching ||
+                            isSingleCatSelected ||
+                            isSubscribedGroup
                               ? true
                               : Boolean(expandedCategories[group.categoryId]);
                           const addedCountInGroup = group.services.filter((s) =>
@@ -1549,7 +1577,11 @@ export function EditAppointmentServicesDialog({
                               {/* Accordion / Category Header */}
                               <div
                                 onClick={() => {
-                                  if (!isSingleCatSelected && !isSearching && !isSubscribedGroup) {
+                                  if (
+                                    !isSingleCatSelected &&
+                                    !isSearching &&
+                                    !isSubscribedGroup
+                                  ) {
                                     toggleCategoryExpand(group.categoryId);
                                   }
                                 }}
@@ -1558,7 +1590,9 @@ export function EditAppointmentServicesDialog({
                                     ? "bg-emerald-500/15 border-b border-emerald-500/20 text-emerald-950 dark:text-emerald-200"
                                     : "bg-muted/40"
                                 } ${
-                                  !isSingleCatSelected && !isSearching && !isSubscribedGroup
+                                  !isSingleCatSelected &&
+                                  !isSearching &&
+                                  !isSubscribedGroup
                                     ? "hover:bg-muted/70 transition-colors cursor-pointer group"
                                     : ""
                                 }`}
@@ -1567,7 +1601,8 @@ export function EditAppointmentServicesDialog({
                                   {isSubscribedGroup ? (
                                     <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                   ) : (
-                                    !isSingleCatSelected && !isSearching && (
+                                    !isSingleCatSelected &&
+                                    !isSearching && (
                                       <ChevronDown
                                         className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 shrink-0 ${
                                           isExpanded ? "rotate-0" : "-rotate-90"
@@ -1575,35 +1610,45 @@ export function EditAppointmentServicesDialog({
                                       />
                                     )
                                   )}
-                                  <span className={`text-xs font-bold uppercase tracking-wider wrap-break-word ${
-                                    isSubscribedGroup ? "text-emerald-900 dark:text-emerald-200" : "text-foreground"
-                                  }`}>
+                                  <span
+                                    className={`text-xs font-bold uppercase tracking-wider wrap-break-word ${
+                                      isSubscribedGroup
+                                        ? "text-emerald-900 dark:text-emerald-200"
+                                        : "text-foreground"
+                                    }`}
+                                  >
                                     {group.categoryName}
                                   </span>
-                                  <span className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
-                                    isSubscribedGroup
-                                      ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300"
-                                      : "text-muted-foreground bg-muted"
-                                  }`}>
+                                  <span
+                                    className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-full ${
+                                      isSubscribedGroup
+                                        ? "bg-emerald-500/20 text-emerald-800 dark:text-emerald-300"
+                                        : "text-muted-foreground bg-muted"
+                                    }`}
+                                  >
                                     {group.services.length} services
                                   </span>
                                 </div>
 
                                 <div className="flex items-center gap-2 shrink-0">
                                   {addedCountInGroup > 0 && (
-                                    <span className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
-                                      isSubscribedGroup
-                                        ? "bg-emerald-600 text-white"
-                                        : "bg-primary/15 text-primary border border-primary/25"
-                                    }`}>
+                                    <span
+                                      className={`text-[10px] px-2 py-0.2 rounded-full font-bold ${
+                                        isSubscribedGroup
+                                          ? "bg-emerald-600 text-white"
+                                          : "bg-primary/15 text-primary border border-primary/25"
+                                      }`}
+                                    >
                                       {addedCountInGroup} selected
                                     </span>
                                   )}
-                                  {!isSingleCatSelected && !isSearching && !isSubscribedGroup && (
-                                    <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors font-medium">
-                                      {isExpanded ? "Collapse" : "Expand"}
-                                    </span>
-                                  )}
+                                  {!isSingleCatSelected &&
+                                    !isSearching &&
+                                    !isSubscribedGroup && (
+                                      <span className="text-[10px] text-muted-foreground group-hover:text-foreground transition-colors font-medium">
+                                        {isExpanded ? "Collapse" : "Expand"}
+                                      </span>
+                                    )}
                                 </div>
                               </div>
 

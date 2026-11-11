@@ -40,6 +40,7 @@ export interface SubscriptionMember {
   customer?: SubscriptionCustomerSummary;
   status?: SubscriptionMemberStatus;
   entitlements: SubscriptionEntitlement[];
+  permittedBranchIds?: string[];
   joinedAt?: string;
   notes?: string;
 }
@@ -134,6 +135,10 @@ export interface UpdateSubscriptionPayload {
   permittedBranchIds?: string[];
   endDate?: string;
   notes?: string;
+}
+
+export interface UpdateMemberBranchAccessPayload {
+  permittedBranchIds: string[];
 }
 
 export interface CancelSubscriptionPayload {

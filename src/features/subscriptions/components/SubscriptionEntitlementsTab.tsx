@@ -7,12 +7,14 @@ interface SubscriptionEntitlementsTabProps {
   entitlements: SubscriptionEntitlement[];
   members?: SubscriptionMember[];
   payerCustomerId?: string;
+  getBranchName?: (branchId: string) => string;
 }
 
 export function SubscriptionEntitlementsTab({
   entitlements,
   members = [],
   payerCustomerId,
+  getBranchName,
 }: SubscriptionEntitlementsTabProps) {
   const [selectedMemberId, setSelectedMemberId] = useState<string>("all");
 
@@ -116,6 +118,21 @@ export function SubscriptionEntitlementsTab({
                       <span className="text-[11px] text-muted-foreground">
                         {member.customer?.phone || `ID: ${member.customerId}`}
                       </span>
+                      {member.permittedBranchIds && member.permittedBranchIds.length > 0 && getBranchName && (
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">
+                            Branch:
+                          </span>
+                          {member.permittedBranchIds.map((bId) => (
+                            <span
+                              key={bId}
+                              className="text-[9px] bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.2 rounded font-medium"
+                            >
+                              {getBranchName(bId)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 

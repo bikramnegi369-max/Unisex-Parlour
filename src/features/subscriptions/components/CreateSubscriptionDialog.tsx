@@ -106,6 +106,10 @@ export function CreateSubscriptionDialog({
   const [memberEntitlementsMap, setMemberEntitlementsMap] = useState<
     Record<string, Array<{ serviceId: string; quantity: number }>>
   >({});
+  // Member-level branch access overrides: mode is either "inherit" or "custom"
+  const [memberBranchAccessMap, setMemberBranchAccessMap] = useState<
+    Record<string, { mode: "inherit" | "custom"; permittedBranchIds: string[] }>
+  >({});
   const [customerProfiles, setCustomerProfiles] = useState<
     Record<string, Customer>
   >({});
@@ -610,15 +614,34 @@ export function CreateSubscriptionDialog({
 
   const toggleBranch = (branchId: string) => {
     const current = watchedPermittedBranches;
+    let nextBranches: string[];
     if (current.includes(branchId)) {
-      setValue(
-        "permittedBranchIds",
-        current.filter((id) => id !== branchId),
-        { shouldValidate: true },
-      );
+      nextBranches = current.filter((id) => id !== branchId);
+      setValue("permittedBranchIds", nextBranches, { shouldValidate: true });
     } else {
-      setValue("permittedBranchIds", [...current, branchId], {
-        shouldValidate: true,
+      nextBranches = [...current, branchId];
+      setValue("permittedBranchIds", nextBranches, { shouldValidate: true });
+    }
+
+    // Constraint propagation: If a branch was removed from the subscription level (and subscription is not unrestricted/empty),
+    // prune it from all beneficiaries currently configured with custom branch overrides.
+    if (nextBranches.length > 0) {
+      setMemberBranchAccessMap((prev) => {
+        let changed = false;
+        const updated = { ...prev };
+        for (const [cId, config] of Object.entries(updated)) {
+          if (config.mode === "custom") {
+            const filteredCustom = config.permittedBranchIds.filter((b) => nextBranches.includes(b));
+            if (filteredCustom.length !== config.permittedBranchIds.length) {
+              changed = true;
+              updated[cId] = {
+                ...config,
+                permittedBranchIds: filteredCustom,
+              };
+            }
+          }
+        }
+        return changed ? updated : prev;
       });
     }
   };
@@ -653,15 +676,27 @@ export function CreateSubscriptionDialog({
         }
       }
 
-      const membersPayload = beneficiaryCustomerIds.map((cId) => ({
-        customerId: cId,
-        permittedBranchIds: data.permittedBranchIds || [],
-        notes: data.notes?.trim() || undefined,
-        entitlements: (memberEntitlementsMap[cId] || []).map((e) => ({
-          serviceId: e.serviceId,
-          quantity: Math.max(1, Number(e.quantity) || 1),
-        })),
-      }));
+      const membersPayload = beneficiaryCustomerIds.map((cId) => {
+        const branchConfig = memberBranchAccessMap[cId];
+        // If mode === "custom", use explicitly specified branch IDs intersected with branches allowed at subscription level
+        // If mode === "inherit" or unspecified, send [] to indicate inherited subscription-level branch access per backend contract
+        const memberBranches =
+          branchConfig?.mode === "custom"
+            ? (data.permittedBranchIds && data.permittedBranchIds.length > 0
+                ? branchConfig.permittedBranchIds.filter((bId) => data.permittedBranchIds.includes(bId))
+                : branchConfig.permittedBranchIds)
+            : [];
+
+        return {
+          customerId: cId,
+          permittedBranchIds: memberBranches,
+          notes: data.notes?.trim() || undefined,
+          entitlements: (memberEntitlementsMap[cId] || []).map((e) => ({
+            serviceId: e.serviceId,
+            quantity: Math.max(1, Number(e.quantity) || 1),
+          })),
+        };
+      });
 
       // Canonical multi-member payload:
       // Canonical customer entitlements reside exclusively under members[].
@@ -1241,6 +1276,11 @@ export function CreateSubscriptionDialog({
                               delete copy[cId];
                               return copy;
                             });
+                            setMemberBranchAccessMap((prev) => {
+                              const copy = { ...prev };
+                              delete copy[cId];
+                              return copy;
+                            });
                             if (activeMemberTab === cId) {
                               const remaining = beneficiaryCustomerIds.filter(
                                 (id) => id !== cId,
@@ -1291,39 +1331,143 @@ export function CreateSubscriptionDialog({
 
           {/* Dedicated Sub-bar for Multi-Member Active Allocation Target */}
           {isMultiMemberMode && activeMemberTab && (
-            <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-background border border-primary/20 shadow-2xs">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />
-                <span className="text-xs text-muted-foreground shrink-0 font-medium">
-                  Allocating services for:
-                </span>
-                <span
-                  className="text-xs font-bold text-foreground truncate max-w-60 sm:max-w-90"
-                  title={customerProfiles[activeMemberTab]?.name || "Member"}
-                >
-                  {customerProfiles[activeMemberTab]?.name ||
-                    (activeMemberTab === getValues("customerId")
-                      ? "Payer"
-                      : `Member #${activeMemberTab.slice(-4)}`)}
-                </span>
-                {customerProfiles[activeMemberTab]?.gender && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground shrink-0">
-                    {customerProfiles[activeMemberTab].gender}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-background border border-primary/20 shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse shrink-0" />
+                  <span className="text-xs text-muted-foreground shrink-0 font-medium">
+                    Allocating services for:
                   </span>
-                )}
-                {customerProfiles[activeMemberTab]?.phone && (
-                  <span className="text-[11px] text-muted-foreground hidden sm:inline shrink-0 font-mono">
-                    ({customerProfiles[activeMemberTab].phone})
+                  <span
+                    className="text-xs font-bold text-foreground truncate max-w-60 sm:max-w-90"
+                    title={customerProfiles[activeMemberTab]?.name || "Member"}
+                  >
+                    {customerProfiles[activeMemberTab]?.name ||
+                      (activeMemberTab === getValues("customerId")
+                        ? "Payer"
+                        : `Member #${activeMemberTab.slice(-4)}`)}
                   </span>
+                  {customerProfiles[activeMemberTab]?.gender && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-secondary text-secondary-foreground shrink-0">
+                      {customerProfiles[activeMemberTab].gender}
+                    </span>
+                  )}
+                  {customerProfiles[activeMemberTab]?.phone && (
+                    <span className="text-[11px] text-muted-foreground hidden sm:inline shrink-0 font-mono">
+                      ({customerProfiles[activeMemberTab].phone})
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                  {currentDisplayedEntitlements.length}{" "}
+                  {currentDisplayedEntitlements.length === 1
+                    ? "service"
+                    : "services"}{" "}
+                  added
+                </span>
+              </div>
+
+              {/* Individual Beneficiary Branch Access Selector */}
+              <div className="p-2.5 rounded-xl border border-border/80 bg-background/80 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                    Beneficiary Branch Access:
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMemberBranchAccessMap((prev) => ({
+                          ...prev,
+                          [activeMemberTab]: { mode: "inherit", permittedBranchIds: [] },
+                        }));
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                        (memberBranchAccessMap[activeMemberTab]?.mode ?? "inherit") === "inherit"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Same as Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMemberBranchAccessMap((prev) => {
+                          const existingCustom = prev[activeMemberTab]?.permittedBranchIds || [];
+                          // When switching to custom, ensure existing branch selections are strictly validated against current plan branches
+                          const validCustom =
+                            watchedPermittedBranches.length > 0
+                              ? existingCustom.filter((bId) => watchedPermittedBranches.includes(bId))
+                              : existingCustom;
+                          const initialBranches =
+                            validCustom.length > 0
+                              ? validCustom
+                              : (watchedPermittedBranches.length > 0 ? [watchedPermittedBranches[0]] : []);
+
+                          return {
+                            ...prev,
+                            [activeMemberTab]: {
+                              mode: "custom",
+                              permittedBranchIds: initialBranches,
+                            },
+                          };
+                        });
+                      }}
+                      className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                        memberBranchAccessMap[activeMemberTab]?.mode === "custom"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Custom Branches
+                    </button>
+                  </div>
+                </div>
+
+                {memberBranchAccessMap[activeMemberTab]?.mode === "custom" && (
+                  <div className="pt-1.5 border-t border-border/60">
+                    <span className="text-[10px] text-muted-foreground block mb-1.5">
+                      Allowed redemption branches for this beneficiary (must be within plan branches):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(watchedPermittedBranches.length > 0
+                        ? availableBranches.filter((b) => watchedPermittedBranches.includes(b.id))
+                        : availableBranches
+                      ).map((b) => {
+                        const currentCustom = memberBranchAccessMap[activeMemberTab]?.permittedBranchIds || [];
+                        const isSelected = currentCustom.includes(b.id);
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              const nextBranches = isSelected
+                                ? currentCustom.filter((id) => id !== b.id)
+                                : [...currentCustom, b.id];
+                              setMemberBranchAccessMap((prev) => ({
+                                ...prev,
+                                [activeMemberTab]: {
+                                  mode: "custom",
+                                  permittedBranchIds: nextBranches,
+                                },
+                              }));
+                            }}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
+                              isSelected
+                                ? "bg-primary/20 text-primary border border-primary/40 font-bold"
+                                : "bg-muted text-muted-foreground hover:text-foreground border border-transparent"
+                            }`}
+                          >
+                            {b.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
               </div>
-              <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
-                {currentDisplayedEntitlements.length}{" "}
-                {currentDisplayedEntitlements.length === 1
-                  ? "service"
-                  : "services"}{" "}
-                added
-              </span>
             </div>
           )}
         </div>
