@@ -247,6 +247,74 @@ describe("CustomerSelector & QuickCustomerDialog", () => {
     });
   });
 
+  it("passes status: active and isActive: true to customer queries and filters out inactive/blocked customers", async () => {
+    const mixedCustomers: Customer[] = [
+      {
+        id: "cust_active",
+        name: "Active Customer",
+        phone: "+91 98765 11111",
+        status: "active",
+        organizationId: "org_1",
+        homeBranchId: "br_1",
+        visitedBranchIds: ["br_1"],
+        loyaltyPoints: 0,
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      },
+      {
+        id: "cust_inactive",
+        name: "Inactive Customer",
+        phone: "+91 98765 22222",
+        status: "inactive",
+        organizationId: "org_1",
+        homeBranchId: "br_1",
+        visitedBranchIds: ["br_1"],
+        loyaltyPoints: 0,
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      },
+      {
+        id: "cust_blocked",
+        name: "Blocked Customer",
+        phone: "+91 98765 33333",
+        status: "blocked",
+        organizationId: "org_1",
+        homeBranchId: "br_1",
+        visitedBranchIds: ["br_1"],
+        loyaltyPoints: 0,
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+      },
+    ];
+
+    mockGetCustomers.mockResolvedValueOnce({
+      success: true,
+      status: "success",
+      data: mixedCustomers,
+      meta: { total: 3, page: 1, limit: 20, totalPages: 1 },
+    });
+
+    renderWithClient(<CustomerSelector value="" onChange={vi.fn()} />);
+
+    expect(mockGetCustomers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "active",
+        isActive: true,
+      })
+    );
+
+    const searchInput = screen.getByPlaceholderText("Search customer name or phone...");
+    fireEvent.focus(searchInput);
+
+    await waitFor(() => {
+      expect(screen.getByText("Active Customer")).not.toBeNull();
+    });
+
+    // Inactive and blocked customers must be filtered out
+    expect(screen.queryByText("Inactive Customer")).toBeNull();
+    expect(screen.queryByText("Blocked Customer")).toBeNull();
+  });
+
   it("handles HTTP 409 duplicate customer error gracefully with option to select existing customer", async () => {
     const existingCust = {
       _id: "cust_existing_999",

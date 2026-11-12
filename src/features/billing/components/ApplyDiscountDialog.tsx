@@ -735,17 +735,17 @@ export function ApplyDiscountDialog({
 
               {/* Value Input (Right side: 6 cols) */}
               <div className="md:col-span-6 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-medium text-foreground block">
+                <div className="flex items-baseline justify-between gap-2 min-w-0">
+                  <label className="text-xs font-medium text-foreground truncate shrink-0">
                     {watchedType === "percentage"
                       ? "Discount Rate (%)"
                       : "Discount Amount (₹)"}{" "}
                     <span className="text-destructive">*</span>
                   </label>
-                  <span className="text-[10px] text-muted-foreground font-mono">
+                  <span className="text-[10px] text-muted-foreground font-mono truncate text-right">
                     {watchedType === "percentage"
-                      ? "Scale: 0.1% – 100%"
-                      : "Proportionally distributed"}
+                      ? "0.1% – 100%"
+                      : "Distributed across items"}
                   </span>
                 </div>
                 <div className="relative">

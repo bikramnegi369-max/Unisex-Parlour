@@ -45,16 +45,27 @@ const mapCustomerKeys = (c: RawCustomerDTO): Customer => ({
 export interface SearchCustomersGlobalParams {
   search: string;
   limit?: number;
+  status?: string;
+  isActive?: boolean;
 }
 
 export const searchCustomersGlobal = async (
   params: SearchCustomersGlobalParams
 ): Promise<Customer[]> => {
+  const queryParams: Record<string, unknown> = {
+    search: params.search,
+    limit: params.limit ?? 10,
+  };
+
+  if (params.status) {
+    queryParams.status = params.status;
+  }
+  if (params.isActive !== undefined) {
+    queryParams.isActive = params.isActive;
+  }
+
   const { data } = await apiClient.get<CustomerListResponse>("/customers", {
-    params: {
-      search: params.search,
-      limit: params.limit ?? 10,
-    },
+    params: queryParams,
     branchScope: "none",
   });
 

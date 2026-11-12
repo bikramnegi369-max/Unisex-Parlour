@@ -49,7 +49,6 @@ import type { SubscriptionPlan } from "../types/plan.types";
 import type {
   CreateSubscriptionFormValues,
   UpdateSubscriptionFormValues,
-  CancelSubscriptionFormValues,
   RenewSubscriptionFormValues,
 } from "../schemas/subscription.schema";
 import type { CreateSubscriptionPlanFormValues } from "../schemas/plan.schema";
@@ -271,16 +270,23 @@ export function SubscriptionList() {
     }
   };
 
-  const handleCancelConfirm = async (values: CancelSubscriptionFormValues) => {
+  const handleCancelConfirm = async (
+    payload: import("../types/subscription.types").CancelSubscriptionPayload
+  ) => {
     if (!activeSubscription) return;
     try {
-      await cancelMutation.mutateAsync({
+      const result = await cancelMutation.mutateAsync({
         id: activeSubscription.id,
-        payload: values,
+        payload,
       });
-      toast.success("Subscription has been cancelled.");
-      setIsCancelOpen(false);
-      setActiveSubscription(null);
+      if (result.isAsync && result.operationId) {
+        toast.info("Cancellation operation queued for background processing.");
+        return result;
+      } else {
+        toast.success("Subscription has been cancelled.");
+        setIsCancelOpen(false);
+        setActiveSubscription(null);
+      }
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
@@ -290,6 +296,7 @@ export function SubscriptionList() {
         (errorObj?.message as string) ||
         "Failed to cancel subscription.";
       toast.error(msg);
+      throw err;
     }
   };
 

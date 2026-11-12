@@ -17,6 +17,8 @@ export interface CustomerSelectorProps {
   branchId?: string;
   error?: string;
   disabled?: boolean;
+  status?: string;
+  isActive?: boolean;
 }
 
 export function CustomerSelector({
@@ -25,6 +27,8 @@ export function CustomerSelector({
   branchId: propBranchId,
   error,
   disabled = false,
+  status = "active",
+  isActive = true,
 }: CustomerSelectorProps) {
   const auth = useAuth();
   const user = auth?.user ?? null;
@@ -33,7 +37,8 @@ export function CustomerSelector({
   const [searchTerm, setSearchTerm] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
-  const [manuallySelectedCustomer, setManuallySelectedCustomer] = useState<Customer | null>(null);
+  const [manuallySelectedCustomer, setManuallySelectedCustomer] =
+    useState<Customer | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const debouncedSearch = useDebounce(searchTerm, 300);
@@ -48,39 +53,68 @@ export function CustomerSelector({
         : currentBranchId;
 
   const canCreateCustomer = hasPermission(user, "customers.create");
-  const isBranchExplicit = effectiveBranchId !== null && effectiveBranchId !== "all";
+  const isBranchExplicit =
+    effectiveBranchId !== null && effectiveBranchId !== "all";
 
   // When actively searching, search organization-wide (branchScope: none) so roaming customers can be found
-  const { data: globalSearchResults, isLoading: isLoadingGlobal } = useCustomerGlobalSearch({
-    search: debouncedSearch,
-    enabled: isSearching,
-  });
+  const { data: globalSearchResults, isLoading: isLoadingGlobal } =
+    useCustomerGlobalSearch({
+      search: debouncedSearch,
+      status,
+      isActive,
+      enabled: isSearching,
+    });
 
   // When not searching (or query < 2 chars), only show customers from effective branch (branchScope: current or target branch)
-  const { data: branchCustomersData, isLoading: isLoadingBranch } = useCustomers(
-    { limit: 20, branchId: effectiveBranchId || undefined },
-    { enabled: !isSearching }
-  );
+  const { data: branchCustomersData, isLoading: isLoadingBranch } =
+    useCustomers(
+      {
+        limit: 20,
+        branchId: effectiveBranchId || undefined,
+        ...(status ? { status } : {}),
+        ...(isActive !== undefined ? { isActive } : {}),
+      },
+      { enabled: !isSearching },
+    );
 
   const isLoading = isSearching ? isLoadingGlobal : isLoadingBranch;
 
   const customers: Customer[] = useMemo(() => {
-    if (isSearching) {
-      return globalSearchResults || [];
+    const rawList: Customer[] = isSearching
+      ? globalSearchResults || []
+      : branchCustomersData?.data || [];
+
+    // Client-side guard ensuring only desired customer status is displayed even during query transitions
+    if (status) {
+      return rawList.filter((c: Customer) => c.status === status);
     }
-    return branchCustomersData?.data || [];
-  }, [isSearching, globalSearchResults, branchCustomersData?.data]);
+    if (isActive !== undefined) {
+      return rawList.filter((c: Customer) =>
+        isActive ? c.status === "active" : c.status !== "active",
+      );
+    }
+    return rawList;
+  }, [
+    isSearching,
+    globalSearchResults,
+    branchCustomersData?.data,
+    status,
+    isActive,
+  ]);
 
   // Derived selected customer to avoid setState in effect
   const selectedCustomer = useMemo(() => {
     if (!value) return null;
     if (
       manuallySelectedCustomer &&
-      (manuallySelectedCustomer.id === value || manuallySelectedCustomer._id === value)
+      (manuallySelectedCustomer.id === value ||
+        manuallySelectedCustomer._id === value)
     ) {
       return manuallySelectedCustomer;
     }
-    return customers.find((c: Customer) => c.id === value || c._id === value) || null;
+    return (
+      customers.find((c: Customer) => c.id === value || c._id === value) || null
+    );
   }, [value, customers, manuallySelectedCustomer]);
 
   // Handle clicking outside to close dropdown
@@ -194,7 +228,9 @@ export function CustomerSelector({
                   className="w-full text-left px-2.5 py-1.5 rounded-md hover:bg-accent hover:text-accent-foreground text-xs flex items-center justify-between transition-colors cursor-pointer"
                 >
                   <div>
-                    <div className="font-semibold text-foreground">{c.name}</div>
+                    <div className="font-semibold text-foreground">
+                      {c.name}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">
                       {c.phone} {c.email ? `• ${c.email}` : ""}
                     </div>
@@ -220,7 +256,9 @@ export function CustomerSelector({
                   ) : (
                     <div className="p-2 text-[11px] text-muted-foreground bg-muted/30 rounded flex items-center gap-1.5">
                       <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                      <span>Select a branch before creating a new customer.</span>
+                      <span>
+                        Select a branch before creating a new customer.
+                      </span>
                     </div>
                   )}
                 </div>

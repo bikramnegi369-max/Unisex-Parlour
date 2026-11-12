@@ -26,10 +26,12 @@ import { RenewSubscriptionDialog } from "./RenewSubscriptionDialog";
 import { RedeemSubscriptionModal } from "./RedeemSubscriptionModal";
 import type {
   UpdateSubscriptionFormValues,
-  CancelSubscriptionFormValues,
   RenewSubscriptionFormValues,
 } from "../schemas/subscription.schema";
-import type { SubscriptionEntitlement } from "../types/subscription.types";
+import type {
+  SubscriptionEntitlement,
+  SubscriptionMember,
+} from "../types/subscription.types";
 
 interface SubscriptionDetailsPageProps {
   id: string;
@@ -72,11 +74,18 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
     }
   };
 
-  const handleCancelConfirm = async (values: CancelSubscriptionFormValues) => {
+  const handleCancelConfirm = async (
+    payload: import("../types/subscription.types").CancelSubscriptionPayload
+  ) => {
     try {
-      await cancelMutation.mutateAsync({ id, payload: values });
-      toast.success("Subscription has been cancelled.");
-      setIsCancelOpen(false);
+      const result = await cancelMutation.mutateAsync({ id, payload });
+      if (result.isAsync && result.operationId) {
+        toast.info("Cancellation operation queued for background processing.");
+        return result;
+      } else {
+        toast.success("Subscription has been cancelled.");
+        setIsCancelOpen(false);
+      }
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
@@ -85,6 +94,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
         (errorObj?.message as string) ||
         "Failed to cancel subscription.";
       toast.error(msg);
+      throw err;
     }
   };
 
@@ -163,8 +173,8 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
   const isMultiMember = Boolean(subscription.members && subscription.members.length > 0);
   const { remainingCount, totalCount } = isMultiMember
     ? (subscription.members || []).reduce(
-        (acc, member) => {
-          (member.entitlements || []).forEach((e) => {
+        (acc: { remainingCount: number; totalCount: number }, member: SubscriptionMember) => {
+          (member.entitlements || []).forEach((e: SubscriptionEntitlement) => {
             acc.remainingCount += e.remainingQuantity || 0;
             acc.totalCount += e.totalQuantity || 0;
           });
@@ -173,7 +183,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
         { remainingCount: 0, totalCount: 0 }
       )
     : (subscription.entitlements || []).reduce(
-        (acc, e: SubscriptionEntitlement) => {
+        (acc: { remainingCount: number; totalCount: number }, e: SubscriptionEntitlement) => {
           acc.remainingCount += e.remainingQuantity || 0;
           acc.totalCount += e.totalQuantity || 0;
           return acc;

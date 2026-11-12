@@ -7,6 +7,8 @@ import type { Customer } from "../types/customer.types";
 export interface UseCustomerGlobalSearchParams {
   search: string;
   limit?: number;
+  status?: string;
+  isActive?: boolean;
   enabled?: boolean;
 }
 
@@ -20,6 +22,8 @@ export interface UseCustomerGlobalSearchParams {
 export function useCustomerGlobalSearch({
   search,
   limit = 10,
+  status,
+  isActive,
   enabled = true,
 }: UseCustomerGlobalSearchParams) {
   const auth = useAuth();
@@ -38,8 +42,14 @@ export function useCustomerGlobalSearch({
     trimmedSearch.length >= 2;
 
   return useQuery<Customer[]>({
-    queryKey: ["customers", "global-search", trimmedSearch, limit],
-    queryFn: () => searchCustomersGlobal({ search: trimmedSearch, limit }),
+    queryKey: ["customers", "global-search", trimmedSearch, limit, status, isActive],
+    queryFn: () =>
+      searchCustomersGlobal({
+        search: trimmedSearch,
+        limit,
+        status,
+        isActive,
+      }),
     enabled: shouldQuery,
     staleTime: 30_000,
   });

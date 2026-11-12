@@ -143,6 +143,155 @@ export interface UpdateMemberBranchAccessPayload {
 
 export interface CancelSubscriptionPayload {
   reason: string;
+  forceAsync?: boolean;
+  idempotencyKey?: string;
+}
+
+export interface RawAffectedLineDTO {
+  usageId?: string;
+  appointmentId?: string;
+  appointmentCode?: string;
+  appointmentStatus?: string;
+  serviceId?: string;
+  serviceName?: string;
+  restoredPrice?: number;
+  appointmentServiceId?: string;
+  // Fallback alias
+  restoredRetailPrice?: number;
+}
+
+export interface RawAffectedAppointmentDTO {
+  appointmentId?: string;
+  appointmentCode?: string;
+  status?: string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  currentAmountPaid?: number;
+  currentAmountDue?: number;
+  affectedLines?: RawAffectedLineDTO[];
+  // Fallback aliases
+  serviceLinesToRebill?: RawAffectedLineDTO[];
+}
+
+export interface RawCancellationPreviewDTO {
+  subscriptionId?: string;
+  subscriptionCode?: string;
+  status?: string;
+  isEligibleRuleB?: boolean;
+  isEligible?: boolean;
+  isPaid?: boolean;
+  totalCollected?: number;
+  totalUsages?: number;
+  totalAppointments?: number;
+  totalRestoredAmount?: number;
+  expectedRebilledSubtotalIncrease?: number;
+  consumedEntitlementCount?: number;
+  affectedAppointmentCount?: number;
+  eligibilityRule?: "RULE_A" | "RULE_B" | string;
+  ineligibilityReason?: string;
+  blockingInconsistencies?: Array<string | { message?: string; [key: string]: unknown }>;
+  breakdown?: {
+    pendingAppointments?: number;
+    completedAppointments?: number;
+    otherAppointments?: number;
+  };
+  affectedAppointments?: RawAffectedAppointmentDTO[];
+}
+
+export interface ServiceLineToRebill {
+  usageId?: string;
+  appointmentServiceId?: string;
+  serviceId: string;
+  serviceName: string;
+  restoredRetailPrice: number;
+}
+
+export interface AffectedAppointmentPreview {
+  appointmentId: string;
+  appointmentCode?: string;
+  status: "scheduled" | "in_progress" | "completed" | string;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  currentAmountPaid?: number;
+  currentAmountDue?: number;
+  serviceLinesToRebill: ServiceLineToRebill[];
+}
+
+export interface CancellationPreviewData {
+  subscriptionId: string;
+  subscriptionCode: string;
+  status: string;
+  isPaid: boolean;
+  isEligible: boolean;
+  eligibilityRule: "RULE_A" | "RULE_B" | string;
+  ineligibilityReason?: string;
+  blockingInconsistencies?: string[];
+  totalCollected: number;
+  consumedEntitlementCount: number;
+  affectedAppointmentCount: number;
+  expectedRebilledSubtotalIncrease: number;
+  totalRestoredAmount?: number;
+  breakdown?: {
+    pendingAppointments?: number;
+    completedAppointments?: number;
+    otherAppointments?: number;
+  };
+  affectedAppointments: AffectedAppointmentPreview[];
+}
+
+export type CancellationOperationStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "requires_reconciliation"
+  | string;
+
+export interface CancellationOperationProgress {
+  // Primary backend schema fields
+  totalUsageCount?: number;
+  totalAppointmentCount?: number;
+  processedUsageCount?: number;
+  processedAppointmentCount?: number;
+  completedBatchIndexes?: number[];
+  operationErrors?: Array<{ message: string; recordId?: string }>;
+  // Friendly frontend-normalized aliases
+  totalAppointments?: number;
+  processedAppointments?: number;
+  successfulAppointments?: number;
+  failedAppointments?: number;
+  totalServiceLines?: number;
+  processedServiceLines?: number;
+}
+
+export interface CancellationOperationData {
+  operationId: string;
+  subscriptionId: string;
+  subscriptionCode?: string;
+  status: CancellationOperationStatus;
+  progress?: CancellationOperationProgress;
+  // Primary backend status & error fields
+  totalUsageCount?: number;
+  totalAppointmentCount?: number;
+  processedUsageCount?: number;
+  processedAppointmentCount?: number;
+  completedBatchIndexes?: number[];
+  operationErrors?: Array<{ message: string; recordId?: string }>;
+  errorMessage?: string;
+  failureReason?: string;
+  affectedAppointmentIds?: string[];
+  affectedInvoiceIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+}
+
+export interface CancelSubscriptionResponseData {
+  subscription?: Subscription;
+  operationId?: string;
+  status?: string;
+  isAsync?: boolean;
+  operation?: CancellationOperationData;
 }
 
 export interface RedeemServiceItem {

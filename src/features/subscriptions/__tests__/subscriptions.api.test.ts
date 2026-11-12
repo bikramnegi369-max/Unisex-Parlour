@@ -284,7 +284,8 @@ describe("Subscriptions API layer", () => {
         payload,
         { branchScope: "none" }
       );
-      expect(res.status).toBe("cancelled");
+      expect(res.status).toBe("completed");
+      expect(res.subscription?.status).toBe("cancelled");
     });
   });
 
