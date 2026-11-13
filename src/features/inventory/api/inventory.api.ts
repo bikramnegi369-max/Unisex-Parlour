@@ -9,13 +9,13 @@ import {
   MovementFilters,
   ProductUsageType,
   StockUnit,
-  MovementType
+  MovementType,
 } from "../types/inventory.types";
 import {
   CreateProductInput,
   ManualConsumptionInput,
   StockAdjustmentInput,
-  StockTransferInput
+  StockTransferInput,
 } from "../schemas/inventory.schema";
 
 interface RawProductDTO {
@@ -79,7 +79,7 @@ const mapProductDTO = (dto: RawProductDTO): Product => ({
   status: dto.status || "active",
   organizationId: dto.organizationId || "",
   createdAt: dto.createdAt,
-  updatedAt: dto.updatedAt
+  updatedAt: dto.updatedAt,
 });
 
 const mapStockBalanceDTO = (dto: RawStockBalanceDTO): StockBalance => {
@@ -92,11 +92,17 @@ const mapStockBalanceDTO = (dto: RawStockBalanceDTO): StockBalance => {
     id: dto._id || dto.id || "",
     organizationId: dto.organizationId,
     branchId: dto.branchId,
-    productId: typeof dto.productId === "string" ? dto.productId : (dto.productId as RawProductDTO)?._id || (dto.productId as RawProductDTO)?.id || "",
+    productId:
+      typeof dto.productId === "string"
+        ? dto.productId
+        : (dto.productId as RawProductDTO)?._id ||
+          (dto.productId as RawProductDTO)?.id ||
+          "",
     product: productObj,
     onHand: dto.onHand,
     allocated: dto.allocated ?? 0,
-    lastMovementAt: dto.lastMovementAt || dto.updatedAt || new Date().toISOString()
+    lastMovementAt:
+      dto.lastMovementAt || dto.updatedAt || new Date().toISOString(),
   };
 };
 
@@ -110,7 +116,12 @@ const mapStockMovementDTO = (dto: RawStockMovementDTO): StockMovement => {
     id: dto._id || dto.id || "",
     organizationId: dto.organizationId,
     branchId: dto.branchId,
-    productId: typeof dto.productId === "string" ? dto.productId : (dto.productId as RawProductDTO)?._id || (dto.productId as RawProductDTO)?.id || "",
+    productId:
+      typeof dto.productId === "string"
+        ? dto.productId
+        : (dto.productId as RawProductDTO)?._id ||
+          (dto.productId as RawProductDTO)?.id ||
+          "",
     product: productObj,
     movementType: dto.movementType,
     quantityDelta: dto.quantityDelta,
@@ -120,138 +131,184 @@ const mapStockMovementDTO = (dto: RawStockMovementDTO): StockMovement => {
     balanceAfter: dto.balanceAfter,
     actorId: dto.actorId,
     notes: dto.notes,
-    createdAt: dto.createdAt
+    createdAt: dto.createdAt,
   };
 };
 
 export const inventoryApi = {
   // 1. Product Catalogue
-  async getProducts(params?: ProductFilters): Promise<PaginatedResponse<Product>> {
-    const { data } = await apiClient.get<PaginatedResponse<RawProductDTO>>("/v1/inventory/products", {
-      params,
-      branchScope: "none"
-    });
+  async getProducts(
+    params?: ProductFilters,
+  ): Promise<PaginatedResponse<Product>> {
+    const { data } = await apiClient.get<PaginatedResponse<RawProductDTO>>(
+      "/inventory/products",
+      {
+        params,
+        branchScope: "none",
+      },
+    );
     return {
       ...data,
-      data: (data.data || []).map(mapProductDTO)
+      data: (data.data || []).map(mapProductDTO),
     };
   },
 
   async getProductById(id: string): Promise<Product> {
-    const { data } = await apiClient.get<ApiResponse<RawProductDTO>>(`/v1/inventory/products/${id}`, {
-      branchScope: "none"
-    });
+    const { data } = await apiClient.get<ApiResponse<RawProductDTO>>(
+      `/inventory/products/${id}`,
+      {
+        branchScope: "none",
+      },
+    );
     return mapProductDTO(data.data);
   },
 
   async createProduct(payload: CreateProductInput): Promise<Product> {
-    const { data } = await apiClient.post<ApiResponse<RawProductDTO>>("/v1/inventory/products", payload, {
-      branchScope: "none"
-    });
+    const { data } = await apiClient.post<ApiResponse<RawProductDTO>>(
+      "/inventory/products",
+      payload,
+      {
+        branchScope: "none",
+      },
+    );
     return mapProductDTO(data.data);
   },
 
-  async updateProduct(id: string, payload: Partial<CreateProductInput>): Promise<Product> {
-    const { data } = await apiClient.put<ApiResponse<RawProductDTO>>(`/v1/inventory/products/${id}`, payload, {
-      branchScope: "none"
-    });
+  async updateProduct(
+    id: string,
+    payload: Partial<CreateProductInput>,
+  ): Promise<Product> {
+    const { data } = await apiClient.put<ApiResponse<RawProductDTO>>(
+      `/inventory/products/${id}`,
+      payload,
+      {
+        branchScope: "none",
+      },
+    );
     return mapProductDTO(data.data);
   },
 
   // 2. Stock Balances
-  async getBranchStock(params?: StockFilters): Promise<PaginatedResponse<StockBalance>> {
-    const { data } = await apiClient.get<PaginatedResponse<RawStockBalanceDTO>>("/v1/inventory/stock", {
-      params,
-      branchScope: params?.branchId ? { type: "branch", branchId: params.branchId } : "current"
-    });
+  async getBranchStock(
+    params?: StockFilters,
+  ): Promise<PaginatedResponse<StockBalance>> {
+    const { data } = await apiClient.get<PaginatedResponse<RawStockBalanceDTO>>(
+      "/inventory/stock",
+      {
+        params,
+        branchScope: params?.branchId
+          ? { type: "branch", branchId: params.branchId }
+          : "current",
+      },
+    );
     return {
       ...data,
-      data: (data.data || []).map(mapStockBalanceDTO)
+      data: (data.data || []).map(mapStockBalanceDTO),
     };
   },
 
   // 3. Manual Salon Consumption
-  async recordConsumption(payload: ManualConsumptionInput, idempotencyKey?: string): Promise<{ balance: StockBalance; movement: StockMovement }> {
+  async recordConsumption(
+    payload: ManualConsumptionInput,
+    idempotencyKey?: string,
+  ): Promise<{ balance: StockBalance; movement: StockMovement }> {
     const headers: Record<string, string> = {};
     if (idempotencyKey) {
       headers["Idempotency-Key"] = idempotencyKey;
     }
 
-    const { data } = await apiClient.post<ApiResponse<{ balance: RawStockBalanceDTO; movement: RawStockMovementDTO }>>(
-      "/v1/inventory/consume",
-      payload,
-      {
-        headers,
-        branchScope: { type: "branch", branchId: payload.branchId }
-      }
-    );
+    const { data } = await apiClient.post<
+      ApiResponse<{
+        balance: RawStockBalanceDTO;
+        movement: RawStockMovementDTO;
+      }>
+    >("/inventory/consume", payload, {
+      headers,
+      branchScope: { type: "branch", branchId: payload.branchId },
+    });
 
     return {
       balance: mapStockBalanceDTO(data.data.balance),
-      movement: mapStockMovementDTO(data.data.movement)
+      movement: mapStockMovementDTO(data.data.movement),
     };
   },
 
   // 4. Stock Adjustment
-  async recordAdjustment(payload: StockAdjustmentInput, idempotencyKey?: string): Promise<{ balance: StockBalance; movement: StockMovement }> {
+  async recordAdjustment(
+    payload: StockAdjustmentInput,
+    idempotencyKey?: string,
+  ): Promise<{ balance: StockBalance; movement: StockMovement }> {
     const headers: Record<string, string> = {};
     if (idempotencyKey) {
       headers["Idempotency-Key"] = idempotencyKey;
     }
 
-    const { data } = await apiClient.post<ApiResponse<{ balance: RawStockBalanceDTO; movement: RawStockMovementDTO }>>(
-      "/v1/inventory/adjust",
-      payload,
-      {
-        headers,
-        branchScope: { type: "branch", branchId: payload.branchId }
-      }
-    );
+    const { data } = await apiClient.post<
+      ApiResponse<{
+        balance: RawStockBalanceDTO;
+        movement: RawStockMovementDTO;
+      }>
+    >("/inventory/adjust", payload, {
+      headers,
+      branchScope: { type: "branch", branchId: payload.branchId },
+    });
 
     return {
       balance: mapStockBalanceDTO(data.data.balance),
-      movement: mapStockMovementDTO(data.data.movement)
+      movement: mapStockMovementDTO(data.data.movement),
     };
   },
 
   // 5. Inter-Branch Transfer
-  async recordTransfer(payload: StockTransferInput, idempotencyKey?: string): Promise<{ sourceBalance: StockBalance; destBalance: StockBalance; outMovement: StockMovement; inMovement: StockMovement }> {
+  async recordTransfer(
+    payload: StockTransferInput,
+    idempotencyKey?: string,
+  ): Promise<{
+    sourceBalance: StockBalance;
+    destBalance: StockBalance;
+    outMovement: StockMovement;
+    inMovement: StockMovement;
+  }> {
     const headers: Record<string, string> = {};
     if (idempotencyKey) {
       headers["Idempotency-Key"] = idempotencyKey;
     }
 
-    const { data } = await apiClient.post<ApiResponse<{
-      sourceBalance: RawStockBalanceDTO;
-      destBalance: RawStockBalanceDTO;
-      outMovement: RawStockMovementDTO;
-      inMovement: RawStockMovementDTO;
-    }>>(
-      "/v1/inventory/transfer",
-      payload,
-      {
-        headers,
-        branchScope: { type: "branch", branchId: payload.fromBranchId }
-      }
-    );
+    const { data } = await apiClient.post<
+      ApiResponse<{
+        sourceBalance: RawStockBalanceDTO;
+        destBalance: RawStockBalanceDTO;
+        outMovement: RawStockMovementDTO;
+        inMovement: RawStockMovementDTO;
+      }>
+    >("/inventory/transfer", payload, {
+      headers,
+      branchScope: { type: "branch", branchId: payload.fromBranchId },
+    });
 
     return {
       sourceBalance: mapStockBalanceDTO(data.data.sourceBalance),
       destBalance: mapStockBalanceDTO(data.data.destBalance),
       outMovement: mapStockMovementDTO(data.data.outMovement),
-      inMovement: mapStockMovementDTO(data.data.inMovement)
+      inMovement: mapStockMovementDTO(data.data.inMovement),
     };
   },
 
   // 6. Stock Movements History
-  async getMovements(params?: MovementFilters): Promise<PaginatedResponse<StockMovement>> {
-    const { data } = await apiClient.get<PaginatedResponse<RawStockMovementDTO>>("/v1/inventory/movements", {
+  async getMovements(
+    params?: MovementFilters,
+  ): Promise<PaginatedResponse<StockMovement>> {
+    const { data } = await apiClient.get<
+      PaginatedResponse<RawStockMovementDTO>
+    >("/inventory/movements", {
       params,
-      branchScope: params?.branchId ? { type: "branch", branchId: params.branchId } : "current"
+      branchScope: params?.branchId
+        ? { type: "branch", branchId: params.branchId }
+        : "current",
     });
     return {
       ...data,
-      data: (data.data || []).map(mapStockMovementDTO)
+      data: (data.data || []).map(mapStockMovementDTO),
     };
-  }
+  },
 };
