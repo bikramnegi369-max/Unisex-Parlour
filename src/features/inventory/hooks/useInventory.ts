@@ -88,8 +88,8 @@ export const useRecordConsumption = () => {
     mutationFn: ({ payload, idempotencyKey }: { payload: ManualConsumptionInput; idempotencyKey?: string }) =>
       inventoryApi.recordConsumption(payload, idempotencyKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-movements"] });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-stock" });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-movements" });
     }
   });
 };
@@ -100,8 +100,8 @@ export const useRecordAdjustment = () => {
     mutationFn: ({ payload, idempotencyKey }: { payload: StockAdjustmentInput; idempotencyKey?: string }) =>
       inventoryApi.recordAdjustment(payload, idempotencyKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-movements"] });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-stock" });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-movements" });
     }
   });
 };
@@ -112,8 +112,8 @@ export const useRecordTransfer = () => {
     mutationFn: ({ payload, idempotencyKey }: { payload: StockTransferInput; idempotencyKey?: string }) =>
       inventoryApi.recordTransfer(payload, idempotencyKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-movements"] });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-stock" });
+      queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-movements" });
     }
   });
 };
