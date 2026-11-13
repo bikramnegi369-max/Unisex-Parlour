@@ -34,9 +34,11 @@ import {
   Search,
   CheckCircle2,
   Filter,
-  Calendar,
+  RefreshCw,
+  Box,
   Layers,
-  Sparkles
+  Sparkles,
+  ArrowUpDown
 } from "lucide-react";
 
 export const InventoryDashboardView: React.FC = () => {
@@ -46,6 +48,7 @@ export const InventoryDashboardView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"stock" | "catalogue" | "movements">("stock");
   const [searchQuery, setSearchQuery] = useState("");
   const [usageFilter, setUsageFilter] = useState<string>("all");
+  const [stockStatusFilter, setStockStatusFilter] = useState<"all" | "low" | "optimal">("all");
 
   // Modal triggers
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -95,8 +98,12 @@ export const InventoryDashboardView: React.FC = () => {
   const stockBalances = stockData?.data || [];
   const movements = movementsData?.data || [];
 
-  // Filtered lists based on search
+  // Filtered lists based on search & status
   const filteredBalances = stockBalances.filter((b) => {
+    const isLow = b.onHand <= (b.product?.reorderLevel ?? 0);
+    if (stockStatusFilter === "low" && !isLow) return false;
+    if (stockStatusFilter === "optimal" && isLow) return false;
+
     if (!searchQuery) return true;
     const term = searchQuery.toLowerCase();
     const nameMatch = b.product?.name?.toLowerCase().includes(term);
@@ -121,17 +128,17 @@ export const InventoryDashboardView: React.FC = () => {
     setIsTransferModalOpen(true);
   };
 
-  const handleManualSync = async () => {
+  const handleTabSync = async (tab: "stock" | "catalogue" | "movements") => {
     try {
-      if (activeTab === "stock") {
+      if (tab === "stock") {
         await refetchStock();
-        toast.success("Stock balances synchronized.");
-      } else if (activeTab === "catalogue") {
+        toast.success("Stock balances synchronized");
+      } else if (tab === "catalogue") {
         await refetchProducts();
-        toast.success("Product catalogue synchronized.");
+        toast.success("Product catalogue synchronized");
       } else {
         await refetchMovements();
-        toast.success("Movement ledger synchronized.");
+        toast.success("Movement audit ledger synchronized");
       }
     } catch {
       toast.error("Failed to synchronize inventory data.");
@@ -156,56 +163,65 @@ export const InventoryDashboardView: React.FC = () => {
 
   return (
     <div className="space-y-6 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto animate-in fade-in duration-200">
-      {/* 1. Standard Page Header Banner */}
+      {/* 1. Standard Page Header Banner with Clear Action Hierarchy */}
       <PageHeaderBanner
         title="Inventory Management"
         description="Comprehensive salon stock tracking, consumable deductions, internal movements, and retail catalogue."
         icon={Package}
         actions={
-          <div className="flex flex-wrap items-center justify-end gap-2.5">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {/* Global Contextual Sync */}
             <SyncButton
               isSyncing={isCurrentTabSyncing}
-              onSync={handleManualSync}
+              onSync={() => handleTabSync(activeTab)}
               label="Sync Data"
-              className="h-9 font-medium"
+              className="h-8 text-xs font-medium cursor-pointer"
             />
 
-            {canConsume && (
-              <Button
-                variant="outline"
-                className="gap-2 h-9 border-purple-500/20 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15"
-                onClick={() => handleOpenConsume()}
-              >
-                <Scissors className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                <span>Log Consumption</span>
-              </Button>
-            )}
+            {/* Operational Domain Actions */}
+            <div className="flex items-center gap-1.5 border-l border-border/60 pl-2">
+              {canConsume && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 border-purple-500/25 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15 cursor-pointer font-medium"
+                  onClick={() => handleOpenConsume()}
+                >
+                  <Scissors className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>Log Consumption</span>
+                </Button>
+              )}
 
+              {canAdjust && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 bg-background hover:bg-muted cursor-pointer font-medium"
+                  onClick={() => handleOpenAdjust()}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Adjust</span>
+                </Button>
+              )}
+
+              {canTransfer && availableBranches.length > 1 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 bg-background hover:bg-muted cursor-pointer font-medium"
+                  onClick={() => handleOpenTransfer()}
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Transfer</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Primary Action */}
             {canAdjust && (
               <Button
-                variant="outline"
-                className="gap-2 h-9 bg-card hover:bg-muted"
-                onClick={() => handleOpenAdjust()}
-              >
-                <SlidersHorizontal className="w-4 h-4 text-muted-foreground" />
-                <span>Adjust Stock</span>
-              </Button>
-            )}
-
-            {canTransfer && availableBranches.length > 1 && (
-              <Button
-                variant="outline"
-                className="gap-2 h-9 bg-card hover:bg-muted"
-                onClick={() => handleOpenTransfer()}
-              >
-                <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
-                <span>Transfer</span>
-              </Button>
-            )}
-
-            {canAdjust && (
-              <Button
-                className="gap-2 h-9 shadow-xs"
+                size="sm"
+                className="gap-1.5 h-8 shadow-xs cursor-pointer font-medium"
                 onClick={() => {
                   setProductToEdit(null);
                   setIsProductModalOpen(true);
@@ -219,13 +235,13 @@ export const InventoryDashboardView: React.FC = () => {
         }
       />
 
-      {/* 2. Responsive Tab Bar & Search Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 border-b border-border/60 pb-3">
-        {/* Navigation Tabs */}
+      {/* 2. Responsive Tab Bar & Integrated Toolbar */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 border-b border-border/60 pb-3">
+        {/* Navigation Tabs with Visual Indicators */}
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none p-1 bg-muted/40 rounded-xl border border-border/50">
           <button
             onClick={() => setActiveTab("stock")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
               activeTab === "stock"
                 ? "bg-background text-foreground shadow-xs border border-border/80"
                 : "text-muted-foreground hover:text-foreground hover:bg-background/50"
@@ -234,7 +250,7 @@ export const InventoryDashboardView: React.FC = () => {
             <Package className="w-4 h-4 text-primary" />
             <span>Branch Stock</span>
             {stockBalances.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-primary/10 text-primary font-bold">
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-primary/10 text-primary font-bold">
                 {stockBalances.length}
               </span>
             )}
@@ -242,7 +258,7 @@ export const InventoryDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveTab("catalogue")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
               activeTab === "catalogue"
                 ? "bg-background text-foreground shadow-xs border border-border/80"
                 : "text-muted-foreground hover:text-foreground hover:bg-background/50"
@@ -251,7 +267,7 @@ export const InventoryDashboardView: React.FC = () => {
             <SlidersHorizontal className="w-4 h-4 text-amber-500" />
             <span>Product Catalogue</span>
             {products.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-muted text-muted-foreground font-bold">
+              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-muted text-muted-foreground font-bold">
                 {products.length}
               </span>
             )}
@@ -259,7 +275,7 @@ export const InventoryDashboardView: React.FC = () => {
 
           <button
             onClick={() => setActiveTab("movements")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
               activeTab === "movements"
                 ? "bg-background text-foreground shadow-xs border border-border/80"
                 : "text-muted-foreground hover:text-foreground hover:bg-background/50"
@@ -270,30 +286,61 @@ export const InventoryDashboardView: React.FC = () => {
           </button>
         </div>
 
-        {/* Filter & Search Bar */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:w-64">
+        {/* Tab-Scoped Search & Refresh Controls */}
+        <div className="flex flex-wrap items-center justify-between lg:justify-end gap-2.5">
+          {/* Search Input */}
+          <div className="relative flex-1 sm:w-64">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Search product, SKU..."
-              className="pl-9 h-9 text-xs md:text-sm bg-card"
+              className="pl-9 h-8 text-xs md:text-sm bg-card"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
+          {/* Filter Dropdown for Catalogue Tab */}
           {activeTab === "catalogue" && (
             <select
               value={usageFilter}
               onChange={(e) => setUsageFilter(e.target.value)}
-              className="h-9 px-3 py-1 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring"
+              className="h-8 px-2.5 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring cursor-pointer"
             >
-              <option value="all">All Usage Types</option>
+              <option value="all">All Classifications</option>
               <option value="salon_consumption">Salon Consumables</option>
               <option value="retail_sale">Retail Products</option>
               <option value="both">Dual Purpose (Both)</option>
             </select>
           )}
+
+          {/* Filter Dropdown for Branch Stock Tab */}
+          {activeTab === "stock" && (
+            <select
+              value={stockStatusFilter}
+              onChange={(e) => setStockStatusFilter(e.target.value as any)}
+              className="h-8 px-2.5 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring cursor-pointer"
+            >
+              <option value="all">All Stock Statuses</option>
+              <option value="low">Low Stock Alert</option>
+              <option value="optimal">Optimal Stock</option>
+            </select>
+          )}
+
+          {/* Dedicated In-Tab Refresh Button */}
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-2.5 gap-1.5 text-xs font-medium bg-card hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            onClick={() => handleTabSync(activeTab)}
+            disabled={isCurrentTabSyncing}
+            title={`Refresh ${activeTab} data`}
+          >
+            <RefreshCw
+              size={13}
+              className={`transition-transform duration-700 ${isCurrentTabSyncing ? "animate-spin" : ""}`}
+            />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
         </div>
       </div>
 
@@ -308,10 +355,10 @@ export const InventoryDashboardView: React.FC = () => {
                 Please choose a specific branch location using the top header branch switcher to review and manage localized stock on hand.
               </p>
             </div>
-          ) : isStockLoading ? (
+          ) : isStockLoading || isStockFetching ? (
             <div className="p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Loading branch stock on hand...</span>
+              <span className="text-xs">Updating branch stock on hand...</span>
             </div>
           ) : isStockError ? (
             <ErrorState
@@ -396,7 +443,7 @@ export const InventoryDashboardView: React.FC = () => {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-8 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10"
+                                  className="h-7 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 cursor-pointer"
                                   onClick={() => handleOpenConsume(prod)}
                                 >
                                   Consume
@@ -406,7 +453,7 @@ export const InventoryDashboardView: React.FC = () => {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                  className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
                                   onClick={() => handleOpenAdjust(prod, item.onHand)}
                                 >
                                   Adjust
@@ -428,10 +475,10 @@ export const InventoryDashboardView: React.FC = () => {
       {/* 4. TAB 2: Product Catalogue */}
       {activeTab === "catalogue" && (
         <div className="space-y-4">
-          {isProductsLoading ? (
+          {isProductsLoading || isProductsFetching ? (
             <div className="p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Loading product catalogue...</span>
+              <span className="text-xs">Updating product catalogue...</span>
             </div>
           ) : isProductsError ? (
             <ErrorState
@@ -504,7 +551,7 @@ export const InventoryDashboardView: React.FC = () => {
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground"
+                              className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
                               onClick={() => {
                                 setProductToEdit(p);
                                 setIsProductModalOpen(true);
@@ -527,10 +574,10 @@ export const InventoryDashboardView: React.FC = () => {
       {/* 5. TAB 3: Movement Ledger History */}
       {activeTab === "movements" && (
         <div className="space-y-4">
-          {isMovementsLoading ? (
+          {isMovementsLoading || isMovementsFetching ? (
             <div className="p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
               <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Loading stock movements ledger...</span>
+              <span className="text-xs">Updating stock movements ledger...</span>
             </div>
           ) : isMovementsError ? (
             <ErrorState
