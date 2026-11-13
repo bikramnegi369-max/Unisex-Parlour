@@ -4,9 +4,9 @@ import React, { useState } from "react";
 import {
   useProducts,
   useBranchStock,
-  useStockMovements
+  useStockMovements,
 } from "../hooks/useInventory";
-import { Product, StockBalance } from "../types/inventory.types";
+import { Product, ProductUsageType } from "../types/inventory.types";
 import { UsageTypeBadge } from "./UsageTypeBadge";
 import { ProductFormModal } from "./ProductFormModal";
 import { ConsumptionModal } from "./ConsumptionModal";
@@ -34,20 +34,19 @@ import {
   AlertTriangle,
   Search,
   CheckCircle2,
-  Filter,
   RefreshCw,
-  Box,
-  Layers,
-  Sparkles,
-  ArrowUpDown
 } from "lucide-react";
 
 function InventoryTableSkeleton({
   columns,
   rowCount = 5,
-  description = "Loading inventory data..."
+  description = "Loading inventory data...",
 }: {
-  columns: { header: string; width?: string; align?: "left" | "right" | "center" }[];
+  columns: {
+    header: string;
+    width?: string;
+    align?: "left" | "right" | "center";
+  }[];
   rowCount?: number;
   description?: string;
 }) {
@@ -65,12 +64,12 @@ function InventoryTableSkeleton({
                 {columns.map((col, idx) => (
                   <th
                     key={idx}
-                    className={`py-3 px-4 ${col.width || "min-w-[120px]"} ${
+                    className={`py-3 px-4 ${col.width || "min-w-30"} ${
                       col.align === "right"
                         ? "text-right"
                         : col.align === "center"
-                        ? "text-center"
-                        : "text-left"
+                          ? "text-center"
+                          : "text-left"
                     }`}
                   >
                     {col.header}
@@ -88,8 +87,8 @@ function InventoryTableSkeleton({
                         col.align === "right"
                           ? "text-right"
                           : col.align === "center"
-                          ? "text-center"
-                          : "text-left"
+                            ? "text-center"
+                            : "text-left"
                       }`}
                     >
                       {col.align === "right" ? (
@@ -120,10 +119,14 @@ export const InventoryDashboardView: React.FC = () => {
   const { currentBranchId, availableBranches } = useBranchContext();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"stock" | "catalogue" | "movements">("stock");
+  const [activeTab, setActiveTab] = useState<
+    "stock" | "catalogue" | "movements"
+  >("stock");
   const [searchQuery, setSearchQuery] = useState("");
-  const [usageFilter, setUsageFilter] = useState<string>("all");
-  const [stockStatusFilter, setStockStatusFilter] = useState<"all" | "low" | "optimal">("all");
+  const [usageFilter, setUsageFilter] = useState<ProductUsageType | "all">("all");
+  const [stockStatusFilter, setStockStatusFilter] = useState<
+    "all" | "low" | "optimal"
+  >("all");
 
   // Modal triggers
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -133,7 +136,9 @@ export const InventoryDashboardView: React.FC = () => {
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedBalanceOnHand, setSelectedBalanceOnHand] = useState<number | undefined>(undefined);
+  const [selectedBalanceOnHand, setSelectedBalanceOnHand] = useState<
+    number | undefined
+  >(undefined);
 
   // Queries
   const {
@@ -141,10 +146,10 @@ export const InventoryDashboardView: React.FC = () => {
     isLoading: isProductsLoading,
     isFetching: isProductsFetching,
     isError: isProductsError,
-    refetch: refetchProducts
+    refetch: refetchProducts,
   } = useProducts({
     search: searchQuery || undefined,
-    usageType: usageFilter !== "all" ? (usageFilter as any) : undefined
+    usageType: usageFilter !== "all" ? usageFilter : undefined,
   });
 
   const {
@@ -152,7 +157,7 @@ export const InventoryDashboardView: React.FC = () => {
     isLoading: isStockLoading,
     isFetching: isStockFetching,
     isError: isStockError,
-    refetch: refetchStock
+    refetch: refetchStock,
   } = useBranchStock();
 
   const {
@@ -160,7 +165,7 @@ export const InventoryDashboardView: React.FC = () => {
     isLoading: isMovementsLoading,
     isFetching: isMovementsFetching,
     isError: isMovementsError,
-    refetch: refetchMovements
+    refetch: refetchMovements,
   } = useStockMovements();
 
   // Permission flags
@@ -364,7 +369,7 @@ export const InventoryDashboardView: React.FC = () => {
         {/* Tab-Scoped Search, Filters & Action Controls */}
         <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
           {/* Search Input */}
-          <div className="relative flex-1 sm:w-56 min-w-[160px]">
+          <div className="relative flex-1 sm:w-56 min-w-40">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               placeholder="Search product, SKU..."
@@ -378,7 +383,7 @@ export const InventoryDashboardView: React.FC = () => {
           {activeTab === "catalogue" && (
             <select
               value={usageFilter}
-              onChange={(e) => setUsageFilter(e.target.value)}
+              onChange={(e) => setUsageFilter(e.target.value as ProductUsageType | "all")}
               className="h-8 px-2.5 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring cursor-pointer"
             >
               <option value="all">All Classifications</option>
@@ -392,7 +397,7 @@ export const InventoryDashboardView: React.FC = () => {
           {activeTab === "stock" && (
             <select
               value={stockStatusFilter}
-              onChange={(e) => setStockStatusFilter(e.target.value as any)}
+              onChange={(e) => setStockStatusFilter(e.target.value as "all" | "low" | "optimal")}
               className="h-8 px-2.5 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring cursor-pointer"
             >
               <option value="all">All Stock Statuses</option>
@@ -425,9 +430,12 @@ export const InventoryDashboardView: React.FC = () => {
           {!currentBranchId ? (
             <div className="p-8 text-center bg-amber-500/10 rounded-2xl border border-amber-500/20 text-amber-800 dark:text-amber-200">
               <Package className="w-8 h-8 mx-auto mb-2 text-amber-600 dark:text-amber-400 opacity-80" />
-              <p className="font-semibold text-base">No active branch selected</p>
+              <p className="font-semibold text-base">
+                No active branch selected
+              </p>
               <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-                Please choose a specific branch location using the top header branch switcher to review and manage localized stock on hand.
+                Please choose a specific branch location using the top header
+                branch switcher to review and manage localized stock on hand.
               </p>
             </div>
           ) : isStockLoading || isStockFetching ? (
@@ -438,8 +446,16 @@ export const InventoryDashboardView: React.FC = () => {
                 { header: "Product / SKU", width: "min-w-[200px]" },
                 { header: "Classification", width: "min-w-[150px]" },
                 { header: "On Hand", width: "min-w-[110px]", align: "right" },
-                { header: "Reorder Lvl", width: "min-w-[110px]", align: "right" },
-                { header: "Stock Status", width: "min-w-[120px]", align: "center" },
+                {
+                  header: "Reorder Lvl",
+                  width: "min-w-[110px]",
+                  align: "right",
+                },
+                {
+                  header: "Stock Status",
+                  width: "min-w-[120px]",
+                  align: "center",
+                },
                 { header: "Actions", width: "min-w-[160px]", align: "right" },
               ]}
             />
@@ -451,7 +467,9 @@ export const InventoryDashboardView: React.FC = () => {
             />
           ) : filteredBalances.length === 0 ? (
             <EmptyState
-              title={searchQuery ? "No Matching Stock" : "No Stock Balances Recorded"}
+              title={
+                searchQuery ? "No Matching Stock" : "No Stock Balances Recorded"
+              }
               description={
                 searchQuery
                   ? `No product balances matched "${searchQuery}".`
@@ -464,12 +482,18 @@ export const InventoryDashboardView: React.FC = () => {
                 <table className="w-full text-xs md:text-sm text-left">
                   <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
                     <tr>
-                      <th className="py-3 px-4 min-w-[200px]">Product / SKU</th>
-                      <th className="py-3 px-4 min-w-[150px]">Classification</th>
-                      <th className="py-3 px-4 text-right min-w-[110px]">On Hand</th>
-                      <th className="py-3 px-4 text-right min-w-[110px]">Reorder Lvl</th>
-                      <th className="py-3 px-4 text-center min-w-[120px]">Stock Status</th>
-                      <th className="py-3 px-4 text-right min-w-[160px]">Actions</th>
+                      <th className="py-3 px-4 min-w-50">Product / SKU</th>
+                      <th className="py-3 px-4 min-w-37.5">Classification</th>
+                      <th className="py-3 px-4 text-right min-w-27.5">
+                        On Hand
+                      </th>
+                      <th className="py-3 px-4 text-right min-w-27.5">
+                        Reorder Lvl
+                      </th>
+                      <th className="py-3 px-4 text-center min-w-30">
+                        Stock Status
+                      </th>
+                      <th className="py-3 px-4 text-right min-w-40">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -477,7 +501,10 @@ export const InventoryDashboardView: React.FC = () => {
                       const prod = item.product;
                       const isLow = item.onHand <= (prod?.reorderLevel ?? 0);
                       return (
-                        <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                        <tr
+                          key={item.id}
+                          className="hover:bg-muted/20 transition-colors"
+                        >
                           <td className="py-3.5 px-4">
                             <span className="font-semibold text-foreground block text-sm">
                               {prod?.name || "Product"}
@@ -487,7 +514,9 @@ export const InventoryDashboardView: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            {prod && <UsageTypeBadge usageType={prod.usageType} />}
+                            {prod && (
+                              <UsageTypeBadge usageType={prod.usageType} />
+                            )}
                           </td>
                           <td className="py-3.5 px-4 text-right font-bold text-sm text-foreground">
                             {item.onHand}{" "}
@@ -522,21 +551,29 @@ export const InventoryDashboardView: React.FC = () => {
                           </td>
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
-                              {canConsume && prod && (prod.usageType === "salon_consumption" || prod.usageType === "both") && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenConsume(prod)}
-                                  className="cursor-pointer h-8 px-2.5 rounded-lg border border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/15 text-purple-700 dark:text-purple-300 flex items-center gap-1.5 transition-colors text-xs font-medium"
-                                  title="Log Consumable Usage"
-                                >
-                                  <Scissors size={13} className="text-purple-600 dark:text-purple-400" />
-                                  <span>Consume</span>
-                                </button>
-                              )}
+                              {canConsume &&
+                                prod &&
+                                (prod.usageType === "salon_consumption" ||
+                                  prod.usageType === "both") && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenConsume(prod)}
+                                    className="cursor-pointer h-8 px-2.5 rounded-lg border border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/15 text-purple-700 dark:text-purple-300 flex items-center gap-1.5 transition-colors text-xs font-medium"
+                                    title="Log Consumable Usage"
+                                  >
+                                    <Scissors
+                                      size={13}
+                                      className="text-purple-600 dark:text-purple-400"
+                                    />
+                                    <span>Consume</span>
+                                  </button>
+                                )}
                               {canAdjust && (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenAdjust(prod, item.onHand)}
+                                  onClick={() =>
+                                    handleOpenAdjust(prod, item.onHand)
+                                  }
                                   className="cursor-pointer h-8 px-2.5 rounded-lg border border-border/80 bg-background hover:bg-muted hover:text-foreground flex items-center gap-1.5 transition-colors text-xs font-medium text-muted-foreground"
                                   title="Adjust Stock Balance"
                                 >
@@ -571,7 +608,11 @@ export const InventoryDashboardView: React.FC = () => {
                 { header: "Usage Domain", width: "min-w-[150px]" },
                 { header: "Unit", width: "min-w-[100px]" },
                 { header: "Cost (₹)", width: "min-w-[110px]", align: "right" },
-                { header: "Selling (₹)", width: "min-w-[110px]", align: "right" },
+                {
+                  header: "Selling (₹)",
+                  width: "min-w-[110px]",
+                  align: "right",
+                },
                 { header: "Status", width: "min-w-[100px]", align: "center" },
                 { header: "Actions", width: "min-w-[100px]", align: "right" },
               ]}
@@ -593,20 +634,27 @@ export const InventoryDashboardView: React.FC = () => {
                 <table className="w-full text-xs md:text-sm text-left">
                   <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
                     <tr>
-                      <th className="py-3 px-4 min-w-[220px]">Product Name</th>
-                      <th className="py-3 px-4 min-w-[140px]">SKU</th>
-                      <th className="py-3 px-4 min-w-[130px]">Category</th>
-                      <th className="py-3 px-4 min-w-[150px]">Usage Domain</th>
-                      <th className="py-3 px-4 min-w-[100px]">Unit</th>
-                      <th className="py-3 px-4 text-right min-w-[110px]">Cost (₹)</th>
-                      <th className="py-3 px-4 text-right min-w-[110px]">Selling (₹)</th>
-                      <th className="py-3 px-4 text-center min-w-[100px]">Status</th>
-                      <th className="py-3 px-4 text-right min-w-[100px]">Actions</th>
+                      <th className="py-3 px-4 min-w-55">Product Name</th>
+                      <th className="py-3 px-4 min-w-35">SKU</th>
+                      <th className="py-3 px-4 min-w-32.5">Category</th>
+                      <th className="py-3 px-4 min-w-37.5">Usage Domain</th>
+                      <th className="py-3 px-4 min-w-25">Unit</th>
+                      <th className="py-3 px-4 text-right min-w-27.5">
+                        Cost (₹)
+                      </th>
+                      <th className="py-3 px-4 text-right min-w-27.5">
+                        Selling (₹)
+                      </th>
+                      <th className="py-3 px-4 text-center min-w-25">Status</th>
+                      <th className="py-3 px-4 text-right min-w-25">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {products.map((p) => (
-                      <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                      <tr
+                        key={p.id}
+                        className="hover:bg-muted/20 transition-colors"
+                      >
                         <td className="py-3.5 px-4 font-semibold text-foreground text-sm">
                           {p.name}
                         </td>
@@ -636,7 +684,9 @@ export const InventoryDashboardView: React.FC = () => {
                         </td>
                         <td className="py-3.5 px-4 text-center whitespace-nowrap">
                           <Badge
-                            variant={p.status === "active" ? "outline" : "secondary"}
+                            variant={
+                              p.status === "active" ? "outline" : "secondary"
+                            }
                             className="text-xs uppercase font-medium px-2 py-0.5 rounded-md"
                           >
                             {p.status}
@@ -680,7 +730,11 @@ export const InventoryDashboardView: React.FC = () => {
                 { header: "Product / SKU", width: "min-w-[200px]" },
                 { header: "Movement Type", width: "min-w-[150px]" },
                 { header: "Delta", width: "min-w-[110px]", align: "right" },
-                { header: "Balance After", width: "min-w-[110px]", align: "right" },
+                {
+                  header: "Balance After",
+                  width: "min-w-[110px]",
+                  align: "right",
+                },
                 { header: "Staff Actor", width: "min-w-[140px]" },
                 { header: "Notes & Reference", width: "min-w-[220px]" },
               ]}
@@ -689,7 +743,10 @@ export const InventoryDashboardView: React.FC = () => {
             <ErrorState
               title="Failed to Load Ledger"
               description="Unable to retrieve stock movement audit entries."
-              retryAction={{ label: "Retry", onClick: () => refetchMovements() }}
+              retryAction={{
+                label: "Retry",
+                onClick: () => refetchMovements(),
+              }}
             />
           ) : movements.length === 0 ? (
             <EmptyState
@@ -702,22 +759,27 @@ export const InventoryDashboardView: React.FC = () => {
                 <table className="w-full text-xs md:text-sm text-left">
                   <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
                     <tr>
-                      <th className="py-3 px-4 min-w-[160px]">Timestamp</th>
-                      <th className="py-3 px-4 min-w-[200px]">Product / SKU</th>
-                      <th className="py-3 px-4 min-w-[150px]">Movement Type</th>
-                      <th className="py-3 px-4 text-right min-w-[110px]">Delta</th>
-                      <th className="py-3 px-4 text-right min-w-[110px]">Balance After</th>
-                      <th className="py-3 px-4 min-w-[140px]">Staff Actor</th>
-                      <th className="py-3 px-4 min-w-[220px]">Notes & Reference</th>
+                      <th className="py-3 px-4 min-w-40">Timestamp</th>
+                      <th className="py-3 px-4 min-w-50">Product / SKU</th>
+                      <th className="py-3 px-4 min-w-37.5">Movement Type</th>
+                      <th className="py-3 px-4 text-right min-w-27.5">Delta</th>
+                      <th className="py-3 px-4 text-right min-w-27.5">
+                        Balance After
+                      </th>
+                      <th className="py-3 px-4 min-w-35">Staff Actor</th>
+                      <th className="py-3 px-4 min-w-55">Notes & Reference</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {movements.map((m) => (
-                      <tr key={m.id} className="hover:bg-muted/20 transition-colors">
+                      <tr
+                        key={m.id}
+                        className="hover:bg-muted/20 transition-colors"
+                      >
                         <td className="py-3.5 px-4 text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(m.createdAt).toLocaleString(undefined, {
                             dateStyle: "medium",
-                            timeStyle: "short"
+                            timeStyle: "short",
                           })}
                         </td>
                         <td className="py-3.5 px-4">
@@ -743,7 +805,9 @@ export const InventoryDashboardView: React.FC = () => {
                               : "text-rose-600 dark:text-rose-400"
                           }`}
                         >
-                          {m.quantityDelta > 0 ? `+${m.quantityDelta}` : m.quantityDelta}{" "}
+                          {m.quantityDelta > 0
+                            ? `+${m.quantityDelta}`
+                            : m.quantityDelta}{" "}
                           <span className="text-xs font-normal text-muted-foreground">
                             {m.product?.stockUnit}
                           </span>
@@ -755,13 +819,10 @@ export const InventoryDashboardView: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-xs font-medium text-foreground whitespace-nowrap">
-                          {m.actor?.name ||
-                            (typeof m.actorId === "object"
-                              ? (m.actorId as any)?.name || (m.actorId as any)?._id
-                              : m.actorId || "System")}
+                          {m.actor?.name || m.actorId || "System"}
                         </td>
                         <td className="py-3.5 px-4 text-xs text-muted-foreground max-w-sm">
-                          <p className="break-words leading-relaxed">
+                          <p className="wrap-break-word leading-relaxed">
                             {m.notes || m.reference?.identifier || "—"}
                           </p>
                         </td>
@@ -802,7 +863,10 @@ export const InventoryDashboardView: React.FC = () => {
         onClose={() => setIsTransferModalOpen(false)}
         products={products}
         preselectedProduct={selectedProduct}
-        availableBranches={availableBranches.map((b) => ({ id: b.id, name: b.name }))}
+        availableBranches={availableBranches.map((b) => ({
+          id: b.id,
+          name: b.name,
+        }))}
       />
     </div>
   );
