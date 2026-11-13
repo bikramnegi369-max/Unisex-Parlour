@@ -41,6 +41,80 @@ import {
   ArrowUpDown
 } from "lucide-react";
 
+function InventoryTableSkeleton({
+  columns,
+  rowCount = 5,
+  description = "Loading inventory data..."
+}: {
+  columns: { header: string; width?: string; align?: "left" | "right" | "center" }[];
+  rowCount?: number;
+  description?: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground animate-pulse">
+        <div className="w-2 h-2 rounded-full bg-primary/60 animate-ping" />
+        <span>{description}</span>
+      </div>
+      <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs">
+        <div className="overflow-x-auto scrollbar-thin">
+          <table className="w-full text-xs md:text-sm text-left">
+            <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
+              <tr>
+                {columns.map((col, idx) => (
+                  <th
+                    key={idx}
+                    className={`py-3 px-4 ${col.width || "min-w-[120px]"} ${
+                      col.align === "right"
+                        ? "text-right"
+                        : col.align === "center"
+                        ? "text-center"
+                        : "text-left"
+                    }`}
+                  >
+                    {col.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60">
+              {Array.from({ length: rowCount }).map((_, rIdx) => (
+                <tr key={rIdx} className="animate-pulse">
+                  {columns.map((col, cIdx) => (
+                    <td
+                      key={cIdx}
+                      className={`py-3.5 px-4 ${
+                        col.align === "right"
+                          ? "text-right"
+                          : col.align === "center"
+                          ? "text-center"
+                          : "text-left"
+                      }`}
+                    >
+                      {col.align === "right" ? (
+                        <div className="h-4 bg-muted/60 rounded w-16 ml-auto" />
+                      ) : col.align === "center" ? (
+                        <div className="h-5 bg-muted/60 rounded-md w-20 mx-auto" />
+                      ) : cIdx === 0 ? (
+                        <div className="space-y-1.5">
+                          <div className="h-4 bg-muted/70 rounded w-36" />
+                          <div className="h-3 bg-muted/40 rounded w-24" />
+                        </div>
+                      ) : (
+                        <div className="h-4 bg-muted/60 rounded w-28" />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const InventoryDashboardView: React.FC = () => {
   const { currentBranchId, availableBranches } = useBranchContext();
   const { user } = useAuth();
@@ -179,7 +253,7 @@ export const InventoryDashboardView: React.FC = () => {
             />
 
             {/* Operational Domain Actions */}
-            <div className="flex items-center gap-1.5 border-l border-border/60 pl-2">
+            <div className="flex flex-wrap items-center gap-1.5 border-l border-border/60 pl-2">
               {canConsume && (
                 <Button
                   size="sm"
@@ -356,10 +430,18 @@ export const InventoryDashboardView: React.FC = () => {
               </p>
             </div>
           ) : isStockLoading || isStockFetching ? (
-            <div className="p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Updating branch stock on hand...</span>
-            </div>
+            <InventoryTableSkeleton
+              description="Updating branch stock on hand..."
+              rowCount={5}
+              columns={[
+                { header: "Product / SKU", width: "min-w-[200px]" },
+                { header: "Classification", width: "min-w-[150px]" },
+                { header: "On Hand", width: "min-w-[110px]", align: "right" },
+                { header: "Reorder Lvl", width: "min-w-[110px]", align: "right" },
+                { header: "Stock Status", width: "min-w-[120px]", align: "center" },
+                { header: "Actions", width: "min-w-[160px]", align: "right" },
+              ]}
+            />
           ) : isStockError ? (
             <ErrorState
               title="Failed to Load Stock"
@@ -476,10 +558,21 @@ export const InventoryDashboardView: React.FC = () => {
       {activeTab === "catalogue" && (
         <div className="space-y-4">
           {isProductsLoading || isProductsFetching ? (
-            <div className="p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Updating product catalogue...</span>
-            </div>
+            <InventoryTableSkeleton
+              description="Updating product catalogue..."
+              rowCount={5}
+              columns={[
+                { header: "Product Name", width: "min-w-[220px]" },
+                { header: "SKU", width: "min-w-[140px]" },
+                { header: "Category", width: "min-w-[130px]" },
+                { header: "Usage Domain", width: "min-w-[150px]" },
+                { header: "Unit", width: "min-w-[100px]" },
+                { header: "Cost (₹)", width: "min-w-[110px]", align: "right" },
+                { header: "Selling (₹)", width: "min-w-[110px]", align: "right" },
+                { header: "Status", width: "min-w-[100px]", align: "center" },
+                { header: "Actions", width: "min-w-[100px]", align: "right" },
+              ]}
+            />
           ) : isProductsError ? (
             <ErrorState
               title="Failed to Load Catalogue"
@@ -575,10 +668,19 @@ export const InventoryDashboardView: React.FC = () => {
       {activeTab === "movements" && (
         <div className="space-y-4">
           {isMovementsLoading || isMovementsFetching ? (
-            <div className="p-16 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-              <span className="text-xs">Updating stock movements ledger...</span>
-            </div>
+            <InventoryTableSkeleton
+              description="Updating stock movements ledger..."
+              rowCount={5}
+              columns={[
+                { header: "Timestamp", width: "min-w-[160px]" },
+                { header: "Product / SKU", width: "min-w-[200px]" },
+                { header: "Movement Type", width: "min-w-[150px]" },
+                { header: "Delta", width: "min-w-[110px]", align: "right" },
+                { header: "Balance After", width: "min-w-[110px]", align: "right" },
+                { header: "Staff Actor", width: "min-w-[140px]" },
+                { header: "Notes & Reference", width: "min-w-[220px]" },
+              ]}
+            />
           ) : isMovementsError ? (
             <ErrorState
               title="Failed to Load Ledger"
