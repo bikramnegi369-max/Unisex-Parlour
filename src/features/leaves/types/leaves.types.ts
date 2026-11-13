@@ -22,6 +22,12 @@ export interface Leave {
   cancelledBy?: string | null;
   cancelledAt?: string | null;
   cancelReason?: string | null;
+  isPartialDay?: boolean;
+  dayPart?: "first_half" | "second_half" | "custom" | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +49,10 @@ export interface CreateLeavePayload {
   startDate: string; // YYYY-MM-DD
   endDate: string;   // YYYY-MM-DD
   reason: string;
+  isPartialDay?: boolean;
+  dayPart?: "first_half" | "second_half" | "custom";
+  startTime?: string;
+  endTime?: string;
 }
 
 export interface UpdateLeavePayload {
@@ -50,6 +60,30 @@ export interface UpdateLeavePayload {
   startDate?: string; // YYYY-MM-DD
   endDate?: string;   // YYYY-MM-DD
   reason?: string;
+  isPartialDay?: boolean;
+  dayPart?: "first_half" | "second_half" | "custom";
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface LeaveConflictAppointment {
+  id: string;
+  appointmentCode: string;
+  customerName: string;
+  customerId?: string;
+  serviceNames: string[];
+  startTime: string; // HH:mm or ISO
+  endTime: string;   // HH:mm or ISO
+  appointmentDate?: string; // YYYY-MM-DD
+  date?: string;
+  startAt?: string;
+  endAt?: string;
+}
+
+export interface LeaveConflictsResponse {
+  success: boolean;
+  count: number;
+  conflicts: LeaveConflictAppointment[];
 }
 
 export interface ApproveLeavePayload {

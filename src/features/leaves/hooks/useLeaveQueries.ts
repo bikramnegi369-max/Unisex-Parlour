@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getLeaves, getLeave } from "../api/leaves.api";
+import { getLeaves, getLeave, getLeaveConflicts } from "../api/leaves.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -43,5 +43,34 @@ export function useLeave(id: string | undefined) {
     queryKey,
     queryFn: () => getLeave(id!),
     enabled: isEnabled,
+  });
+}
+
+export function useLeaveConflicts(
+  id: string | undefined,
+  options?: { enabled?: boolean }
+) {
+  const { currentBranchId, getBranchQueryKey } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+
+  const isOrgWide = user?.hasOrgWideAccess === true;
+  const hasAccessPermission =
+    hasPermission(user, "employees.leaves.manage") ||
+    hasPermission(user, "employees.leaves.view");
+
+  const isEnabled =
+    isAuthenticated &&
+    hasAccessPermission &&
+    Boolean(id) &&
+    (currentBranchId !== null || isOrgWide) &&
+    options?.enabled !== false;
+
+  const queryKey = getBranchQueryKey("leaveConflicts", [id || ""]);
+
+  return useQuery({
+    queryKey,
+    queryFn: () => getLeaveConflicts(id!),
+    enabled: isEnabled,
+    staleTime: 5_000,
   });
 }

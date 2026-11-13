@@ -209,7 +209,20 @@ export default function LeaveList() {
           setActionLeave(null);
         },
         onError: (err: unknown) => {
-          toast.error(getErrorMessage(err, "Failed to approve leave request."));
+          const axiosErr = err as {
+            response?: {
+              status?: number;
+              data?: { message?: string; errors?: { count?: number } };
+            };
+          };
+          if (axiosErr?.response?.status === 409) {
+            toast.error(
+              axiosErr.response.data?.message ||
+                "Cannot approve leave: conflicting appointments exist."
+            );
+          } else {
+            toast.error(getErrorMessage(err, "Failed to approve leave request."));
+          }
         },
       }
     );
@@ -392,6 +405,7 @@ export default function LeaveList() {
           }}
           onConfirm={handleApproveConfirm}
           isSubmitting={approveMutation.isPending}
+          leave={actionLeave}
           leaveCode={actionLeave.leaveCode}
         />
       )}

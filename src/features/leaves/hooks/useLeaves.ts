@@ -1,6 +1,7 @@
 export {
   useLeaves,
   useLeave,
+  useLeaveConflicts,
 } from "./useLeaveQueries";
 
 export {

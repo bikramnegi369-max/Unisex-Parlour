@@ -6,6 +6,7 @@ import type {
   LeaveListQuery,
   CreateLeavePayload,
   UpdateLeavePayload,
+  LeaveConflictAppointment,
 } from "../types/leaves.types";
 
 interface BackendLeaveDTO {
@@ -29,6 +30,12 @@ interface BackendLeaveDTO {
   cancelledBy?: string | null;
   cancelledAt?: string | null;
   cancelReason?: string | null;
+  isPartialDay?: boolean;
+  dayPart?: "first_half" | "second_half" | "custom" | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -80,6 +87,12 @@ const normalizeLeave = (raw: BackendLeaveDTO): Leave => {
     cancelledBy: typeof raw.cancelledBy === "string" ? raw.cancelledBy : cancelledByObj?.name || (raw.cancelledBy as string | null) || null,
     cancelledAt: raw.cancelledAt || null,
     cancelReason: raw.cancelReason || null,
+    isPartialDay: Boolean(raw.isPartialDay),
+    dayPart: raw.dayPart || null,
+    startTime: raw.startTime || null,
+    endTime: raw.endTime || null,
+    startAt: raw.startAt || null,
+    endAt: raw.endAt || null,
     createdAt: raw.createdAt || "",
     updatedAt: raw.updatedAt || "",
   };
@@ -143,5 +156,30 @@ export const cancelLeave = async (id: string, cancelReason: string): Promise<Lea
     { branchScope: "current" }
   );
   return normalizeLeave(data.data);
+};
+
+export const getLeaveConflicts = async (
+  id: string
+): Promise<{ count: number; conflicts: LeaveConflictAppointment[] }> => {
+  const { data } = await apiClient.get<any>(`/leaves/${id}/conflicts`, {
+    branchScope: "current",
+  });
+
+  if (data?.data && Array.isArray(data.data.conflicts)) {
+    return {
+      count: data.data.count ?? data.data.conflicts.length,
+      conflicts: data.data.conflicts,
+    };
+  }
+  if (Array.isArray(data?.data)) {
+    return { count: data.data.length, conflicts: data.data };
+  }
+  if (Array.isArray(data?.conflicts)) {
+    return {
+      count: data.count ?? data.conflicts.length,
+      conflicts: data.conflicts,
+    };
+  }
+  return { count: 0, conflicts: [] };
 };
 

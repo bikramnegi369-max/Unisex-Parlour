@@ -92,19 +92,39 @@ export interface UserSession {
 // Permission Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Canonical bidirectional permission aliases.
+ * Permanent mapping to ensure users with either legacy or canonical keys have full authorization.
+ */
+export const PERMISSION_ALIASES: Partial<Record<PermissionType, PermissionType[]>> = {
+  "customers.update": ["customers.update", "customers.edit"],
+  "customers.edit": ["customers.edit", "customers.update"],
+};
+
+export function resolvePermissionAliases(permission: PermissionType): PermissionType[] {
+  return PERMISSION_ALIASES[permission] || [permission];
+}
+
 export function hasPermission(user: UserSession | null, permission: PermissionType): boolean {
   if (!user) return false;
-  return user.permissions.includes(permission);
+  const candidatePermissions = resolvePermissionAliases(permission);
+  return candidatePermissions.some((p) => user.permissions.includes(p));
 }
 
 export function hasAnyPermission(user: UserSession | null, permissions: PermissionType[]): boolean {
   if (!user) return false;
-  return permissions.some((p) => user.permissions.includes(p));
+  return permissions.some((perm) => {
+    const candidatePermissions = resolvePermissionAliases(perm);
+    return candidatePermissions.some((p) => user.permissions.includes(p));
+  });
 }
 
 export function hasAllPermissions(user: UserSession | null, permissions: PermissionType[]): boolean {
   if (!user) return false;
-  return permissions.every((p) => user.permissions.includes(p));
+  return permissions.every((perm) => {
+    const candidatePermissions = resolvePermissionAliases(perm);
+    return candidatePermissions.some((p) => user.permissions.includes(p));
+  });
 }
 
 // ---------------------------------------------------------------------------
