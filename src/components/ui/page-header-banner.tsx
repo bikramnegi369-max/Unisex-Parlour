@@ -38,8 +38,8 @@ export function PageHeaderBanner({
       )}
 
       {/* Main Content Layout */}
-      <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="space-y-1.5 max-w-3xl">
+      <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+        <div className="space-y-1.5 max-w-3xl min-w-0">
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground bg-linear-to-r from-foreground to-foreground/80 bg-clip-text">
             {title}
           </h1>
@@ -52,7 +52,7 @@ export function PageHeaderBanner({
 
         {/* Action Controls Cluster */}
         {actions && (
-          <div className="flex flex-col items-stretch sm:items-end gap-2.5 shrink-0 w-full sm:w-auto justify-end">
+          <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto xl:justify-end xl:shrink-0 min-w-0">
             {actions}
           </div>
         )}
