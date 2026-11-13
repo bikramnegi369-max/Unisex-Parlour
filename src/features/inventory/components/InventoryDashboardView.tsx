@@ -12,6 +12,7 @@ import { ProductFormModal } from "./ProductFormModal";
 import { ConsumptionModal } from "./ConsumptionModal";
 import { AdjustmentModal } from "./AdjustmentModal";
 import { TransferModal } from "./TransferModal";
+import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -522,24 +523,26 @@ export const InventoryDashboardView: React.FC = () => {
                           <td className="py-3.5 px-4 text-right whitespace-nowrap">
                             <div className="flex items-center justify-end gap-1.5">
                               {canConsume && prod && (prod.usageType === "salon_consumption" || prod.usageType === "both") && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 cursor-pointer"
+                                <button
+                                  type="button"
                                   onClick={() => handleOpenConsume(prod)}
+                                  className="cursor-pointer h-8 px-2.5 rounded-lg border border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/15 text-purple-700 dark:text-purple-300 flex items-center gap-1.5 transition-colors text-xs font-medium"
+                                  title="Log Consumable Usage"
                                 >
-                                  Consume
-                                </Button>
+                                  <Scissors size={13} className="text-purple-600 dark:text-purple-400" />
+                                  <span>Consume</span>
+                                </button>
                               )}
                               {canAdjust && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+                                <button
+                                  type="button"
                                   onClick={() => handleOpenAdjust(prod, item.onHand)}
+                                  className="cursor-pointer h-8 px-2.5 rounded-lg border border-border/80 bg-background hover:bg-muted hover:text-foreground flex items-center gap-1.5 transition-colors text-xs font-medium text-muted-foreground"
+                                  title="Adjust Stock Balance"
                                 >
-                                  Adjust
-                                </Button>
+                                  <SlidersHorizontal size={13} />
+                                  <span>Adjust</span>
+                                </button>
                               )}
                             </div>
                           </td>
@@ -640,19 +643,20 @@ export const InventoryDashboardView: React.FC = () => {
                           </Badge>
                         </td>
                         <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          {canAdjust && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
-                              onClick={() => {
-                                setProductToEdit(p);
-                                setIsProductModalOpen(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
-                          )}
+                          <EntityActionMenu
+                            onEdit={
+                              canAdjust
+                                ? () => {
+                                    setProductToEdit(p);
+                                    setIsProductModalOpen(true);
+                                  }
+                                : undefined
+                            }
+                            status={p.status}
+                            permissions={{
+                              edit: "inventory.adjust",
+                            }}
+                          />
                         </td>
                       </tr>
                     ))}
