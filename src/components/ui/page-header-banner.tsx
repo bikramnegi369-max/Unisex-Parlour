@@ -52,7 +52,7 @@ export function PageHeaderBanner({
 
         {/* Action Controls Cluster */}
         {actions && (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0 w-full xl:w-auto xl:justify-end">
+          <div className="flex flex-wrap items-center gap-2.5 w-full xl:w-auto xl:justify-end xl:shrink-0 min-w-0">
             {actions}
           </div>
         )}

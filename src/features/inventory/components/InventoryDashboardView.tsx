@@ -244,20 +244,59 @@ export const InventoryDashboardView: React.FC = () => {
         description="Track branch stock balances, log internal salon consumables, execute adjustments, and manage catalogue."
         icon={Package}
         actions={
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            {/* Contextual Tab Refresh */}
+          <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2 w-full min-w-0">
+            {/* Global Contextual Sync */}
             <SyncButton
               isSyncing={isCurrentTabSyncing}
               onSync={() => handleTabSync(activeTab)}
               label="Sync Inventory"
-              className="w-full sm:w-auto h-8 text-xs font-medium cursor-pointer"
+              className="h-8 text-xs font-medium cursor-pointer shrink-0"
             />
+
+            {/* Operational Domain Actions - Wrapped Cleanly */}
+            <div className="flex flex-wrap items-center gap-1.5 border-l border-border/60 pl-2">
+              {canConsume && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 border-purple-500/25 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15 cursor-pointer font-medium text-xs shrink-0"
+                  onClick={() => handleOpenConsume()}
+                >
+                  <Scissors className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>Log Consumption</span>
+                </Button>
+              )}
+
+              {canAdjust && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 bg-background hover:bg-muted cursor-pointer font-medium text-xs shrink-0"
+                  onClick={() => handleOpenAdjust()}
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Adjust</span>
+                </Button>
+              )}
+
+              {canTransfer && availableBranches.length > 1 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-8 bg-background hover:bg-muted cursor-pointer font-medium text-xs shrink-0"
+                  onClick={() => handleOpenTransfer()}
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span>Transfer</span>
+                </Button>
+              )}
+            </div>
 
             {/* Primary Action */}
             {canAdjust && (
               <Button
                 size="sm"
-                className="gap-1.5 h-8 shadow-xs cursor-pointer font-medium w-full sm:w-auto"
+                className="gap-1.5 h-8 shadow-xs cursor-pointer font-medium shrink-0"
                 onClick={() => {
                   setProductToEdit(null);
                   setIsProductModalOpen(true);
@@ -272,7 +311,7 @@ export const InventoryDashboardView: React.FC = () => {
       />
 
       {/* 2. Responsive Tab Bar & Integrated Toolbar */}
-      <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 border-b border-border/60 pb-3">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border-b border-border/60 pb-3">
         {/* Navigation Tabs with Visual Indicators */}
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none p-1 bg-muted/40 rounded-xl border border-border/50 shrink-0">
           <button
@@ -323,46 +362,7 @@ export const InventoryDashboardView: React.FC = () => {
         </div>
 
         {/* Tab-Scoped Search, Filters & Action Controls */}
-        <div className="flex flex-wrap items-center justify-between xl:justify-end gap-2">
-          {/* Operational Domain Actions - Contextual & High Visibility */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {canConsume && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 h-8 border-purple-500/25 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15 cursor-pointer font-medium text-xs"
-                onClick={() => handleOpenConsume()}
-              >
-                <Scissors className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                <span>Log Consumption</span>
-              </Button>
-            )}
-
-            {canAdjust && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 h-8 bg-card hover:bg-muted cursor-pointer font-medium text-xs"
-                onClick={() => handleOpenAdjust()}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>Adjust</span>
-              </Button>
-            )}
-
-            {canTransfer && availableBranches.length > 1 && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="gap-1.5 h-8 bg-card hover:bg-muted cursor-pointer font-medium text-xs"
-                onClick={() => handleOpenTransfer()}
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
-                <span>Transfer</span>
-              </Button>
-            )}
-          </div>
-
+        <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
           {/* Search Input */}
           <div className="relative flex-1 sm:w-56 min-w-[160px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
