@@ -55,12 +55,12 @@ interface RawStockMovementDTO {
   productId: string | RawProductDTO;
   movementType: MovementType;
   quantityDelta: number;
-  referenceType: string;
+  referenceType?: string;
   referenceId?: string;
   referenceModel?: string;
-  balanceBefore: number;
+  balanceBefore?: number;
   balanceAfter: number;
-  actorId: string;
+  actorId: string | { _id?: string; id?: string; name?: string; email?: string; role?: string };
   notes?: string;
   idempotencyKey?: string;
   createdAt: string;
@@ -112,6 +112,20 @@ const mapStockMovementDTO = (dto: RawStockMovementDTO): StockMovement => {
       ? mapProductDTO(dto.productId as RawProductDTO)
       : undefined;
 
+  const actorObj =
+    typeof dto.actorId === "object" && dto.actorId !== null
+      ? {
+          id: dto.actorId._id || dto.actorId.id || "",
+          name: dto.actorId.name || "",
+          email: dto.actorId.email || ""
+        }
+      : undefined;
+
+  const actorIdStr =
+    typeof dto.actorId === "object" && dto.actorId !== null
+      ? dto.actorId._id || dto.actorId.id || ""
+      : dto.actorId || "";
+
   return {
     id: dto._id || dto.id || "",
     organizationId: dto.organizationId,
@@ -129,7 +143,8 @@ const mapStockMovementDTO = (dto: RawStockMovementDTO): StockMovement => {
     referenceId: dto.referenceId,
     balanceBefore: dto.balanceBefore,
     balanceAfter: dto.balanceAfter,
-    actorId: dto.actorId,
+    actorId: actorIdStr,
+    actor: actorObj,
     notes: dto.notes,
     createdAt: dto.createdAt,
   };

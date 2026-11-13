@@ -468,7 +468,12 @@ export const InventoryDashboardView: React.FC = () => {
                       <td className="p-3 text-right font-mono font-medium">
                         {m.balanceAfter} {m.product?.stockUnit}
                       </td>
-                      <td className="p-3 text-xs">{m.actor?.name || m.actorId}</td>
+                      <td className="p-3 text-xs">
+                        {m.actor?.name ||
+                          (typeof m.actorId === "object"
+                            ? (m.actorId as any)?.name || (m.actorId as any)?._id
+                            : m.actorId)}
+                      </td>
                       <td className="p-3 text-xs text-muted-foreground max-w-xs truncate">
                         {m.notes || m.reference?.identifier || "—"}
                       </td>
