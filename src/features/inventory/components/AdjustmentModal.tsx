@@ -29,6 +29,23 @@ export const AdjustmentModal: React.FC<AdjustmentModalProps> = ({
   const { currentBranchId } = useBranchContext();
   const adjustmentMutation = useRecordAdjustment();
 
+  // Stable idempotency key for the current logical adjustment submission
+  const idempotencyKeyRef = React.useRef<string | null>(null);
+  const lastSubmittedPayloadRef = React.useRef<StockAdjustmentInput | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `adjust_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+    } else {
+      idempotencyKeyRef.current = null;
+      lastSubmittedPayloadRef.current = null;
+    }
+  }, [isOpen]);
+
   const {
     register,
     handleSubmit,
@@ -63,8 +80,27 @@ export const AdjustmentModal: React.FC<AdjustmentModalProps> = ({
 
   const onSubmit = async (data: StockAdjustmentInput) => {
     try {
-      const idempotencyKey = `adjust_${data.branchId}_${data.productId}_${Date.now()}`;
-      await adjustmentMutation.mutateAsync({ payload: data, idempotencyKey });
+      if (
+        lastSubmittedPayloadRef.current &&
+        (lastSubmittedPayloadRef.current.productId !== data.productId ||
+          lastSubmittedPayloadRef.current.quantityDelta !== data.quantityDelta ||
+          lastSubmittedPayloadRef.current.branchId !== data.branchId)
+      ) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `adjust_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `adjust_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+
+      const keyToUse = idempotencyKeyRef.current;
+      lastSubmittedPayloadRef.current = { ...data };
+
+      await adjustmentMutation.mutateAsync({ payload: data, idempotencyKey: keyToUse });
       toast.success(
         `Successfully recorded adjustment of ${data.quantityDelta > 0 ? "+" : ""}${data.quantityDelta} ${activeProduct?.stockUnit || "units"}.`
       );

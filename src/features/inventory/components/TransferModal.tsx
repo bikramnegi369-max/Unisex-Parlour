@@ -29,6 +29,23 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   const { currentBranchId } = useBranchContext();
   const transferMutation = useRecordTransfer();
 
+  // Stable idempotency key for the current logical transfer submission
+  const idempotencyKeyRef = React.useRef<string | null>(null);
+  const lastSubmittedPayloadRef = React.useRef<StockTransferInput | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `transfer_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+    } else {
+      idempotencyKeyRef.current = null;
+      lastSubmittedPayloadRef.current = null;
+    }
+  }, [isOpen]);
+
   const {
     register,
     handleSubmit,
@@ -64,8 +81,28 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
   const onSubmit = async (data: StockTransferInput) => {
     try {
-      const idempotencyKey = `transfer_${data.fromBranchId}_${data.toBranchId}_${data.productId}_${Date.now()}`;
-      await transferMutation.mutateAsync({ payload: data, idempotencyKey });
+      if (
+        lastSubmittedPayloadRef.current &&
+        (lastSubmittedPayloadRef.current.productId !== data.productId ||
+          lastSubmittedPayloadRef.current.quantity !== data.quantity ||
+          lastSubmittedPayloadRef.current.fromBranchId !== data.fromBranchId ||
+          lastSubmittedPayloadRef.current.toBranchId !== data.toBranchId)
+      ) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `transfer_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `transfer_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+
+      const keyToUse = idempotencyKeyRef.current;
+      lastSubmittedPayloadRef.current = { ...data };
+
+      await transferMutation.mutateAsync({ payload: data, idempotencyKey: keyToUse });
       toast.success(
         `Successfully transferred ${data.quantity} ${activeProduct?.stockUnit || "units"} between branches.`
       );

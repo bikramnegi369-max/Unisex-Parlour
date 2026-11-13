@@ -27,6 +27,23 @@ export const ConsumptionModal: React.FC<ConsumptionModalProps> = ({
   const { currentBranchId } = useBranchContext();
   const consumptionMutation = useRecordConsumption();
 
+  // Stable idempotency key for the current logical consumption submission
+  const idempotencyKeyRef = React.useRef<string | null>(null);
+  const lastSubmittedPayloadRef = React.useRef<ManualConsumptionInput | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `consume_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+    } else {
+      idempotencyKeyRef.current = null;
+      lastSubmittedPayloadRef.current = null;
+    }
+  }, [isOpen]);
+
   // Filter products permitted for salon consumption (salon_consumption or both)
   const consumableProducts = React.useMemo(() => {
     return products.filter((p) => p.usageType === "salon_consumption" || p.usageType === "both");
@@ -65,9 +82,28 @@ export const ConsumptionModal: React.FC<ConsumptionModalProps> = ({
 
   const onSubmit = async (data: ManualConsumptionInput) => {
     try {
-      // Generate a client-side idempotency key for this logical submission
-      const idempotencyKey = `consume_${data.branchId}_${data.productId}_${Date.now()}`;
-      await consumptionMutation.mutateAsync({ payload: data, idempotencyKey });
+      // If the user modified the core operation payload after a previous failure, treat as a new logical operation
+      if (
+        lastSubmittedPayloadRef.current &&
+        (lastSubmittedPayloadRef.current.productId !== data.productId ||
+          lastSubmittedPayloadRef.current.quantity !== data.quantity ||
+          lastSubmittedPayloadRef.current.branchId !== data.branchId)
+      ) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `consume_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+
+      if (!idempotencyKeyRef.current) {
+        idempotencyKeyRef.current = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `consume_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+      }
+
+      const keyToUse = idempotencyKeyRef.current;
+      lastSubmittedPayloadRef.current = { ...data };
+
+      await consumptionMutation.mutateAsync({ payload: data, idempotencyKey: keyToUse });
       toast.success(`Successfully logged consumption of ${data.quantity} ${activeProduct?.stockUnit || "units"}.`);
       reset();
       onClose();
