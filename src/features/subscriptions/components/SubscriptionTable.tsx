@@ -4,7 +4,7 @@ import { DataTable } from "@/components/ui/data-table/DataTable";
 import type { Subscription } from "../types/subscription.types";
 import { SubscriptionStatusBadge , SubscriptionPaymentBadge} from "./SubscriptionStatusBadge";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { Eye, Edit, Ban, Gift, Building2, User } from "lucide-react";
+import { Eye, Edit, Ban, Gift, Building2, User, Receipt } from "lucide-react";
 
 interface SubscriptionTableProps {
   columns: ColumnDef<Subscription>[];
@@ -15,10 +15,12 @@ interface SubscriptionTableProps {
   onEdit: (subscription: Subscription) => void;
   onCancel: (subscription: Subscription) => void;
   onRedeem: (subscription: Subscription) => void;
+  onGenerateInvoice?: (subscription: Subscription) => void;
   canView: boolean;
   canEdit: boolean;
   canCancel: boolean;
   canRedeem: boolean;
+  canGenerateInvoice?: boolean;
   getBranchName: (branchId: string) => string;
 }
 
@@ -31,10 +33,12 @@ export function SubscriptionTable({
   onEdit,
   onCancel,
   onRedeem,
+  onGenerateInvoice,
   canView,
   canEdit,
   canCancel,
   canRedeem,
+  canGenerateInvoice = false,
   getBranchName,
 }: SubscriptionTableProps) {
   const renderMobileRow = (sub: Subscription) => {
@@ -107,6 +111,15 @@ export function SubscriptionTable({
               className="p-1.5 rounded-lg bg-muted text-foreground text-xs font-semibold flex items-center gap-1 cursor-pointer"
             >
               <Eye className="h-3.5 w-3.5" /> View
+            </button>
+          )}
+          {canGenerateInvoice && onGenerateInvoice && !sub.invoiceId && (
+            <button
+              type="button"
+              onClick={() => onGenerateInvoice(sub)}
+              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+            >
+              <Receipt className="h-3.5 w-3.5" /> Bill Invoice
             </button>
           )}
           {canRedeem && isActive && (

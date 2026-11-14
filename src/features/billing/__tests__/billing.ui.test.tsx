@@ -648,6 +648,43 @@ describe("Billing UI Components & Financial Rules", () => {
         expect(mockMutateAsync).toHaveBeenCalledTimes(1);
       });
     });
+
+    it("handles HTTP 409 subscription entitlement conflict cleanly without auto-retrying and closes dialog", async () => {
+      const mockClose = vi.fn();
+      const mockMutateAsync = vi.fn().mockRejectedValue({
+        response: {
+          status: 409,
+          data: {
+            message:
+              "Insufficient subscription entitlement balance for 'Haircut'. Required: 1, Available: 0. Entitlement may have been consumed by a concurrent transaction.",
+          },
+        },
+      });
+
+      vi.mocked(useRecordPayment).mockReturnValue({
+        mutateAsync: mockMutateAsync,
+        isPending: false,
+      } as unknown as ReturnType<typeof useRecordPayment>);
+
+      renderWithProviders(
+        <RecordPaymentDialog
+          isOpen={true}
+          onClose={mockClose}
+          invoice={mockFinalizedInvoice}
+        />
+      );
+
+      const submitButton = screen.getByRole("button", { name: "Record Payment" });
+      fireEvent.click(submitButton);
+
+      await waitFor(() => {
+        expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+        expect(mockClose).toHaveBeenCalledTimes(1);
+      });
+
+      // Confirm no automated resubmission occurs
+      expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("CustomerBillingTab", () => {

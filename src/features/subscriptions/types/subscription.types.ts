@@ -318,6 +318,7 @@ export interface GetSubscriptionsParams {
   status?: string;
   branchId?: string;
   search?: string;
+  isInvoiced?: "true" | "false" | boolean;
 }
 
 export interface GetSubscriptionUsageParams {

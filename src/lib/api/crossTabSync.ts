@@ -17,6 +17,7 @@ export type CrossTabSyncScope =
   | "leaves"
   | "subscriptions"
   | "loyalty"
+  | "inventory"
   | "branch"
   | "auth"
   | "all";

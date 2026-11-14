@@ -29,6 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
@@ -89,6 +90,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
+  const queryClient = useQueryClient();
   const { data: invoice, isLoading, isError, refetch } = useInvoice(id);
   const { data: payments = [] } = useInvoicePayments(id);
 
@@ -194,9 +196,32 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
       setIsFinalizeConfirmOpen(false);
     } catch (err: unknown) {
       const axiosError = err as {
-        response?: { data?: { message?: string } };
+        response?: { status?: number; data?: { message?: string } };
         message?: string;
       };
+
+      if (axiosError.response?.status === 409) {
+        toast.error(
+          "This subscription entitlement was recently used by another terminal. Refreshing draft...",
+          { duration: 6000 }
+        );
+        setIsFinalizeConfirmOpen(false);
+        // Refresh invoice and subscription caches immediately to display authoritative state
+        await refetch();
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey[0];
+            return (
+              key === "invoices" ||
+              key === "subscriptions" ||
+              key === "checkout-queue" ||
+              key === "invoice"
+            );
+          },
+        });
+        return;
+      }
+
       const msg =
         axiosError.response?.data?.message ||
         axiosError.message ||
@@ -674,13 +699,55 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                       </span>
                     </td>
 
-                    {/* Service Description with modern sub-capsule badge styling */}
+                    {/* Service / Product Description with modern sub-capsule badge styling */}
                     <td className="py-3.5 px-4 align-middle">
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-foreground text-sm tracking-tight">
-                            {item.serviceName}
+                            {item.name || item.productName || item.serviceName}
                           </span>
+                          {item.lineType === "product" && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 px-1.5 py-0"
+                            >
+                              Retail Product
+                            </Badge>
+                          )}
+                          {item.lineType === "subscription" && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 px-1.5 py-0"
+                            >
+                              Subscription Package
+                            </Badge>
+                          )}
+                          {item.lineType === "membership" && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-1.5 py-0"
+                            >
+                              Membership ({item.membershipTierSnapshot || "VIP"})
+                            </Badge>
+                          )}
+                          {item.isDiscountedByMembership && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 px-1.5 py-0"
+                            >
+                              Member Benefit: -{formatCurrency(item.membershipDiscountAmount || 0)}
+                            </Badge>
+                          )}
+                          {item.sku && (
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              SKU: {item.sku}
+                            </span>
+                          )}
+                          {item.stockUnit && (
+                            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                              {item.stockUnit}
+                            </span>
+                          )}
                           {quantity > 1 && (
                             <Badge
                               variant="secondary"

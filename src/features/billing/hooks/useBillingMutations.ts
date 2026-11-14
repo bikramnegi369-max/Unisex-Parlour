@@ -10,6 +10,7 @@ import {
   applyInvoiceDiscount,
   modifyInvoiceDiscount,
   removeInvoiceDiscount,
+  returnInvoiceItems,
 } from "../api/billing.api";
 import type {
   CreateInvoicePayload,
@@ -20,6 +21,7 @@ import type {
   ApplyDiscountPayload,
   ModifyDiscountPayload,
   RemoveDiscountPayload,
+  ReturnInvoiceItemsPayload,
 } from "../types/billing.types";
 
 export function useCreateInvoice() {
@@ -345,6 +347,49 @@ export function useRemoveInvoiceDiscount() {
                 query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
           },
           () => result.invoice
+        );
+      }
+    },
+  });
+}
+
+export function useReturnInvoiceItems() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      payload,
+    }: {
+      invoiceId: string;
+      payload: ReturnInvoiceItemsPayload;
+    }) => returnInvoiceItems(invoiceId, payload),
+    onSuccess: (updatedInvoice, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            key === "inventory-stock" ||
+            key === "inventory-movements" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))))
+          );
+        },
+      });
+      broadcastCrossTabInvalidation("invoices");
+      broadcastCrossTabInvalidation("inventory");
+      if (updatedInvoice) {
+        queryClient.setQueriesData(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
+          },
+          () => updatedInvoice
         );
       }
     },

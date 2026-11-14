@@ -762,5 +762,64 @@ describe("Billing Discounts — UI Components & Flow Verification", () => {
       expect(selectedPayload).not.toHaveProperty("lineId");
       expect(selectedPayload.lineId).toBeUndefined();
     });
+
+    it("handles HTTP 409 during finalization by refetching draft and showing warning message", async () => {
+      const mockRefetch = vi.fn().mockResolvedValue({});
+      const mockFinalizeMutate = vi.fn().mockRejectedValue({
+        response: {
+          status: 409,
+          data: {
+            message:
+              "Insufficient subscription entitlement balance. Entitlement may have been consumed by a concurrent transaction.",
+          },
+        },
+      });
+
+      vi.spyOn(billingMutations, "useFinalizeInvoice").mockReturnValue({
+        mutateAsync: mockFinalizeMutate,
+        isPending: false,
+      } as unknown as ReturnType<typeof billingMutations.useFinalizeInvoice>);
+
+      vi.spyOn(billingQueries, "useInvoice").mockReturnValue({
+        data: {
+          id: "inv-conflict-1",
+          invoiceNumber: "INV-CONF-001",
+          status: "draft",
+          paymentStatus: "unpaid",
+          payableAmount: 500,
+          amountDue: 500,
+          amountPaid: 0,
+          lines: [],
+          items: [],
+          appointmentId: "apt-123456",
+          appointmentCode: "APT-123",
+          branch: { id: "branch-1", name: "Main Branch" },
+          createdAt: "2026-11-14T10:00:00Z",
+        },
+        isLoading: false,
+        isError: false,
+        refetch: mockRefetch,
+      } as unknown as ReturnType<typeof billingQueries.useInvoice>);
+
+      render(
+        <Provider store={createTestStore()}>
+          <QueryClientProvider client={queryClient}>
+            <InvoiceDetailsPage id="inv-conflict-1" />
+          </QueryClientProvider>
+        </Provider>
+      );
+
+      const finalizeBtn = screen.getByRole("button", { name: /Finalize Invoice/i });
+      fireEvent.click(finalizeBtn);
+
+      // Confirm modal opens, then click Confirm button
+      const confirmBtn = screen.getByRole("button", { name: /Confirm & Finalize/i });
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(mockFinalizeMutate).toHaveBeenCalledTimes(1);
+        expect(mockRefetch).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });

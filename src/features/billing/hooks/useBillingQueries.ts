@@ -107,3 +107,13 @@ export function useInvoiceDiscountHistory(invoiceId: string | undefined, branchI
   });
 }
 
+export function useMembershipPlans(branchId?: string) {
+  const { isAuthenticated } = useAuth();
+
+  return useQuery({
+    queryKey: ["membership-plans", branchId || "all"],
+    queryFn: () => import("../api/billing.api").then((mod) => mod.getMembershipPlans(branchId)),
+    enabled: isAuthenticated,
+  });
+}
+

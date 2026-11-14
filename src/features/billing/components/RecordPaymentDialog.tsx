@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/formatters";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRecordPayment } from "../hooks/useBillingMutations";
 import {
   recordPaymentSchema,
@@ -42,6 +43,7 @@ export function RecordPaymentDialog({
   onClose,
   invoice,
 }: RecordPaymentDialogProps) {
+  const queryClient = useQueryClient();
   const recordPaymentMutation = useRecordPayment();
 
   // Stable idempotency key for the current logical payment attempt
@@ -164,10 +166,44 @@ export function RecordPaymentDialog({
       };
 
       if (axiosError.response?.status === 409) {
-        toast.error(
-          axiosError.response?.data?.message ||
-            "Payment conflict: This transaction was already processed or submitted with conflicting details."
-        );
+        const errorMsg = axiosError.response?.data?.message || "";
+        const isSubscriptionConflict = /subscription entitlement/i.test(errorMsg);
+
+        if (isSubscriptionConflict) {
+          toast.error(
+            "This subscription entitlement was recently used by another terminal. Refreshing draft details...",
+            { duration: 6000 }
+          );
+        } else {
+          toast.error(
+            errorMsg ||
+              "Payment conflict: This transaction was already processed or submitted with conflicting details."
+          );
+        }
+
+        // Invalidate invoice and subscription caches immediately to display authoritative totals
+        if (invoice?.id) {
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              return (
+                key === "invoices" ||
+                key === "subscriptions" ||
+                key === "checkout-queue" ||
+                (key === "invoice" &&
+                  (query.queryKey.includes(invoice.id) ||
+                    query.queryKey.some(
+                      (k) => Array.isArray(k) && k.includes(invoice.id)
+                    )))
+              );
+            },
+          });
+        }
+
+        // Close dialog and reset idempotency key to prevent accidental duplicate submission
+        idempotencyKeyRef.current = null;
+        lastSubmittedPayloadRef.current = null;
+        onClose();
         return;
       }
 

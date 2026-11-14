@@ -26,7 +26,8 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
     setPage(newPage);
   };
 
-  const getActionLabel = (action: string) => {
+  const getActionLabel = (action?: string) => {
+    if (!action) return "Activity";
     switch (action) {
       case "CUSTOMER_CREATED":
       case "CREATED":
@@ -91,10 +92,11 @@ export function CustomerActivityLog({ customerId }: CustomerActivityLogProps) {
     return (
       <div className="space-y-6">
         <div className="relative border-l border-border pl-6 ml-2 space-y-6">
-          {activityTimeline.map((item: AuditLog) => {
+          {activityTimeline.map((item: AuditLog, index: number) => {
             const displayDate = item.date ? formatDateTime(item.date) : "N/A";
+            const itemKey = item._id || (item as unknown as { id?: string }).id || `activity-${index}`;
             return (
-              <div key={item._id} className="relative group text-left">
+              <div key={itemKey} className="relative group text-left">
                 {/* Timeline dot marker */}
                 <span className="absolute -left-7.75 top-1 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-primary/20 bg-background text-primary-foreground ring-4 ring-background">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary" />

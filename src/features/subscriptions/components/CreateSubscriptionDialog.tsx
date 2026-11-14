@@ -1805,7 +1805,7 @@ export function CreateSubscriptionDialog({
             )}
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Every subscription purchase automatically generates a separate subscription invoice. Entitlements are redeemable immediately.
+            Subscriptions are staged without auto-billing so you can combine them into a multi-item cart in the Sales Workspace or generate an invoice on demand.
           </p>
         </div>
 

@@ -18,12 +18,14 @@ import type {
   ModifyDiscountPayload,
   RemoveDiscountPayload,
   InvoiceDiscountMutationResult,
+  ReturnInvoiceItemsPayload,
 } from "../types/billing.types";
 import { normalizeAppointment } from "@/features/appointments/api/appointments.api";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 
 export interface CheckoutQueueQuery {
   branchId?: string;
+  customerId?: string;
   date?: string;
 }
 
@@ -235,7 +237,8 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
 
   const items: InvoiceLineItem[] = rawItems.map((itemRaw) => {
     const item = itemRaw as Record<string, unknown>;
-    const srvName = (item.name as string) || (item.serviceName as string) || "Service";
+    const lineType = (item.lineType as string) || (item.productId ? "product" : "service");
+    const itemName = (item.name as string) || (item.productName as string) || (item.serviceName as string) || (lineType === "product" ? "Product" : "Service");
     const rawAppliedSub = item.appliedSubscriptionId ? toFlatId(item.appliedSubscriptionId) : null;
     const isCovered =
       Boolean(item.isCoveredBySubscription) ||
@@ -265,9 +268,14 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
 
     return {
       id: toFlatId(item._id || item.id),
-      serviceId: toFlatId(item.serviceId),
-      serviceName: srvName,
-      name: srvName,
+      lineType,
+      serviceId: item.serviceId ? toFlatId(item.serviceId) : undefined,
+      serviceName: lineType === "service" ? itemName : undefined,
+      productId: item.productId ? toFlatId(item.productId) : undefined,
+      productName: lineType === "product" ? itemName : undefined,
+      sku: typeof item.sku === "string" ? item.sku : undefined,
+      stockUnit: typeof item.stockUnit === "string" ? item.stockUnit : undefined,
+      name: itemName,
       duration: typeof item.duration === "number" ? item.duration : undefined,
       unitPrice,
       quantity,
@@ -894,4 +902,46 @@ export async function getInvoiceDiscountHistory(
   return (data.data || []).map(normalizeDiscountHistoryEntry);
 }
 
+export async function returnInvoiceItems(
+  invoiceId: string,
+  payload: ReturnInvoiceItemsPayload
+): Promise<Invoice> {
+  const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/returns`,
+    payload,
+    {
+      branchScope: payload.branchId
+        ? { type: "branch", branchId: payload.branchId }
+        : "current",
+    }
+  );
 
+  return normalizeInvoice(data.data);
+}
+
+export interface MembershipPlanItem {
+  _id: string;
+  id?: string;
+  name: string;
+  code: string;
+  tier: string;
+  price: number;
+  validityDays: number;
+  benefits?: {
+    serviceDiscountPercentage: number;
+    productDiscountPercentage: number;
+    complimentaryPerks?: string[];
+  };
+  permittedBranchIds?: string[];
+}
+
+export async function getMembershipPlans(branchId?: string): Promise<MembershipPlanItem[]> {
+  const { data } = await apiClient.get<ApiResponse<MembershipPlanItem[]>>("/billing/membership-plans", {
+    params: branchId ? { branchId } : undefined,
+    branchScope: "none",
+  });
+  return (data.data || []).map((p) => ({
+    ...p,
+    id: p._id || p.id || "",
+  }));
+}

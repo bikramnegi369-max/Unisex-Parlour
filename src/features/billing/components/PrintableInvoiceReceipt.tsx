@@ -77,33 +77,56 @@ export const PrintableInvoiceReceipt = React.forwardRef<
         </div>
         <div className="divide-y divide-gray-200">
           {invoice.items.map((item, idx) => {
+            const isProduct = item.lineType === "product" || Boolean(item.productId);
+            const isSubscription = item.lineType === "subscription";
+            const isMembership = item.lineType === "membership";
             const isRedeemed = Boolean(
               item.isRedeemedViaSubscription ||
               item.appliedSubscriptionId ||
               (item.subscriptionCoveredAmount &&
                 item.subscriptionCoveredAmount > 0),
             );
+            const isDiscountedByMem = Boolean(
+              item.isDiscountedByMembership ||
+              (item.membershipDiscountAmount && item.membershipDiscountAmount > 0)
+            );
             const payable =
               item.customerPayable !== undefined
                 ? item.customerPayable
                 : Math.max(
                     0,
-                    item.lineTotal - (item.subscriptionCoveredAmount || 0),
+                    item.lineTotal - (item.subscriptionCoveredAmount || 0) - (item.membershipDiscountAmount || 0),
                   );
 
             return (
               <div key={item.id || idx} className="py-1.5 space-y-0.5">
                 <div className="flex justify-between">
                   <span className="font-semibold">
-                    {item.serviceName || item.name}
+                    {item.name || item.productName || item.serviceName}
+                    {item.quantity > 1 ? ` (x${item.quantity})` : ""}
                   </span>
                   <span className="text-right font-medium">
-                    {formatCurrency(item.unitPrice)}
+                    {formatCurrency(item.unitPrice * (item.quantity || 1))}
                   </span>
                 </div>
-                {item.duration && (
+                {isProduct && item.sku && (
                   <div className="text-[9px] text-gray-500">
-                    {item.duration} mins
+                    [Product] SKU: {item.sku} {item.stockUnit ? `• Unit: ${item.stockUnit}` : ""}
+                  </div>
+                )}
+                {isSubscription && (
+                  <div className="text-[9px] text-indigo-700">
+                    [Subscription Package] Prepaid Multi-Session
+                  </div>
+                )}
+                {isMembership && (
+                  <div className="text-[9px] text-amber-700">
+                    [Membership Tier] {item.membershipTierSnapshot || "VIP"} Tier Plan
+                  </div>
+                )}
+                {!isProduct && !isSubscription && !isMembership && item.duration && (
+                  <div className="text-[9px] text-gray-500">
+                    [Service] {item.duration} mins
                   </div>
                 )}
                 {isRedeemed && (
@@ -120,6 +143,12 @@ export const PrintableInvoiceReceipt = React.forwardRef<
                         item.subscriptionCoveredAmount || item.unitPrice,
                       )}
                     </span>
+                  </div>
+                )}
+                {isDiscountedByMem && (
+                  <div className="flex justify-between text-[9px] text-amber-800 italic">
+                    <span>↳ Member Tier Benefit Discount</span>
+                    <span>-{formatCurrency(item.membershipDiscountAmount || 0)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-[10px] font-bold pt-0.5">

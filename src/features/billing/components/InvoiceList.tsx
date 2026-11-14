@@ -25,10 +25,11 @@ import {
 } from "./InvoiceStatusBadge";
 import { BillingStatsCards } from "./BillingStatsCards";
 import { ReadyToBillQueue } from "./ReadyToBillQueue";
-import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
 import { toast } from "sonner";
+import { useDispatch } from "react-redux";
+import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import { useUpdateAppointmentStatus } from "@/features/appointments/hooks/useAppointmentMutations";
 import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
@@ -41,6 +42,7 @@ import type {
 
 export function InvoiceList() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { currentBranchId, isAllBranchesSelected, getBranchName } =
@@ -64,9 +66,7 @@ export function InvoiceList() {
   const [search, setSearch] = useState(searchQueryParam);
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQueryParam);
 
-  // Modal states for POS quick actions
-  const [selectedAppointmentForBill, setSelectedAppointmentForBill] =
-    useState<Appointment | null>(null);
+  // Modal states for POS actions
   const [selectedInvoiceForPay, setSelectedInvoiceForPay] =
     useState<Invoice | null>(null);
   const [receiptInvoiceToPrint, setReceiptInvoiceToPrint] =
@@ -250,7 +250,9 @@ export function InvoiceList() {
               status: "completed",
             },
           });
-          toast.success("Appointment completed successfully. Ready for billing.");
+          toast.success(
+            "Appointment completed successfully. Ready for billing.",
+          );
           refetchQueue();
         } catch (err: unknown) {
           const axiosError = err as {
@@ -260,12 +262,67 @@ export function InvoiceList() {
           toast.error(
             axiosError.response?.data?.message ||
               axiosError.message ||
-              "Failed to complete appointment."
+              "Failed to complete appointment.",
           );
         }
       }
     },
-    [updateStatusMutation, refetchQueue, currentBranchId]
+    [updateStatusMutation, refetchQueue, currentBranchId],
+  );
+
+  // Production-grade POS Checkout: Pre-hydrate Register basket and navigate to Sales Workspace
+  const handleCheckoutAppointment = useCallback(
+    (apt: Appointment) => {
+      const cust = {
+        id: apt.customerId || apt.customer?.id || "",
+        name: apt.customer?.name || "Walk-in Customer",
+        phone: apt.customer?.phone || "",
+        email: apt.customer?.email || null,
+      };
+
+      const appointmentCode =
+        apt.appointmentCode || apt.id.slice(-6).toUpperCase();
+
+      const services = (apt.services || []).map((s) => ({
+        appointmentId: apt.id,
+        appointmentCode,
+        serviceId: s.serviceId || undefined,
+        name: s.name,
+        duration: s.duration,
+        unitPrice: s.price,
+        quantity: 1,
+        isCoveredBySubscription: Boolean(
+          s.appliedSubscriptionId || s.subscriptionUsageId,
+        ),
+        appliedSubscriptionId: s.appliedSubscriptionId || null,
+        subscriptionCode: s.subscriptionCode || null,
+      }));
+
+      const aptWithInvoice = apt as Appointment & {
+        invoiceId?: string;
+        invoiceNumber?: string;
+      };
+      const existingDraft = aptWithInvoice.invoiceId
+        ? {
+            id: aptWithInvoice.invoiceId,
+            invoiceNumber: aptWithInvoice.invoiceNumber || "DRAFT",
+          }
+        : null;
+
+      dispatch(
+        setBasketAppointment({
+          appointmentId: apt.id,
+          appointmentCode,
+          customer: cust,
+          services,
+          existingDraftInvoice: existingDraft,
+        }),
+      );
+
+      toast.info(`Appointment #${appointmentCode} loaded into Sales Register.`);
+      router.push("/billing/sales/new");
+    },
+    [dispatch, router],
   );
 
   const handleView = useCallback(
@@ -279,7 +336,12 @@ export function InvoiceList() {
     try {
       toast.info(`Generating official PDF for invoice ${inv.invoiceNumber}...`);
       const targetBranchId = inv.branchId || inv.branch?.id;
-      await downloadInvoicePdf(inv.id, inv.invoiceNumber, "open", targetBranchId);
+      await downloadInvoicePdf(
+        inv.id,
+        inv.invoiceNumber,
+        "open",
+        targetBranchId,
+      );
       toast.success("PDF opened successfully.");
     } catch {
       toast.error("Failed to download PDF document.");
@@ -326,6 +388,15 @@ export function InvoiceList() {
         icon={Receipt}
         actions={
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => router.push("/billing/sales/new")}
+              className="gap-1.5 text-xs font-semibold shadow-2xs bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              <span>New Sale Workspace</span>
+            </Button>
             <SyncButton
               isSyncing={isFetching || isQueueFetching}
               onSync={() => {
@@ -353,7 +424,7 @@ export function InvoiceList() {
         appointments={readyToBillAppointments}
         isLoading={isQueueLoading || isQueueFetching}
         isRefreshing={isFetching || isQueueFetching}
-        onCheckout={(apt) => setSelectedAppointmentForBill(apt)}
+        onCheckout={handleCheckoutAppointment}
         onCompleteAppointment={handleCompleteAppointment}
       />
 
@@ -379,7 +450,9 @@ export function InvoiceList() {
                   type="button"
                   onClick={() => handleSelectPreset(preset.id)}
                   className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
-                    !startDateParam && !endDateParam && datePresetFilter === preset.id
+                    !startDateParam &&
+                    !endDateParam &&
+                    datePresetFilter === preset.id
                       ? "bg-primary text-primary-foreground border-primary shadow-2xs"
                       : "bg-muted/40 text-muted-foreground border-border/80 hover:bg-muted hover:text-foreground"
                   }`}
@@ -401,7 +474,9 @@ export function InvoiceList() {
                 type="date"
                 value={startDateParam}
                 max={endDateParam || undefined}
-                onChange={(e) => handleCustomDateRangeChange(e.target.value, endDateParam)}
+                onChange={(e) =>
+                  handleCustomDateRangeChange(e.target.value, endDateParam)
+                }
                 className="h-7 text-xs w-35 px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
               />
             </div>
@@ -415,7 +490,9 @@ export function InvoiceList() {
                 type="date"
                 value={endDateParam}
                 min={startDateParam || undefined}
-                onChange={(e) => handleCustomDateRangeChange(startDateParam, e.target.value)}
+                onChange={(e) =>
+                  handleCustomDateRangeChange(startDateParam, e.target.value)
+                }
                 className="h-7 text-xs w-35 px-2 bg-background [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:ml-auto [&::-webkit-calendar-picker-indicator]:p-0 [&::-webkit-calendar-picker-indicator]:opacity-70 hover:[&::-webkit-calendar-picker-indicator]:opacity-100"
               />
             </div>
@@ -530,7 +607,7 @@ export function InvoiceList() {
                   <div className="flex justify-between items-center text-muted-foreground gap-2">
                     <span>Customer:</span>
                     <span
-                      className="font-medium text-foreground whitespace-nowrap truncate max-w-[200px]"
+                      className="font-medium text-foreground whitespace-nowrap truncate max-w-50"
                       title={inv.customer?.name || "Customer"}
                     >
                       {inv.customer?.name || "Customer"}
@@ -607,19 +684,6 @@ export function InvoiceList() {
             />
           )}
         </div>
-      )}
-
-      {/* POS Quick Bill Creation Dialog */}
-      {selectedAppointmentForBill && (
-        <CreateInvoiceDialog
-          isOpen={Boolean(selectedAppointmentForBill)}
-          onClose={() => setSelectedAppointmentForBill(null)}
-          appointment={selectedAppointmentForBill}
-          onSuccess={(invoiceId) => {
-            setSelectedAppointmentForBill(null);
-            router.push(`/billing/${invoiceId}`);
-          }}
-        />
       )}
 
       {/* Subscription Consumption OTP Verification Modal */}

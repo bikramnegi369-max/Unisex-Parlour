@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { Eye, Edit, Ban, Gift, Building2, User, Users, RefreshCw } from "lucide-react";
+import { Eye, Edit, Ban, Gift, Building2, User, Users, RefreshCw, Receipt } from "lucide-react";
 import type { Subscription } from "../types/subscription.types";
 import { SubscriptionStatusBadge , SubscriptionPaymentBadge} from "../components/SubscriptionStatusBadge";
 
@@ -12,11 +12,13 @@ interface SubscriptionColumnsOptions {
   onCancel: (subscription: Subscription) => void;
   onRedeem: (subscription: Subscription) => void;
   onRenew?: (subscription: Subscription) => void;
+  onGenerateInvoice?: (subscription: Subscription) => void;
   canView: boolean;
   canEdit: boolean;
   canCancel: boolean;
   canRedeem: boolean;
   canRenew?: boolean;
+  canGenerateInvoice?: boolean;
   getBranchName: (branchId: string) => string;
 }
 
@@ -26,11 +28,13 @@ export const getSubscriptionColumns = ({
   onCancel,
   onRedeem,
   onRenew,
+  onGenerateInvoice,
   canView,
   canEdit,
   canCancel,
   canRedeem,
   canRenew = false,
+  canGenerateInvoice = false,
   getBranchName,
 }: SubscriptionColumnsOptions): ColumnDef<Subscription>[] => [
   {
@@ -238,6 +242,17 @@ export const getSubscriptionColumns = ({
               title="View Subscription"
             >
               <Eye className="h-4 w-4" />
+            </button>
+          )}
+
+          {canGenerateInvoice && onGenerateInvoice && !sub.invoiceId && (
+            <button
+              type="button"
+              onClick={() => onGenerateInvoice(sub)}
+              className="cursor-pointer h-8 w-8 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-600 flex items-center justify-center transition-colors text-emerald-600 dark:text-emerald-400"
+              title="Generate Separate Invoice"
+            >
+              <Receipt className="h-4 w-4" />
             </button>
           )}
 

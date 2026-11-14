@@ -31,8 +31,17 @@ export interface InvoiceAppointmentSummary {
 export interface InvoiceLineItem {
   id?: string;
   _id?: string;
-  serviceId: string;
-  serviceName: string;
+  lineType?: "service" | "product" | "subscription" | "membership" | string;
+  serviceId?: string;
+  serviceName?: string;
+  productId?: string;
+  productName?: string;
+  sku?: string;
+  stockUnit?: string;
+  subscriptionPlanId?: string;
+  membershipPlanId?: string;
+  membershipTierSnapshot?: string;
+  customerMembershipId?: string | null;
   name?: string;
   duration?: number;
   unitPrice: number;
@@ -45,6 +54,8 @@ export interface InvoiceLineItem {
   subscriptionPlanName?: string | null;
   subscriptionUsageId?: string | null;
   subscriptionCoveredAmount?: number;
+  isDiscountedByMembership?: boolean;
+  membershipDiscountAmount?: number;
   customerPayable?: number;
   appliedDiscounts?: AppliedDiscount[];
   discountTotal?: number;
@@ -214,17 +225,49 @@ export interface PaymentRecord {
 
 export interface CreateInvoicePayload {
   branchId: string;
-  appointmentId: string;
+  appointmentId?: string;
+  subscriptionId?: string;
+  customerId?: string;
+  serviceLines?: {
+    serviceId: string;
+    quantity: number;
+    appliedSubscriptionId?: string | null;
+  }[];
+  productLines?: { productId: string; quantity: number }[];
+  subscriptionLines?: { planId: string }[];
+  membershipLines?: { membershipPlanId: string; quantity?: number }[];
+  membershipPlanId?: string;
   discountTotal?: number;
   redeemLoyaltyPoints?: number;
   notes?: string;
 }
 
 export interface UpdateDraftInvoicePayload {
+  serviceLines?: {
+    serviceId: string;
+    quantity: number;
+    appliedSubscriptionId?: string | null;
+  }[];
+  productLines?: { productId: string; quantity: number }[];
+  subscriptionLines?: { planId: string }[];
+  membershipLines?: { membershipPlanId: string; quantity?: number }[];
+  membershipPlanId?: string;
   discountTotal?: number;
   redeemLoyaltyPoints?: number;
   notes?: string;
   branchId?: string;
+}
+
+export interface ReturnInvoiceItemsPayload {
+  branchId?: string;
+  refundMethod: PaymentMethod;
+  reason: string;
+  items: {
+    lineItemId: string;
+    quantity: number;
+    acceptPhysicalRestock: boolean;
+    restockReason?: string;
+  }[];
 }
 
 

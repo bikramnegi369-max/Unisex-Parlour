@@ -20,6 +20,7 @@ import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { SyncButton } from "@/components/ui/sync-button";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
+import { useCreateInvoice } from "@/features/billing/hooks/useBillingMutations";
 import { useDebounce } from "@/hooks/useDebounce";
 import { hasPermission } from "@/lib/permissions";
 import { SUBSCRIPTIONS_CONFIG } from "../config/subscriptions.config";
@@ -56,7 +57,8 @@ import type { CreateSubscriptionPlanFormValues } from "../schemas/plan.schema";
 export function SubscriptionList() {
   const router = useRouter();
   const { user } = useAuth();
-  const { getBranchName } = useBranchContext();
+  const { getBranchName, currentBranchId, isAllBranchesSelected } = useBranchContext();
+  const createInvoiceMutation = useCreateInvoice();
 
   const [activeTab, setActiveTab] = useState<"subscriptions" | "plans">(
     "subscriptions",
@@ -156,6 +158,38 @@ export function SubscriptionList() {
     setIsRenewOpen(true);
   }, []);
 
+  const handleGenerateInvoice = React.useCallback(
+    async (sub: Subscription) => {
+      if (!currentBranchId || isAllBranchesSelected) {
+        toast.error("Please select a specific branch before generating an invoice");
+        return;
+      }
+      try {
+        const payerId =
+          typeof sub.payerCustomerId === "object" && sub.payerCustomerId !== null
+            ? (sub.payerCustomerId as { id?: string; _id?: string }).id ||
+              (sub.payerCustomerId as { id?: string; _id?: string })._id
+            : typeof sub.customerId === "object" && sub.customerId !== null
+              ? (sub.customerId as { id?: string; _id?: string }).id ||
+                (sub.customerId as { id?: string; _id?: string })._id
+              : String(sub.payerCustomerId || sub.customerId || "");
+
+        const result = await createInvoiceMutation.mutateAsync({
+          branchId: currentBranchId,
+          subscriptionId: sub.id,
+          customerId: payerId,
+        });
+        toast.success(`Separate draft invoice #${result.invoiceNumber} created!`);
+        router.push(`/billing/${result.id}`);
+      } catch (err: unknown) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to create invoice",
+        );
+      }
+    },
+    [currentBranchId, isAllBranchesSelected, createInvoiceMutation, router],
+  );
+
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
     try {
       const createdSub = await createMutation.mutateAsync({
@@ -173,24 +207,9 @@ export function SubscriptionList() {
 
       setIsCreateOpen(false);
 
-      const invoiceId = createdSub.invoiceId || createdSub.invoice?.id;
-      const invoiceNumber = createdSub.invoiceNumber || createdSub.invoice?.invoiceNumber || "";
-
-      if (invoiceId) {
-        toast.success(
-          `Subscription sold! Sale invoice ${invoiceNumber} created (${createdSub.paymentStatus === "paid" ? "Paid" : "Pending Payment"}).`,
-          {
-            action: {
-              label: "View Invoice",
-              onClick: () => router.push(`/billing/${invoiceId}`),
-            },
-            duration: 6000,
-          }
-        );
-        router.push(`/billing/${invoiceId}`);
-      } else {
-        toast.success("Subscription sold and created successfully.");
-      }
+      toast.success(
+        `Subscription ${createdSub.subscriptionCode || ""} created successfully! It is now available in the Sales Workspace for billing.`,
+      );
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown> | null;
       const responseObj = errorObj?.response as Record<string, unknown> | null;
@@ -308,11 +327,13 @@ export function SubscriptionList() {
         onCancel: handleCancel,
         onRedeem: handleRedeem,
         onRenew: handleRenew,
+        onGenerateInvoice: handleGenerateInvoice,
         canView,
         canEdit: canConfigure,
         canCancel: canConfigure,
         canRedeem,
         canRenew: canSell,
+        canGenerateInvoice: canSell,
         getBranchName,
       }),
     [
@@ -321,6 +342,7 @@ export function SubscriptionList() {
       handleCancel,
       handleRedeem,
       handleRenew,
+      handleGenerateInvoice,
       canView,
       canConfigure,
       canRedeem,
@@ -567,10 +589,12 @@ export function SubscriptionList() {
               onEdit={handleEdit}
               onCancel={handleCancel}
               onRedeem={handleRedeem}
+              onGenerateInvoice={handleGenerateInvoice}
               canView={canView}
               canEdit={canConfigure}
               canCancel={canConfigure}
               canRedeem={canRedeem}
+              canGenerateInvoice={canSell}
               getBranchName={getBranchName}
             />
           ) : subscriptions.length === 0 ? (
@@ -616,10 +640,12 @@ export function SubscriptionList() {
                 onEdit={handleEdit}
                 onCancel={handleCancel}
                 onRedeem={handleRedeem}
+                onGenerateInvoice={handleGenerateInvoice}
                 canView={canView}
                 canEdit={canConfigure}
                 canCancel={canConfigure}
                 canRedeem={canRedeem}
+                canGenerateInvoice={canSell}
                 getBranchName={getBranchName}
               />
 

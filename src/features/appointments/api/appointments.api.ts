@@ -103,6 +103,24 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
     const flattenedServiceId = rawServiceId ? toFlatId(rawServiceId) : null;
     const isCustom = isCustomExplicit || !flattenedServiceId;
 
+    const rawSub = s.appliedSubscriptionId;
+    let extractedSubCode: string | null = null;
+    let extractedSubId: string | null = null;
+
+    if (rawSub && typeof rawSub === "object") {
+      const subObj = rawSub as Record<string, unknown>;
+      extractedSubId = toFlatId(subObj._id || subObj.id);
+      if (typeof subObj.subscriptionCode === "string") {
+        extractedSubCode = subObj.subscriptionCode;
+      }
+    } else if (rawSub) {
+      extractedSubId = toFlatId(rawSub);
+    }
+
+    if (!extractedSubCode && typeof s.subscriptionCode === "string") {
+      extractedSubCode = s.subscriptionCode;
+    }
+
     return {
       serviceId: flattenedServiceId || null,
       name: (s.name as string) || (s.serviceName as string) || (isCustom ? "Custom Service" : ""),
@@ -115,10 +133,8 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
       id: s.id ? String(s.id) : undefined,
       appliedSubscriptionId: isCustom
         ? null
-        : (s.appliedSubscriptionId as string) ||
-          (toFlatId(s.appliedSubscriptionId) ? toFlatId(s.appliedSubscriptionId) : null) ||
-          null,
-      subscriptionCode: isCustom ? null : typeof s.subscriptionCode === "string" ? s.subscriptionCode : null,
+        : extractedSubId || null,
+      subscriptionCode: isCustom ? null : extractedSubCode,
       subscriptionPlanName: isCustom ? null : typeof s.subscriptionPlanName === "string" ? s.subscriptionPlanName : null,
       isRedeemedViaSubscription: isCustom ? false : Boolean(s.isRedeemedViaSubscription),
       subscriptionUsageId: isCustom
