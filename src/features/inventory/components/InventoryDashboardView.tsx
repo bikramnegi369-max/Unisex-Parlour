@@ -2,131 +2,91 @@
 
 import React, { useState } from "react";
 import {
+  Package,
+  Layers,
+  ArrowRightLeft,
+  RotateCw,
+  Search,
+  SlidersHorizontal,
+  Plus,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { ErrorState } from "@/components/ui/error-state";
+import { toast } from "sonner";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
+import { useBranchContext } from "@/hooks/useBranchContext";
+import { useDebounce } from "@/hooks/useDebounce";
+
+import {
   useProducts,
   useBranchStock,
   useStockMovements,
 } from "../hooks/useInventory";
-import { Product, ProductUsageType } from "../types/inventory.types";
-import { UsageTypeBadge } from "./UsageTypeBadge";
+import type { Product, ProductUsageType } from "../types/inventory.types";
+
+import { StockBalanceTable } from "./StockBalanceTable";
+import { ProductCatalogTable } from "./ProductCatalogTable";
+import { StockMovementTable } from "./StockMovementTable";
+
 import { ProductFormModal } from "./ProductFormModal";
 import { ConsumptionModal } from "./ConsumptionModal";
 import { AdjustmentModal } from "./AdjustmentModal";
 import { TransferModal } from "./TransferModal";
-import { EntityActionMenu } from "@/components/entity/EntityActionMenu";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { ErrorState } from "@/components/ui/error-state";
-import { PageHeaderBanner } from "@/components/ui/page-header-banner";
-import { SyncButton } from "@/components/ui/sync-button";
-import { useBranchContext } from "@/hooks/useBranchContext";
-import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasPermission } from "@/lib/permissions";
-import { toast } from "sonner";
-import {
-  Package,
-  Plus,
-  Scissors,
-  ArrowRightLeft,
-  SlidersHorizontal,
-  History,
-  AlertTriangle,
-  Search,
-  CheckCircle2,
-  RefreshCw,
-} from "lucide-react";
-
-function InventoryTableSkeleton({
-  columns,
-  rowCount = 5,
-  description = "Loading inventory data...",
-}: {
-  columns: {
-    header: string;
-    width?: string;
-    align?: "left" | "right" | "center";
-  }[];
-  rowCount?: number;
-  description?: string;
-}) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground animate-pulse">
-        <div className="w-2 h-2 rounded-full bg-primary/60 animate-ping" />
-        <span>{description}</span>
-      </div>
-      <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-xs md:text-sm text-left">
-            <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
-              <tr>
-                {columns.map((col, idx) => (
-                  <th
-                    key={idx}
-                    className={`py-3 px-4 ${col.width || "min-w-30"} ${
-                      col.align === "right"
-                        ? "text-right"
-                        : col.align === "center"
-                          ? "text-center"
-                          : "text-left"
-                    }`}
-                  >
-                    {col.header}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {Array.from({ length: rowCount }).map((_, rIdx) => (
-                <tr key={rIdx} className="animate-pulse">
-                  {columns.map((col, cIdx) => (
-                    <td
-                      key={cIdx}
-                      className={`py-3.5 px-4 ${
-                        col.align === "right"
-                          ? "text-right"
-                          : col.align === "center"
-                            ? "text-center"
-                            : "text-left"
-                      }`}
-                    >
-                      {col.align === "right" ? (
-                        <div className="h-4 bg-muted/60 rounded w-16 ml-auto" />
-                      ) : col.align === "center" ? (
-                        <div className="h-5 bg-muted/60 rounded-md w-20 mx-auto" />
-                      ) : cIdx === 0 ? (
-                        <div className="space-y-1.5">
-                          <div className="h-4 bg-muted/70 rounded w-36" />
-                          <div className="h-3 bg-muted/40 rounded w-24" />
-                        </div>
-                      ) : (
-                        <div className="h-4 bg-muted/60 rounded w-28" />
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { useDispatch } from "react-redux";
+import { addProductToBasket } from "@/store/slices/saleBasketSlice";
 
 export const InventoryDashboardView: React.FC = () => {
+  const dispatch = useDispatch();
   const { currentBranchId, availableBranches } = useBranchContext();
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
     "stock" | "catalogue" | "movements"
   >("stock");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [usageFilter, setUsageFilter] = useState<ProductUsageType | "all">("all");
+
+  // Search & Filtering
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedSearch = useDebounce(searchInput, 300);
+
+  const [usageFilter, setUsageFilter] = useState<ProductUsageType | "all">(
+    "all",
+  );
   const [stockStatusFilter, setStockStatusFilter] = useState<
     "all" | "low" | "optimal"
   >("all");
+
+  // Pagination states per tab
+  const [stockPage, setStockPage] = useState(1);
+  const [stockPageSize, setStockPageSize] = useState(25);
+
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogPageSize, setCatalogPageSize] = useState(25);
+
+  const [movementsPage, setMovementsPage] = useState(1);
+  const [movementsPageSize, setMovementsPageSize] = useState(25);
+
+  // Reset pagination to page 1 during render when search or filters change
+  const [prevSearch, setPrevSearch] = useState(debouncedSearch);
+  const [prevUsageFilter, setPrevUsageFilter] = useState(usageFilter);
+  const [prevStockStatusFilter, setPrevStockStatusFilter] =
+    useState(stockStatusFilter);
+
+  if (
+    prevSearch !== debouncedSearch ||
+    prevUsageFilter !== usageFilter ||
+    prevStockStatusFilter !== stockStatusFilter
+  ) {
+    setPrevSearch(debouncedSearch);
+    setPrevUsageFilter(usageFilter);
+    setPrevStockStatusFilter(stockStatusFilter);
+    setStockPage(1);
+    setCatalogPage(1);
+    setMovementsPage(1);
+  }
 
   // Modal triggers
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -148,7 +108,9 @@ export const InventoryDashboardView: React.FC = () => {
     isError: isProductsError,
     refetch: refetchProducts,
   } = useProducts({
-    search: searchQuery || undefined,
+    page: catalogPage,
+    limit: catalogPageSize,
+    search: debouncedSearch || undefined,
     usageType: usageFilter !== "all" ? usageFilter : undefined,
   });
 
@@ -158,7 +120,17 @@ export const InventoryDashboardView: React.FC = () => {
     isFetching: isStockFetching,
     isError: isStockError,
     refetch: refetchStock,
-  } = useBranchStock();
+  } = useBranchStock({
+    page: stockPage,
+    limit: stockPageSize,
+    search: debouncedSearch || undefined,
+    lowStock:
+      stockStatusFilter === "low"
+        ? "true"
+        : stockStatusFilter === "optimal"
+          ? "false"
+          : undefined,
+  });
 
   const {
     data: movementsData,
@@ -166,7 +138,14 @@ export const InventoryDashboardView: React.FC = () => {
     isFetching: isMovementsFetching,
     isError: isMovementsError,
     refetch: refetchMovements,
-  } = useStockMovements();
+  } = useStockMovements({
+    page: movementsPage,
+    limit: movementsPageSize,
+  });
+
+  // Global full product list for modal dropdowns
+  const { data: allProductsData } = useProducts({ limit: 100 });
+  const modalProducts = allProductsData?.data || productsData?.data || [];
 
   // Permission flags
   const canView = hasPermission(user, "inventory.view");
@@ -178,22 +157,31 @@ export const InventoryDashboardView: React.FC = () => {
   const stockBalances = stockData?.data || [];
   const movements = movementsData?.data || [];
 
-  // Filtered lists based on search & status
-  const filteredBalances = stockBalances.filter((b) => {
-    const isLow = b.onHand <= (b.product?.reorderLevel ?? 0);
-    if (stockStatusFilter === "low" && !isLow) return false;
-    if (stockStatusFilter === "optimal" && isLow) return false;
+  // Pagination Metadata
+  const stockMeta = stockData?.meta || {
+    total: stockBalances.length,
+    totalPages: Math.ceil(stockBalances.length / stockPageSize) || 1,
+    page: stockPage,
+    limit: stockPageSize,
+  };
 
-    if (!searchQuery) return true;
-    const term = searchQuery.toLowerCase();
-    const nameMatch = b.product?.name?.toLowerCase().includes(term);
-    const skuMatch = b.product?.sku?.toLowerCase().includes(term);
-    const catMatch = b.product?.category?.toLowerCase().includes(term);
-    return nameMatch || skuMatch || catMatch;
-  });
+  const catalogMeta = productsData?.meta || {
+    total: products.length,
+    totalPages: Math.ceil(products.length / catalogPageSize) || 1,
+    page: catalogPage,
+    limit: catalogPageSize,
+  };
 
-  const handleOpenConsume = (prod?: Product) => {
+  const movementsMeta = movementsData?.meta || {
+    total: movements.length,
+    totalPages: Math.ceil(movements.length / movementsPageSize) || 1,
+    page: movementsPage,
+    limit: movementsPageSize,
+  };
+
+  const handleOpenConsume = (prod?: Product, onHand?: number) => {
     setSelectedProduct(prod || null);
+    setSelectedBalanceOnHand(onHand);
     setIsConsumeModalOpen(true);
   };
 
@@ -203,8 +191,9 @@ export const InventoryDashboardView: React.FC = () => {
     setIsAdjustModalOpen(true);
   };
 
-  const handleOpenTransfer = (prod?: Product) => {
+  const handleOpenTransfer = (prod?: Product, onHand?: number) => {
     setSelectedProduct(prod || null);
+    setSelectedBalanceOnHand(onHand);
     setIsTransferModalOpen(true);
   };
 
@@ -243,181 +232,135 @@ export const InventoryDashboardView: React.FC = () => {
 
   return (
     <div className="space-y-6 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto animate-in fade-in duration-200">
-      {/* 1. Standard Page Header Banner with Clear Action Hierarchy */}
+      {/* 1. Standard Page Header Banner */}
       <PageHeaderBanner
         title="Inventory Management"
-        description="Track branch stock balances, log internal salon consumables, execute adjustments, and manage catalogue."
+        description="Track branch stock balances, log internal salon consumables, execute adjustments, and manage catalog."
         icon={Package}
         actions={
-          <div className="flex flex-wrap items-center justify-start xl:justify-end gap-2 w-full min-w-0">
-            {/* Global Contextual Sync */}
-            <SyncButton
-              isSyncing={isCurrentTabSyncing}
-              onSync={() => handleTabSync(activeTab)}
-              label="Sync Inventory"
-              className="h-8 text-xs font-medium cursor-pointer shrink-0"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {canAdjust && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenAdjust()}
+                className="gap-1.5 shadow-2xs font-medium text-xs md:text-sm"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                <span>Adjust Stock</span>
+              </Button>
+            )}
 
-            {/* Operational Domain Actions - Wrapped Cleanly */}
-            <div className="flex flex-wrap items-center gap-1.5 border-l border-border/60 pl-2">
-              {canConsume && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 h-8 border-purple-500/25 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/15 cursor-pointer font-medium text-xs shrink-0"
-                  onClick={() => handleOpenConsume()}
-                >
-                  <Scissors className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  <span>Log Consumption</span>
-                </Button>
-              )}
-
-              {canAdjust && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 h-8 bg-background hover:bg-muted cursor-pointer font-medium text-xs shrink-0"
-                  onClick={() => handleOpenAdjust()}
-                >
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>Adjust</span>
-                </Button>
-              )}
-
-              {canTransfer && availableBranches.length > 1 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 h-8 bg-background hover:bg-muted cursor-pointer font-medium text-xs shrink-0"
-                  onClick={() => handleOpenTransfer()}
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>Transfer</span>
-                </Button>
-              )}
-            </div>
-
-            {/* Primary Action */}
             {canAdjust && (
               <Button
                 size="sm"
-                className="gap-1.5 h-8 shadow-xs cursor-pointer font-medium shrink-0"
                 onClick={() => {
                   setProductToEdit(null);
                   setIsProductModalOpen(true);
                 }}
+                className="gap-1.5 shadow-xs font-semibold text-xs md:text-sm"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add Product</span>
+                <span>Create Product</span>
               </Button>
             )}
           </div>
         }
       />
 
-      {/* 2. Responsive Tab Bar & Integrated Toolbar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 border-b border-border/60 pb-3">
-        {/* Navigation Tabs with Visual Indicators */}
-        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none p-1 bg-muted/40 rounded-xl border border-border/50 shrink-0">
-          <button
+      {/* 2. TAB CONTROLS & FILTER BAR */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 md:pb-0">
+          <Button
+            variant={activeTab === "stock" ? "secondary" : "ghost"}
+            size="sm"
             onClick={() => setActiveTab("stock")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
-              activeTab === "stock"
-                ? "bg-background text-foreground shadow-xs border border-border/80"
-                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-            }`}
+            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
           >
-            <Package className="w-4 h-4 text-primary" />
+            <Package className="w-4 h-4" />
             <span>Branch Stock</span>
-            {stockBalances.length > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-primary/10 text-primary font-bold">
-                {stockBalances.length}
-              </span>
-            )}
-          </button>
-
-          <button
+          </Button>
+          <Button
+            variant={activeTab === "catalogue" ? "secondary" : "ghost"}
+            size="sm"
             onClick={() => setActiveTab("catalogue")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
-              activeTab === "catalogue"
-                ? "bg-background text-foreground shadow-xs border border-border/80"
-                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-            }`}
+            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
           >
-            <SlidersHorizontal className="w-4 h-4 text-amber-500" />
-            <span>Product Catalogue</span>
-            {products.length > 0 && (
-              <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-muted text-muted-foreground font-bold">
-                {products.length}
-              </span>
-            )}
-          </button>
-
-          <button
+            <Layers className="w-4 h-4" />
+            <span>Master Catalog</span>
+          </Button>
+          <Button
+            variant={activeTab === "movements" ? "secondary" : "ghost"}
+            size="sm"
             onClick={() => setActiveTab("movements")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
-              activeTab === "movements"
-                ? "bg-background text-foreground shadow-xs border border-border/80"
-                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
-            }`}
+            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
           >
-            <History className="w-4 h-4 text-emerald-500" />
+            <ArrowRightLeft className="w-4 h-4" />
             <span>Movement Ledger</span>
-          </button>
+          </Button>
         </div>
 
-        {/* Tab-Scoped Search, Filters & Action Controls */}
-        <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
-          {/* Search Input */}
-          <div className="relative flex-1 sm:w-56 min-w-40">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        {/* Global Search and Filter Options */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative flex-1 sm:w-60 md:w-64">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
+              type="text"
               placeholder="Search product, SKU..."
-              className="pl-9 h-8 text-xs bg-card"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-9 h-9 text-xs md:text-sm rounded-lg"
             />
           </div>
 
-          {/* Filter Dropdown for Catalogue Tab */}
-          {activeTab === "catalogue" && (
-            <select
-              value={usageFilter}
-              onChange={(e) => setUsageFilter(e.target.value as ProductUsageType | "all")}
-              className="h-8 px-2.5 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring cursor-pointer"
-            >
-              <option value="all">All Classifications</option>
-              <option value="salon_consumption">Salon Consumables</option>
-              <option value="retail_sale">Retail Products</option>
-              <option value="both">Dual Purpose (Both)</option>
-            </select>
-          )}
-
-          {/* Filter Dropdown for Branch Stock Tab */}
           {activeTab === "stock" && (
-            <select
-              value={stockStatusFilter}
-              onChange={(e) => setStockStatusFilter(e.target.value as "all" | "low" | "optimal")}
-              className="h-8 px-2.5 text-xs border border-input rounded-lg bg-card text-foreground font-medium focus:outline-hidden focus:ring-1 focus:ring-ring cursor-pointer"
-            >
-              <option value="all">All Stock Statuses</option>
-              <option value="low">Low Stock Alert</option>
-              <option value="optimal">Optimal Stock</option>
-            </select>
+            <div className="w-36">
+              <Select
+                value={stockStatusFilter}
+                onChange={(e) =>
+                  setStockStatusFilter(
+                    e.target.value as "all" | "low" | "optimal",
+                  )
+                }
+                className="h-9 text-xs rounded-lg"
+              >
+                <option value="all">All Stock</option>
+                <option value="low">Low Stock</option>
+                <option value="optimal">Optimal Stock</option>
+              </Select>
+            </div>
           )}
 
-          {/* Dedicated In-Tab Refresh Button */}
+          {activeTab === "catalogue" && (
+            <div className="w-44">
+              <Select
+                value={usageFilter}
+                onChange={(e) =>
+                  setUsageFilter(e.target.value as ProductUsageType | "all")
+                }
+                className="h-9 text-xs rounded-lg"
+              >
+                <option value="all">All Usage Types</option>
+                <option value="retail_sale">Retail Sale</option>
+                <option value="salon_consumption">Salon Use Only</option>
+                <option value="both">Dual Use (Both)</option>
+              </Select>
+            </div>
+          )}
+
           <Button
-            size="sm"
             variant="outline"
-            className="h-8 px-2.5 gap-1.5 text-xs font-medium bg-card hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer shrink-0"
+            size="sm"
             onClick={() => handleTabSync(activeTab)}
             disabled={isCurrentTabSyncing}
-            title={`Refresh ${activeTab} data`}
+            className="h-9 px-3 gap-1.5 text-xs rounded-lg"
           >
-            <RefreshCw
-              size={13}
-              className={`transition-transform duration-700 ${isCurrentTabSyncing ? "animate-spin" : ""}`}
+            <RotateCw
+              size={14}
+              className={`transition-transform duration-700 ${
+                isCurrentTabSyncing ? "animate-spin" : ""
+              }`}
             />
             <span className="hidden sm:inline">Refresh</span>
           </Button>
@@ -438,282 +381,82 @@ export const InventoryDashboardView: React.FC = () => {
                 branch switcher to review and manage localized stock on hand.
               </p>
             </div>
-          ) : isStockLoading || isStockFetching ? (
-            <InventoryTableSkeleton
-              description="Updating branch stock on hand..."
-              rowCount={5}
-              columns={[
-                { header: "Product / SKU", width: "min-w-[200px]" },
-                { header: "Classification", width: "min-w-[150px]" },
-                { header: "On Hand", width: "min-w-[110px]", align: "right" },
-                {
-                  header: "Reorder Lvl",
-                  width: "min-w-[110px]",
-                  align: "right",
-                },
-                {
-                  header: "Stock Status",
-                  width: "min-w-[120px]",
-                  align: "center",
-                },
-                { header: "Actions", width: "min-w-[160px]", align: "right" },
-              ]}
-            />
           ) : isStockError ? (
             <ErrorState
               title="Failed to Load Stock"
               description="Unable to retrieve branch stock balances from server."
               retryAction={{ label: "Retry", onClick: () => refetchStock() }}
             />
-          ) : filteredBalances.length === 0 ? (
-            <EmptyState
-              title={
-                searchQuery ? "No Matching Stock" : "No Stock Balances Recorded"
-              }
-              description={
-                searchQuery
-                  ? `No product balances matched "${searchQuery}".`
-                  : "No stock movements or balances exist for this branch yet. Use 'Adjust Stock' to record initial stock inwards."
-              }
-            />
           ) : (
-            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs">
-              <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-xs md:text-sm text-left">
-                  <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4 min-w-50">Product / SKU</th>
-                      <th className="py-3 px-4 min-w-37.5">Classification</th>
-                      <th className="py-3 px-4 text-right min-w-27.5">
-                        On Hand
-                      </th>
-                      <th className="py-3 px-4 text-right min-w-27.5">
-                        Reorder Lvl
-                      </th>
-                      <th className="py-3 px-4 text-center min-w-30">
-                        Stock Status
-                      </th>
-                      <th className="py-3 px-4 text-right min-w-40">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {filteredBalances.map((item) => {
-                      const prod = item.product;
-                      const isLow = item.onHand <= (prod?.reorderLevel ?? 0);
-                      return (
-                        <tr
-                          key={item.id}
-                          className="hover:bg-muted/20 transition-colors"
-                        >
-                          <td className="py-3.5 px-4">
-                            <span className="font-semibold text-foreground block text-sm">
-                              {prod?.name || "Product"}
-                            </span>
-                            <span className="text-xs text-muted-foreground font-mono mt-0.5 block">
-                              {prod?.sku || item.productId}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 whitespace-nowrap">
-                            {prod && (
-                              <UsageTypeBadge usageType={prod.usageType} />
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4 text-right font-bold text-sm text-foreground">
-                            {item.onHand}{" "}
-                            <span className="text-xs font-normal text-muted-foreground">
-                              {prod?.stockUnit}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-right text-muted-foreground">
-                            {prod?.reorderLevel ?? 0}{" "}
-                            <span className="text-xs text-muted-foreground/70">
-                              {prod?.stockUnit}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                            {isLow ? (
-                              <Badge
-                                variant="destructive"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium text-xs bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20"
-                              >
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
-                                Low Stock
-                              </Badge>
-                            ) : (
-                              <Badge
-                                variant="outline"
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium text-xs bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                                Optimal
-                              </Badge>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {canConsume &&
-                                prod &&
-                                (prod.usageType === "salon_consumption" ||
-                                  prod.usageType === "both") && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenConsume(prod)}
-                                    className="cursor-pointer h-8 px-2.5 rounded-lg border border-purple-500/20 bg-purple-500/10 hover:bg-purple-500/15 text-purple-700 dark:text-purple-300 flex items-center gap-1.5 transition-colors text-xs font-medium"
-                                    title="Log Consumable Usage"
-                                  >
-                                    <Scissors
-                                      size={13}
-                                      className="text-purple-600 dark:text-purple-400"
-                                    />
-                                    <span>Consume</span>
-                                  </button>
-                                )}
-                              {canAdjust && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleOpenAdjust(prod, item.onHand)
-                                  }
-                                  className="cursor-pointer h-8 px-2.5 rounded-lg border border-border/80 bg-background hover:bg-muted hover:text-foreground flex items-center gap-1.5 transition-colors text-xs font-medium text-muted-foreground"
-                                  title="Adjust Stock Balance"
-                                >
-                                  <SlidersHorizontal size={13} />
-                                  <span>Adjust</span>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <StockBalanceTable
+              balances={stockBalances}
+              isLoading={isStockLoading || isStockFetching}
+              canConsume={canConsume}
+              canAdjust={canAdjust}
+              canTransfer={canTransfer}
+              onConsume={(p, onHand) => handleOpenConsume(p, onHand)}
+              onAdjust={(p, onHand) => handleOpenAdjust(p, onHand)}
+              onTransfer={(p, onHand) => handleOpenTransfer(p, onHand)}
+              currentPage={stockPage}
+              totalPages={Number(stockMeta.totalPages) || 1}
+              totalItems={Number(stockMeta.total) || stockBalances.length}
+              pageSize={stockPageSize}
+              onPageChange={setStockPage}
+              onPageSizeChange={(sz) => {
+                setStockPageSize(sz);
+                setStockPage(1);
+              }}
+              searchQuery={debouncedSearch}
+            />
           )}
         </div>
       )}
 
-      {/* 4. TAB 2: Product Catalogue */}
+      {/* 4. TAB 2: Master Product Catalogue */}
       {activeTab === "catalogue" && (
         <div className="space-y-4">
-          {isProductsLoading || isProductsFetching ? (
-            <InventoryTableSkeleton
-              description="Updating product catalogue..."
-              rowCount={5}
-              columns={[
-                { header: "Product Name", width: "min-w-[220px]" },
-                { header: "SKU", width: "min-w-[140px]" },
-                { header: "Category", width: "min-w-[130px]" },
-                { header: "Usage Domain", width: "min-w-[150px]" },
-                { header: "Unit", width: "min-w-[100px]" },
-                { header: "Cost (₹)", width: "min-w-[110px]", align: "right" },
-                {
-                  header: "Selling (₹)",
-                  width: "min-w-[110px]",
-                  align: "right",
-                },
-                { header: "Status", width: "min-w-[100px]", align: "center" },
-                { header: "Actions", width: "min-w-[100px]", align: "right" },
-              ]}
-            />
-          ) : isProductsError ? (
+          {isProductsError ? (
             <ErrorState
-              title="Failed to Load Catalogue"
+              title="Failed to Load Products"
               description="Unable to retrieve product catalogue records."
-              retryAction={{ label: "Retry", onClick: () => refetchProducts() }}
-            />
-          ) : products.length === 0 ? (
-            <EmptyState
-              title="No Products Found"
-              description="Get started by adding your first salon consumable or retail product to the catalogue."
+              retryAction={{
+                label: "Retry",
+                onClick: () => refetchProducts(),
+              }}
             />
           ) : (
-            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs">
-              <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-xs md:text-sm text-left">
-                  <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4 min-w-55">Product Name</th>
-                      <th className="py-3 px-4 min-w-35">SKU</th>
-                      <th className="py-3 px-4 min-w-32.5">Category</th>
-                      <th className="py-3 px-4 min-w-37.5">Usage Domain</th>
-                      <th className="py-3 px-4 min-w-25">Unit</th>
-                      <th className="py-3 px-4 text-right min-w-27.5">
-                        Cost (₹)
-                      </th>
-                      <th className="py-3 px-4 text-right min-w-27.5">
-                        Selling (₹)
-                      </th>
-                      <th className="py-3 px-4 text-center min-w-25">Status</th>
-                      <th className="py-3 px-4 text-right min-w-25">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {products.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="hover:bg-muted/20 transition-colors"
-                      >
-                        <td className="py-3.5 px-4 font-semibold text-foreground text-sm">
-                          {p.name}
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground">
-                          {p.sku}
-                        </td>
-                        <td className="py-3.5 px-4 text-foreground whitespace-nowrap">
-                          {p.category}
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <UsageTypeBadge usageType={p.usageType} />
-                        </td>
-                        <td className="py-3.5 px-4 capitalize text-muted-foreground whitespace-nowrap">
-                          {p.stockUnit}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-medium text-foreground">
-                          ₹{p.costPrice.toFixed(2)}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-medium text-foreground">
-                          {p.usageType === "salon_consumption" ? (
-                            <span className="text-muted-foreground italic text-xs">
-                              Internal
-                            </span>
-                          ) : (
-                            `₹${p.sellingPrice.toFixed(2)}`
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <Badge
-                            variant={
-                              p.status === "active" ? "outline" : "secondary"
-                            }
-                            className="text-xs uppercase font-medium px-2 py-0.5 rounded-md"
-                          >
-                            {p.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <EntityActionMenu
-                            onEdit={
-                              canAdjust
-                                ? () => {
-                                    setProductToEdit(p);
-                                    setIsProductModalOpen(true);
-                                  }
-                                : undefined
-                            }
-                            status={p.status}
-                            permissions={{
-                              edit: "inventory.adjust",
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <ProductCatalogTable
+              products={products}
+              isLoading={isProductsLoading || isProductsFetching}
+              canAdjust={canAdjust}
+              onEdit={(p) => {
+                setProductToEdit(p);
+                setIsProductModalOpen(true);
+              }}
+              onAddToSale={(p) => {
+                dispatch(
+                  addProductToBasket({
+                    productId: p.id,
+                    sku: p.sku,
+                    name: p.name,
+                    unitPrice: p.sellingPrice || 0,
+                    quantity: 1,
+                    stockUnit: p.stockUnit,
+                  }),
+                );
+                toast.success(`Product '${p.name}' added to Sale Basket.`);
+              }}
+              currentPage={catalogPage}
+              totalPages={Number(catalogMeta.totalPages) || 1}
+              totalItems={Number(catalogMeta.total) || products.length}
+              pageSize={catalogPageSize}
+              onPageChange={setCatalogPage}
+              onPageSizeChange={(sz) => {
+                setCatalogPageSize(sz);
+                setCatalogPage(1);
+              }}
+              searchQuery={debouncedSearch}
+            />
           )}
         </div>
       )}
@@ -721,25 +464,7 @@ export const InventoryDashboardView: React.FC = () => {
       {/* 5. TAB 3: Movement Ledger History */}
       {activeTab === "movements" && (
         <div className="space-y-4">
-          {isMovementsLoading || isMovementsFetching ? (
-            <InventoryTableSkeleton
-              description="Updating stock movements ledger..."
-              rowCount={5}
-              columns={[
-                { header: "Timestamp", width: "min-w-[160px]" },
-                { header: "Product / SKU", width: "min-w-[200px]" },
-                { header: "Movement Type", width: "min-w-[150px]" },
-                { header: "Delta", width: "min-w-[110px]", align: "right" },
-                {
-                  header: "Balance After",
-                  width: "min-w-[110px]",
-                  align: "right",
-                },
-                { header: "Staff Actor", width: "min-w-[140px]" },
-                { header: "Notes & Reference", width: "min-w-[220px]" },
-              ]}
-            />
-          ) : isMovementsError ? (
+          {isMovementsError ? (
             <ErrorState
               title="Failed to Load Ledger"
               description="Unable to retrieve stock movement audit entries."
@@ -748,90 +473,21 @@ export const InventoryDashboardView: React.FC = () => {
                 onClick: () => refetchMovements(),
               }}
             />
-          ) : movements.length === 0 ? (
-            <EmptyState
-              title="No Movement Records"
-              description="Historical stock movements (consumption, adjustments, transfers, sales) will appear here."
-            />
           ) : (
-            <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-2xs">
-              <div className="overflow-x-auto scrollbar-thin">
-                <table className="w-full text-xs md:text-sm text-left">
-                  <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border/80 uppercase text-[11px] tracking-wider">
-                    <tr>
-                      <th className="py-3 px-4 min-w-40">Timestamp</th>
-                      <th className="py-3 px-4 min-w-50">Product / SKU</th>
-                      <th className="py-3 px-4 min-w-37.5">Movement Type</th>
-                      <th className="py-3 px-4 text-right min-w-27.5">Delta</th>
-                      <th className="py-3 px-4 text-right min-w-27.5">
-                        Balance After
-                      </th>
-                      <th className="py-3 px-4 min-w-35">Staff Actor</th>
-                      <th className="py-3 px-4 min-w-55">Notes & Reference</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/60">
-                    {movements.map((m) => (
-                      <tr
-                        key={m.id}
-                        className="hover:bg-muted/20 transition-colors"
-                      >
-                        <td className="py-3.5 px-4 text-xs text-muted-foreground whitespace-nowrap">
-                          {new Date(m.createdAt).toLocaleString(undefined, {
-                            dateStyle: "medium",
-                            timeStyle: "short",
-                          })}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="font-semibold text-foreground block text-sm">
-                            {m.product?.name || "Product"}
-                          </span>
-                          <span className="text-xs text-muted-foreground font-mono mt-0.5 block">
-                            {m.product?.sku}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 whitespace-nowrap">
-                          <Badge
-                            variant="outline"
-                            className="capitalize text-xs font-medium px-2 py-0.5 rounded-md bg-muted/50 border-border"
-                          >
-                            {m.movementType.replace("_", " ")}
-                          </Badge>
-                        </td>
-                        <td
-                          className={`py-3.5 px-4 text-right font-bold text-sm whitespace-nowrap ${
-                            m.quantityDelta > 0
-                              ? "text-emerald-600 dark:text-emerald-400"
-                              : "text-rose-600 dark:text-rose-400"
-                          }`}
-                        >
-                          {m.quantityDelta > 0
-                            ? `+${m.quantityDelta}`
-                            : m.quantityDelta}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {m.product?.stockUnit}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-mono font-medium text-foreground whitespace-nowrap">
-                          {m.balanceAfter}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">
-                            {m.product?.stockUnit}
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-xs font-medium text-foreground whitespace-nowrap">
-                          {m.actor?.name || m.actorId || "System"}
-                        </td>
-                        <td className="py-3.5 px-4 text-xs text-muted-foreground max-w-sm">
-                          <p className="wrap-break-word leading-relaxed">
-                            {m.notes || m.reference?.identifier || "—"}
-                          </p>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <StockMovementTable
+              movements={movements}
+              isLoading={isMovementsLoading || isMovementsFetching}
+              currentPage={movementsPage}
+              totalPages={Number(movementsMeta.totalPages) || 1}
+              totalItems={Number(movementsMeta.total) || movements.length}
+              pageSize={movementsPageSize}
+              onPageChange={setMovementsPage}
+              onPageSizeChange={(sz) => {
+                setMovementsPageSize(sz);
+                setMovementsPage(1);
+              }}
+              searchQuery={debouncedSearch}
+            />
           )}
         </div>
       )}
@@ -846,14 +502,14 @@ export const InventoryDashboardView: React.FC = () => {
       <ConsumptionModal
         isOpen={isConsumeModalOpen}
         onClose={() => setIsConsumeModalOpen(false)}
-        products={products}
+        products={modalProducts}
         preselectedProduct={selectedProduct}
       />
 
       <AdjustmentModal
         isOpen={isAdjustModalOpen}
         onClose={() => setIsAdjustModalOpen(false)}
-        products={products}
+        products={modalProducts}
         preselectedProduct={selectedProduct}
         currentStockOnHand={selectedBalanceOnHand}
       />
@@ -861,7 +517,7 @@ export const InventoryDashboardView: React.FC = () => {
       <TransferModal
         isOpen={isTransferModalOpen}
         onClose={() => setIsTransferModalOpen(false)}
-        products={products}
+        products={modalProducts}
         preselectedProduct={selectedProduct}
         availableBranches={availableBranches.map((b) => ({
           id: b.id,
