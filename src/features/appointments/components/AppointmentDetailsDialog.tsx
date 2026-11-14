@@ -44,7 +44,8 @@ import {
 } from "../hooks/useAppointments";
 import Link from "next/link";
 import { toast } from "sonner";
-import { CreateInvoiceDialog } from "@/features/billing/components/CreateInvoiceDialog";
+import { useDispatch } from "react-redux";
+import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
 import type {
@@ -85,9 +86,9 @@ export function AppointmentDetailsDialog({
   canDelete,
 }: AppointmentDetailsDialogProps) {
   const router = useRouter();
+  const dispatch = useDispatch();
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
-  const [isCreateInvoiceOpen, setIsCreateInvoiceOpen] = useState(false);
   const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const actionsMenuRef = React.useRef<HTMLDivElement>(null);
@@ -841,32 +842,98 @@ export function AppointmentDetailsDialog({
                 </Button>
               )}
 
-            {/* PRIMARY CTA: Completed -> Create Invoice */}
+            {/* PRIMARY CTA: Completed -> Open in Sales Register */}
             {canCheckout && appointment.status === "completed" && (
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => setIsCreateInvoiceOpen(true)}
+                onClick={() => {
+                  const cust = {
+                    id:
+                      appointment.customerId || appointment.customer?.id || "",
+                    name: appointment.customer?.name || "Walk-in Customer",
+                    phone: appointment.customer?.phone || "",
+                    email: appointment.customer?.email || null,
+                  };
+
+                  const appointmentCode =
+                    appointment.appointmentCode ||
+                    appointment.id.slice(-6).toUpperCase();
+
+                  const services = (appointment.services || []).map(
+                    (s: AppointmentServiceSnapshot) => {
+                      let subCode = s.subscriptionCode || null;
+                      let appliedSubId = s.appliedSubscriptionId || null;
+
+                      if (!subCode && appliedSubId) {
+                        const foundSub = (customerSubsData?.data || []).find(
+                          (sub) =>
+                            (sub.id || sub._id) === appliedSubId,
+                        );
+                        if (foundSub?.subscriptionCode) {
+                          subCode = foundSub.subscriptionCode;
+                        }
+                      }
+
+                      const isCovered = Boolean(
+                        appliedSubId ||
+                          s.appliedSubscriptionId ||
+                          s.subscriptionUsageId ||
+                          subCode,
+                      );
+
+                      return {
+                        appointmentId: appointment.id,
+                        appointmentCode,
+                        serviceId: s.serviceId || undefined,
+                        name: s.name,
+                        duration: s.duration,
+                        unitPrice: s.price,
+                        quantity: 1,
+                        isCoveredBySubscription: isCovered,
+                        appliedSubscriptionId: appliedSubId,
+                        subscriptionCode: subCode,
+                      };
+                    },
+                  );
+
+                  const aptWithInvoice = appointment as Appointment & {
+                    invoiceId?: string;
+                    invoiceNumber?: string;
+                  };
+                  const existingDraft = aptWithInvoice.invoiceId
+                    ? {
+                        id: aptWithInvoice.invoiceId,
+                        invoiceNumber: aptWithInvoice.invoiceNumber || "DRAFT",
+                      }
+                    : null;
+
+                  dispatch(
+                    setBasketAppointment({
+                      appointmentId: appointment.id,
+                      appointmentCode,
+                      customer: cust,
+                      services,
+                      existingDraftInvoice: existingDraft,
+                    }),
+                  );
+
+                  toast.info(
+                    `Appointment #${appointmentCode} loaded into Sales Register.`,
+                  );
+                  onClose();
+                  router.push("/billing/sales/new");
+                }}
                 className="text-xs h-8 gap-1.5 font-semibold bg-primary text-primary-foreground shadow-xs"
-                title="Generate final invoice for completed appointment"
+                title="Open appointment in Sales Workspace for checkout"
               >
                 <Receipt className="h-3.5 w-3.5" />
-                <span>Create Invoice</span>
+                <span>Checkout in Register</span>
               </Button>
             )}
           </div>
         </div>
       </div>
-
-      <CreateInvoiceDialog
-        isOpen={isCreateInvoiceOpen}
-        onClose={() => setIsCreateInvoiceOpen(false)}
-        appointment={appointment}
-        onSuccess={(invoiceId) => {
-          onClose();
-          router.push(`/billing/${invoiceId}`);
-        }}
-      />
 
       {/* Subscription Upsell Dialog from Appointment Context */}
       <Dialog

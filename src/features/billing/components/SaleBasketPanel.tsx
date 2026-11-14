@@ -1,0 +1,667 @@
+"use client";
+
+import React, { useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import type { RootState } from "@/store";
+import {
+  clearSaleBasket,
+  removeProductFromBasket,
+  updateProductBasketQuantity,
+  removeSubscriptionFromBasket,
+  removeMembershipFromBasket,
+  removeWalkinServiceFromBasket,
+  updateWalkinServiceQuantity,
+  clearBasketAppointment,
+  setBasketDiscount,
+} from "@/store/slices/saleBasketSlice";
+import { formatCurrency } from "@/lib/formatters";
+import {
+  ShoppingCart,
+  Trash2,
+  Plus,
+  Minus,
+  Sparkles,
+  Crown,
+  Calendar,
+  AlertTriangle,
+  Receipt,
+  FileText,
+  User,
+  ArrowRight,
+  ShieldCheck,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+
+interface SaleBasketPanelProps {
+  onCheckout: () => void;
+  isSubmitting?: boolean;
+}
+
+export function SaleBasketPanel({
+  onCheckout,
+  isSubmitting = false,
+}: SaleBasketPanelProps) {
+  const dispatch = useDispatch();
+  const basket = useSelector((state: RootState) => state.saleBasket);
+
+  // Financial calculations derived from basket
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let subscriptionCoveredAmount = 0;
+
+    // 1. Appointment lines
+    for (const aptLine of basket.appointmentLines) {
+      const lineTotal = aptLine.unitPrice * aptLine.quantity;
+      subtotal += lineTotal;
+      if (aptLine.isCoveredBySubscription) {
+        subscriptionCoveredAmount += lineTotal;
+      }
+    }
+
+    // 2. Walkin service lines
+    for (const sLine of basket.walkinServiceLines) {
+      const lineTotal = sLine.unitPrice * sLine.quantity;
+      subtotal += lineTotal;
+      if (sLine.isCoveredBySubscription) {
+        subscriptionCoveredAmount += lineTotal;
+      }
+    }
+
+    // 3. Retail product lines
+    for (const pLine of basket.productLines) {
+      subtotal += pLine.unitPrice * pLine.quantity;
+    }
+
+    // 4. Subscription plan lines
+    for (const subLine of basket.subscriptionLines) {
+      subtotal += subLine.suggestedPrice;
+    }
+
+    // 5. Membership lines
+    for (const memLine of basket.membershipLines) {
+      subtotal += memLine.price;
+    }
+
+    // Membership tier discount calculation
+    let membershipDiscount = 0;
+    const activeMem = basket.membershipLines[0];
+    if (activeMem) {
+      if (activeMem.serviceDiscountPercentage > 0) {
+        for (const sLine of basket.walkinServiceLines) {
+          if (!sLine.isCoveredBySubscription) {
+            membershipDiscount +=
+              (sLine.unitPrice *
+                sLine.quantity *
+                activeMem.serviceDiscountPercentage) /
+              100;
+          }
+        }
+        for (const aptLine of basket.appointmentLines) {
+          if (!aptLine.isCoveredBySubscription) {
+            membershipDiscount +=
+              (aptLine.unitPrice *
+                aptLine.quantity *
+                activeMem.serviceDiscountPercentage) /
+              100;
+          }
+        }
+      }
+      if (activeMem.productDiscountPercentage > 0) {
+        for (const pLine of basket.productLines) {
+          membershipDiscount +=
+            (pLine.unitPrice *
+              pLine.quantity *
+              activeMem.productDiscountPercentage) /
+            100;
+        }
+      }
+    }
+
+    const discountTotal = basket.discountTotal + membershipDiscount;
+    const grossPayable = Math.max(0, subtotal - subscriptionCoveredAmount);
+    const payableAmount = Math.max(0, grossPayable - discountTotal);
+
+    return {
+      subtotal,
+      subscriptionCoveredAmount,
+      membershipDiscount,
+      manualDiscount: basket.discountTotal,
+      discountTotal,
+      payableAmount,
+      itemCount:
+        basket.appointmentLines.length +
+        basket.walkinServiceLines.length +
+        basket.productLines.length +
+        basket.subscriptionLines.length +
+        basket.membershipLines.length,
+    };
+  }, [basket]);
+
+  return (
+    <div className="flex flex-col h-full bg-card border-l border-border select-none">
+      {/* Basket Header */}
+      <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <ShoppingCart className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Sale Basket</h2>
+            <p className="text-xs text-muted-foreground">
+              {totals.itemCount} {totals.itemCount === 1 ? "item" : "items"}{" "}
+              selected
+            </p>
+          </div>
+        </div>
+
+        {totals.itemCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => dispatch(clearSaleBasket())}
+            className="text-xs text-muted-foreground hover:text-destructive h-7 px-2"
+          >
+            Clear All
+          </Button>
+        )}
+      </div>
+
+      {/* Customer Header Badge */}
+      <div className="p-3 bg-muted/40 border-b border-border">
+        {basket.customer ? (
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0">
+                <User className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-foreground truncate">
+                  {basket.customer.name}
+                </div>
+                <div className="text-[11px] font-mono text-muted-foreground">
+                  {basket.customer.phone}
+                </div>
+              </div>
+            </div>
+            <Badge
+              variant="outline"
+              className="text-[10px] h-5 bg-background shrink-0"
+            >
+              Locked Customer
+            </Badge>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5 py-1">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span>Select a Customer or Appointment to begin billing</span>
+          </div>
+        )}
+      </div>
+
+      {/* Existing Active Draft Warning Banner */}
+      {basket.existingDraftInvoiceNumber && (
+        <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/50 flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-1.5 font-medium truncate">
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              Active Draft #{basket.existingDraftInvoiceNumber}
+            </span>
+          </div>
+          <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-200/60 dark:bg-amber-900/60">
+            Resuming
+          </span>
+        </div>
+      )}
+
+      {/* Basket Line Items Scrollable Body */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 divide-y divide-border/50">
+        {totals.itemCount === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 text-muted-foreground">
+            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-2">
+              <ShoppingCart className="h-6 w-6 text-muted-foreground/60" />
+            </div>
+            <p className="text-xs font-medium">Your sale basket is empty</p>
+            <p className="text-[11px] text-muted-foreground/80 mt-1 max-w-50">
+              Add completed appointments, retail products, subscription plans,
+              or memberships from the left catalog.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Appointment Lines */}
+            {basket.appointment && (
+              <div className="pt-2 first:pt-0 space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-primary">
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" /> Appointment #
+                    {basket.appointment.appointmentCode}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                    onClick={() => dispatch(clearBasketAppointment())}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                {basket.appointmentLines.map((aptLine, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex items-center justify-between text-xs py-1.5 px-2 rounded-lg border transition-all ${
+                      aptLine.isCoveredBySubscription
+                        ? "bg-emerald-500/5 border-emerald-500/25 ring-1 ring-emerald-500/10"
+                        : "bg-muted/20 border-border/60"
+                    }`}
+                  >
+                    <div className="truncate mr-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-foreground truncate">
+                          {aptLine.name}
+                        </span>
+                        {aptLine.isCoveredBySubscription && (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 px-1 py-0 font-bold whitespace-nowrap"
+                          >
+                            <ShieldCheck className="h-2.5 w-2.5 mr-0.5 inline" />
+                            Plan Quota
+                          </Badge>
+                        )}
+                      </div>
+                      {aptLine.isCoveredBySubscription ? (
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px]">
+                          {aptLine.subscriptionCode ? (
+                            <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                              Sub #{aptLine.subscriptionCode}
+                            </span>
+                          ) : aptLine.appliedSubscriptionId ? (
+                            <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                              Sub #{aptLine.appliedSubscriptionId.slice(-6).toUpperCase()}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {formatCurrency(aptLine.unitPrice)} each
+                        </div>
+                      )}
+                    </div>
+                    <div className="w-16 text-right font-mono text-xs shrink-0">
+                      {aptLine.isCoveredBySubscription ? (
+                        <div className="flex flex-col items-end">
+                          <span className="text-muted-foreground line-through text-[10px]">
+                            {formatCurrency(
+                              aptLine.unitPrice * aptLine.quantity,
+                            )}
+                          </span>
+                          <span className="text-emerald-600 font-bold">₹0</span>
+                        </div>
+                      ) : (
+                        <span className="font-semibold text-foreground">
+                          {formatCurrency(aptLine.unitPrice * aptLine.quantity)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Walkin Services Lines */}
+            {basket.walkinServiceLines.length > 0 && (
+              <div className="pt-2 space-y-1.5">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Services
+                </div>
+                {basket.walkinServiceLines.map((s) => (
+                  <div
+                    key={s.serviceId}
+                    className={`flex items-center justify-between text-xs py-1.5 px-2 rounded-lg border transition-all ${
+                      s.isCoveredBySubscription
+                        ? "bg-emerald-500/5 border-emerald-500/25 ring-1 ring-emerald-500/10"
+                        : "bg-muted/15 border-border/70"
+                    }`}
+                  >
+                    <div className="truncate mr-2 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-foreground truncate">
+                          {s.name}
+                        </span>
+                        {s.isCoveredBySubscription && (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 px-1 py-0 font-bold whitespace-nowrap"
+                          >
+                            <ShieldCheck className="h-2.5 w-2.5 mr-0.5 inline" />
+                            Plan Quota
+                          </Badge>
+                        )}
+                      </div>
+                      {s.isCoveredBySubscription ? (
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px]">
+                          {s.subscriptionCode ? (
+                            <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                              Sub #{s.subscriptionCode}
+                            </span>
+                          ) : s.appliedSubscriptionId ? (
+                            <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                              Sub #{s.appliedSubscriptionId.slice(-6).toUpperCase()}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                          <span>{formatCurrency(s.unitPrice)} each</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {/* Quantity stepper controls */}
+                      <div className="flex items-center border border-border rounded bg-background">
+                        <button
+                          type="button"
+                          className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
+                          onClick={() =>
+                            dispatch(
+                              updateWalkinServiceQuantity({
+                                serviceId: s.serviceId,
+                                quantity: s.quantity - 1,
+                              }),
+                            )
+                          }
+                          aria-label="Decrease service quantity"
+                        >
+                          <Minus className="h-2.5 w-2.5" />
+                        </button>
+                        <span className="w-5 text-center font-mono font-medium text-[11px]">
+                          {s.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
+                          onClick={() =>
+                            dispatch(
+                              updateWalkinServiceQuantity({
+                                serviceId: s.serviceId,
+                                quantity: s.quantity + 1,
+                              }),
+                            )
+                          }
+                          aria-label="Increase service quantity"
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+
+                      {/* Line pricing: show strike-through when covered */}
+                      <div className="w-16 text-right font-mono text-xs">
+                        {s.isCoveredBySubscription ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-muted-foreground line-through text-[10px]">
+                              {formatCurrency(s.unitPrice * s.quantity)}
+                            </span>
+                            <span className="text-emerald-600 font-bold">
+                              ₹0
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-foreground">
+                            {formatCurrency(s.unitPrice * s.quantity)}
+                          </span>
+                        )}
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive cursor-pointer"
+                        onClick={() =>
+                          dispatch(removeWalkinServiceFromBasket(s.serviceId))
+                        }
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Retail Product Lines */}
+            {basket.productLines.length > 0 && (
+              <div className="pt-2 space-y-1.5">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Retail Products
+                </div>
+                {basket.productLines.map((p) => (
+                  <div
+                    key={p.productId}
+                    className="flex items-center justify-between text-xs py-1"
+                  >
+                    <div className="truncate mr-2">
+                      <div className="font-medium text-foreground truncate">
+                        {p.name}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground font-mono">
+                        {p.sku ? `SKU: ${p.sku} | ` : ""}
+                        {formatCurrency(p.unitPrice)} each
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center border border-border rounded">
+                        <button
+                          type="button"
+                          className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:bg-muted"
+                          onClick={() =>
+                            dispatch(
+                              updateProductBasketQuantity({
+                                productId: p.productId,
+                                quantity: p.quantity - 1,
+                              }),
+                            )
+                          }
+                        >
+                          <Minus className="h-2.5 w-2.5" />
+                        </button>
+                        <span className="w-6 text-center text-xs font-mono font-bold">
+                          {p.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:bg-muted"
+                          onClick={() =>
+                            dispatch(
+                              updateProductBasketQuantity({
+                                productId: p.productId,
+                                quantity: p.quantity + 1,
+                              }),
+                            )
+                          }
+                        >
+                          <Plus className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                      <span className="font-mono font-medium w-14 text-right">
+                        {formatCurrency(p.unitPrice * p.quantity)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() =>
+                          dispatch(removeProductFromBasket(p.productId))
+                        }
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Subscriptions Lines */}
+            {basket.subscriptionLines.length > 0 && (
+              <div className="pt-2 space-y-1.5">
+                <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wider flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> Subscriptions
+                </div>
+                {basket.subscriptionLines.map((sub) => (
+                  <div
+                    key={sub.subscriptionId || sub.planId}
+                    className="flex items-center justify-between text-xs py-1"
+                  >
+                    <div className="truncate mr-2">
+                      <div className="font-medium text-foreground truncate">
+                        {sub.name}
+                      </div>
+                      <div className="text-[10px] text-purple-600 font-semibold">
+                        {sub.subscriptionId
+                          ? "Pending Sale Subscription"
+                          : "Service Package"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-medium">
+                        {formatCurrency(sub.suggestedPrice)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() =>
+                          dispatch(
+                            removeSubscriptionFromBasket(
+                              sub.subscriptionId || sub.planId,
+                            ),
+                          )
+                        }
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Membership Lines */}
+            {basket.membershipLines.length > 0 && (
+              <div className="pt-2 space-y-1.5">
+                <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                  <Crown className="h-3 w-3" /> Membership Plan
+                </div>
+                {basket.membershipLines.map((mem) => (
+                  <div
+                    key={mem.membershipPlanId}
+                    className="flex items-center justify-between text-xs py-1"
+                  >
+                    <div className="truncate mr-2">
+                      <div className="font-medium text-foreground truncate">
+                        {mem.name}
+                      </div>
+                      <div className="text-[10px] text-amber-600 font-semibold">
+                        {mem.tier} Tier Plan
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono font-medium">
+                        {formatCurrency(mem.price)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() =>
+                          dispatch(
+                            removeMembershipFromBasket(mem.membershipPlanId),
+                          )
+                        }
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Basket Financial Breakdown Footer */}
+      <div className="p-4 border-t border-border bg-card space-y-2">
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>Subtotal</span>
+          <span className="font-mono">{formatCurrency(totals.subtotal)}</span>
+        </div>
+
+        {totals.subscriptionCoveredAmount > 0 && (
+          <div className="flex items-center justify-between text-xs text-emerald-600 font-medium">
+            <span>Subscription Covered</span>
+            <span className="font-mono">
+              -{formatCurrency(totals.subscriptionCoveredAmount)}
+            </span>
+          </div>
+        )}
+
+        {totals.membershipDiscount > 0 && (
+          <div className="flex items-center justify-between text-xs text-amber-600 font-medium">
+            <span>Membership Tier Discount</span>
+            <span className="font-mono">
+              -{formatCurrency(totals.membershipDiscount)}
+            </span>
+          </div>
+        )}
+
+        {/* Manual Discount Input */}
+        <div className="flex items-center justify-between text-xs pt-1">
+          <span className="text-muted-foreground">Manual Discount (₹)</span>
+          <Input
+            type="number"
+            min="0"
+            value={basket.discountTotal || ""}
+            onChange={(e) =>
+              dispatch(setBasketDiscount(Number(e.target.value) || 0))
+            }
+            placeholder="0"
+            className="w-20 h-7 text-xs font-mono text-right"
+          />
+        </div>
+
+        <div className="pt-2 border-t border-border flex items-center justify-between font-bold text-sm text-foreground">
+          <span>Net Payable</span>
+          <span className="text-base font-mono text-primary font-extrabold">
+            {formatCurrency(totals.payableAmount)}
+          </span>
+        </div>
+
+        {/* Checkout Button */}
+        <Button
+          type="button"
+          disabled={totals.itemCount === 0 || !basket.customer || isSubmitting}
+          onClick={onCheckout}
+          className="w-full h-10 mt-2 gap-2 text-xs font-bold uppercase tracking-wider"
+        >
+          {isSubmitting ? (
+            <span>Creating Invoice...</span>
+          ) : basket.existingDraftInvoiceNumber ? (
+            <>
+              <span>Update & Review Draft</span>
+              <ArrowRight className="h-4 w-4" />
+            </>
+          ) : (
+            <>
+              <Receipt className="h-4 w-4" />
+              <span>Review & Create Invoice</span>
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
