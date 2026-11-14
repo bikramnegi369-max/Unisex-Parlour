@@ -17,6 +17,7 @@ export const routePermissions = {
   "/appointments": "appointments.view",
   "/employees": "employees.view",
   "/leaves": "employees.leaves.view",
+  "/attendance": "attendance.view",
   "/services": "services.view",
   "/services/categories": "services.view",
   "/memberships": "billing.view",
@@ -31,5 +32,4 @@ export const routePermissions = {
 } as const satisfies Record<string, PermissionType | null>;
 
 export type RoutePath = keyof typeof routePermissions;
-
 

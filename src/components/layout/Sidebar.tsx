@@ -36,6 +36,7 @@ import {
   X,
   Sparkles,
   Layers,
+  Fingerprint,
 } from "lucide-react";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -67,6 +68,7 @@ const navGroups: SidebarGroup[] = [
       { name: "Subscriptions", href: "/subscriptions", icon: Layers },
       { name: "Employees", href: "/employees", icon: UserCheck },
       { name: "Leaves", href: "/leaves", icon: CalendarOff },
+      { name: "Attendance", href: "/attendance", icon: Fingerprint },
       { name: "Services", href: "/services", icon: Scissors },
     ],
   },

@@ -24,6 +24,9 @@ export type PermissionType =
   | "employees.assign_service"
   | "employees.leaves.view"
   | "employees.leaves.manage"
+  | "attendance.view"
+  | "attendance.punch"
+  | "attendance.adjust"
   | "services.view"
   | "services.create"
   | "services.edit"
@@ -162,4 +165,3 @@ export function hasOrgWideAccess(user: UserSession | null): boolean {
   if (!user) return false;
   return !!user.hasOrgWideAccess;
 }
-
