@@ -160,7 +160,10 @@ export function SalesWorkspaceView() {
         customerId: currentCustomerId || undefined,
         limit: 50,
       },
-      { enabled: activeTab === "subscriptions" },
+      {
+        enabled:
+          activeTab === "subscriptions" && Boolean(currentCustomerId),
+      },
     );
   const { data: customerSubsData } = useSubscriptions(
     { customerId: currentCustomerId || undefined, limit: 50 },
@@ -1266,7 +1269,8 @@ export function SalesWorkspaceView() {
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   Sold Subscriptions (Pending Invoice)
-                  {Array.isArray(uninvoicedSubsData?.data) &&
+                  {currentCustomerId &&
+                    Array.isArray(uninvoicedSubsData?.data) &&
                     uninvoicedSubsData.data.length > 0 && (
                       <Badge
                         variant="secondary"
@@ -1294,7 +1298,11 @@ export function SalesWorkspaceView() {
               {/* Sub-view 1: Uninvoiced Subscriptions */}
               {subscriptionViewMode === "uninvoiced" && (
                 <div className="space-y-3">
-                  {isUninvoicedSubsLoading ? (
+                  {!currentCustomerId ? (
+                    <div className="py-12 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                      Select a customer to view their sold subscriptions.
+                    </div>
+                  ) : isUninvoicedSubsLoading ? (
                     <div className="py-12 text-center text-xs text-muted-foreground">
                       Loading uninvoiced subscriptions...
                     </div>
