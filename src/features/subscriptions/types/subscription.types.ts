@@ -27,6 +27,9 @@ export interface SubscriptionPlanSummary {
   _id?: string;
   id?: string;
   name: string;
+  description?: string;
+  suggestedPrice?: number;
+  validityMonths?: number;
 }
 
 export type SubscriptionMemberStatus =

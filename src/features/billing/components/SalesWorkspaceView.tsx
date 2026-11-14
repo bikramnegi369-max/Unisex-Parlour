@@ -48,11 +48,13 @@ import {
   ShoppingBag,
   ShieldCheck,
   CheckCircle2,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUpdateAppointmentStatus } from "@/features/appointments/hooks/useAppointmentMutations";
 import { requiresSubscriptionVerification } from "@/features/appointments/utils/appointmentSubscription";
 import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
+import { SubscriptionPlanInfoModal } from "@/features/subscriptions/components/SubscriptionPlanInfoModal";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type { Product } from "@/features/inventory/types/inventory.types";
 import type { SubscriptionPlan } from "@/features/subscriptions/types/plan.types";
@@ -84,6 +86,8 @@ export function SalesWorkspaceView() {
   const [subscriptionViewMode, setSubscriptionViewMode] = useState<
     "uninvoiced" | "catalog"
   >("uninvoiced");
+  const [selectedSubForInfo, setSelectedSubForInfo] =
+    useState<Subscription | null>(null);
   const [appointmentForSubVerification, setAppointmentForSubVerification] =
     useState<Appointment | null>(null);
 
@@ -1330,9 +1334,22 @@ export function SalesWorkspaceView() {
                           >
                             <div>
                               <div className="flex items-center justify-between">
-                                <span className="font-mono font-bold text-purple-700 dark:text-purple-300">
-                                  {sub.subscriptionCode}
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-purple-700 dark:text-purple-300">
+                                    {sub.subscriptionCode}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setSelectedSubForInfo(sub)}
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 rounded-md"
+                                    title="View Subscription Package & Plan Details"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    <span className="sr-only">View Details</span>
+                                  </Button>
+                                </div>
                                 <Badge
                                   variant="outline"
                                   className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40"
@@ -1546,6 +1563,16 @@ export function SalesWorkspaceView() {
             setAppointmentForSubVerification(null);
             toast.success("Subscription verified and appointment completed.");
           }}
+        />
+      )}
+
+      {/* Subscription Plan & Entitlements Info Modal */}
+      {selectedSubForInfo && (
+        <SubscriptionPlanInfoModal
+          subscription={selectedSubForInfo}
+          isOpen={Boolean(selectedSubForInfo)}
+          onClose={() => setSelectedSubForInfo(null)}
+          getBranchName={getBranchName}
         />
       )}
     </div>
