@@ -74,7 +74,15 @@ export type PermissionType =
   | "subscriptions.redeem"
   | "loyalty.view"
   | "loyalty.configure"
-  | "loyalty.adjust";
+  | "loyalty.adjust"
+  | "payroll.view"
+  | "payroll.structure.manage"
+  | "payroll.calculate"
+  | "payroll.approve"
+  | "payroll.disburse"
+  | "payroll.adjust"
+  | "payroll.reverse"
+  | "payroll.export";
 
 export interface UserSession {
   id: string;

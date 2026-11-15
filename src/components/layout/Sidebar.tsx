@@ -37,6 +37,7 @@ import {
   Sparkles,
   Layers,
   Fingerprint,
+  Banknote,
 } from "lucide-react";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -91,6 +92,7 @@ const navGroups: SidebarGroup[] = [
     title: "Finance & Insights",
     items: [
       { name: "Finance", href: "/finance", icon: CircleDollarSign },
+      { name: "Payroll", href: "/payroll", icon: Banknote },
       { name: "Reports & Analytics", href: "/reports", icon: BarChart3 },
     ],
   },

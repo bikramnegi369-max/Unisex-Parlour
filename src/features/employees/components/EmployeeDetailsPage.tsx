@@ -35,6 +35,7 @@ import EmployeeReactivateDialog from "./EmployeeReactivateDialog";
 import Unauthorized from "@/components/layout/Unauthorized";
 import { EmployeeProfileHeader } from "./EmployeeProfileHeader";
 import { EmployeeOverview } from "./EmployeeOverview";
+import { EmployeePayrollTab } from "./EmployeePayrollTab";
 import {
   EntityProfileLayout,
   type ProfileTabItem,
@@ -63,6 +64,7 @@ import {
   Plus,
   X,
   Sparkles,
+  Banknote,
 } from "lucide-react";
 import UserSelector from "./UserSelector";
 import { useUser } from "@/features/users/hooks/useUser";
@@ -397,6 +399,11 @@ export default function EmployeeDetailsPage({
         label: "User Account",
         icon: <UserCog size={15} />,
         badge: hasLinkedAccount ? "Linked" : "Unlinked",
+      },
+      {
+        id: "payroll",
+        label: "Payroll & Salary",
+        icon: <Banknote size={15} />,
       },
     ],
     [branchCount, serviceCount, hasLinkedAccount],
@@ -1075,6 +1082,14 @@ export default function EmployeeDetailsPage({
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === "payroll" && employee && (
+          <EmployeePayrollTab
+            employeeId={employee.id || employee._id || employeeId}
+            employeeName={employee.name}
+            staffCode={employee.staffCode}
+          />
         )}
       </EntityProfileLayout>
 
