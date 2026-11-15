@@ -11,6 +11,8 @@ import {
   modifyInvoiceDiscount,
   removeInvoiceDiscount,
   returnInvoiceItems,
+  applyCouponToInvoice,
+  removeCouponFromInvoice,
 } from "../api/billing.api";
 import type {
   CreateInvoicePayload,
@@ -381,6 +383,88 @@ export function useReturnInvoiceItems() {
       });
       broadcastCrossTabInvalidation("invoices");
       broadcastCrossTabInvalidation("inventory");
+      if (updatedInvoice) {
+        queryClient.setQueriesData(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
+          },
+          () => updatedInvoice
+        );
+      }
+    },
+  });
+}
+
+export function useApplyCouponToInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      code,
+      branchId,
+    }: {
+      invoiceId: string;
+      code: string;
+      branchId?: string;
+    }) => applyCouponToInvoice(invoiceId, code, branchId),
+    onSuccess: (updatedInvoice, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))))
+          );
+        },
+      });
+      broadcastCrossTabInvalidation("invoices");
+      if (updatedInvoice) {
+        queryClient.setQueriesData(
+          {
+            predicate: (query) =>
+              query.queryKey[0] === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))),
+          },
+          () => updatedInvoice
+        );
+      }
+    },
+  });
+}
+
+export function useRemoveCouponFromInvoice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      branchId,
+    }: {
+      invoiceId: string;
+      branchId?: string;
+    }) => removeCouponFromInvoice(invoiceId, branchId),
+    onSuccess: (updatedInvoice, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "checkout-queue" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.invoiceId) ||
+                query.queryKey.some((k) => Array.isArray(k) && k.includes(variables.invoiceId))))
+          );
+        },
+      });
+      broadcastCrossTabInvalidation("invoices");
       if (updatedInvoice) {
         queryClient.setQueriesData(
           {

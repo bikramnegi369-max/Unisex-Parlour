@@ -19,6 +19,7 @@ import type {
   RemoveDiscountPayload,
   InvoiceDiscountMutationResult,
   ReturnInvoiceItemsPayload,
+  InvoiceCouponSnapshot,
 } from "../types/billing.types";
 import { normalizeAppointment } from "@/features/appointments/api/appointments.api";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
@@ -39,6 +40,28 @@ const toFlatId = (val: unknown): string => {
     return String(obj._id || obj.id || "");
   }
   return String(val);
+};
+
+export const normalizeAppliedCoupon = (rawInput: unknown): InvoiceCouponSnapshot | null => {
+  if (!rawInput || typeof rawInput !== "object") return null;
+  const raw = rawInput as Record<string, unknown>;
+  const couponId = toFlatId(raw.couponId || raw._id || raw.id);
+  if (!couponId) return null;
+
+  return {
+    couponId,
+    code: typeof raw.code === "string" ? raw.code : "",
+    codeUpper: typeof raw.codeUpper === "string" ? raw.codeUpper : (raw.code as string || "").toUpperCase(),
+    discountType: (raw.discountType === "fixed" ? "fixed" : "percentage") as "fixed" | "percentage",
+    discountValue: typeof raw.discountValue === "number" ? raw.discountValue : Number(raw.discountValue) || 0,
+    calculatedDiscountAmount:
+      typeof raw.calculatedDiscountAmount === "number"
+        ? raw.calculatedDiscountAmount
+        : Number(raw.calculatedDiscountAmount) || 0,
+    appliedAt: (raw.appliedAt as string) || new Date().toISOString(),
+    appliedBy: raw.appliedBy ? toFlatId(raw.appliedBy) : null,
+    usageLedgerId: raw.usageLedgerId ? toFlatId(raw.usageLedgerId) : null,
+  };
 };
 
 export const normalizeAppliedDiscount = (rawInput: unknown): AppliedDiscount => {
@@ -374,6 +397,7 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
 
       return list;
     })(),
+    coupon: normalizeAppliedCoupon(raw.coupon),
     redeemLoyaltyPoints:
       typeof raw.redeemLoyaltyPoints === "number"
         ? raw.redeemLoyaltyPoints
@@ -944,4 +968,46 @@ export async function getMembershipPlans(branchId?: string): Promise<MembershipP
     ...p,
     id: p._id || p.id || "",
   }));
+}
+
+/**
+ * Apply a coupon to a draft invoice.
+ * POST /billing/invoices/:id/coupons
+ */
+export async function applyCouponToInvoice(
+  invoiceId: string,
+  code: string,
+  branchId?: string
+): Promise<Invoice> {
+  const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/coupons`,
+    { code: code.trim().toUpperCase() },
+    {
+      branchScope: branchId
+        ? { type: "branch", branchId }
+        : "current",
+    }
+  );
+
+  return normalizeInvoice(data.data);
+}
+
+/**
+ * Remove an applied coupon from a draft invoice.
+ * DELETE /billing/invoices/:id/coupons
+ */
+export async function removeCouponFromInvoice(
+  invoiceId: string,
+  branchId?: string
+): Promise<Invoice> {
+  const { data } = await apiClient.delete<ApiResponse<Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/coupons`,
+    {
+      branchScope: branchId
+        ? { type: "branch", branchId }
+        : "current",
+    }
+  );
+
+  return normalizeInvoice(data.data);
 }

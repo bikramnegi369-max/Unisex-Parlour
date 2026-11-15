@@ -83,6 +83,18 @@ export interface AppliedDiscount {
   appliedAt?: string;
 }
 
+export interface InvoiceCouponSnapshot {
+  couponId: string;
+  code: string;
+  codeUpper: string;
+  discountType: DiscountType;
+  discountValue: number;
+  calculatedDiscountAmount: number;
+  appliedAt: string;
+  appliedBy?: string | null;
+  usageLedgerId?: string | null;
+}
+
 export interface FinancialSnapshot {
   subtotal: number;
   lineDiscountsTotal: number;
@@ -175,6 +187,7 @@ export interface Invoice {
   grossPayable: number;
   subscriptionCoveredAmount: number;
   appliedDiscounts?: AppliedDiscount[];
+  coupon?: InvoiceCouponSnapshot | null;
   redeemLoyaltyPoints?: number;
   loyaltyRedeemedPoints?: number;
   loyaltyDiscountAmount?: number;

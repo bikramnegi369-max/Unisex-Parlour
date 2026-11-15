@@ -51,6 +51,7 @@ import { DiscountHistoryDialog } from "./DiscountHistoryDialog";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { InvoicePaymentHistory } from "./InvoicePaymentHistory";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
+import { InvoiceCouponSection } from "./InvoiceCouponSection";
 import { downloadInvoicePdf } from "../api/billing.api";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import type { InvoiceLineItem, AppliedDiscount } from "../types/billing.types";
@@ -98,6 +99,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const cancelMutation = useCancelInvoice();
 
   const canCheckout = hasPermission(user, "billing.checkout");
+  const canApplyCoupons = hasPermission(user, "coupons.apply");
+  const canManageCoupons = canCheckout && canApplyCoupons;
   const canVoid = hasPermission(user, "billing.void");
   const canReceivePayment = hasPermission(user, "payments.receive");
 
@@ -203,7 +206,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
       if (axiosError.response?.status === 409) {
         toast.error(
           "This subscription entitlement was recently used by another terminal. Refreshing draft...",
-          { duration: 6000 }
+          { duration: 6000 },
         );
         setIsFinalizeConfirmOpen(false);
         // Refresh invoice and subscription caches immediately to display authoritative state
@@ -504,7 +507,18 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
               </span>
             </div>
 
-            {/* Granular Breakdown of Discounts */}
+            {/* Granular Breakdown of Discounts & Coupons */}
+            {invoice.coupon && invoice.coupon.calculatedDiscountAmount > 0 && (
+              <div className="flex justify-between text-emerald-600 dark:text-emerald-400 pl-3 text-xs items-center py-0.5 bg-emerald-500/10 rounded-md font-medium">
+                <span className="flex items-center gap-1 font-mono">
+                  ↳ Coupon ({invoice.coupon.codeUpper || invoice.coupon.code})
+                </span>
+                <span className="font-semibold font-mono">
+                  -{formatCurrency(invoice.coupon.calculatedDiscountAmount)}
+                </span>
+              </div>
+            )}
+
             {invoice.lineDiscountsTotal !== undefined &&
               invoice.lineDiscountsTotal > 0 && (
                 <div className="flex justify-between text-muted-foreground pl-3 text-xs items-center py-0.5 bg-muted/20 rounded-md">
@@ -727,7 +741,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                               variant="outline"
                               className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 px-1.5 py-0"
                             >
-                              Membership ({item.membershipTierSnapshot || "VIP"})
+                              Membership ({item.membershipTierSnapshot || "VIP"}
+                              )
                             </Badge>
                           )}
                           {item.isDiscountedByMembership && (
@@ -735,7 +750,10 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                               variant="outline"
                               className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 px-1.5 py-0"
                             >
-                              Member Benefit: -{formatCurrency(item.membershipDiscountAmount || 0)}
+                              Member Benefit: -
+                              {formatCurrency(
+                                item.membershipDiscountAmount || 0,
+                              )}
                             </Badge>
                           )}
                           {item.sku && (
@@ -1300,6 +1318,12 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
           </div>
         )}
       </div>
+
+      {/* Applied Coupon & Campaign Section */}
+      <InvoiceCouponSection
+        invoice={invoice}
+        canManageCoupons={canManageCoupons}
+      />
 
       {/* Notes & Cancellation Section */}
       {(invoice.notes || invoice.cancellationReason) && (
