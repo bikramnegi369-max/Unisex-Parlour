@@ -186,6 +186,14 @@ export default function AttendanceWorkspace() {
         </div>
       </div>
 
+      <Card>
+        <CardContent className="p-4 text-sm text-muted-foreground">
+          A chronological in-punch followed by an out-punch is required to record present. Incomplete or missing punches are not
+          present; manual corrections require a reason and are audited. Branch opening hours do not determine individual late
+          arrivals because employee shift schedules are not configured.
+        </CardContent>
+      </Card>
+
       <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="Attendance sections">
         {([
           ["register", "Daily register"],
