@@ -38,6 +38,7 @@ import {
   Layers,
   Fingerprint,
   Banknote,
+  TrendingUp,
 } from "lucide-react";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -92,6 +93,7 @@ const navGroups: SidebarGroup[] = [
     title: "Finance & Insights",
     items: [
       { name: "Finance", href: "/finance", icon: CircleDollarSign },
+      { name: "Incentives", href: "/incentives", icon: TrendingUp },
       { name: "Payroll", href: "/payroll", icon: Banknote },
       { name: "Reports & Analytics", href: "/reports", icon: BarChart3 },
     ],
@@ -222,6 +224,9 @@ export default function Sidebar({ onClose }: SidebarProps) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => {
+                      if (onClose) onClose();
+                    }}
                     className={cn(
                       "flex items-center rounded-xl text-xs font-semibold transition-all duration-150 group relative h-9.5",
                       isCollapsed

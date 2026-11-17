@@ -3,12 +3,16 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { payrollApi, PayrollRecord } from "../api/payroll.api";
+import {
+  payrollApi,
+  PayrollRecord,
+} from "../api/payroll.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { SalaryStructureManager } from "./SalaryStructureManager";
 import { CalculationBreakdownDialog } from "./CalculationBreakdownDialog";
+import { PayrollPaymentDialog } from "./PayrollPaymentDialog";
 import {
   Table,
   TableBody,
@@ -21,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
+import { ErrorState } from "@/components/ui/error-state";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -85,13 +90,7 @@ export function PayrollDashboardView() {
   // Modals & Action States
   const [inspectingRecord, setInspectingRecord] =
     useState<PayrollRecord | null>(null);
-
-  // Disbursal Modal
   const [payingRecord, setPayingRecord] = useState<PayrollRecord | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<
-    "bank_transfer" | "cash" | "cheque" | "upi"
-  >("bank_transfer");
-  const [paymentReference, setPaymentReference] = useState("");
 
   // Reversal Modal
   const [reversingRecord, setReversingRecord] = useState<PayrollRecord | null>(
@@ -109,7 +108,13 @@ export function PayrollDashboardView() {
   const [adjRef, setAdjRef] = useState<string>("");
 
   // 1. Periods query
-  const { data: periods = [] } = useQuery({
+  const {
+    data: periods = [],
+    isError: isPeriodsError,
+    error: periodsError,
+    isFetching: isPeriodsFetching,
+    refetch: refetchPeriods,
+  } = useQuery({
     queryKey: ["payroll", "periods"],
     queryFn: async () => {
       const data = await payrollApi.listPeriods();
@@ -163,6 +168,8 @@ export function PayrollDashboardView() {
   const {
     data: recordsResponse,
     isLoading: isLoadingRecords,
+    isError: isRecordsError,
+    error: recordsError,
     isRefetching: isRefetchingRecords,
     refetch: refetchRecords,
   } = useQuery({
@@ -230,24 +237,52 @@ export function PayrollDashboardView() {
     },
   });
 
-  const payMutation = useMutation({
+  const recordPaymentMutation = useMutation({
     mutationFn: ({
       id,
-      paymentMethod,
-      paymentReference,
+      data,
     }: {
       id: string;
-      paymentMethod: NonNullable<PayrollRecord["paymentMethod"]>;
-      paymentReference: string;
-    }) => payrollApi.recordPayment(id, { paymentMethod, paymentReference }),
+      data: Parameters<typeof payrollApi.recordPayment>[1];
+    }) => payrollApi.recordPayment(id, data),
     onSuccess: () => {
-      toast.success("Payment disbursed and recorded successfully");
-      setPayingRecord(null);
-      setPaymentReference("");
+      toast.success("Payment attempt recorded. Payroll remains unsettled until confirmation.");
       queryClient.invalidateQueries({ queryKey: ["payroll", "records"] });
     },
     onError: (err: unknown) => {
-      toast.error(getErrorMessage(err, "Failed to record payment"));
+      toast.error(getErrorMessage(err, "Failed to record payroll payment"));
+    },
+  });
+
+  const confirmPaymentMutation = useMutation({
+    mutationFn: ({ recordId, paymentId }: { recordId: string; paymentId: string }) =>
+      payrollApi.confirmPayment(recordId, paymentId),
+    onSuccess: () => {
+      toast.success("Actual payment confirmed; payroll is settled.");
+      setPayingRecord(null);
+      queryClient.invalidateQueries({ queryKey: ["payroll", "records"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, "Failed to confirm payroll settlement"));
+    },
+  });
+
+  const failPaymentMutation = useMutation({
+    mutationFn: ({
+      recordId,
+      paymentId,
+      failureReason,
+    }: {
+      recordId: string;
+      paymentId: string;
+      failureReason: string;
+    }) => payrollApi.failPayment(recordId, paymentId, failureReason),
+    onSuccess: () => {
+      toast.success("Payment attempt marked failed. Payroll remains approved and may be retried.");
+      queryClient.invalidateQueries({ queryKey: ["payroll", "records"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, "Failed to record payment failure"));
     },
   });
 
@@ -656,6 +691,23 @@ export function PayrollDashboardView() {
           </div>
 
           {/* Records Table Card */}
+          {isPeriodsError && (
+            <div
+              role="alert"
+              className="mb-4 flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
+            >
+              <span>{getErrorMessage(periodsError, "Could not load payroll periods.")}</span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isPeriodsFetching}
+                onClick={() => refetchPeriods()}
+              >
+                {isPeriodsFetching ? "Retrying..." : "Retry periods"}
+              </Button>
+            </div>
+          )}
           <div className="bg-card border rounded-2xl shadow-sm overflow-hidden">
             {/* Table Search & Status Filter Header */}
             <div className="p-4 border-b flex flex-col sm:flex-row justify-between items-center gap-3">
@@ -697,7 +749,18 @@ export function PayrollDashboardView() {
             </div>
 
             {/* Main Table */}
-            {isLoadingRecords ? (
+            {isRecordsError ? (
+              <ErrorState
+                className="my-4"
+                title="Failed to load payroll records"
+                description={getErrorMessage(recordsError, "Could not retrieve payroll records.")}
+                retryAction={{
+                  label: "Retry payroll records",
+                  onClick: () => refetchRecords(),
+                  isLoading: isRefetchingRecords,
+                }}
+              />
+            ) : isLoadingRecords ? (
               <div className="py-20 text-center text-xs text-muted-foreground">
                 Loading payroll records...
               </div>
@@ -803,9 +866,49 @@ export function PayrollDashboardView() {
                             <div>
                               {getStatusBadge(r.status, r.approvalBlocked)}
                             </div>
+                            {(r.incentiveLedgerGrossInPaise || 0) > 0 && (
+                              <div
+                                className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                                  r.status === "paid"
+                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : r.status === "cancelled"
+                                      ? "border-neutral-200 bg-neutral-50 text-neutral-600"
+                                      : r.status === "approved"
+                                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                                        : "border-amber-200 bg-amber-50 text-amber-800"
+                                }`}
+                                aria-label={`Commission allocation ${r.status === "paid" ? "settled" : r.status === "cancelled" ? "reversed" : r.status === "approved" ? "approved and awaiting settlement" : "pending payroll approval"}`}
+                              >
+                                Commission · {r.status === "paid"
+                                  ? "Settled"
+                                  : r.status === "cancelled"
+                                    ? "Reversed"
+                                    : r.status === "approved"
+                                      ? "Approved"
+                                      : "Pending approval"}{" "}
+                                · ₹{((r.incentiveLedgerAmountInPaise || 0) / 100).toLocaleString("en-IN", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </div>
+                            )}
                             {r.approvalBlocked && (
                               <div className="text-[10px] text-destructive leading-tight max-w-xs">
                                 {r.approvalBlockReasons[0]}
+                              </div>
+                            )}
+                            {r.status === "approved" && (
+                              <div className="text-[10px] text-muted-foreground">
+                                {r.manualPaymentStatus === "recorded"
+                                  ? "Payment recorded · confirmation pending"
+                                  : r.manualPaymentStatus === "failed"
+                                    ? "Payment failed · retry available"
+                                    : "Not settled"}
+                              </div>
+                            )}
+                            {r.status === "paid" && r.disbursedAt && (
+                              <div className="text-[10px] text-emerald-700">
+                                Confirmed {new Date(r.disbursedAt).toLocaleDateString()}
                               </div>
                             )}
                           </div>
@@ -860,11 +963,22 @@ export function PayrollDashboardView() {
                           {canDisburse && r.status === "approved" && (
                             <Button
                               size="sm"
+                              variant={r.manualPaymentStatus === "recorded" ? "default" : "outline"}
+                              disabled={recordPaymentMutation.isPending || confirmPaymentMutation.isPending}
                               onClick={() => setPayingRecord(r)}
-                              className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                              title={
+                                r.manualPaymentStatus === "recorded"
+                                  ? "Verify actual settlement and confirm"
+                                  : "Record a payment attempt"
+                              }
+                              className="h-7 text-xs"
                             >
                               <CreditCard className="w-3.5 h-3.5 mr-1" />
-                              Disburse
+                              {r.manualPaymentStatus === "recorded"
+                                ? "Confirm payment"
+                                : r.manualPaymentStatus === "failed"
+                                  ? "Retry payment"
+                                  : "Record payment"}
                             </Button>
                           )}
 
@@ -952,6 +1066,40 @@ export function PayrollDashboardView() {
                 `payslip-${inspectingRecord.monthYear}.pdf`,
               )
             }
+          />
+
+          <PayrollPaymentDialog
+            key={payingRecord?._id || payingRecord?.id || "closed"}
+            isOpen={!!payingRecord}
+            record={payingRecord}
+            initialAttempt={payingRecord?.latestPaymentAttempt}
+            isRecording={recordPaymentMutation.isPending}
+            isConfirming={confirmPaymentMutation.isPending}
+            isFailing={failPaymentMutation.isPending}
+            onClose={() => setPayingRecord(null)}
+            onRecord={async (data) => {
+              const result = await recordPaymentMutation.mutateAsync({
+                id: payingRecord?._id || payingRecord?.id || "",
+                data,
+              });
+              if (!result.payment) throw new Error("Payment attempt was not returned by the server");
+              return result.payment;
+            }}
+            onConfirm={async (paymentId) => {
+              await confirmPaymentMutation.mutateAsync({
+                recordId: payingRecord?._id || payingRecord?.id || "",
+                paymentId,
+              });
+            }}
+            onFail={async (paymentId, failureReason) => {
+              const result = await failPaymentMutation.mutateAsync({
+                recordId: payingRecord?._id || payingRecord?.id || "",
+                paymentId,
+                failureReason,
+              });
+              if (!result.payment) throw new Error("Failed payment attempt was not returned by the server");
+              return result.payment;
+            }}
           />
 
           {/* Manual Adjustment Modal */}
@@ -1054,103 +1202,6 @@ export function PayrollDashboardView() {
                     {addAdjustmentMutation.isPending
                       ? "Recording..."
                       : "Save Adjustment"}
-                  </Button>
-                </div>
-              </div>
-            </Dialog>
-          )}
-
-          {/* Payment Disbursal Confirmation Modal */}
-          {payingRecord && (
-            <Dialog
-              isOpen={!!payingRecord}
-              onClose={() => setPayingRecord(null)}
-              title="Disburse Payroll Payment"
-              maxWidth="md"
-            >
-              <div className="space-y-4 pt-2">
-                <p className="text-xs text-muted-foreground">
-                  You are about to record final payment for{" "}
-                  <strong>
-                    {typeof payingRecord.staffId === "object"
-                      ? payingRecord.staffId.name
-                      : "Staff"}
-                  </strong>
-                  . This action marks the record as <strong>PAID</strong> and
-                  generates an immutable ledger snapshot.
-                </p>
-
-                <div className="p-3 bg-muted/40 rounded-xl border flex justify-between items-center text-xs">
-                  <span className="text-muted-foreground">
-                    Authorized Net Disbursal:
-                  </span>
-                  <span className="font-mono font-bold text-base text-foreground">
-                    ₹{payingRecord.calculations.netPayable.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-semibold block text-foreground mb-1">
-                      Disbursal Method
-                    </label>
-                    <select
-                      value={paymentMethod}
-                      onChange={(e) =>
-                        setPaymentMethod(
-                          e.target.value as NonNullable<
-                            PayrollRecord["paymentMethod"]
-                          >,
-                        )
-                      }
-                      className="w-full text-xs h-9 border rounded-lg px-3 bg-background"
-                    >
-                      <option value="bank_transfer">
-                        Bank Transfer (NEFT/RTGS)
-                      </option>
-                      <option value="upi">UPI / Instant Transfer</option>
-                      <option value="cheque">Cheque</option>
-                      <option value="cash">Cash</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-semibold block text-foreground mb-1">
-                      Payment Reference / UTR Number
-                    </label>
-                    <Input
-                      type="text"
-                      placeholder="e.g. UTR-20261115-9821"
-                      value={paymentReference}
-                      onChange={(e) => setPaymentReference(e.target.value)}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 border-t pt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPayingRecord(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
-                    disabled={!paymentReference.trim() || payMutation.isPending}
-                    onClick={() =>
-                      payMutation.mutate({
-                        id: payingRecord._id || payingRecord.id || "",
-                        paymentMethod,
-                        paymentReference,
-                      })
-                    }
-                  >
-                    {payMutation.isPending
-                      ? "Recording..."
-                      : "Confirm & Disburse"}
                   </Button>
                 </div>
               </div>

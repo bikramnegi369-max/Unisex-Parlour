@@ -29,6 +29,15 @@ export function CalculationBreakdownDialog({
   const att = record.attendanceSummarySnapshot;
   const calc = record.calculations;
   const structure = record.salaryStructureSnapshot;
+  const attendanceIncentiveInPaise = Math.max(
+    0,
+    (record.incentiveAmountInPaise || 0) - (record.incentiveLedgerAmountInPaise || 0),
+  );
+  const formatPaise = (paise: number) =>
+    `₹${(paise / 100).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
   return (
     <Dialog
@@ -208,6 +217,59 @@ export function CalculationBreakdownDialog({
                   <span className="font-mono font-medium text-emerald-600">+₹{a.amount.toLocaleString()}</span>
                 </div>
               ))}
+              {attendanceIncentiveInPaise > 0 && (
+                <div className="flex justify-between py-1 border-b">
+                  <span className="text-muted-foreground">
+                    Verified attendance incentive
+                    {record.incentiveEvaluationIds?.length
+                      ? ` (${record.incentiveEvaluationIds.length} evaluation${record.incentiveEvaluationIds.length === 1 ? "" : "s"})`
+                      : ""}
+                  </span>
+                  <span className="font-mono font-medium text-emerald-600">
+                    +{formatPaise(attendanceIncentiveInPaise)}
+                  </span>
+                </div>
+              )}
+              {(record.incentiveLedgerGrossInPaise || 0) > 0 && (
+                <div className="space-y-2 border-b py-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Commission ledger net payable ({record.incentiveLedgerEntryIds?.length || 0} source entries)
+                    </span>
+                    <span className="font-mono font-medium text-emerald-600">
+                      +{formatPaise(record.incentiveLedgerAmountInPaise || 0)}
+                    </span>
+                  </div>
+                  {(record.incentiveLedgerClawbackInPaise || 0) > 0 && (
+                    <div className="flex justify-between text-amber-700">
+                      <span>
+                        Source clawbacks reflected before payment ({record.incentiveLedgerClawbackEntryIds?.length || 0})
+                      </span>
+                      <span className="font-mono">
+                        −{formatPaise(record.incentiveLedgerClawbackInPaise || 0)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="space-y-1">
+                    {(record.incentiveLedgerEntries || []).map((entry) => (
+                      <div
+                        key={entry.ledgerEntryId}
+                        className="flex flex-wrap justify-between gap-x-3 text-[11px] text-muted-foreground"
+                      >
+                        <span>
+                          {entry.sourceType.replace(/_/g, " ")} · source {entry.ledgerEntryId.slice(-8)}
+                        </span>
+                        <span className="font-mono">
+                          {formatPaise(entry.sourceAmountInPaise)}
+                          {entry.clawbackAmountInPaise > 0
+                            ? ` − ${formatPaise(entry.clawbackAmountInPaise)} = ${formatPaise(entry.payableAmountInPaise)}`
+                            : ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

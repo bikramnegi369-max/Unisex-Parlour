@@ -41,6 +41,20 @@ export interface AdjustmentItem {
   createdAt: string;
 }
 
+export interface PayrollIncentiveLedgerSnapshot {
+  ledgerEntryId: string;
+  sourceBranchId: string;
+  sourceType:
+    | "service_commission"
+    | "subscription_sale_commission"
+    | "membership_sale_commission"
+    | "retail_sale_commission";
+  sourceAmountInPaise: number;
+  clawbackAmountInPaise: number;
+  payableAmountInPaise: number;
+  clawbackLedgerEntryIds: string[];
+}
+
 export interface PayrollRecord {
   id?: string;
   _id?: string;
@@ -78,6 +92,15 @@ export interface PayrollRecord {
     unpaidLeaveDays: number;
     absentDays: number;
   };
+  incentiveEvaluationIds?: string[];
+  incentiveAmountInPaise?: number;
+  incentiveLedgerScopeBranchId?: string | null;
+  incentiveLedgerEntries?: PayrollIncentiveLedgerSnapshot[];
+  incentiveLedgerEntryIds?: string[];
+  incentiveLedgerClawbackEntryIds?: string[];
+  incentiveLedgerGrossInPaise?: number;
+  incentiveLedgerClawbackInPaise?: number;
+  incentiveLedgerAmountInPaise?: number;
   calculations: {
     prorationFactor: number;
     grossBaseSalary: number;
@@ -87,6 +110,7 @@ export interface PayrollRecord {
     fixedDeductions: number;
     totalAdjustmentsEarning?: number;
     totalAdjustmentsDeduction?: number;
+    totalIncentivesInPaise?: number;
     totalDeductions: number;
     netPayable: number;
   };
@@ -95,8 +119,36 @@ export interface PayrollRecord {
   approvalBlockReasons: string[];
   paymentMethod?: "bank_transfer" | "cash" | "cheque" | "upi" | null;
   paymentReference?: string | null;
+  manualPaymentStatus?: "none" | "recorded" | "confirmed" | "failed" | "reversed";
+  manualPaymentId?: string | null;
+  manualPaymentAmountInPaise?: number | null;
+  paymentHistory?: PayrollPaymentAttempt[];
+  latestPaymentAttempt?: PayrollPaymentAttempt | null;
   disbursedAt?: string | null;
   createdAt: string;
+}
+
+export interface PayrollPaymentAttempt {
+  _id: string;
+  amountInPaise: number;
+  paymentMethod: "bank_transfer" | "cash" | "cheque" | "upi";
+  paymentReference: string;
+  paymentDate: string;
+  status: "recorded" | "confirmed" | "failed" | "reversed";
+  recordedAt: string;
+  incentiveEvaluationIds?: string[];
+  incentiveAmountInPaise?: number;
+  incentiveLedgerEntryIds?: string[];
+  incentiveLedgerAmountInPaise?: number;
+  confirmedAt?: string | null;
+  failureReason?: string | null;
+  reversalReason?: string | null;
+}
+
+export interface PayrollPaymentLifecycleResponse {
+  record: PayrollRecord;
+  payment: PayrollPaymentAttempt | null;
+  isIdempotentReplay: boolean;
 }
 
 export interface ListRecordsResponse {
@@ -121,21 +173,27 @@ export const payrollApi = {
   setSalaryStructure: async (
     data: SalaryStructure,
   ): Promise<SalaryStructure> => {
-    const res = await apiClient.post("/api/v1/payroll/structures", data);
+    const res = await apiClient.post("/payroll/structures", data, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
   getEffectiveSalaryStructure: async (
     staffId: string,
   ): Promise<SalaryStructure> => {
-    const res = await apiClient.get(`/api/v1/payroll/structures/${staffId}`);
+    const res = await apiClient.get(`/payroll/structures/${staffId}`, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
   getSalaryStructureHistory: async (
     staffId: string,
   ): Promise<SalaryStructure[]> => {
-    const res = await apiClient.get(`/payroll/structures/${staffId}/history`);
+    const res = await apiClient.get(`/payroll/structures/${staffId}/history`, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
@@ -158,18 +216,24 @@ export const payrollApi = {
     payrollPeriodId: string;
     staffIds?: string[];
   }): Promise<PayrollRecord[]> => {
-    const res = await apiClient.post("/payroll/calculate", data);
+    const res = await apiClient.post("/payroll/calculate", data, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
   // Lifecycle transitions
   submitForApproval: async (recordId: string): Promise<PayrollRecord> => {
-    const res = await apiClient.post(`/payroll/records/${recordId}/submit`);
+    const res = await apiClient.post(`/payroll/records/${recordId}/submit`, {}, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
   approveRecord: async (recordId: string): Promise<PayrollRecord> => {
-    const res = await apiClient.post(`/payroll/records/${recordId}/approve`);
+    const res = await apiClient.post(`/payroll/records/${recordId}/approve`, {}, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
@@ -178,9 +242,39 @@ export const payrollApi = {
     data: {
       paymentMethod: "bank_transfer" | "cash" | "cheque" | "upi";
       paymentReference: string;
+      amountInPaise: number;
+      paymentDate: string;
+      idempotencyKey: string;
     },
-  ): Promise<PayrollRecord> => {
-    const res = await apiClient.post(`/payroll/records/${recordId}/pay`, data);
+  ): Promise<PayrollPaymentLifecycleResponse> => {
+    const res = await apiClient.post(`/payroll/records/${recordId}/pay`, data, {
+      branchScope: "current",
+    });
+    return res.data.data;
+  },
+
+  confirmPayment: async (
+    recordId: string,
+    paymentId: string,
+  ): Promise<PayrollPaymentLifecycleResponse> => {
+    const res = await apiClient.post(
+      `/payroll/records/${recordId}/payments/${paymentId}/confirm`,
+      { confirmActualPayment: true },
+      { branchScope: "current" },
+    );
+    return res.data.data;
+  },
+
+  failPayment: async (
+    recordId: string,
+    paymentId: string,
+    failureReason: string,
+  ): Promise<PayrollPaymentLifecycleResponse> => {
+    const res = await apiClient.post(
+      `/payroll/records/${recordId}/payments/${paymentId}/fail`,
+      { failureReason },
+      { branchScope: "current" },
+    );
     return res.data.data;
   },
 
@@ -193,7 +287,11 @@ export const payrollApi = {
       reference?: string;
     },
   ): Promise<PayrollRecord> => {
-    const res = await apiClient.post(`/payroll/records/${recordId}/adjust`, data);
+    const res = await apiClient.post(
+      `/payroll/records/${recordId}/adjust`,
+      data,
+      { branchScope: "current" },
+    );
     return res.data.data;
   },
 
@@ -204,6 +302,7 @@ export const payrollApi = {
     const res = await apiClient.post(
       `/payroll/records/${recordId}/reverse`,
       data,
+      { branchScope: "current" },
     );
     return res.data.data;
   },
@@ -221,7 +320,10 @@ export const payrollApi = {
     sortBy?: string;
     sortOrder?: "asc" | "desc";
   }): Promise<ListRecordsResponse> => {
-    const res = await apiClient.get("/payroll/records", { params });
+    const res = await apiClient.get("/payroll/records", {
+      params,
+      branchScope: "current",
+    });
     // Backward compatibility: res.data.data may be array or full object
     return {
       data: res.data.data || [],
@@ -241,7 +343,9 @@ export const payrollApi = {
   },
 
   getRecordById: async (recordId: string): Promise<PayrollRecord> => {
-    const res = await apiClient.get(`/payroll/records/${recordId}`);
+    const res = await apiClient.get(`/payroll/records/${recordId}`, {
+      branchScope: "current",
+    });
     return res.data.data;
   },
 
@@ -253,6 +357,7 @@ export const payrollApi = {
       `/payroll/records/${recordId}/payslip-pdf`,
       {
         responseType: "blob",
+        branchScope: "current",
       },
     );
     const blob = new Blob([res.data], { type: "application/pdf" });

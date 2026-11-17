@@ -12,7 +12,10 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { useMemo } from "react";
 
-export function useEmployees(params: GetEmployeesParams = {}) {
+export function useEmployees(
+  params: GetEmployeesParams = {},
+  options: { enabled?: boolean } = {},
+) {
   const { currentBranchId, getBranchQueryKey } = useBranchContext();
   const { isAuthenticated, user } = useAuth();
 
@@ -23,6 +26,7 @@ export function useEmployees(params: GetEmployeesParams = {}) {
     params.branchId !== undefined ? params.branchId : currentBranchId;
 
   const isEnabled =
+    options.enabled !== false &&
     isAuthenticated &&
     hasViewPermission &&
     (effectiveBranchId !== null || isOrgWide);

@@ -35,6 +35,7 @@ export type PermissionType =
   | "billing.view"
   | "billing.create"
   | "billing.checkout"
+  | "billing.attribution.correct"
   | "billing.void"
   | "billing.refund"
   | "payments.view"
@@ -92,7 +93,14 @@ export type PermissionType =
   | "payroll.disburse"
   | "payroll.adjust"
   | "payroll.reverse"
-  | "payroll.export";
+  | "payroll.export"
+  | "incentives.view"
+  | "incentives.view.all"
+  | "incentives.rules.manage"
+  | "incentives.approve"
+  | "incentives.payout.sync"
+  | "incentives.fulfillment.confirm"
+  | "incentives.fulfillment.correct";
 
 export interface UserSession {
   id: string;

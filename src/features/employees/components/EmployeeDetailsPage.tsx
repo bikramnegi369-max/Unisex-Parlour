@@ -36,6 +36,7 @@ import Unauthorized from "@/components/layout/Unauthorized";
 import { EmployeeProfileHeader } from "./EmployeeProfileHeader";
 import { EmployeeOverview } from "./EmployeeOverview";
 import { EmployeePayrollTab } from "./EmployeePayrollTab";
+import { EmployeeIncentivesTab } from "./EmployeeIncentivesTab";
 import {
   EntityProfileLayout,
   type ProfileTabItem,
@@ -65,6 +66,7 @@ import {
   X,
   Sparkles,
   Banknote,
+  Award,
 } from "lucide-react";
 import UserSelector from "./UserSelector";
 import { useUser } from "@/features/users/hooks/useUser";
@@ -404,6 +406,11 @@ export default function EmployeeDetailsPage({
         id: "payroll",
         label: "Payroll & Salary",
         icon: <Banknote size={15} />,
+      },
+      {
+        id: "incentives",
+        label: "Incentives & Performance",
+        icon: <Award size={15} />,
       },
     ],
     [branchCount, serviceCount, hasLinkedAccount],
@@ -1086,6 +1093,14 @@ export default function EmployeeDetailsPage({
 
         {activeTab === "payroll" && employee && (
           <EmployeePayrollTab
+            employeeId={employee.id || employee._id || employeeId}
+            employeeName={employee.name}
+            staffCode={employee.staffCode}
+          />
+        )}
+
+        {activeTab === "incentives" && employee && (
+          <EmployeeIncentivesTab
             employeeId={employee.id || employee._id || employeeId}
             employeeName={employee.name}
             staffCode={employee.staffCode}
