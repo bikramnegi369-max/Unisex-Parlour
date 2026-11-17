@@ -13,49 +13,86 @@ import {
 } from "../schemas/inventory.schema";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { getScopeQueryKey } from "@/lib/api/queryKeys";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasOrgWideAccess, hasPermission } from "@/lib/permissions";
 
 export const INVENTORY_QUERY_KEYS = {
-  products: (filters?: ProductFilters) => ["inventory-products", filters],
-  product: (id: string) => ["inventory-product", id],
-  stock: (branchId: string | null, filters?: StockFilters) =>
-    getScopeQueryKey("inventory-stock", branchId, [filters]),
-  movements: (branchId: string | null, filters?: MovementFilters) =>
-    getScopeQueryKey("inventory-movements", branchId, [filters])
+  products: (organizationId: string | null, filters?: ProductFilters) =>
+    ["inventory-products", organizationId, filters],
+  product: (organizationId: string | null, id: string) =>
+    ["inventory-product", organizationId, id],
+  stock: (organizationId: string | null, branchId: string | null, filters?: StockFilters) =>
+    getScopeQueryKey("inventory-stock", branchId, [organizationId, filters]),
+  movements: (organizationId: string | null, branchId: string | null, filters?: MovementFilters) =>
+    getScopeQueryKey("inventory-movements", branchId, [organizationId, filters])
 };
 
 export const useProducts = (filters?: ProductFilters) => {
+  const { currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+
   return useQuery({
-    queryKey: INVENTORY_QUERY_KEYS.products(filters),
-    queryFn: () => inventoryApi.getProducts(filters)
+    queryKey: INVENTORY_QUERY_KEYS.products(organizationId, filters),
+    queryFn: () => inventoryApi.getProducts(filters),
+    enabled:
+      isAuthenticated &&
+      hasPermission(user, "inventory.view") &&
+      Boolean(organizationId)
   });
 };
 
 export const useProduct = (id: string) => {
+  const { currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+
   return useQuery({
-    queryKey: INVENTORY_QUERY_KEYS.product(id),
+    queryKey: INVENTORY_QUERY_KEYS.product(organizationId, id),
     queryFn: () => inventoryApi.getProductById(id),
-    enabled: Boolean(id)
+    enabled:
+      Boolean(id) &&
+      Boolean(organizationId) &&
+      isAuthenticated &&
+      hasPermission(user, "inventory.view")
   });
 };
 
 export const useBranchStock = (filters?: StockFilters) => {
-  const { currentBranchId } = useBranchContext();
-  const effectiveBranchId = filters?.branchId || currentBranchId;
+  const { currentBranchId, currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+  const effectiveBranchId =
+    filters?.branchId === "all" ? null : filters?.branchId || currentBranchId;
+  const hasScope = effectiveBranchId !== null || hasOrgWideAccess(user);
 
   return useQuery({
-    queryKey: INVENTORY_QUERY_KEYS.stock(effectiveBranchId, filters),
+    queryKey: INVENTORY_QUERY_KEYS.stock(organizationId, effectiveBranchId, filters),
     queryFn: () => inventoryApi.getBranchStock({ ...filters, branchId: effectiveBranchId || undefined }),
-    enabled: Boolean(effectiveBranchId)
+    enabled:
+      Boolean(organizationId) &&
+      isAuthenticated &&
+      hasPermission(user, "inventory.view") &&
+      hasScope
   });
 };
 
 export const useStockMovements = (filters?: MovementFilters) => {
-  const { currentBranchId } = useBranchContext();
-  const effectiveBranchId = filters?.branchId || currentBranchId;
+  const { currentBranchId, currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+  const effectiveBranchId =
+    filters?.branchId === "all" ? null : filters?.branchId || currentBranchId;
+  const hasScope = effectiveBranchId !== null || hasOrgWideAccess(user);
 
   return useQuery({
-    queryKey: INVENTORY_QUERY_KEYS.movements(effectiveBranchId, filters),
-    queryFn: () => inventoryApi.getMovements({ ...filters, branchId: effectiveBranchId || undefined })
+    queryKey: INVENTORY_QUERY_KEYS.movements(organizationId, effectiveBranchId, filters),
+    queryFn: () => inventoryApi.getMovements({ ...filters, branchId: effectiveBranchId || undefined }),
+    enabled:
+      Boolean(organizationId) &&
+      isAuthenticated &&
+      hasPermission(user, "inventory.view") &&
+      hasScope
   });
 };
 
@@ -71,12 +108,16 @@ export const useCreateProduct = () => {
 
 export const useUpdateProduct = () => {
   const queryClient = useQueryClient();
+  const { currentOrganization } = useBranchContext();
+  const organizationId = currentOrganization?.id || null;
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CreateProductInput> }) =>
       inventoryApi.updateProduct(id, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
-      queryClient.invalidateQueries({ queryKey: INVENTORY_QUERY_KEYS.product(variables.id) });
+      queryClient.invalidateQueries({
+        queryKey: INVENTORY_QUERY_KEYS.product(organizationId, variables.id)
+      });
       queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
     }
   });

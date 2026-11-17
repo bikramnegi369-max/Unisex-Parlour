@@ -4,7 +4,7 @@ import type { StockBalance, Product } from "../types/inventory.types";
 import { UsageTypeBadge } from "../components/UsageTypeBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MinusCircle, PlusCircle, ArrowRightLeft } from "lucide-react";
+import { MinusCircle, PlusCircle, ArrowRightLeft, Split } from "lucide-react";
 
 interface StockBalanceColumnOptions {
   canConsume: boolean;
@@ -13,6 +13,7 @@ interface StockBalanceColumnOptions {
   onConsume: (product: Product, onHand: number) => void;
   onAdjust: (product: Product, onHand: number) => void;
   onTransfer: (product: Product, onHand: number) => void;
+  onAllocateDomain?: (balance: StockBalance) => void;
 }
 
 export const buildStockBalanceColumns = ({
@@ -22,6 +23,7 @@ export const buildStockBalanceColumns = ({
   onConsume,
   onAdjust,
   onTransfer,
+  onAllocateDomain,
 }: StockBalanceColumnOptions): ColumnDef<StockBalance>[] => [
   {
     accessorKey: "product.name",
@@ -132,8 +134,26 @@ export const buildStockBalanceColumns = ({
         product.usageType === "salon_consumption" ||
         product.usageType === "both";
 
+      const unallocated = item.onHandUnallocated ?? Math.max(
+        0,
+        item.onHand - ((item.onHandConsumables || 0) + (item.onHandRetail || 0))
+      );
+      const isDualUsage = product.usageType === "both";
+
       return (
-        <div className="flex items-center justify-end gap-1.5 min-w-40">
+        <div className="flex items-center justify-end gap-1.5 min-w-44">
+          {canAdjust && isDualUsage && unallocated > 0 && onAllocateDomain && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onAllocateDomain(item)}
+              title="Allocate Unallocated Historical Stock to Domains"
+              className="h-8 px-2 text-xs font-semibold text-purple-600 dark:text-purple-400 border-purple-500/30 hover:bg-purple-500/10 transition-colors"
+            >
+              <Split className="w-3.5 h-3.5 mr-1" />
+              Allocate ({unallocated})
+            </Button>
+          )}
           {canConsume && allowsConsumption && (
             <Button
               variant="outline"

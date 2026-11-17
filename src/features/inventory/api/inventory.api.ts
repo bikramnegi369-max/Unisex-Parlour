@@ -42,7 +42,12 @@ interface RawStockBalanceDTO {
   branchId: string;
   productId: string | RawProductDTO;
   onHand: number;
+  onHandConsumables?: number;
+  onHandRetail?: number;
+  onHandUnallocated?: number;
   allocated?: number;
+  allocatedConsumables?: number;
+  allocatedRetail?: number;
   lastMovementAt?: string;
   updatedAt?: string;
 }
@@ -100,7 +105,15 @@ const mapStockBalanceDTO = (dto: RawStockBalanceDTO): StockBalance => {
           "",
     product: productObj,
     onHand: dto.onHand,
+    onHandConsumables: dto.onHandConsumables ?? 0,
+    onHandRetail: dto.onHandRetail ?? 0,
+    onHandUnallocated:
+      dto.onHandUnallocated !== undefined
+        ? dto.onHandUnallocated
+        : Math.max(0, (dto.onHand || 0) - ((dto.onHandConsumables || 0) + (dto.onHandRetail || 0))),
     allocated: dto.allocated ?? 0,
+    allocatedConsumables: dto.allocatedConsumables ?? 0,
+    allocatedRetail: dto.allocatedRetail ?? 0,
     lastMovementAt:
       dto.lastMovementAt || dto.updatedAt || new Date().toISOString(),
   };
@@ -325,5 +338,34 @@ export const inventoryApi = {
       ...data,
       data: (data.data || []).map(mapStockMovementDTO),
     };
+  },
+
+  // 7. Manager Domain Allocation for usageType: "both"
+  async allocateDomain(
+    payload: {
+      branchId: string;
+      productId: string;
+      retailQuantity?: number;
+      consumablesQuantity?: number;
+      reason: string;
+      notes?: string;
+    },
+    idempotencyKey?: string,
+  ): Promise<StockBalance> {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) {
+      headers["Idempotency-Key"] = idempotencyKey;
+    }
+
+    const { data } = await apiClient.post<ApiResponse<RawStockBalanceDTO>>(
+      "/inventory/allocate-domain",
+      payload,
+      {
+        headers,
+        branchScope: { type: "branch", branchId: payload.branchId },
+      },
+    );
+
+    return mapStockBalanceDTO(data.data);
   },
 };

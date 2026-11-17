@@ -18,6 +18,7 @@ interface StockBalanceTableProps {
   onConsume: (product: Product, onHand: number) => void;
   onAdjust: (product: Product, onHand: number) => void;
   onTransfer: (product: Product, onHand: number) => void;
+  onAllocateDomain?: (balance: StockBalance) => void;
   // Pagination
   currentPage: number;
   totalPages: number;
@@ -37,6 +38,7 @@ export function StockBalanceTable({
   onConsume,
   onAdjust,
   onTransfer,
+  onAllocateDomain,
   currentPage,
   totalPages,
   totalItems,
@@ -54,8 +56,9 @@ export function StockBalanceTable({
         onConsume,
         onAdjust,
         onTransfer,
+        onAllocateDomain,
       }),
-    [canConsume, canAdjust, canTransfer, onConsume, onAdjust, onTransfer]
+    [canConsume, canAdjust, canTransfer, onConsume, onAdjust, onTransfer, onAllocateDomain]
   );
 
   const renderMobileRow = (balance: StockBalance) => (

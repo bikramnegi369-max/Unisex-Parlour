@@ -26,7 +26,7 @@ import {
   useBranchStock,
   useStockMovements,
 } from "../hooks/useInventory";
-import type { Product, ProductUsageType } from "../types/inventory.types";
+import type { Product, ProductUsageType, StockBalance } from "../types/inventory.types";
 
 import { StockBalanceTable } from "./StockBalanceTable";
 import { ProductCatalogTable } from "./ProductCatalogTable";
@@ -36,6 +36,7 @@ import { ProductFormModal } from "./ProductFormModal";
 import { ConsumptionModal } from "./ConsumptionModal";
 import { AdjustmentModal } from "./AdjustmentModal";
 import { TransferModal } from "./TransferModal";
+import { DomainAllocationModal } from "./DomainAllocationModal";
 import { useDispatch } from "react-redux";
 import { addProductToBasket } from "@/store/slices/saleBasketSlice";
 
@@ -95,10 +96,13 @@ export const InventoryDashboardView: React.FC = () => {
   const [isConsumeModalOpen, setIsConsumeModalOpen] = useState(false);
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [isAllocateModalOpen, setIsAllocateModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedBalanceOnHand, setSelectedBalanceOnHand] = useState<
     number | undefined
   >(undefined);
+  const [selectedBalanceForAllocation, setSelectedBalanceForAllocation] =
+    useState<StockBalance | null>(null);
 
   // Queries
   const {
@@ -195,6 +199,11 @@ export const InventoryDashboardView: React.FC = () => {
     setSelectedProduct(prod || null);
     setSelectedBalanceOnHand(onHand);
     setIsTransferModalOpen(true);
+  };
+
+  const handleOpenAllocateDomain = (balance: StockBalance) => {
+    setSelectedBalanceForAllocation(balance);
+    setIsAllocateModalOpen(true);
   };
 
   const handleTabSync = async (tab: "stock" | "catalogue" | "movements") => {
@@ -397,6 +406,7 @@ export const InventoryDashboardView: React.FC = () => {
               onConsume={(p, onHand) => handleOpenConsume(p, onHand)}
               onAdjust={(p, onHand) => handleOpenAdjust(p, onHand)}
               onTransfer={(p, onHand) => handleOpenTransfer(p, onHand)}
+              onAllocateDomain={handleOpenAllocateDomain}
               currentPage={stockPage}
               totalPages={Number(stockMeta.totalPages) || 1}
               totalItems={Number(stockMeta.total) || stockBalances.length}
@@ -523,6 +533,15 @@ export const InventoryDashboardView: React.FC = () => {
           id: b.id,
           name: b.name,
         }))}
+      />
+
+      <DomainAllocationModal
+        isOpen={isAllocateModalOpen}
+        onClose={() => {
+          setIsAllocateModalOpen(false);
+          setSelectedBalanceForAllocation(null);
+        }}
+        balance={selectedBalanceForAllocation}
       />
     </div>
   );

@@ -86,3 +86,12 @@ export const stockTransferSchema = z
   });
 
 export type StockTransferInput = z.infer<typeof stockTransferSchema>;
+
+export const domainAllocationSchema = z.object({
+  retailQuantity: z.number().min(0, "Retail quantity cannot be negative").default(0),
+  consumablesQuantity: z.number().min(0, "Consumables quantity cannot be negative").default(0),
+  reason: z.string().min(1, "Audit reason is required").max(1000).trim(),
+  notes: z.string().max(1000).trim().optional(),
+});
+
+export type DomainAllocationInput = z.infer<typeof domainAllocationSchema>;

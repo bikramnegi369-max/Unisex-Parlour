@@ -46,7 +46,12 @@ export interface StockBalance {
   productId: string;
   product?: Product;
   onHand: number;
+  onHandConsumables?: number;
+  onHandRetail?: number;
+  onHandUnallocated?: number;
   allocated: number;
+  allocatedConsumables?: number;
+  allocatedRetail?: number;
   lastMovementAt: string;
   isLowStock?: boolean;
 }
