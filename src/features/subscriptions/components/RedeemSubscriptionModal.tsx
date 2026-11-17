@@ -19,6 +19,8 @@ import { useRedeemSubscription } from "../hooks/useRedeemSubscription";
 import { useAppointments } from "@/features/appointments/hooks/useAppointmentQueries";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
+import { useBranchContext } from "@/hooks/useBranchContext";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type { Subscription } from "../types/subscription.types";
 
@@ -40,6 +42,7 @@ export function RedeemSubscriptionModal({
   memberCustomerId,
 }: RedeemSubscriptionModalProps) {
   const { user } = useAuth();
+  const { currentBranchId } = useBranchContext();
   const componentInstanceId = useId();
   const canRedeem = hasPermission(user, "subscriptions.redeem");
   // Step 1: select quantities for entitlements with remainingQuantity > 0
@@ -116,6 +119,7 @@ export function RedeemSubscriptionModal({
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(
     initialAppointmentId || "",
   );
+  const [performedByStaffId, setPerformedByStaffId] = useState<string | null>(null);
   const [otpSent, setOtpSent] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -166,6 +170,12 @@ export function RedeemSubscriptionModal({
     setValidationError(null);
     if (selectedServices.length === 0) {
       setValidationError("Please select at least 1 service unit to redeem");
+      return;
+    }
+    if (!selectedAppointmentId.trim() && !performedByStaffId) {
+      setValidationError(
+        "Select the staff member who performed this standalone session.",
+      );
       return;
     }
 
@@ -230,6 +240,9 @@ export function RedeemSubscriptionModal({
           otp: isManual ? undefined : otp.trim(),
           services: selectedServices,
           appointmentId: selectedAppointmentId.trim() || undefined,
+          performedByStaffId: selectedAppointmentId.trim()
+            ? undefined
+            : performedByStaffId || undefined,
           memberCustomerId: memberCustomerId || undefined,
           idempotencyKey,
         },
@@ -405,6 +418,16 @@ export function RedeemSubscriptionModal({
           </div>
         )}
       </div>
+
+      {!selectedAppointmentId.trim() && (
+        <StaffAttributionSelect
+          branchId={currentBranchId}
+          label="Performed by"
+          value={performedByStaffId}
+          onChange={setPerformedByStaffId}
+          disabled={redeemMutation.isPending}
+        />
+      )}
 
       {/* Verification Mode Selector */}
       <div className="p-3 rounded-xl border border-border bg-muted/30 space-y-3">

@@ -50,6 +50,7 @@ import type { Service } from "@/features/services/types/service.types";
 import type { ServiceCategory } from "@/features/services/types/category.types";
 import { useSubscriptionPlans } from "../hooks/useSubscriptionPlans";
 import type { SubscriptionPlan } from "../types/plan.types";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 
 interface CreateSubscriptionDialogProps {
   isOpen: boolean;
@@ -239,6 +240,8 @@ export function CreateSubscriptionDialog({
     defaultValues: {
       customerId: initialCustomerId || "",
       planId: initialPlanId || undefined,
+      branchId: effectiveBranchId || undefined,
+      soldByStaffId: null,
       price: defaultPrice,
       entitlements: defaultEntitlements,
       permittedBranchIds: [],
@@ -279,6 +282,8 @@ export function CreateSubscriptionDialog({
       reset({
         customerId: initialCustomerId || "",
         planId: pId || undefined,
+        branchId: effectiveBranchId || undefined,
+        soldByStaffId: null,
         price: initialPlan?.suggestedPrice ?? 0,
         entitlements: initialPlan?.entitlements
           ? initialPlan.entitlements.map((e, idx) => ({
@@ -297,7 +302,7 @@ export function CreateSubscriptionDialog({
         notes: "",
       });
     }
-  }, [isOpen, initialCustomerId, initialPlan, reset]);
+  }, [isOpen, initialCustomerId, initialPlan, effectiveBranchId, reset]);
 
   // Reactive form watchers
   const watchedPrice = useWatch({ control, name: "price" }) ?? 0;
@@ -733,7 +738,10 @@ export function CreateSubscriptionDialog({
       };
     }
 
-    await onSubmit(finalPayload);
+    await onSubmit({
+      ...finalPayload,
+      branchId: effectiveBranchId || undefined,
+    });
     reset();
   };
 
@@ -1844,6 +1852,20 @@ export function CreateSubscriptionDialog({
               </span>
             </div>
           </div>
+
+          <Controller
+            control={control}
+            name="soldByStaffId"
+            render={({ field }) => (
+              <StaffAttributionSelect
+                branchId={effectiveBranchId}
+                label="Subscription seller"
+                value={field.value}
+                onChange={field.onChange}
+                disabled={isLoading}
+              />
+            )}
+          />
 
           <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 pt-2 border-t border-emerald-500/15">
             <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />

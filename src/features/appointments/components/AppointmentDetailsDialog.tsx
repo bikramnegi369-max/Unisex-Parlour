@@ -955,6 +955,7 @@ export function AppointmentDetailsDialog({
                 payload: {
                   branchId: appointment.branchId,
                   planId: values.planId,
+                  soldByStaffId: values.soldByStaffId || undefined,
                   price: values.price,
                   entitlements: values.entitlements || [],
                   permittedBranchIds: values.permittedBranchIds,

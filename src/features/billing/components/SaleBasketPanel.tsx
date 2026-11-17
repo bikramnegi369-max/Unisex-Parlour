@@ -9,6 +9,10 @@ import {
   updateProductBasketQuantity,
   removeSubscriptionFromBasket,
   removeMembershipFromBasket,
+  setProductSeller,
+  setSubscriptionSeller,
+  setMembershipSeller,
+  setWalkinServicePerformer,
   removeWalkinServiceFromBasket,
   updateWalkinServiceQuantity,
   clearBasketAppointment,
@@ -33,6 +37,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useBranchContext } from "@/hooks/useBranchContext";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 
 interface SaleBasketPanelProps {
   onCheckout: () => void;
@@ -45,6 +51,7 @@ export function SaleBasketPanel({
 }: SaleBasketPanelProps) {
   const dispatch = useDispatch();
   const basket = useSelector((state: RootState) => state.saleBasket);
+  const { currentBranchId } = useBranchContext();
 
   // Financial calculations derived from basket
   const totals = useMemo(() => {
@@ -319,7 +326,7 @@ export function SaleBasketPanel({
                 {basket.walkinServiceLines.map((s) => (
                   <div
                     key={s.serviceId}
-                    className={`flex items-center justify-between text-xs py-1.5 px-2 rounded-lg border transition-all ${
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1.5 px-2 rounded-lg border transition-all gap-2 ${
                       s.isCoveredBySubscription
                         ? "bg-emerald-500/5 border-emerald-500/25 ring-1 ring-emerald-500/10"
                         : "bg-muted/15 border-border/70"
@@ -339,6 +346,14 @@ export function SaleBasketPanel({
                             Plan Quota
                           </Badge>
                         )}
+                        <StaffAttributionSelect
+                          branchId={currentBranchId}
+                          label="Performed by"
+                          value={s.performedByStaffId}
+                          onChange={(staffId) =>
+                            dispatch(setWalkinServicePerformer({ serviceId: s.serviceId, staffId }))
+                          }
+                        />
                       </div>
                       {s.isCoveredBySubscription ? (
                         <div className="flex items-center gap-2 mt-0.5 text-[10px]">
@@ -440,9 +455,9 @@ export function SaleBasketPanel({
                 {basket.productLines.map((p) => (
                   <div
                     key={p.productId}
-                    className="flex items-center justify-between text-xs py-1"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 gap-2"
                   >
-                    <div className="truncate mr-2">
+                    <div className="min-w-0 flex-1">
                       <div className="font-medium text-foreground truncate">
                         {p.name}
                       </div>
@@ -450,6 +465,14 @@ export function SaleBasketPanel({
                         {p.sku ? `SKU: ${p.sku} | ` : ""}
                         {formatCurrency(p.unitPrice)} each
                       </div>
+                      <StaffAttributionSelect
+                        branchId={currentBranchId}
+                        label="Sold by"
+                        value={p.soldByStaffId}
+                        onChange={(staffId) =>
+                          dispatch(setProductSeller({ productId: p.productId, staffId }))
+                        }
+                      />
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <div className="flex items-center border border-border rounded">
@@ -513,9 +536,9 @@ export function SaleBasketPanel({
                 {basket.subscriptionLines.map((sub) => (
                   <div
                     key={sub.subscriptionId || sub.planId}
-                    className="flex items-center justify-between text-xs py-1"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 gap-2"
                   >
-                    <div className="truncate mr-2">
+                    <div className="min-w-0 flex-1">
                       <div className="font-medium text-foreground truncate">
                         {sub.name}
                       </div>
@@ -524,6 +547,16 @@ export function SaleBasketPanel({
                           ? "Pending Sale Subscription"
                           : "Service Package"}
                       </div>
+                      {!sub.subscriptionId && (
+                        <StaffAttributionSelect
+                          branchId={currentBranchId}
+                          label="Sold by"
+                          value={sub.soldByStaffId}
+                          onChange={(staffId) =>
+                            dispatch(setSubscriptionSeller({ planId: sub.planId, staffId }))
+                          }
+                        />
+                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="font-mono font-medium">
@@ -558,15 +591,23 @@ export function SaleBasketPanel({
                 {basket.membershipLines.map((mem) => (
                   <div
                     key={mem.membershipPlanId}
-                    className="flex items-center justify-between text-xs py-1"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 gap-2"
                   >
-                    <div className="truncate mr-2">
+                    <div className="min-w-0 flex-1">
                       <div className="font-medium text-foreground truncate">
                         {mem.name}
                       </div>
                       <div className="text-[10px] text-amber-600 font-semibold">
                         {mem.tier} Tier Plan
                       </div>
+                      <StaffAttributionSelect
+                        branchId={currentBranchId}
+                        label="Sold by"
+                        value={mem.soldByStaffId}
+                        onChange={(staffId) =>
+                          dispatch(setMembershipSeller({ membershipPlanId: mem.membershipPlanId, staffId }))
+                        }
+                      />
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="font-mono font-medium">

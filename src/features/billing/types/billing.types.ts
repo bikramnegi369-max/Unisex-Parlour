@@ -39,13 +39,20 @@ export interface InvoiceLineItem {
   sku?: string;
   stockUnit?: string;
   subscriptionPlanId?: string;
+  subscriptionId?: string;
   membershipPlanId?: string;
   membershipTierSnapshot?: string;
+  attribution?: {
+    performedBy?: { staffId: string; name: string; staffCode: string } | null;
+    soldBy?: { staffId: string; name: string; staffCode: string } | null;
+    renewalHandler?: { staffId: string; name: string; staffCode: string } | null;
+  };
   customerMembershipId?: string | null;
   name?: string;
   duration?: number;
   unitPrice: number;
   quantity: number;
+  returnedQuantity?: number;
   lineTotal: number;
   isCoveredBySubscription?: boolean;
   isRedeemedViaSubscription?: boolean;
@@ -246,9 +253,9 @@ export interface CreateInvoicePayload {
     quantity: number;
     appliedSubscriptionId?: string | null;
   }[];
-  productLines?: { productId: string; quantity: number }[];
-  subscriptionLines?: { planId: string }[];
-  membershipLines?: { membershipPlanId: string; quantity?: number }[];
+  productLines?: { productId: string; quantity: number; soldByStaffId?: string | null }[];
+  subscriptionLines?: { planId: string; soldByStaffId?: string | null }[];
+  membershipLines?: { membershipPlanId: string; quantity?: number; soldByStaffId?: string | null }[];
   membershipPlanId?: string;
   discountTotal?: number;
   redeemLoyaltyPoints?: number;
@@ -261,7 +268,7 @@ export interface UpdateDraftInvoicePayload {
     quantity: number;
     appliedSubscriptionId?: string | null;
   }[];
-  productLines?: { productId: string; quantity: number }[];
+  productLines?: { productId: string; quantity: number; soldByStaffId?: string | null }[];
   subscriptionLines?: { planId: string }[];
   membershipLines?: { membershipPlanId: string; quantity?: number }[];
   membershipPlanId?: string;
@@ -271,16 +278,34 @@ export interface UpdateDraftInvoicePayload {
   branchId?: string;
 }
 
+export interface InvoiceAttributionCorrectionPayload {
+  branchId: string;
+  lineId: string;
+  sourceRole: "seller" | "renewal_handler";
+  staffId: string | null;
+  reason: string;
+}
+
 export interface ReturnInvoiceItemsPayload {
   branchId?: string;
-  refundMethod: PaymentMethod;
+  refundPaymentMethod: PaymentMethod;
+  idempotencyKey: string;
   reason: string;
   items: {
-    lineItemId: string;
+    lineId: string;
     quantity: number;
     acceptPhysicalRestock: boolean;
     restockReason?: string;
+    condition?: "unopened" | "damaged" | "defective";
   }[];
+}
+
+export interface RefundUnusedMembershipPayload {
+  branchId: string;
+  lineId: string;
+  refundPaymentMethod: PaymentMethod;
+  reason: string;
+  idempotencyKey: string;
 }
 
 

@@ -31,6 +31,8 @@ export const createSubscriptionSchema = z
     // Payer customer: accepts customerId or payerCustomerId
     customerId: z.string().min(1, "Payer customer is required"),
     payerCustomerId: z.string().optional(),
+    branchId: z.string().optional(),
+    soldByStaffId: z.string().nullable().optional(),
     planId: z.string().trim().optional(),
     price: z.coerce
       .number()
@@ -109,6 +111,16 @@ export const cancelSubscriptionSchema = z.object({
     .trim()
     .min(1, "Cancellation reason is required")
     .max(500, "Reason must be less than 500 characters"),
+  refund: z.boolean().default(false),
+  refundPaymentMethod: z.enum(["cash", "card", "upi", "other"]).optional(),
+}).superRefine((values, ctx) => {
+  if (values.refund && !values.refundPaymentMethod) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["refundPaymentMethod"],
+      message: "Choose the method used for the manual refund",
+    });
+  }
 });
 
 export type CancelSubscriptionFormValues = z.infer<typeof cancelSubscriptionSchema>;
@@ -120,6 +132,7 @@ export const renewSubscriptionSchema = z.object({
     .min(0, "Renewal price must be greater than or equal to 0")
     .optional(),
   notes: z.string().trim().optional(),
+  renewedByStaffId: z.string().nullable().optional(),
 });
 
 export type RenewSubscriptionFormValues = z.infer<typeof renewSubscriptionSchema>;

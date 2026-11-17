@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/formatters";
 import { useProducts, useBranchStock } from "@/features/inventory/hooks/useInventory";
 import type { Product } from "@/features/inventory/types/inventory.types";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 
 export interface CartProductLine {
   productId: string;
@@ -17,6 +18,7 @@ export interface CartProductLine {
   stockUnit: string;
   quantity: number;
   availableStock: number;
+  soldByStaffId?: string | null;
 }
 
 interface PosProductCartProps {
@@ -295,6 +297,21 @@ export function PosProductCart({
                         <AlertCircle className="h-3 w-3" /> Exceeds stock
                       </span>
                     )}
+                    <StaffAttributionSelect
+                      branchId={branchId}
+                      label="Sold by"
+                      value={line.soldByStaffId}
+                      onChange={(staffId) =>
+                        onChange(
+                          items.map((item, itemIndex) =>
+                            itemIndex === idx
+                              ? { ...item, soldByStaffId: staffId }
+                              : item,
+                          ),
+                        )
+                      }
+                      disabled={disabled}
+                    />
                   </div>
                 </div>
 

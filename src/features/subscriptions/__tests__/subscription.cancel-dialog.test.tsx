@@ -97,7 +97,7 @@ describe("CancelSubscriptionDialog - Production-Grade Cancellation & Rebilling U
     renderDialog();
 
     expect(await screen.findByText(/Rule A: Cancel Unused Subscription/i)).toBeDefined();
-    expect(screen.getByText(/without additional appointment charges or invoice adjustments/i)).toBeDefined();
+    expect(screen.getByText(/without additional appointment charges/i)).toBeDefined();
     expect(screen.getByRole("button", { name: /Confirm Cancellation/i })).toBeDefined();
   });
 
@@ -177,6 +177,60 @@ describe("CancelSubscriptionDialog - Production-Grade Cancellation & Rebilling U
 
     const submitBtn = screen.getByRole("button", { name: /Confirm Cancellation/i });
     expect(submitBtn).toHaveProperty("disabled", true);
+  });
+
+  it("requires explicit manual refund confirmation for paid unused subscriptions", async () => {
+    const mockPreview: CancellationPreviewData = {
+      subscriptionId: "sub_101",
+      subscriptionCode: "SUB-101",
+      status: "active",
+      isPaid: true,
+      isEligible: true,
+      requiresRefundConfirmation: true,
+      refundAmount: 3500,
+      eligibilityRule: "RULE_A",
+      totalCollected: 3500,
+      consumedEntitlementCount: 0,
+      affectedAppointmentCount: 0,
+      expectedRebilledSubtotalIncrease: 0,
+      affectedAppointments: [],
+    };
+    vi.spyOn(subscriptionsApi, "getCancellationPreview").mockResolvedValueOnce(mockPreview);
+    const onConfirm = vi.fn().mockResolvedValue({
+      status: "completed",
+      isAsync: false,
+      refund: { amount: 3500, method: "upi", manual: true },
+    });
+
+    renderDialog({ onConfirm });
+
+    expect(await screen.findByText(/Manual refund:/i)).toBeDefined();
+    expect(screen.getByText(/does not contact a card, UPI, or other payment provider/i)).toBeDefined();
+
+    const submitBtn = screen.getByRole("button", { name: /Confirm Cancellation/i });
+    expect(submitBtn).toHaveProperty("disabled", true);
+    fireEvent.change(screen.getByPlaceholderText(/State the reason for cancellation/i), {
+      target: { value: "Customer requested refund before use" },
+    });
+    fireEvent.click(screen.getByLabelText(/I confirm the refund has been issued manually/i));
+    fireEvent.change(screen.getByLabelText("Refund method"), {
+      target: { value: "upi" },
+    });
+
+    await waitFor(() => {
+      expect(submitBtn).toHaveProperty("disabled", false);
+    });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reason: "Customer requested refund before use",
+          refund: true,
+          refundPaymentMethod: "upi",
+        }),
+      );
+    });
   });
 
   it("switches to async progress view when onConfirm returns an active operationId (HTTP 202)", async () => {

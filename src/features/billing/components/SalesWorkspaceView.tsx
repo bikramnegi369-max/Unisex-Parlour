@@ -708,15 +708,23 @@ export function SalesWorkspaceView() {
         productLines: basket.productLines.map((p) => ({
           productId: p.productId,
           quantity: p.quantity,
+          soldByStaffId: p.soldByStaffId || undefined,
         })),
-        subscriptionLines: catalogSubLines,
+        subscriptionLines: catalogSubLines.map((line) => ({
+          ...line,
+          soldByStaffId:
+            basket.subscriptionLines.find((item) => item.planId === line.planId)
+              ?.soldByStaffId || undefined,
+        })),
         membershipLines: basket.membershipLines.map((m) => ({
           membershipPlanId: m.membershipPlanId,
           quantity: 1,
+          soldByStaffId: m.soldByStaffId || undefined,
         })),
         serviceLines: basket.walkinServiceLines.map((s) => ({
           serviceId: s.serviceId,
           quantity: s.quantity,
+          performedByStaffId: s.performedByStaffId || undefined,
           appliedSubscriptionId: s.isCoveredBySubscription
             ? s.appliedSubscriptionId || undefined
             : undefined,

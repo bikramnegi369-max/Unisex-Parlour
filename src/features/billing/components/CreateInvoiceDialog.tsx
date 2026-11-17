@@ -44,6 +44,7 @@ import { useServiceCategories } from "@/features/services/hooks/categories/useSe
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { useSubscriptionPlans } from "@/features/subscriptions/hooks/useSubscriptionPlans";
 import { useMembershipPlans } from "../hooks/useBillingQueries";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 import type { Service } from "@/features/services/types/service.types";
 import type { Subscription, SubscriptionMember, SubscriptionEntitlement } from "@/features/subscriptions/types/subscription.types";
 import type { SubscriptionPlan } from "@/features/subscriptions/types/plan.types";
@@ -55,6 +56,7 @@ export interface CartServiceLine {
   duration?: number;
   unitPrice: number;
   quantity: number;
+  performedByStaffId?: string | null;
 }
 
 export interface CartSubscriptionLine {
@@ -63,6 +65,7 @@ export interface CartSubscriptionLine {
   code?: string;
   suggestedPrice: number;
   entitlements?: { serviceId: string; quantity: number }[];
+  soldByStaffId?: string | null;
 }
 
 export interface CartMembershipLine {
@@ -73,6 +76,7 @@ export interface CartMembershipLine {
   price: number;
   serviceDiscountPercentage: number;
   productDiscountPercentage: number;
+  soldByStaffId?: string | null;
 }
 
 export interface CreateInvoiceDialogProps {
@@ -544,20 +548,24 @@ export function CreateInvoiceDialog({
       const productLinesPayload = productCartItems.map((p) => ({
         productId: p.productId,
         quantity: p.quantity,
+        soldByStaffId: p.soldByStaffId || undefined,
       }));
 
       const serviceLinesPayload = customServiceItems.map((s) => ({
         serviceId: s.serviceId,
         quantity: s.quantity,
+        performedByStaffId: s.performedByStaffId || undefined,
       }));
 
       const subscriptionLinesPayload = subscriptionCartItems.map((sub) => ({
         planId: sub.planId,
+        soldByStaffId: sub.soldByStaffId || undefined,
       }));
 
       const membershipLinesPayload = membershipCartItems.map((mem) => ({
         membershipPlanId: mem.membershipPlanId,
         quantity: 1,
+        soldByStaffId: mem.soldByStaffId || undefined,
       }));
 
       const invoice = await createInvoiceMutation.mutateAsync({
@@ -924,8 +932,8 @@ export function CreateInvoiceDialog({
                       const subCandidates = subscriptionsByService.get(cs.serviceId) || [];
                       const isCovered = subCandidates.some((c) => c.remaining > 0);
                       return (
-                        <div key={cs.serviceId} className="p-2.5 flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                        <div key={cs.serviceId} className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
                             <span className="font-semibold text-foreground">{cs.name}</span>
                             {isCovered && (
                               <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 px-1.5 py-0">
@@ -936,6 +944,21 @@ export function CreateInvoiceDialog({
                             <span className="text-[10px] text-muted-foreground font-mono">
                               {formatCurrency(cs.unitPrice)} each
                             </span>
+                            <StaffAttributionSelect
+                              branchId={effectiveBranchId}
+                              label="Performed by"
+                              value={cs.performedByStaffId}
+                              onChange={(staffId) =>
+                                setCustomServiceItems((prev) =>
+                                  prev.map((item) =>
+                                    item.serviceId === cs.serviceId
+                                      ? { ...item, performedByStaffId: staffId }
+                                      : item,
+                                  ),
+                                )
+                              }
+                              disabled={isSubmitting}
+                            />
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Input
@@ -1005,8 +1028,8 @@ export function CreateInvoiceDialog({
                 {subscriptionCartItems.length > 0 && (
                   <div className="border border-border/60 rounded-lg overflow-hidden divide-y divide-border/60 bg-card text-xs">
                     {subscriptionCartItems.map((sub) => (
-                      <div key={sub.planId} className="p-2.5 flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
+                      <div key={sub.planId} className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 font-bold text-foreground">
                             <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
                             {sub.name} ({sub.code})
@@ -1014,6 +1037,21 @@ export function CreateInvoiceDialog({
                           <p className="text-[10px] text-muted-foreground">
                             Activates on settlement • Sessions will be credited to customer account
                           </p>
+                          <StaffAttributionSelect
+                            branchId={effectiveBranchId}
+                            label="Sold by"
+                            value={sub.soldByStaffId}
+                            onChange={(staffId) =>
+                              setSubscriptionCartItems((prev) =>
+                                prev.map((item) =>
+                                  item.planId === sub.planId
+                                    ? { ...item, soldByStaffId: staffId }
+                                    : item,
+                                ),
+                              )
+                            }
+                            disabled={isSubmitting}
+                          />
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="font-mono font-bold text-sm text-foreground">
@@ -1070,8 +1108,8 @@ export function CreateInvoiceDialog({
                 {membershipCartItems.length > 0 && (
                   <div className="border border-border/60 rounded-lg overflow-hidden divide-y divide-border/60 bg-card text-xs">
                     {membershipCartItems.map((mem) => (
-                      <div key={mem.membershipPlanId} className="p-2.5 flex items-center justify-between gap-2">
-                        <div className="space-y-0.5">
+                      <div key={mem.membershipPlanId} className="p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="space-y-0.5 min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-300">
                             <Crown className="h-3.5 w-3.5" />
                             {mem.name} — {mem.tier} Tier Plan
@@ -1079,6 +1117,20 @@ export function CreateInvoiceDialog({
                           <p className="text-[10px] text-muted-foreground">
                             Perks: {mem.serviceDiscountPercentage}% off services • {mem.productDiscountPercentage}% off retail
                           </p>
+                          <StaffAttributionSelect
+                            branchId={effectiveBranchId}
+                            label="Sold by"
+                            value={mem.soldByStaffId}
+                            onChange={(staffId) =>
+                              setMembershipCartItems((prev) =>
+                                prev.map((item) => ({
+                                  ...item,
+                                  soldByStaffId: staffId,
+                                })),
+                              )
+                            }
+                            disabled={isSubmitting}
+                          />
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="font-mono font-bold text-sm text-foreground">

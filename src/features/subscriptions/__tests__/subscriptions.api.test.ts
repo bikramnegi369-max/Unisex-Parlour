@@ -287,6 +287,54 @@ describe("Subscriptions API layer", () => {
       expect(res.status).toBe("completed");
       expect(res.subscription?.status).toBe("cancelled");
     });
+
+    it("sends manual refund confirmation and maps the recorded refund result", async () => {
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({
+        status: 200,
+        data: {
+          success: true,
+          data: {
+            operationId: "cancel_refund_1",
+            status: "completed",
+            refund: {
+              paymentId: "payment_refund_1",
+              paymentNumber: "PAY-20261116-0001",
+              amount: 3500,
+              method: "upi",
+              manual: true,
+            },
+          },
+        },
+      });
+
+      const result = await cancelSubscription("sub_1", {
+        reason: "Unused subscription refund",
+        refund: true,
+        refundPaymentMethod: "upi",
+        idempotencyKey: "refund-key-1",
+      });
+
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "/subscriptions/sub_1/cancel",
+        {
+          reason: "Unused subscription refund",
+          refund: true,
+          refundPaymentMethod: "upi",
+          idempotencyKey: "refund-key-1",
+        },
+        {
+          branchScope: "none",
+          headers: { "Idempotency-Key": "refund-key-1" },
+        },
+      );
+      expect(result.refund).toEqual({
+        paymentId: "payment_refund_1",
+        paymentNumber: "PAY-20261116-0001",
+        amount: 3500,
+        method: "upi",
+        manual: true,
+      });
+    });
   });
 
   describe("sendSubscriptionOtp", () => {

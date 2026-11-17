@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/formatters";
 import {
   Plus,
   CreditCard,
@@ -193,6 +194,8 @@ export function SubscriptionList() {
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
     try {
       const createdSub = await createMutation.mutateAsync({
+        branchId: values.branchId,
+        soldByStaffId: values.soldByStaffId || undefined,
         payerCustomerId: values.payerCustomerId || values.customerId,
         customerId: values.customerId,
         planId: values.planId,
@@ -231,6 +234,7 @@ export function SubscriptionList() {
           endDate: values.endDate,
           price: values.price,
           notes: values.notes,
+          renewedByStaffId: values.renewedByStaffId || undefined,
         },
       });
 
@@ -302,7 +306,11 @@ export function SubscriptionList() {
         toast.info("Cancellation operation queued for background processing.");
         return result;
       } else {
-        toast.success("Subscription has been cancelled.");
+        toast.success(
+          result.refund
+            ? `Subscription cancelled. Manual refund of ${formatCurrency(result.refund.amount)} recorded.`
+            : "Subscription has been cancelled.",
+        );
         setIsCancelOpen(false);
         setActiveSubscription(null);
       }

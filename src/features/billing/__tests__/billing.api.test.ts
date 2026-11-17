@@ -7,7 +7,10 @@ import {
   finalizeInvoice,
   cancelInvoice,
   updateDraftInvoice,
+  correctInvoiceAttribution,
   recordPayment,
+  returnInvoiceItems,
+  refundUnusedMembership,
   voidPayment,
   downloadInvoicePdf,
   normalizeInvoice,
@@ -28,6 +31,68 @@ describe("Billing API Integration & Contract Verification", () => {
   });
 
   describe("normalizeInvoice", () => {
+    it("preserves source attribution snapshots and subscription identity", () => {
+      const invoice = normalizeInvoice({
+        _id: "inv-attribution",
+        branchId: "branch-1",
+        lines: [
+          {
+            _id: "line-1",
+            lineType: "subscription",
+            subscriptionId: "subscription-1",
+            attribution: {
+              soldBy: {
+                staffId: "staff-1",
+                name: "Seller One",
+                staffCode: "S-001",
+              },
+            },
+            unitPrice: 100,
+            quantity: 1,
+            lineTotal: 100,
+          },
+        ],
+      });
+
+      expect(invoice.items[0]).toMatchObject({
+        id: "line-1",
+        subscriptionId: "subscription-1",
+        attribution: {
+          soldBy: {
+            staffId: "staff-1",
+            name: "Seller One",
+            staffCode: "S-001",
+          },
+          performedBy: null,
+          renewalHandler: null,
+        },
+      });
+    });
+
+    it("preserves membership issuance and refunded quantity for refund-action visibility", () => {
+      const invoice = normalizeInvoice({
+        _id: "inv-membership",
+        branchId: "branch-1",
+        lines: [{
+          _id: "membership-line",
+          lineType: "membership",
+          customerMembershipId: { _id: "customer-membership-1" },
+          returnedQuantity: 1,
+          unitPrice: 1000,
+          quantity: 1,
+          lineTotal: 1000,
+          customerPayable: 1000,
+        }],
+      });
+
+      expect(invoice.items[0]).toMatchObject({
+        id: "membership-line",
+        lineType: "membership",
+        customerMembershipId: "customer-membership-1",
+        returnedQuantity: 1,
+      });
+    });
+
     it("correctly normalizes backend raw shape into clean typed Invoice", () => {
       const raw = {
         _id: "inv-123",
@@ -336,6 +401,16 @@ describe("Billing API Integration & Contract Verification", () => {
       const payload = {
         branchId: "branch-100",
         appointmentId: "apt-200",
+        productLines: [
+          { productId: "product-1", quantity: 1, soldByStaffId: "staff-1" },
+        ],
+        serviceLines: [
+          {
+            serviceId: "service-1",
+            quantity: 1,
+            performedByStaffId: "staff-2",
+          },
+        ],
         discountTotal: 50,
         redeemLoyaltyPoints: 30,
         notes: "Loyalty redemption test",
@@ -348,6 +423,16 @@ describe("Billing API Integration & Contract Verification", () => {
         {
           branchId: "branch-100",
           appointmentId: "apt-200",
+          productLines: [
+            { productId: "product-1", quantity: 1, soldByStaffId: "staff-1" },
+          ],
+          serviceLines: [
+            {
+              serviceId: "service-1",
+              quantity: 1,
+              performedByStaffId: "staff-2",
+            },
+          ],
           discount: 50,
           redeemLoyaltyPoints: 30,
           notes: "Loyalty redemption test",
@@ -364,6 +449,125 @@ describe("Billing API Integration & Contract Verification", () => {
       expect(callPayload.redeemLoyaltyPoints).toBe(30);
 
       expect(res.id).toBe("inv-new");
+    });
+
+    it("corrects attribution using the explicit branch and audit reason contract", async () => {
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: { _id: "inv-1", branchId: "branch-100" },
+        },
+      });
+
+      await correctInvoiceAttribution("inv-1", {
+        branchId: "branch-100",
+        lineId: "line-1",
+        sourceRole: "seller",
+        staffId: "staff-1",
+        reason: "Corrected source entry",
+      });
+
+      expect(apiClient.patch).toHaveBeenCalledWith(
+        "/billing/invoices/inv-1/attributions",
+        {
+          branchId: "branch-100",
+          lineId: "line-1",
+          sourceRole: "seller",
+          staffId: "staff-1",
+          reason: "Corrected source entry",
+        },
+        { branchScope: { type: "branch", branchId: "branch-100" } },
+      );
+    });
+
+    it("sends a stable return idempotency key and matches the backend refund contract", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          status: "success",
+          data: {
+            invoice: { _id: "inv-returned", branchId: "branch-100" },
+            totalRefundAmount: 450,
+            isIdempotentReplay: false,
+          },
+        },
+      });
+
+      const payload = {
+        branchId: "branch-100",
+        refundPaymentMethod: "card" as const,
+        idempotencyKey: "return-inv-1-req-1",
+        reason: "Unopened customer return",
+        items: [{
+          lineId: "line-1",
+          quantity: 1,
+          acceptPhysicalRestock: true,
+          condition: "unopened" as const,
+        }],
+      };
+      const invoice = await returnInvoiceItems("inv-1", payload);
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/billing/invoices/inv-1/returns",
+        {
+          branchId: "branch-100",
+          refundPaymentMethod: "card",
+          reason: "Unopened customer return",
+          items: [{
+            lineId: "line-1",
+            quantity: 1,
+            acceptPhysicalRestock: true,
+            condition: "unopened",
+          }],
+        },
+        {
+          branchScope: { type: "branch", branchId: "branch-100" },
+          headers: {
+            "Idempotency-Key": "return-inv-1-req-1",
+            "X-Idempotency-Key": "return-inv-1-req-1",
+          },
+        },
+      );
+      expect(invoice.id).toBe("inv-returned");
+    });
+
+    it("records an unused membership refund with branch scope and stable idempotency headers", async () => {
+      vi.mocked(apiClient.post).mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            invoice: { _id: "inv-membership-refunded", branchId: "branch-100" },
+            manualRefundRecord: true,
+          },
+        },
+      });
+
+      const invoice = await refundUnusedMembership("inv-membership", {
+        branchId: "branch-100",
+        lineId: "membership-line",
+        refundPaymentMethod: "upi",
+        reason: "Unused membership cancellation",
+        idempotencyKey: "membership-refund-inv-membership-membership-line",
+      });
+
+      expect(apiClient.post).toHaveBeenCalledWith(
+        "/billing/invoices/inv-membership/membership-refunds",
+        {
+          branchId: "branch-100",
+          lineId: "membership-line",
+          refundPaymentMethod: "upi",
+          reason: "Unused membership cancellation",
+        },
+        {
+          branchScope: { type: "branch", branchId: "branch-100" },
+          headers: {
+            "Idempotency-Key": "membership-refund-inv-membership-membership-line",
+            "X-Idempotency-Key": "membership-refund-inv-membership-membership-line",
+          },
+        },
+      );
+      expect(invoice.id).toBe("inv-membership-refunded");
     });
 
     it("finalizeInvoice calls POST /billing/invoices/:id/finalize", async () => {

@@ -123,6 +123,8 @@ export interface CreateSubscriptionPayload {
   payerCustomerId?: string;
   customerId?: string;
   payerId?: string;
+  branchId?: string;
+  soldByStaffId?: string | null;
   planId?: string;
   price: number;
   // Either multi-member structure or single customer entitlements
@@ -146,6 +148,8 @@ export interface UpdateMemberBranchAccessPayload {
 
 export interface CancelSubscriptionPayload {
   reason: string;
+  refund?: boolean;
+  refundPaymentMethod?: "cash" | "card" | "upi" | "other";
   forceAsync?: boolean;
   idempotencyKey?: string;
 }
@@ -184,6 +188,8 @@ export interface RawCancellationPreviewDTO {
   isEligible?: boolean;
   isPaid?: boolean;
   totalCollected?: number;
+  requiresRefundConfirmation?: boolean;
+  refundAmount?: number;
   totalUsages?: number;
   totalAppointments?: number;
   totalRestoredAmount?: number;
@@ -226,6 +232,8 @@ export interface CancellationPreviewData {
   status: string;
   isPaid: boolean;
   isEligible: boolean;
+  requiresRefundConfirmation?: boolean;
+  refundAmount?: number;
   eligibilityRule: "RULE_A" | "RULE_B" | string;
   ineligibilityReason?: string;
   blockingInconsistencies?: string[];
@@ -310,6 +318,7 @@ export interface RedeemSubscriptionPayload {
   services: RedeemServiceItem[];
   appointmentId?: string;
   memberCustomerId?: string;
+  performedByStaffId?: string;
 }
 
 export interface GetSubscriptionsParams {
@@ -339,6 +348,7 @@ export interface RenewSubscriptionPayload {
   endDate?: string;
   price?: number;
   notes?: string;
+  renewedByStaffId?: string | null;
 }
 
 export interface RenewSubscriptionResult extends Subscription {

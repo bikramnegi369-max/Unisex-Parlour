@@ -20,7 +20,11 @@ import { ReadyToBillQueue } from "../components/ReadyToBillQueue";
 import { InvoiceDetailsPage } from "../components/InvoiceDetailsPage";
 import { CustomerBillingTab } from "@/features/customers/components/CustomerBillingTab";
 import { useInvoices, useInvoice, useInvoicePayments } from "../hooks/useBillingQueries";
-import { useVoidPayment, useRecordPayment } from "../hooks/useBillingMutations";
+import {
+  useVoidPayment,
+  useRecordPayment,
+  useRefundUnusedMembership,
+} from "../hooks/useBillingMutations";
 import type { Invoice, PaymentRecord } from "../types/billing.types";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 
@@ -40,6 +44,10 @@ vi.mock("../hooks/useBillingMutations", async (importOriginal) => {
     ...actual,
     useVoidPayment: vi.fn().mockReturnValue({ mutateAsync: vi.fn(), isPending: false }),
     useRecordPayment: vi.fn().mockReturnValue({ mutateAsync: vi.fn(), isPending: false }),
+    useRefundUnusedMembership: vi.fn().mockReturnValue({
+      mutateAsync: vi.fn(),
+      isPending: false,
+    }),
   };
 });
 
@@ -933,6 +941,85 @@ describe("Billing UI Components & Financial Rules", () => {
 
       // Record Payment button MUST be rendered since amountDue === 2500 > 0 and user has permissions
       expect(screen.getAllByRole("button", { name: /Record Payment/i }).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("offers a permission-gated unused membership refund and explains it does not call a processor", async () => {
+      const membershipInvoice: Invoice = {
+        id: "inv-membership",
+        invoiceNumber: "INV-MEMBERSHIP-1",
+        organizationId: "org-1",
+        branchId: "branch-1",
+        customerId: "cust-1",
+        appointmentId: "",
+        status: "finalized",
+        paymentStatus: "paid",
+        items: [
+          {
+            id: "membership-line-1",
+            lineType: "membership",
+            customerMembershipId: "customer-membership-1",
+            serviceName: "Silver Membership",
+            unitPrice: 1000,
+            quantity: 1,
+            lineTotal: 1000,
+            customerPayable: 1000,
+          },
+        ],
+        subtotal: 1000,
+        discountTotal: 0,
+        grossPayable: 1000,
+        subscriptionCoveredAmount: 0,
+        payableAmount: 1000,
+        amountPaid: 1000,
+        amountDue: 0,
+        createdAt: "2026-10-10T10:00:00Z",
+        updatedAt: "2026-10-10T10:00:00Z",
+      };
+      const mutateAsync = vi.fn().mockResolvedValue(membershipInvoice);
+      vi.mocked(useRefundUnusedMembership).mockReturnValue({
+        mutateAsync,
+        isPending: false,
+      } as unknown as ReturnType<typeof useRefundUnusedMembership>);
+      vi.mocked(useInvoice).mockReturnValue({
+        data: membershipInvoice,
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useInvoice>);
+      vi.mocked(useInvoicePayments).mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useInvoicePayments>);
+
+      renderWithProviders(<InvoiceDetailsPage id="inv-membership" />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Refund Membership/i }));
+      expect(
+        screen.getByText(/does not send money or contact a payment processor/i),
+      ).toBeDefined();
+      fireEvent.change(
+        screen.getByPlaceholderText(
+          "Explain why this unused membership is being refunded...",
+        ),
+        { target: { value: "No membership benefits were used" } },
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Confirm Refund Record/i }));
+
+      await waitFor(() => {
+        expect(mutateAsync).toHaveBeenCalledWith({
+          invoiceId: "inv-membership",
+          payload: {
+            branchId: "branch-1",
+            lineId: "membership-line-1",
+            refundPaymentMethod: "cash",
+            reason: "No membership benefits were used",
+            idempotencyKey:
+              "membership-refund:inv-membership:membership-line-1",
+          },
+        });
+      });
     });
   });
 

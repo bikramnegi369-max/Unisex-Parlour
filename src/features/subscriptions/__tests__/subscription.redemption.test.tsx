@@ -55,6 +55,34 @@ vi.mock("@/features/auth/hooks/useAuth", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useBranchContext", () => ({
+  useBranchContext: () => ({ currentBranchId: "br_1" }),
+}));
+
+vi.mock("@/features/employees/components/StaffAttributionSelect", () => ({
+  StaffAttributionSelect: ({
+    label,
+    value,
+    onChange,
+  }: {
+    label: string;
+    value?: string | null;
+    onChange: (staffId: string | null) => void;
+  }) => (
+    <label>
+      {label}
+      <select
+        aria-label={label}
+        value={value || ""}
+        onChange={(event) => onChange(event.target.value || null)}
+      >
+        <option value="">Select staff</option>
+        <option value="staff_1">Synthetic stylist</option>
+      </select>
+    </label>
+  ),
+}));
+
 vi.mock("@/features/appointments/hooks/useAppointmentQueries", () => ({
   useAppointments: () => ({
     data: { data: [] },
@@ -133,6 +161,9 @@ describe("RedeemSubscriptionModal", () => {
     // Click "+" to select 1 unit of Haircut
     const plusButton = screen.getByRole("button", { name: "Increase quantity" });
     fireEvent.click(plusButton);
+    fireEvent.change(screen.getByLabelText("Performed by"), {
+      target: { value: "staff_1" },
+    });
 
     expect(screen.getByText("1 unit selected")).not.toBeNull();
 
@@ -162,6 +193,7 @@ describe("RedeemSubscriptionModal", () => {
           payload: expect.objectContaining({
             isManual: false,
             otp: "654321",
+            performedByStaffId: "staff_1",
             services: [{ serviceId: "srv_1", quantity: 1 }],
           }),
         }),
@@ -185,6 +217,9 @@ describe("RedeemSubscriptionModal", () => {
     // Select 1 unit of Haircut
     const plusButton = screen.getByRole("button", { name: "Increase quantity" });
     fireEvent.click(plusButton);
+    fireEvent.change(screen.getByLabelText("Performed by"), {
+      target: { value: "staff_1" },
+    });
 
     // Switch to Staff Override (Manual)
     const manualRadio = screen.getByLabelText("Staff Override (Manual)");
@@ -211,6 +246,7 @@ describe("RedeemSubscriptionModal", () => {
             isManual: true,
             reason: "Customer phone battery died, manager approved verbally.",
             otp: undefined,
+            performedByStaffId: "staff_1",
             services: [{ serviceId: "srv_1", quantity: 1 }],
             idempotencyKey: expect.stringContaining("manual-redeem-sub_1"),
           }),
@@ -234,6 +270,9 @@ describe("RedeemSubscriptionModal", () => {
     // Select 1 unit of Haircut
     const plusButton = screen.getByRole("button", { name: "Increase quantity" });
     fireEvent.click(plusButton);
+    fireEvent.change(screen.getByLabelText("Performed by"), {
+      target: { value: "staff_1" },
+    });
 
     // Switch to Staff Override (Manual)
     const manualRadio = screen.getByLabelText("Staff Override (Manual)");
@@ -323,6 +362,9 @@ describe("RedeemSubscriptionModal", () => {
 
     // Select 1 unit
     fireEvent.click(screen.getByRole("button", { name: "Increase quantity" }));
+    fireEvent.change(screen.getByLabelText("Performed by"), {
+      target: { value: "staff_1" },
+    });
 
     // Send OTP
     fireEvent.click(screen.getByRole("button", { name: "Send Customer OTP" }));
@@ -351,6 +393,7 @@ describe("RedeemSubscriptionModal", () => {
           payload: expect.objectContaining({
             memberCustomerId: "cust_beneficiary_2",
             otp: "112233",
+            performedByStaffId: "staff_1",
             services: [{ serviceId: "srv_1", quantity: 1 }],
           }),
         }),

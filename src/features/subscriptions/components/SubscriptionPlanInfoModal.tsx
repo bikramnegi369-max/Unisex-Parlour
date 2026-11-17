@@ -11,16 +11,12 @@ import {
   Sparkles,
   Calendar,
   CheckCircle2,
-  Layers,
   User,
   Users,
   Building2,
   FileText,
   Gift,
   Phone,
-  Mail,
-  ShieldCheck,
-  ChevronRight,
 } from "lucide-react";
 
 interface SubscriptionPlanInfoModalProps {
@@ -97,16 +93,6 @@ export function SubscriptionPlanInfoModal({
       ? activeMember.entitlements
       : globalEntitlements;
 
-  // Aggregate totals across entire subscription
-  const totalAllocatedAll = globalEntitlements.reduce(
-    (sum, e) => sum + (e.totalQuantity || 0),
-    0,
-  );
-  const totalRemainingAll = globalEntitlements.reduce(
-    (sum, e) => sum + (e.remainingQuantity || 0),
-    0,
-  );
-
   // Active member totals
   const memberTotalAllocated = displayedEntitlements.reduce(
     (sum, e) => sum + (e.totalQuantity || 0),
@@ -134,7 +120,7 @@ export function SubscriptionPlanInfoModal({
     >
       <div className="space-y-4 text-xs text-foreground">
         {/* Header Summary Banner */}
-        <div className="p-4 rounded-xl bg-gradient-to-br from-purple-500/10 via-primary/5 to-background border border-purple-200 dark:border-purple-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="p-4 rounded-xl bg-linear-to-br from-purple-500/10 via-primary/5 to-background border border-purple-200 dark:border-purple-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono font-bold text-sm text-purple-700 dark:text-purple-300">

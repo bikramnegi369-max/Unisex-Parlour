@@ -3,6 +3,7 @@ import { broadcastCrossTabInvalidation } from "@/lib/api/crossTabSync";
 import {
   createInvoice,
   updateDraftInvoice,
+  correctInvoiceAttribution,
   finalizeInvoice,
   cancelInvoice,
   recordPayment,
@@ -11,8 +12,10 @@ import {
   modifyInvoiceDiscount,
   removeInvoiceDiscount,
   returnInvoiceItems,
+  refundUnusedMembership,
   applyCouponToInvoice,
   removeCouponFromInvoice,
+  confirmWalkInServiceFulfillment,
 } from "../api/billing.api";
 import type {
   CreateInvoicePayload,
@@ -24,6 +27,8 @@ import type {
   ModifyDiscountPayload,
   RemoveDiscountPayload,
   ReturnInvoiceItemsPayload,
+  RefundUnusedMembershipPayload,
+  InvoiceAttributionCorrectionPayload,
 } from "../types/billing.types";
 
 export function useCreateInvoice() {
@@ -71,6 +76,54 @@ export function useUpdateDraftInvoice() {
                 query.queryKey.some(
                   (k) => Array.isArray(k) && k.includes(variables.id)
                 )))
+          );
+        },
+      });
+    },
+  });
+}
+
+export function useCorrectInvoiceAttribution() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: InvoiceAttributionCorrectionPayload;
+    }) => correctInvoiceAttribution(id, payload),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            (key === "invoice" &&
+              (query.queryKey.includes(variables.id) ||
+                query.queryKey.some(
+                  (entry) =>
+                    Array.isArray(entry) && entry.includes(variables.id),
+                )))
+          );
+        },
+      });
+    },
+  });
+}
+
+export function useConfirmWalkInServiceFulfillment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: confirmWalkInServiceFulfillment,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "invoices" ||
+            key === "incentives" ||
+            (key === "invoice" && query.queryKey.includes(variables.invoiceId))
           );
         },
       });
@@ -394,6 +447,43 @@ export function useReturnInvoiceItems() {
           () => updatedInvoice
         );
       }
+    },
+  });
+}
+
+export function useRefundUnusedMembership() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      invoiceId,
+      payload,
+    }: {
+      invoiceId: string;
+      payload: RefundUnusedMembershipPayload;
+    }) => refundUnusedMembership(invoiceId, payload),
+    onSuccess: (updatedInvoice, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === "invoices" ||
+          (query.queryKey[0] === "invoice" &&
+            (query.queryKey.includes(variables.invoiceId) ||
+              query.queryKey.some(
+                (key) => Array.isArray(key) && key.includes(variables.invoiceId),
+              ))),
+      });
+      broadcastCrossTabInvalidation("invoices");
+      queryClient.setQueriesData(
+        {
+          predicate: (query) =>
+            query.queryKey[0] === "invoice" &&
+            (query.queryKey.includes(variables.invoiceId) ||
+              query.queryKey.some(
+                (key) => Array.isArray(key) && key.includes(variables.invoiceId),
+              )),
+        },
+        () => updatedInvoice,
+      );
     },
   });
 }

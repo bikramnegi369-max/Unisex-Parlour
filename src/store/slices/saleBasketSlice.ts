@@ -28,6 +28,7 @@ export interface BasketProductLine {
   quantity: number;
   stockUnit?: string;
   availableStock?: number;
+  soldByStaffId?: string | null;
 }
 
 export interface BasketSubscriptionLine {
@@ -38,6 +39,7 @@ export interface BasketSubscriptionLine {
   suggestedPrice: number;
   validityMonths?: number;
   entitlements?: { serviceId: string; quantity: number }[];
+  soldByStaffId?: string | null;
 }
 
 export interface BasketMembershipLine {
@@ -49,6 +51,7 @@ export interface BasketMembershipLine {
   validityMonths?: number;
   serviceDiscountPercentage: number;
   productDiscountPercentage: number;
+  soldByStaffId?: string | null;
 }
 
 export interface BasketWalkinServiceLine {
@@ -60,6 +63,7 @@ export interface BasketWalkinServiceLine {
   isCoveredBySubscription?: boolean;
   appliedSubscriptionId?: string | null;
   subscriptionCode?: string | null;
+  performedByStaffId?: string | null;
 }
 
 export interface SaleBasketState {
@@ -217,6 +221,14 @@ export const saleBasketSlice = createSlice({
       state.productLines = state.productLines.filter((p) => p.productId !== action.payload);
       savePersistedState(state);
     },
+    setProductSeller: (
+      state,
+      action: PayloadAction<{ productId: string; staffId: string | null }>,
+    ) => {
+      const line = state.productLines.find((item) => item.productId === action.payload.productId);
+      if (line) line.soldByStaffId = action.payload.staffId;
+      savePersistedState(state);
+    },
 
     addSubscriptionToBasket: (state, action: PayloadAction<BasketSubscriptionLine>) => {
       const existing = state.subscriptionLines.find(
@@ -236,6 +248,16 @@ export const saleBasketSlice = createSlice({
       );
       savePersistedState(state);
     },
+    setSubscriptionSeller: (
+      state,
+      action: PayloadAction<{ planId: string; staffId: string | null }>,
+    ) => {
+      const line = state.subscriptionLines.find(
+        (item) => item.planId === action.payload.planId,
+      );
+      if (line) line.soldByStaffId = action.payload.staffId;
+      savePersistedState(state);
+    },
 
     addMembershipToBasket: (state, action: PayloadAction<BasketMembershipLine>) => {
       // Typically only 1 active membership plan in cart
@@ -245,6 +267,16 @@ export const saleBasketSlice = createSlice({
 
     removeMembershipFromBasket: (state, action: PayloadAction<string>) => {
       state.membershipLines = state.membershipLines.filter((m) => m.membershipPlanId !== action.payload);
+      savePersistedState(state);
+    },
+    setMembershipSeller: (
+      state,
+      action: PayloadAction<{ membershipPlanId: string; staffId: string | null }>,
+    ) => {
+      const line = state.membershipLines.find(
+        (item) => item.membershipPlanId === action.payload.membershipPlanId,
+      );
+      if (line) line.soldByStaffId = action.payload.staffId;
       savePersistedState(state);
     },
 
@@ -292,6 +324,16 @@ export const saleBasketSlice = createSlice({
         const item = state.walkinServiceLines.find((s) => s.serviceId === serviceId);
         if (item) item.quantity = quantity;
       }
+      savePersistedState(state);
+    },
+    setWalkinServicePerformer: (
+      state,
+      action: PayloadAction<{ serviceId: string; staffId: string | null }>,
+    ) => {
+      const line = state.walkinServiceLines.find(
+        (item) => item.serviceId === action.payload.serviceId,
+      );
+      if (line) line.performedByStaffId = action.payload.staffId;
       savePersistedState(state);
     },
 
@@ -351,12 +393,16 @@ export const {
   addProductToBasket,
   updateProductBasketQuantity,
   removeProductFromBasket,
+  setProductSeller,
   addSubscriptionToBasket,
   removeSubscriptionFromBasket,
+  setSubscriptionSeller,
   addMembershipToBasket,
   removeMembershipFromBasket,
+  setMembershipSeller,
   addWalkinServiceToBasket,
   updateWalkinServiceQuantity,
+  setWalkinServicePerformer,
   toggleWalkinServiceSubscription,
   removeWalkinServiceFromBasket,
   setBasketDiscount,

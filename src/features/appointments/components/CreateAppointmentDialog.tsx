@@ -3104,6 +3104,7 @@ export function CreateAppointmentDialog({
               const createdSub = await createSubMutation.mutateAsync({
                 payload: {
                   customerId: values.customerId,
+                  soldByStaffId: values.soldByStaffId || undefined,
                   planId: values.planId,
                   price: values.price,
                   entitlements: values.entitlements,
@@ -3111,6 +3112,7 @@ export function CreateAppointmentDialog({
                   startDate: values.startDate,
                   endDate: values.endDate,
                   notes: values.notes,
+                  branchId: effectiveBranchId,
                 },
                 branchId: effectiveBranchId,
               });

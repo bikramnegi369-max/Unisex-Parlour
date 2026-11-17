@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { Controller, useForm, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, addMonths } from "date-fns";
 import { Building2, AlertCircle, Loader2, RefreshCw } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   type RenewSubscriptionFormValues,
 } from "../schemas/subscription.schema";
 import type { Subscription } from "../types/subscription.types";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 
 interface RenewSubscriptionDialogProps {
   subscription: Subscription;
@@ -42,6 +43,7 @@ export function RenewSubscriptionDialog({
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<RenewSubscriptionFormValues>({
     resolver: zodResolver(renewSubscriptionSchema) as unknown as Resolver<RenewSubscriptionFormValues>,
@@ -49,6 +51,7 @@ export function RenewSubscriptionDialog({
       endDate: defaultNextEndDate,
       price: subscription.price ?? 0,
       notes: "",
+      renewedByStaffId: null,
     },
   });
 
@@ -60,6 +63,7 @@ export function RenewSubscriptionDialog({
         endDate: format(addMonths(vDate, 6), "yyyy-MM-dd"),
         price: subscription.price ?? 0,
         notes: "",
+        renewedByStaffId: null,
       });
     }
   }, [isOpen, subscription, reset]);
@@ -174,6 +178,20 @@ export function RenewSubscriptionDialog({
       </div>
 
       {/* Notes */}
+      <Controller
+        control={control}
+        name="renewedByStaffId"
+        render={({ field }) => (
+          <StaffAttributionSelect
+            branchId={currentBranchId}
+            label="Renewal handler"
+            value={field.value}
+            onChange={field.onChange}
+            disabled={isLoading}
+          />
+        )}
+      />
+
       <div className="space-y-1">
         <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Renewal Notes (Optional)

@@ -407,6 +407,7 @@ export interface CompleteWithSubscriptionPayload {
 export interface UpsellSubscriptionPayload {
   branchId?: string;
   planId?: string;
+  soldByStaffId?: string | null;
   price: number;
   entitlements: Array<{ serviceId: string; quantity: number }>;
   permittedBranchIds?: string[];

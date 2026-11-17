@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Edit, Ban, Gift, CreditCard, Layers, History, Info, RefreshCw } from "lucide-react";
+import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
@@ -83,7 +84,11 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
         toast.info("Cancellation operation queued for background processing.");
         return result;
       } else {
-        toast.success("Subscription has been cancelled.");
+        toast.success(
+          result.refund
+            ? `Subscription cancelled. Manual refund of ${formatCurrency(result.refund.amount)} recorded.`
+            : "Subscription has been cancelled.",
+        );
         setIsCancelOpen(false);
       }
     } catch (err: unknown) {
@@ -106,6 +111,7 @@ export function SubscriptionDetailsPage({ id }: SubscriptionDetailsPageProps) {
           endDate: values.endDate,
           price: values.price,
           notes: values.notes,
+          renewedByStaffId: values.renewedByStaffId || undefined,
         },
       });
 

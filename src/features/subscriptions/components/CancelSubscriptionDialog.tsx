@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
@@ -42,6 +42,11 @@ interface CancelSubscriptionDialogProps {
     operationId?: string;
     isAsync?: boolean;
     status?: string;
+    refund?: {
+      amount: number;
+      method: "cash" | "card" | "upi" | "other";
+      manual: true;
+    };
   } | void>;
   isLoading: boolean;
 }
@@ -103,6 +108,7 @@ export function CancelSubscriptionDialog({
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors },
   } = useForm<CancelSubscriptionFormValues>({
     resolver: zodResolver(
@@ -110,14 +116,21 @@ export function CancelSubscriptionDialog({
     ) as unknown as Resolver<CancelSubscriptionFormValues>,
     defaultValues: {
       reason: "",
+      refund: false,
+      refundPaymentMethod: "cash",
     },
   });
+  const refundConfirmed = useWatch({ control, name: "refund" }) === true;
 
   const handleFormSubmit = async (values: CancelSubscriptionFormValues) => {
     setSubmissionError(null);
     try {
       const result = await onConfirm({
         reason: values.reason,
+        refund: values.refund === true,
+        ...(values.refund
+          ? { refundPaymentMethod: values.refundPaymentMethod }
+          : {}),
         idempotencyKey,
         forceAsync: false,
       });
@@ -297,6 +310,8 @@ export function CancelSubscriptionDialog({
 
   // VIEW 2: Cancellation Impact Preview & Confirmation Form
   const isRuleB = preview?.eligibilityRule === "RULE_B";
+  const requiresRefundConfirmation =
+    preview?.requiresRefundConfirmation === true;
   // Fails closed if preview has not returned or indicates ineligibility
   const isEligible = preview ? preview.isEligible === true : false;
   const ineligibilityReason = preview?.ineligibilityReason;
@@ -500,8 +515,50 @@ export function CancelSubscriptionDialog({
               <p className="text-muted-foreground">
                 No entitlements have been consumed from this plan. Cancelling
                 will close the subscription without additional appointment
-                charges or invoice adjustments.
+                charges.
               </p>
+              {requiresRefundConfirmation && (
+                <div className="mt-3 space-y-2 border-t border-border pt-3">
+                  <p className="font-semibold text-foreground">
+                    Manual refund:{" "}
+                    {formatCurrency(
+                      preview.refundAmount ?? preview.totalCollected,
+                    )}
+                  </p>
+                  <p className="text-muted-foreground">
+                    This records a refund payment entry only. It does not
+                    contact a card, UPI, or other payment provider. Process the
+                    refund outside the app before confirming.
+                  </p>
+                  <label className="flex items-start gap-2 text-foreground">
+                    <input
+                      type="checkbox"
+                      {...register("refund")}
+                      disabled={isLoading || !canConfigure}
+                      className="mt-0.5"
+                    />
+                    <span>I confirm the refund has been issued manually.</span>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="font-medium">Refund method</span>
+                    <select
+                      {...register("refundPaymentMethod")}
+                      disabled={!refundConfirmed || isLoading || !canConfigure}
+                      className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-foreground"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card (manual record)</option>
+                      <option value="upi">UPI (manual record)</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </label>
+                  {errors.refundPaymentMethod && (
+                    <p className="text-destructive">
+                      {errors.refundPaymentMethod.message}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -550,7 +607,11 @@ export function CancelSubscriptionDialog({
           variant="destructive"
           size="sm"
           disabled={
-            isLoading || isPreviewLoading || !isEligible || !canConfigure
+              isLoading ||
+              isPreviewLoading ||
+              !isEligible ||
+              !canConfigure ||
+              (requiresRefundConfirmation && !refundConfirmed)
           }
           className="h-9 text-xs cursor-pointer gap-1.5 font-semibold"
         >

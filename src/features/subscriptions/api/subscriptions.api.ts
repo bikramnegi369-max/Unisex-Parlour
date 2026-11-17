@@ -659,8 +659,40 @@ export interface CancelSubscriptionResult {
   operationId?: string;
   status: "completed" | "pending" | "processing" | string;
   isAsync: boolean;
+  refund?: {
+    paymentId: string;
+    paymentNumber: string;
+    amount: number;
+    method: "cash" | "card" | "upi" | "other";
+    manual: true;
+  };
   operation?: import("../types/subscription.types").CancellationOperationData;
 }
+
+const mapManualRefund = (
+  value: unknown,
+): CancelSubscriptionResult["refund"] => {
+  if (!value || typeof value !== "object") return undefined;
+  const refund = value as Record<string, unknown>;
+  const validMethods = ["cash", "card", "upi", "other"];
+  if (
+    typeof refund.paymentId !== "string" ||
+    typeof refund.paymentNumber !== "string" ||
+    typeof refund.amount !== "number" ||
+    typeof refund.method !== "string" ||
+    !validMethods.includes(refund.method) ||
+    refund.manual !== true
+  ) {
+    return undefined;
+  }
+  return {
+    paymentId: refund.paymentId,
+    paymentNumber: refund.paymentNumber,
+    amount: refund.amount,
+    method: refund.method as NonNullable<CancelSubscriptionResult["refund"]>["method"],
+    manual: true,
+  };
+};
 
 /**
  * Normalizes backend cancellation preview response against the canonical contract.
@@ -827,6 +859,8 @@ export const mapCancellationPreviewKeys = (
     isPaid: Boolean(rawObj.isPaid),
     isEligible,
     eligibilityRule,
+    requiresRefundConfirmation: rawObj.requiresRefundConfirmation === true,
+    refundAmount: typeof rawObj.refundAmount === "number" ? rawObj.refundAmount : 0,
     ineligibilityReason,
     blockingInconsistencies,
     totalCollected: typeof rawObj.totalCollected === "number" ? rawObj.totalCollected : 0,
@@ -998,6 +1032,10 @@ export const cancelSubscription = async (
   const requestBody: Record<string, unknown> = {
     reason: payload.reason,
   };
+  if (payload.refund) {
+    requestBody.refund = true;
+    requestBody.refundPaymentMethod = payload.refundPaymentMethod;
+  }
   if (payload.forceAsync !== undefined) {
     requestBody.forceAsync = payload.forceAsync;
   }
@@ -1072,6 +1110,7 @@ export const cancelSubscription = async (
         operationId: opId,
         status: "completed",
         isAsync: false,
+        refund: mapManualRefund(rawObj.refund),
         operation: mappedOp,
       };
     }
@@ -1106,6 +1145,7 @@ export const cancelSubscription = async (
       operationId: opId,
       status: finalStatus,
       isAsync: false,
+      refund: mapManualRefund(rawObj.refund),
     };
   }
 

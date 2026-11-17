@@ -83,6 +83,8 @@ export function CustomerSubscriptionsTab({
   const handleCreateSubmit = async (values: CreateSubscriptionFormValues) => {
     try {
       const createdSub = await createMutation.mutateAsync({
+        branchId: values.branchId,
+        soldByStaffId: values.soldByStaffId || undefined,
         payerCustomerId: values.payerCustomerId || values.customerId,
         customerId: values.customerId,
         planId: values.planId,

@@ -190,6 +190,21 @@ describe("Subscription Zod Schemas", () => {
       });
       expect(result.success).toBe(false);
     });
+
+    it("requires a method when manual refund is confirmed", () => {
+      const missingMethod = cancelSubscriptionSchema.safeParse({
+        reason: "Unused subscription refund",
+        refund: true,
+      });
+      expect(missingMethod.success).toBe(false);
+
+      const validRefund = cancelSubscriptionSchema.safeParse({
+        reason: "Unused subscription refund",
+        refund: true,
+        refundPaymentMethod: "upi",
+      });
+      expect(validRefund.success).toBe(true);
+    });
   });
 
   describe("renewSubscriptionSchema", () => {

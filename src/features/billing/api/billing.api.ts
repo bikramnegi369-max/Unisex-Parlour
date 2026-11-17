@@ -19,7 +19,9 @@ import type {
   RemoveDiscountPayload,
   InvoiceDiscountMutationResult,
   ReturnInvoiceItemsPayload,
+  RefundUnusedMembershipPayload,
   InvoiceCouponSnapshot,
+  InvoiceAttributionCorrectionPayload,
 } from "../types/billing.types";
 import { normalizeAppointment } from "@/features/appointments/api/appointments.api";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
@@ -288,10 +290,37 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
     const appliedDiscounts = Array.isArray(item.appliedDiscounts)
       ? item.appliedDiscounts.map(normalizeAppliedDiscount)
       : undefined;
+    const rawAttribution =
+      typeof item.attribution === "object" && item.attribution !== null
+        ? (item.attribution as Record<string, unknown>)
+        : {};
+    const normalizeStaffSnapshot = (snapshot: unknown) => {
+      if (typeof snapshot !== "object" || snapshot === null) return null;
+      const staff = snapshot as Record<string, unknown>;
+      const staffId = toFlatId(staff.staffId || staff._id || staff.id);
+      if (!staffId) return null;
+      return {
+        staffId,
+        name: typeof staff.name === "string" ? staff.name : "",
+        staffCode: typeof staff.staffCode === "string" ? staff.staffCode : "",
+      };
+    };
 
     return {
       id: toFlatId(item._id || item.id),
       lineType,
+      subscriptionId: item.subscriptionId ? toFlatId(item.subscriptionId) : undefined,
+      subscriptionPlanId: item.subscriptionPlanId ? toFlatId(item.subscriptionPlanId) : undefined,
+      membershipPlanId: item.membershipPlanId ? toFlatId(item.membershipPlanId) : undefined,
+      membershipTierSnapshot:
+        typeof item.membershipTierSnapshot === "string"
+          ? item.membershipTierSnapshot
+          : undefined,
+      attribution: {
+        performedBy: normalizeStaffSnapshot(rawAttribution.performedBy),
+        soldBy: normalizeStaffSnapshot(rawAttribution.soldBy),
+        renewalHandler: normalizeStaffSnapshot(rawAttribution.renewalHandler),
+      },
       serviceId: item.serviceId ? toFlatId(item.serviceId) : undefined,
       serviceName: lineType === "service" ? itemName : undefined,
       productId: item.productId ? toFlatId(item.productId) : undefined,
@@ -306,6 +335,11 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
       isCoveredBySubscription: isCovered,
       isRedeemedViaSubscription: isCovered,
       appliedSubscriptionId: rawAppliedSub,
+      customerMembershipId: item.customerMembershipId
+        ? toFlatId(item.customerMembershipId)
+        : null,
+      returnedQuantity:
+        typeof item.returnedQuantity === "number" ? item.returnedQuantity : 0,
       subscriptionCode: typeof item.subscriptionCode === "string" ? item.subscriptionCode : null,
       subscriptionPlanName: typeof item.subscriptionPlanName === "string" ? item.subscriptionPlanName : null,
       subscriptionUsageId: item.subscriptionUsageId ? toFlatId(item.subscriptionUsageId) : null,
@@ -620,6 +654,20 @@ export async function updateDraftInvoice(
   return normalizeInvoice(data.data);
 }
 
+export async function correctInvoiceAttribution(
+  id: string,
+  payload: InvoiceAttributionCorrectionPayload,
+): Promise<Invoice> {
+  const { data } = await apiClient.patch<ApiResponse<Record<string, unknown>>>(
+    `/billing/invoices/${id}/attributions`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    },
+  );
+  return normalizeInvoice(data.data);
+}
+
 /**
  * Finalize an invoice. Financial figures become immutable.
  */
@@ -930,17 +978,85 @@ export async function returnInvoiceItems(
   invoiceId: string,
   payload: ReturnInvoiceItemsPayload
 ): Promise<Invoice> {
+  const { idempotencyKey, ...requestPayload } = payload;
+  const headers = {
+    "Idempotency-Key": idempotencyKey,
+    "X-Idempotency-Key": idempotencyKey,
+  };
   const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
     `/billing/invoices/${invoiceId}/returns`,
-    payload,
+    requestPayload,
     {
       branchScope: payload.branchId
         ? { type: "branch", branchId: payload.branchId }
         : "current",
+      headers,
     }
   );
 
-  return normalizeInvoice(data.data);
+  const result = data.data || {};
+  return normalizeInvoice(
+    (result.invoice as Record<string, unknown> | undefined) || result
+  );
+}
+
+export async function refundUnusedMembership(
+  invoiceId: string,
+  payload: RefundUnusedMembershipPayload,
+): Promise<Invoice> {
+  const { idempotencyKey, ...requestPayload } = payload;
+  const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/membership-refunds`,
+    requestPayload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+        "X-Idempotency-Key": idempotencyKey,
+      },
+    },
+  );
+  const result = data.data || {};
+  return normalizeInvoice(
+    (result.invoice as Record<string, unknown> | undefined) || result,
+  );
+}
+
+export interface WalkInFulfillmentStatus {
+  confirmedLineIds: string[];
+}
+
+export async function getWalkInFulfillmentStatus(
+  invoiceId: string,
+  branchId: string,
+): Promise<WalkInFulfillmentStatus> {
+  const { data } = await apiClient.get<ApiResponse<WalkInFulfillmentStatus>>(
+    "/incentives/fulfillment",
+    {
+      params: { invoiceId },
+      branchScope: { type: "branch", branchId },
+    },
+  );
+  return data.data;
+}
+
+export async function confirmWalkInServiceFulfillment(payload: {
+  invoiceId: string;
+  lineIds: string[];
+  reason: string;
+  branchId: string;
+}): Promise<void> {
+  await apiClient.post<ApiResponse<unknown>>(
+    "/incentives/fulfillment/confirm",
+    {
+      invoiceId: payload.invoiceId,
+      lineIds: payload.lineIds,
+      reason: payload.reason,
+    },
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    },
+  );
 }
 
 export interface MembershipPlanItem {

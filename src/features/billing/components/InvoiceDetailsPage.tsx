@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -29,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ErrorState } from "@/components/ui/error-state";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
@@ -37,6 +37,9 @@ import { useInvoice, useInvoicePayments } from "../hooks/useBillingQueries";
 import {
   useFinalizeInvoice,
   useCancelInvoice,
+  useCorrectInvoiceAttribution,
+  useConfirmWalkInServiceFulfillment,
+  useRefundUnusedMembership,
 } from "../hooks/useBillingMutations";
 import {
   InvoiceStatusBadge,
@@ -52,9 +55,17 @@ import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { InvoicePaymentHistory } from "./InvoicePaymentHistory";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
 import { InvoiceCouponSection } from "./InvoiceCouponSection";
-import { downloadInvoicePdf } from "../api/billing.api";
+import {
+  downloadInvoicePdf,
+  getWalkInFulfillmentStatus,
+} from "../api/billing.api";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
-import type { InvoiceLineItem, AppliedDiscount } from "../types/billing.types";
+import type {
+  InvoiceLineItem,
+  AppliedDiscount,
+  PaymentMethod,
+} from "../types/billing.types";
+import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 import {
   Tag,
   History,
@@ -90,6 +101,21 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const [isFinalizeConfirmOpen, setIsFinalizeConfirmOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  const [isAttributionDialogOpen, setIsAttributionDialogOpen] = useState(false);
+  const [attributionLine, setAttributionLine] = useState<InvoiceLineItem | null>(null);
+  const [attributionRole, setAttributionRole] = useState<
+    "seller" | "renewal_handler"
+  >("seller");
+  const [attributionStaffId, setAttributionStaffId] = useState<string | null>(null);
+  const [attributionReason, setAttributionReason] = useState("");
+  const [isWalkInFulfillmentDialogOpen, setIsWalkInFulfillmentDialogOpen] = useState(false);
+  const [walkInFulfillmentReason, setWalkInFulfillmentReason] = useState("");
+  const [isMembershipRefundOpen, setIsMembershipRefundOpen] = useState(false);
+  const [membershipRefundLine, setMembershipRefundLine] =
+    useState<InvoiceLineItem | null>(null);
+  const [membershipRefundReason, setMembershipRefundReason] = useState("");
+  const [membershipRefundMethod, setMembershipRefundMethod] =
+    useState<PaymentMethod>("cash");
 
   const queryClient = useQueryClient();
   const { data: invoice, isLoading, isError, refetch } = useInvoice(id);
@@ -97,12 +123,18 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
   const finalizeMutation = useFinalizeInvoice();
   const cancelMutation = useCancelInvoice();
+  const attributionMutation = useCorrectInvoiceAttribution();
+  const walkInFulfillmentMutation = useConfirmWalkInServiceFulfillment();
+  const membershipRefundMutation = useRefundUnusedMembership();
 
   const canCheckout = hasPermission(user, "billing.checkout");
   const canApplyCoupons = hasPermission(user, "coupons.apply");
   const canManageCoupons = canCheckout && canApplyCoupons;
   const canVoid = hasPermission(user, "billing.void");
   const canReceivePayment = hasPermission(user, "payments.receive");
+  const canCorrectAttribution = hasPermission(user, "billing.attribution.correct");
+  const canConfirmFulfillment = hasPermission(user, "incentives.fulfillment.confirm");
+  const canRefundPayments = hasPermission(user, "payments.refund");
 
   // Optional customer subscription lookup to resolve human-readable subscription codes
   // MUST be called unconditionally before any early returns to satisfy React Rules of Hooks
@@ -111,6 +143,18 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
     { customerId: customerId || undefined, limit: 50 },
     { enabled: Boolean(customerId) },
   );
+  const walkInFulfillmentQuery = useQuery({
+    queryKey: ["incentives", "fulfillment", invoice?.id, invoice?.branchId],
+    queryFn: () =>
+      getWalkInFulfillmentStatus(invoice!.id, invoice!.branchId),
+    enabled: Boolean(
+      invoice &&
+        canConfirmFulfillment &&
+        !invoice.appointmentId &&
+        invoice.branchId &&
+        (invoice.lines || invoice.items).some((line) => line.lineType === "service"),
+    ),
+  });
 
   const subscriptionMap = React.useMemo(() => {
     const map = new Map<
@@ -131,6 +175,100 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleRefundUnusedMembership = async () => {
+    if (!invoice) return;
+    const branchId = invoice.branchId || invoice.branch?.id;
+    const lineId = membershipRefundLine?.id || membershipRefundLine?._id;
+    if (!branchId || !lineId || membershipRefundReason.trim().length < 3) {
+      toast.error("Provide a refund reason before continuing.");
+      return;
+    }
+    try {
+      await membershipRefundMutation.mutateAsync({
+        invoiceId: invoice.id,
+        payload: {
+          branchId,
+          lineId,
+          refundPaymentMethod: membershipRefundMethod,
+          reason: membershipRefundReason.trim(),
+          idempotencyKey: `membership-refund:${invoice.id}:${lineId}`,
+        },
+      });
+      toast.success(
+        "Membership refund recorded. No payment processor was called.",
+      );
+      setIsMembershipRefundOpen(false);
+      setMembershipRefundLine(null);
+      setMembershipRefundReason("");
+      await refetch();
+    } catch (error: unknown) {
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      toast.error(
+        axiosError.response?.data?.message ||
+          axiosError.message ||
+          "Unable to record the membership refund.",
+      );
+    }
+  };
+
+  const walkInServiceLines = useMemo(
+    () =>
+      (invoice?.lines || invoice?.items || []).filter(
+        (line) => line.lineType === "service" && Boolean(line.id || line._id),
+      ),
+    [invoice?.lines, invoice?.items],
+  );
+  const refundableMembershipLines = useMemo(
+    () =>
+      (invoice?.lines || invoice?.items || []).filter(
+        (line) =>
+          line.lineType === "membership" &&
+          Boolean(line.customerMembershipId) &&
+          Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
+      ),
+    [invoice?.lines, invoice?.items],
+  );
+  const confirmedWalkInLineIds = new Set(
+    walkInFulfillmentQuery.data?.confirmedLineIds || [],
+  );
+  const pendingWalkInLineIds = walkInServiceLines
+    .map((line) => line.id || line._id || "")
+    .filter((lineId) => lineId && !confirmedWalkInLineIds.has(lineId));
+
+  const handleConfirmWalkInFulfillment = async () => {
+    if (!invoice) return;
+    const branchId = invoice.branchId || invoice.branch?.id;
+    if (!branchId || pendingWalkInLineIds.length === 0 || walkInFulfillmentReason.trim().length < 3) {
+      toast.error("Choose service lines and provide a fulfillment reason.");
+      return;
+    }
+    try {
+      await walkInFulfillmentMutation.mutateAsync({
+        invoiceId: invoice.id,
+        lineIds: pendingWalkInLineIds,
+        reason: walkInFulfillmentReason.trim(),
+        branchId,
+      });
+      toast.success("Walk-in service fulfillment recorded.");
+      setIsWalkInFulfillmentDialogOpen(false);
+      setWalkInFulfillmentReason("");
+      await walkInFulfillmentQuery.refetch();
+    } catch (error: unknown) {
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      toast.error(
+        axiosError.response?.data?.message ||
+          axiosError.message ||
+          "Unable to confirm service fulfillment.",
+      );
+    }
   };
 
   const handleDownloadPdf = async () => {
@@ -187,6 +325,65 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const isFinalized = invoice.status === "finalized";
   const isCancelled = invoice.status === "cancelled";
   const canCancelInvoice = isDraft || (isFinalized && invoice.amountPaid === 0);
+  const getAttributionRoles = (item: InvoiceLineItem) => {
+    const roles: ("seller" | "renewal_handler")[] = [];
+    if (["product", "membership", "subscription"].includes(item.lineType || "")) {
+      roles.push("seller");
+    }
+    if (item.lineType === "subscription" && item.subscriptionId) {
+      roles.push("renewal_handler");
+    }
+    return roles;
+  };
+  const openAttributionDialog = (item: InvoiceLineItem) => {
+    const roles = getAttributionRoles(item);
+    if (!roles.length) return;
+    const currentRole = item.attribution?.renewalHandler
+      ? "renewal_handler"
+      : "seller";
+    const role = roles.includes(currentRole) ? currentRole : roles[0];
+    setAttributionLine(item);
+    setAttributionRole(role);
+    setAttributionStaffId(
+      role === "renewal_handler"
+        ? item.attribution?.renewalHandler?.staffId || null
+        : item.attribution?.soldBy?.staffId || null,
+    );
+    setAttributionReason("");
+    setIsAttributionDialogOpen(true);
+  };
+  const handleCorrectAttribution = async () => {
+    const branchId = invoice.branchId || invoice.branch?.id;
+    if (!branchId || !attributionLine?.id || attributionReason.trim().length < 3) {
+      toast.error("Choose a branch, invoice line, and provide a correction reason.");
+      return;
+    }
+    try {
+      await attributionMutation.mutateAsync({
+        id: invoice.id,
+        payload: {
+          branchId,
+          lineId: attributionLine.id,
+          sourceRole: attributionRole,
+          staffId: attributionStaffId,
+          reason: attributionReason.trim(),
+        },
+      });
+      toast.success("Invoice source attribution corrected.");
+      setIsAttributionDialogOpen(false);
+      await refetch();
+    } catch (error: unknown) {
+      const axiosError = error as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
+      toast.error(
+        axiosError.response?.data?.message ||
+          axiosError.message ||
+          "Unable to correct invoice attribution.",
+      );
+    }
+  };
 
   const handleFinalize = async () => {
     try {
@@ -320,6 +517,45 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 </Button>
               </>
             )}
+            {isFinalized &&
+              invoice.paymentStatus === "paid" &&
+              canRefundPayments &&
+              refundableMembershipLines.map((line) => (
+                <Button
+                  key={line.id || line._id || line.customerMembershipId}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMembershipRefundLine(line);
+                    setMembershipRefundReason("");
+                    setIsMembershipRefundOpen(true);
+                  }}
+                  className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>Refund Membership</span>
+                </Button>
+              ))}
+            {isFinalized &&
+              !invoice.appointmentId &&
+              walkInServiceLines.length > 0 &&
+              canConfirmFulfillment &&
+              (pendingWalkInLineIds.length > 0 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsWalkInFulfillmentDialogOpen(true)}
+                  disabled={walkInFulfillmentQuery.isLoading}
+                  className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Confirm Service Fulfillment</span>
+                </Button>
+              ) : (
+                <span className="text-xs font-semibold text-emerald-700">
+                  Service fulfillment confirmed
+                </span>
+              ))}
 
             {isFinalized && invoice.amountDue > 0 && canReceivePayment && (
               <Button
@@ -882,20 +1118,35 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
                     {/* Action Column (Dedicated spacing, isolated) */}
                     <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
-                      {isDraft && canCheckout && !isRedeemed ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedLineForDiscount(item.id || null);
-                            setIsApplyDiscountOpen(true);
-                          }}
-                          className="text-[11px] h-7 px-2.5 text-primary border-primary/25 hover:bg-primary/10 hover:text-primary gap-1 rounded-lg cursor-pointer shadow-2xs font-semibold inline-flex items-center"
-                          title="Apply discount specifically to this line item"
-                        >
-                          <Plus className="h-3 w-3" />
-                          <span>Discount</span>
-                        </Button>
+                      {isDraft && (canCorrectAttribution || (canCheckout && !isRedeemed)) ? (
+                        <div className="flex items-center justify-center gap-1">
+                          {canCorrectAttribution &&
+                            getAttributionRoles(item).length > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openAttributionDialog(item)}
+                                className="text-[10px] h-7 px-2"
+                              >
+                                Source
+                              </Button>
+                            )}
+                          {canCheckout && !isRedeemed && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedLineForDiscount(item.id || null);
+                                setIsApplyDiscountOpen(true);
+                              }}
+                              className="text-[11px] h-7 px-2.5 text-primary border-primary/25 hover:bg-primary/10 hover:text-primary gap-1 rounded-lg cursor-pointer shadow-2xs font-semibold inline-flex items-center"
+                              title="Apply discount specifically to this line item"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>Discount</span>
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-muted-foreground/40 text-[11px] font-mono">
                           —
@@ -1017,21 +1268,35 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                     </div>
                   </div>
 
-                  {/* Line Discount Action */}
-                  {isDraft && canCheckout && !isRedeemed && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedLineForDiscount(item.id || null);
-                        setIsApplyDiscountOpen(true);
-                      }}
-                      className="text-[11px] h-7 px-2 text-primary border-primary/25 hover:bg-primary/10 hover:text-primary gap-1 rounded-lg cursor-pointer shadow-2xs font-semibold shrink-0"
-                      title="Apply discount specifically to this line item"
-                    >
-                      <Plus className="h-3 w-3" />
-                      <span>Discount</span>
-                    </Button>
+                  {isDraft && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      {canCorrectAttribution &&
+                        getAttributionRoles(item).length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAttributionDialog(item)}
+                            className="text-[10px] h-7 px-2"
+                          >
+                            Source
+                          </Button>
+                        )}
+                      {canCheckout && !isRedeemed && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedLineForDiscount(item.id || null);
+                            setIsApplyDiscountOpen(true);
+                          }}
+                          className="text-[11px] h-7 px-2 text-primary border-primary/25 hover:bg-primary/10 hover:text-primary gap-1 rounded-lg cursor-pointer shadow-2xs font-semibold shrink-0"
+                          title="Apply discount specifically to this line item"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>Discount</span>
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -1382,6 +1647,153 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
         invoice={invoice}
       />
 
+      <Dialog
+        isOpen={isAttributionDialogOpen}
+        onClose={() => setIsAttributionDialogOpen(false)}
+        title="Correct source attribution"
+        className="max-w-md"
+      >
+        {attributionLine && (
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-muted-foreground">
+              This change is allowed only while the invoice is a draft and is
+              recorded in the audit log.
+            </p>
+            {getAttributionRoles(attributionLine).length > 1 && (
+              <label className="block space-y-1">
+                <span className="text-xs font-medium text-foreground">
+                  Attribution role
+                </span>
+                <select
+                  value={attributionRole}
+                  onChange={(event) => {
+                    const role = event.target.value as
+                      | "seller"
+                      | "renewal_handler";
+                    setAttributionRole(role);
+                    setAttributionStaffId(
+                      role === "renewal_handler"
+                        ? attributionLine.attribution?.renewalHandler?.staffId ||
+                            null
+                        : attributionLine.attribution?.soldBy?.staffId || null,
+                    );
+                  }}
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                >
+                  {getAttributionRoles(attributionLine).map((role) => (
+                    <option key={role} value={role}>
+                      {role === "seller" ? "Seller" : "Renewal handler"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <StaffAttributionSelect
+              branchId={invoice.branchId || invoice.branch?.id}
+              label={
+                attributionRole === "seller" ? "Seller" : "Renewal handler"
+              }
+              value={attributionStaffId}
+              onChange={setAttributionStaffId}
+              disabled={attributionMutation.isPending}
+            />
+            <div className="space-y-1.5">
+              <label
+                htmlFor="invoice-attribution-reason"
+                className="text-xs font-semibold text-foreground"
+              >
+                Correction reason
+              </label>
+              <Textarea
+                id="invoice-attribution-reason"
+                rows={3}
+                maxLength={500}
+                value={attributionReason}
+                onChange={(event) => setAttributionReason(event.target.value)}
+                placeholder="Explain why this draft attribution is being corrected."
+                className="text-xs resize-none"
+                disabled={attributionMutation.isPending}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAttributionDialogOpen(false)}
+                disabled={attributionMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCorrectAttribution}
+                disabled={
+                  attributionMutation.isPending ||
+                  attributionReason.trim().length < 3
+                }
+              >
+                {attributionMutation.isPending
+                  ? "Saving..."
+                  : "Save correction"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
+
+      <Dialog
+        isOpen={isWalkInFulfillmentDialogOpen}
+        onClose={() => setIsWalkInFulfillmentDialogOpen(false)}
+        title="Confirm Walk-in Service Fulfillment"
+        className="max-w-md"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Confirm only services physically completed on this invoice. The
+            event is recorded separately from payment and cashier attribution;
+            commission remains gated on full settlement and fulfillment.
+          </p>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">
+              Confirmation reason
+            </label>
+            <Textarea
+              rows={3}
+              maxLength={1000}
+              placeholder="Describe the completed service..."
+              value={walkInFulfillmentReason}
+              onChange={(event) => setWalkInFulfillmentReason(event.target.value)}
+              className="text-xs"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsWalkInFulfillmentDialogOpen(false)}
+              disabled={walkInFulfillmentMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleConfirmWalkInFulfillment}
+              disabled={
+                walkInFulfillmentMutation.isPending ||
+                walkInFulfillmentReason.trim().length < 3 ||
+                pendingWalkInLineIds.length === 0
+              }
+            >
+              {walkInFulfillmentMutation.isPending ? "Recording..." : "Confirm Service"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       {/* Finalize Confirmation Dialog */}
       <Dialog
         isOpen={isFinalizeConfirmOpen}
@@ -1480,6 +1892,84 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
               className="text-xs font-semibold"
             >
               {cancelMutation.isPending ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
+        isOpen={isMembershipRefundOpen}
+        onClose={() => {
+          if (!membershipRefundMutation.isPending) {
+            setIsMembershipRefundOpen(false);
+          }
+        }}
+        title="Record Unused Membership Refund"
+        className="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            This records the refund and cancels the membership in this system.
+            It does not send money or contact a payment processor. Only continue
+            after the refund has been issued through your approved payment method.
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">
+              Refund method
+            </label>
+            <select
+              value={membershipRefundMethod}
+              onChange={(event) =>
+                setMembershipRefundMethod(event.target.value as PaymentMethod)
+              }
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              disabled={membershipRefundMutation.isPending}
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="upi">UPI</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">
+              Reason
+            </label>
+            <Textarea
+              rows={3}
+              maxLength={500}
+              placeholder="Explain why this unused membership is being refunded..."
+              value={membershipRefundReason}
+              onChange={(event) => setMembershipRefundReason(event.target.value)}
+              className="text-xs resize-none"
+              disabled={membershipRefundMutation.isPending}
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t border-border pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMembershipRefundOpen(false)}
+              disabled={membershipRefundMutation.isPending}
+              className="text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={handleRefundUnusedMembership}
+              disabled={
+                membershipRefundMutation.isPending ||
+                membershipRefundReason.trim().length < 3
+              }
+              className="text-xs font-semibold"
+            >
+              {membershipRefundMutation.isPending
+                ? "Recording..."
+                : "Confirm Refund Record"}
             </Button>
           </div>
         </div>
