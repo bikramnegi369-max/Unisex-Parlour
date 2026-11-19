@@ -140,6 +140,24 @@ export interface QueryCustomerMembershipsParams {
   limit?: number;
 }
 
+export interface BeneficiaryMemberConfig {
+  customerId: string;
+  benefits?: Partial<MembershipBenefits>;
+  isCustomized?: boolean;
+}
+
+export interface SellMembershipCheckoutPayload {
+  membershipPlanId: string;
+  payerCustomerId: string;
+  beneficiaryCustomerIds: string[];
+  beneficiaries?: Array<{
+    customerId: string;
+    benefits?: Partial<MembershipBenefits>;
+  }>;
+  soldByStaffId?: string;
+  notes?: string;
+}
+
 export interface MembershipReportsSummary {
   totalMemberships: number;
   activeMemberships: number;

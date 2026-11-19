@@ -261,6 +261,18 @@ export interface CreateInvoicePayload {
     soldByStaffId?: string | null;
     payerCustomerId?: string;
     beneficiaryCustomerIds?: string[];
+    beneficiaries?: Array<{
+      customerId: string;
+      benefits?: {
+        serviceDiscountPercentage?: number;
+        productDiscountPercentage?: number;
+        complimentaryPerks?: string[];
+        eligibleServiceCategoryIds?: string[];
+        eligibleServiceIds?: string[];
+        excludedServiceCategoryIds?: string[];
+        excludedServiceIds?: string[];
+      };
+    }>;
   }[];
   membershipPlanId?: string;
   discountTotal?: number;
@@ -281,6 +293,18 @@ export interface UpdateDraftInvoicePayload {
     quantity?: number;
     payerCustomerId?: string;
     beneficiaryCustomerIds?: string[];
+    beneficiaries?: Array<{
+      customerId: string;
+      benefits?: {
+        serviceDiscountPercentage?: number;
+        productDiscountPercentage?: number;
+        complimentaryPerks?: string[];
+        eligibleServiceCategoryIds?: string[];
+        eligibleServiceIds?: string[];
+        excludedServiceCategoryIds?: string[];
+        excludedServiceIds?: string[];
+      };
+    }>;
   }[];
   membershipPlanId?: string;
   discountTotal?: number;

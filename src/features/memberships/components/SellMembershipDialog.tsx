@@ -17,6 +17,10 @@ import {
   Sparkles,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  ChevronUp,
+  Sliders,
+  Plus,
   Trash2,
   Tag,
   ShieldCheck,
@@ -25,6 +29,8 @@ import {
 import type {
   MembershipPlan,
   CreateMembershipPlanPayload,
+  SellMembershipCheckoutPayload,
+  MembershipBenefits,
 } from "../types/membership.types";
 import type { Customer } from "@/features/customers/types/customer.types";
 import { getCustomer } from "@/features/customers/api/customers.api";
@@ -35,14 +41,6 @@ import {
 import { MembershipPlanFormFields } from "./MembershipPlanFormFields";
 import { toast } from "sonner";
 
-export interface SellMembershipCheckoutPayload {
-  membershipPlanId: string;
-  payerCustomerId: string;
-  beneficiaryCustomerIds: string[];
-  soldByStaffId?: string;
-  notes?: string;
-}
-
 interface SellMembershipDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -52,6 +50,10 @@ interface SellMembershipDialogProps {
     checkoutData: {
       payerCustomerId: string;
       beneficiaryCustomerIds: string[];
+      beneficiaries?: Array<{
+        customerId: string;
+        benefits?: Partial<MembershipBenefits>;
+      }>;
       soldByStaffId?: string;
       notes?: string;
     },
@@ -86,6 +88,22 @@ export function SellMembershipDialog({
   >(initialCustomerId ? [initialCustomerId] : []);
   const [beneficiaryCandidateId, setBeneficiaryCandidateId] =
     useState<string>("");
+
+  // Per-beneficiary custom benefits override state
+  const [beneficiaryBenefitOverrides, setBeneficiaryBenefitOverrides] = useState<
+    Record<
+      string,
+      {
+        serviceDiscountPercentage?: number;
+        productDiscountPercentage?: number;
+        complimentaryPerks?: string[];
+      }
+    >
+  >({});
+  const [expandedBeneficiaryId, setExpandedBeneficiaryId] = useState<
+    string | null
+  >(null);
+  const [newPerkInputs, setNewPerkInputs] = useState<Record<string, string>>({});
 
   // Customer profile cache for human-friendly names and phones
   const [customerProfiles, setCustomerProfiles] = useState<
@@ -138,6 +156,9 @@ export function SellMembershipDialog({
       setStep(1);
       setPayerCustomerId(initialCustomerId || "");
       setBeneficiaryCustomerIds(initialCustomerId ? [initialCustomerId] : []);
+      setBeneficiaryBenefitOverrides({});
+      setExpandedBeneficiaryId(null);
+      setNewPerkInputs({});
       setChosenPlanId(selectedPlanId || (plans[0]?.id ?? ""));
       setPlanMode("catalog");
       setSaveAsPermanentCatalog(false);
@@ -230,6 +251,75 @@ export function SellMembershipDialog({
     setBeneficiaryCustomerIds((prev) =>
       prev.filter((id) => id !== customerId),
     );
+    setBeneficiaryBenefitOverrides((prev) => {
+      const copy = { ...prev };
+      delete copy[customerId];
+      return copy;
+    });
+    if (expandedBeneficiaryId === customerId) {
+      setExpandedBeneficiaryId(null);
+    }
+  };
+
+  // Helper to get active baseline perks for a beneficiary (defaults to catalog plan or custom plan values)
+  const getBeneficiaryEffectiveBenefits = (customerId: string) => {
+    const override = beneficiaryBenefitOverrides[customerId];
+    const baseBenefits =
+      planMode === "catalog"
+        ? selectedCatalogPlan?.benefits
+        : {
+            serviceDiscountPercentage:
+              customFormValues.serviceDiscountPercentage || 0,
+            productDiscountPercentage:
+              customFormValues.productDiscountPercentage || 0,
+            complimentaryPerks: customFormValues.complimentaryPerks || [],
+          };
+
+    return {
+      serviceDiscountPercentage:
+        override?.serviceDiscountPercentage !== undefined
+          ? override.serviceDiscountPercentage
+          : baseBenefits?.serviceDiscountPercentage ?? 0,
+      productDiscountPercentage:
+        override?.productDiscountPercentage !== undefined
+          ? override.productDiscountPercentage
+          : baseBenefits?.productDiscountPercentage ?? 0,
+      complimentaryPerks:
+        override?.complimentaryPerks !== undefined
+          ? override.complimentaryPerks
+          : baseBenefits?.complimentaryPerks ?? [],
+      isOverridden: Boolean(
+        override &&
+          (override.serviceDiscountPercentage !== undefined ||
+            override.productDiscountPercentage !== undefined ||
+            override.complimentaryPerks !== undefined),
+      ),
+    };
+  };
+
+  // Construct structured payload for per-beneficiary benefits
+  const buildBeneficiariesPayload = () => {
+    return beneficiaryCustomerIds.map((bId) => {
+      const override = beneficiaryBenefitOverrides[bId];
+      if (
+        override &&
+        (override.serviceDiscountPercentage !== undefined ||
+          override.productDiscountPercentage !== undefined ||
+          override.complimentaryPerks !== undefined)
+      ) {
+        return {
+          customerId: bId,
+          benefits: {
+            serviceDiscountPercentage: override.serviceDiscountPercentage,
+            productDiscountPercentage: override.productDiscountPercentage,
+            complimentaryPerks: override.complimentaryPerks,
+          },
+        };
+      }
+      return {
+        customerId: bId,
+      };
+    });
   };
 
   // Step 1 Validation
@@ -261,6 +351,8 @@ export function SellMembershipDialog({
       return;
     }
 
+    const beneficiariesPayload = buildBeneficiariesPayload();
+
     if (planMode === "catalog") {
       if (!chosenPlanId) {
         toast.error("Please select a membership plan.");
@@ -270,6 +362,7 @@ export function SellMembershipDialog({
         membershipPlanId: chosenPlanId,
         payerCustomerId,
         beneficiaryCustomerIds,
+        beneficiaries: beneficiariesPayload,
         soldByStaffId: soldByStaffId || undefined,
         notes: notes || "Membership Sale",
       });
@@ -337,6 +430,7 @@ export function SellMembershipDialog({
       await onCreateCustomPlanAndSell(customPayload, {
         payerCustomerId,
         beneficiaryCustomerIds,
+        beneficiaries: beneficiariesPayload,
         soldByStaffId: soldByStaffId || undefined,
         notes: notes || `Custom membership sold: ${customFormValues.name}`,
       });
@@ -513,48 +607,278 @@ export function SellMembershipDialog({
                     customer who will use the membership.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     {beneficiaryCustomerIds.map((bId) => {
                       const isPayer = bId === payerCustomerId;
                       const profile = customerProfiles[bId];
                       const displayName =
                         profile?.name || `Customer #${bId.slice(-6)}`;
                       const phone = profile?.phone;
+                      const isExpanded = expandedBeneficiaryId === bId;
+                      const currentEffective = getBeneficiaryEffectiveBenefits(bId);
+                      const memberOverride = beneficiaryBenefitOverrides[bId];
 
                       return (
                         <div
                           key={bId}
-                          className="flex items-center justify-between p-2.5 rounded-lg border bg-card text-xs shadow-2xs"
+                          className="rounded-lg border bg-card text-xs shadow-2xs overflow-hidden transition-all"
                         >
-                          <div className="flex items-center gap-2 truncate">
-                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px] shrink-0">
-                              {isPayer ? "P" : "B"}
-                            </div>
-                            <div className="truncate">
-                              <span className="font-semibold block truncate text-foreground">
-                                {displayName}
-                              </span>
-                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                                {phone && <span>{phone}</span>}
-                                {phone && isPayer && <span>•</span>}
-                                {isPayer && (
-                                  <span className="text-primary font-medium">
-                                    Payer & Beneficiary
+                          <div className="flex items-center justify-between p-3">
+                            <div className="flex items-center gap-2.5 truncate">
+                              <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px] shrink-0">
+                                {isPayer ? "P" : "B"}
+                              </div>
+                              <div className="truncate">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold block truncate text-foreground">
+                                    {displayName}
                                   </span>
-                                )}
+                                  {currentEffective.isOverridden ? (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-medium"
+                                    >
+                                      Customized Perks
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[9px] text-muted-foreground"
+                                    >
+                                      Standard Plan Perks
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
+                                  {phone && <span>{phone}</span>}
+                                  {phone && isPayer && <span>•</span>}
+                                  {isPayer && (
+                                    <span className="text-primary font-medium">
+                                      Payer & Beneficiary
+                                    </span>
+                                  )}
+                                  <span>•</span>
+                                  <span className="text-emerald-600 font-semibold">
+                                    {currentEffective.serviceDiscountPercentage}% Svcs / {currentEffective.productDiscountPercentage}% Prods
+                                  </span>
+                                </div>
                               </div>
                             </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setExpandedBeneficiaryId(isExpanded ? null : bId)
+                                }
+                                className={`h-7 px-2 text-[11px] gap-1 cursor-pointer font-medium ${
+                                  isExpanded
+                                    ? "bg-primary/10 text-primary border-primary/30"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                <Sliders className="w-3 h-3" />
+                                {isExpanded ? "Close Perks" : "Tailor Perks"}
+                                {isExpanded ? (
+                                  <ChevronUp className="w-3 h-3" />
+                                ) : (
+                                  <ChevronDown className="w-3 h-3" />
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveBeneficiary(bId)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
+                                title="Remove Beneficiary"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveBeneficiary(bId)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
-                            title="Remove Beneficiary"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
+
+                          {/* Expandable Per-Beneficiary Benefit Configurator */}
+                          {isExpanded && (
+                            <div className="p-3.5 bg-muted/20 border-t space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                  Individual Benefit Privileges for {displayName}
+                                </span>
+                                {currentEffective.isOverridden && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setBeneficiaryBenefitOverrides((prev) => {
+                                        const copy = { ...prev };
+                                        delete copy[bId];
+                                        return copy;
+                                      });
+                                    }}
+                                    className="h-6 text-[10px] text-muted-foreground hover:text-destructive cursor-pointer"
+                                  >
+                                    Reset to Plan Default
+                                  </Button>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                                    Service Discount (%)
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={
+                                      memberOverride?.serviceDiscountPercentage ??
+                                      (planMode === "catalog"
+                                        ? selectedCatalogPlan?.benefits?.serviceDiscountPercentage || 0
+                                        : customFormValues.serviceDiscountPercentage || 0)
+                                    }
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setBeneficiaryBenefitOverrides((prev) => ({
+                                        ...prev,
+                                        [bId]: {
+                                          ...prev[bId],
+                                          serviceDiscountPercentage: isNaN(val) ? 0 : Math.min(100, Math.max(0, val)),
+                                        },
+                                      }));
+                                    }}
+                                    className="text-xs h-8"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                                    Product Discount (%)
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={
+                                      memberOverride?.productDiscountPercentage ??
+                                      (planMode === "catalog"
+                                        ? selectedCatalogPlan?.benefits?.productDiscountPercentage || 0
+                                        : customFormValues.productDiscountPercentage || 0)
+                                    }
+                                    onChange={(e) => {
+                                      const val = Number(e.target.value);
+                                      setBeneficiaryBenefitOverrides((prev) => ({
+                                        ...prev,
+                                        [bId]: {
+                                          ...prev[bId],
+                                          productDiscountPercentage: isNaN(val) ? 0 : Math.min(100, Math.max(0, val)),
+                                        },
+                                      }));
+                                    }}
+                                    className="text-xs h-8"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Complimentary Perks for this member */}
+                              <div className="space-y-1.5 pt-1">
+                                <label className="text-[10px] font-semibold text-muted-foreground block">
+                                  Member Perks & Privileges
+                                </label>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {currentEffective.complimentaryPerks.map((perk, pIdx) => (
+                                    <span
+                                      key={`${perk}-${pIdx}`}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-secondary-foreground border"
+                                    >
+                                      {perk}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = currentEffective.complimentaryPerks.filter(
+                                            (_, idx) => idx !== pIdx,
+                                          );
+                                          setBeneficiaryBenefitOverrides((prev) => ({
+                                            ...prev,
+                                            [bId]: {
+                                              ...prev[bId],
+                                              complimentaryPerks: updated,
+                                            },
+                                          }));
+                                        }}
+                                        className="text-muted-foreground hover:text-destructive cursor-pointer ml-0.5"
+                                      >
+                                        ×
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+
+                                <div className="flex gap-1.5 pt-1">
+                                  <Input
+                                    placeholder="Add perk (e.g., Free Hair Wash, VIP Beverage)"
+                                    value={newPerkInputs[bId] || ""}
+                                    onChange={(e) =>
+                                      setNewPerkInputs((prev) => ({
+                                        ...prev,
+                                        [bId]: e.target.value,
+                                      }))
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        const perkText = (newPerkInputs[bId] || "").trim();
+                                        if (perkText) {
+                                          const existing = currentEffective.complimentaryPerks;
+                                          setBeneficiaryBenefitOverrides((prev) => ({
+                                            ...prev,
+                                            [bId]: {
+                                              ...prev[bId],
+                                              complimentaryPerks: [...existing, perkText],
+                                            },
+                                          }));
+                                          setNewPerkInputs((prev) => ({
+                                            ...prev,
+                                            [bId]: "",
+                                          }));
+                                        }
+                                      }
+                                    }}
+                                    className="text-xs h-7.5"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => {
+                                      const perkText = (newPerkInputs[bId] || "").trim();
+                                      if (perkText) {
+                                        const existing = currentEffective.complimentaryPerks;
+                                        setBeneficiaryBenefitOverrides((prev) => ({
+                                          ...prev,
+                                          [bId]: {
+                                            ...prev[bId],
+                                            complimentaryPerks: [...existing, perkText],
+                                          },
+                                        }));
+                                        setNewPerkInputs((prev) => ({
+                                          ...prev,
+                                          [bId]: "",
+                                        }));
+                                      }
+                                    }}
+                                    className="text-xs h-7.5 px-2 gap-1 cursor-pointer shrink-0"
+                                  >
+                                    <Plus className="w-3 h-3" /> Add Perk
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -804,21 +1128,42 @@ export function SellMembershipDialog({
 
                   <div>
                     <span className="text-muted-foreground block text-[11px]">
-                      Designated Beneficiaries ({beneficiaryCustomerIds.length}):
+                      Designated Beneficiaries & Privileges ({beneficiaryCustomerIds.length}):
                     </span>
-                    <div className="flex flex-wrap gap-1 pt-1">
+                    <div className="space-y-1.5 pt-1.5">
                       {beneficiaryCustomerIds.map((bId) => {
                         const name =
                           customerProfiles[bId]?.name ||
                           `Customer #${bId.slice(-6)}`;
+                        const effective = getBeneficiaryEffectiveBenefits(bId);
+
                         return (
-                          <Badge
+                          <div
                             key={bId}
-                            variant="secondary"
-                            className="text-[10px]"
+                            className="p-1.5 bg-background border rounded text-[11px] flex items-center justify-between"
                           >
-                            {name} {bId === payerCustomerId && "(Payer)"}
-                          </Badge>
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="font-semibold text-foreground">
+                                {name}
+                              </span>
+                              {bId === payerCustomerId && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  (Payer)
+                                </span>
+                              )}
+                              {effective.isOverridden && (
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 py-0 px-1"
+                                >
+                                  Custom
+                                </Badge>
+                              )}
+                            </div>
+                            <span className="text-emerald-600 font-semibold text-[10px] shrink-0">
+                              {effective.serviceDiscountPercentage}% Svcs / {effective.productDiscountPercentage}% Prods
+                            </span>
+                          </div>
                         );
                       })}
                     </div>

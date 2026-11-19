@@ -50,7 +50,6 @@ import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
 import { useCreateMembershipPlan } from "@/features/memberships/hooks/useMemberships";
-import type { CreateMembershipPlanPayload } from "@/features/memberships/types/membership.types";
 import {
   useCustomerActiveBenefits,
   useMembershipPlans,
@@ -134,7 +133,8 @@ export function AppointmentDetailsDialog({
   const canSellSubscriptions = hasPermission(user, "subscriptions.sell");
   const canSellMemberships =
     hasPermission(user, "memberships.sell") ||
-    hasPermission(user, "memberships.configure");
+    hasPermission(user, "memberships.configure") ||
+    hasPermission(user, "billing.checkout");
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -519,7 +519,7 @@ export function AppointmentDetailsDialog({
 
         {/* Section: Prominent Membership Privileges & Upsell Card */}
         {canSellMemberships && customerId && !isTerminal && (
-          <div className="p-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs">
+          <div className="p-3 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300">
@@ -546,7 +546,9 @@ export function AppointmentDetailsDialog({
                 className="text-xs h-7.5 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer shrink-0"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                {activeMembershipBenefits?.hasActiveMembership ? "Upgrade / Add Plan" : "Upsell Membership"}
+                {activeMembershipBenefits?.hasActiveMembership
+                  ? "Upgrade / Add Plan"
+                  : "Upsell Membership"}
               </Button>
             </div>
           </div>
@@ -1118,6 +1120,7 @@ export function AppointmentDetailsDialog({
                   soldByStaffId: checkoutData.soldByStaffId || undefined,
                   payerCustomerId: checkoutData.payerCustomerId,
                   beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+                  beneficiaries: checkoutData.beneficiaries,
                 },
               ],
               notes:
@@ -1169,6 +1172,7 @@ export function AppointmentDetailsDialog({
                   soldByStaffId: values.soldByStaffId || undefined,
                   payerCustomerId: values.payerCustomerId,
                   beneficiaryCustomerIds: values.beneficiaryCustomerIds,
+                  beneficiaries: values.beneficiaries,
                 },
               ],
               notes:

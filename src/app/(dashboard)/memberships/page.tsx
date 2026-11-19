@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { MembershipsOverviewTab } from "@/features/memberships/components/MembershipsOverviewTab";
 import { CustomerMembershipsTab } from "@/features/memberships/components/CustomerMembershipsTab";
 import { MembershipPlansTab } from "@/features/memberships/components/MembershipPlansTab";
-import {
-  SellMembershipDialog,
-  type SellMembershipCheckoutPayload,
-} from "@/features/memberships/components/SellMembershipDialog";
+import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
+import type {
+  CreateMembershipPlanPayload,
+  SellMembershipCheckoutPayload,
+} from "@/features/memberships/types/membership.types";
 import {
   useMembershipPlans,
   useCreateMembershipPlan,
@@ -22,7 +23,6 @@ import { CreditCard, Users, Layers, ShoppingCart, LayoutDashboard, Plus } from "
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { CreateMembershipPlanPayload } from "@/features/memberships/types/membership.types";
 
 export default function MembershipsPage() {
   const router = useRouter();
@@ -69,6 +69,7 @@ export default function MembershipsPage() {
             quantity: 1,
             payerCustomerId: payload.payerCustomerId,
             beneficiaryCustomerIds: payload.beneficiaryCustomerIds,
+            beneficiaries: payload.beneficiaries,
             soldByStaffId: payload.soldByStaffId || undefined,
           },
         ],
@@ -101,6 +102,10 @@ export default function MembershipsPage() {
     checkoutData: {
       payerCustomerId: string;
       beneficiaryCustomerIds: string[];
+      beneficiaries?: Array<{
+        customerId: string;
+        benefits?: Partial<import("@/features/memberships/types/membership.types").MembershipBenefits>;
+      }>;
       soldByStaffId?: string;
       notes?: string;
     },
@@ -124,6 +129,7 @@ export default function MembershipsPage() {
             quantity: 1,
             payerCustomerId: checkoutData.payerCustomerId,
             beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+            beneficiaries: checkoutData.beneficiaries,
             soldByStaffId: checkoutData.soldByStaffId || undefined,
           },
         ],
