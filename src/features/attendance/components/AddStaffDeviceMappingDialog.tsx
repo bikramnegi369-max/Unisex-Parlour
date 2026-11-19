@@ -6,24 +6,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { Loader2, AlertCircle } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import {
   useAttendanceProviderStatus,
@@ -102,10 +89,6 @@ export default function AddStaffDeviceMappingDialog({
   // Derive configured device suggestions for the selected provider
   const configuredDevices = useMemo(() => {
     if (!providerStatus?.configurations) return [];
-    const config = providerStatus.configurations.find(
-      (c) => c.providerName === selectedProvider
-    );
-    // Providers may have devices in syncStates or config
     const devicesFromSync = (providerStatus.syncStates || [])
       .filter((s) => s.provider === selectedProvider && s.deviceId)
       .map((s) => s.deviceId as string);
@@ -152,26 +135,26 @@ export default function AddStaffDeviceMappingDialog({
     }
   };
 
-  const handleClose = (newOpen: boolean) => {
-    if (!newOpen) {
-      setConflictError(null);
-      reset();
-    }
-    onOpenChange(newOpen);
+  const handleClose = () => {
+    setConflictError(null);
+    reset();
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Map Staff to External Biometric ID</DialogTitle>
-          <DialogDescription>
-            Associate an internal salon employee with their unique biometric ID registered
-            in the physical attendance provider hardware.
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog
+      isOpen={open}
+      onClose={handleClose}
+      title="Map Staff to External Biometric ID"
+      maxWidth="lg"
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Associate an internal salon employee with their unique biometric ID registered
+          in the physical attendance provider hardware.
+        </p>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {conflictError && (
             <div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -195,26 +178,25 @@ export default function AddStaffDeviceMappingDialog({
               />
             ) : (
               <Select
-                value={selectedStaffId || ""}
-                onValueChange={(val) => {
-                  setValue("staffId", val, { shouldValidate: true });
+                {...register("staffId")}
+                aria-label="Select Staff Member"
+                disabled={isLoadingStaff}
+                onChange={(e) => {
+                  register("staffId").onChange(e);
                   setConflictError(null);
                 }}
-                disabled={isLoadingStaff}
               >
-                <SelectTrigger aria-label="Select Staff Member">
-                  <SelectValue placeholder={isLoadingStaff ? "Loading staff..." : "Select staff member..."} />
-                </SelectTrigger>
-                <SelectContent>
-                  {staffList.map((s: any) => {
-                    const sid = s.id || s._id;
-                    return (
-                      <SelectItem key={sid} value={sid}>
-                        {s.name} ({s.staffCode}) - {s.role || "Staff"}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
+                <option value="">
+                  {isLoadingStaff ? "Loading staff..." : "-- Select Staff Member --"}
+                </option>
+                {staffList.map((s: any) => {
+                  const sid = s.id || s._id;
+                  return (
+                    <option key={sid} value={sid}>
+                      {s.name} ({s.staffCode}) - {s.role || "Staff"}
+                    </option>
+                  );
+                })}
               </Select>
             )}
             {errors.staffId && (
@@ -228,23 +210,19 @@ export default function AddStaffDeviceMappingDialog({
               Attendance Provider <span className="text-destructive">*</span>
             </label>
             <Select
-              value={selectedProvider || "simulator"}
-              onValueChange={(val) => {
-                setValue("provider", val, { shouldValidate: true });
+              {...register("provider")}
+              aria-label="Select Attendance Provider"
+              disabled={isLoadingProviders}
+              onChange={(e) => {
+                register("provider").onChange(e);
                 setConflictError(null);
               }}
-              disabled={isLoadingProviders}
             >
-              <SelectTrigger aria-label="Select Attendance Provider">
-                <SelectValue placeholder="Select provider..." />
-              </SelectTrigger>
-              <SelectContent>
-                {supportedProviders.map((p) => (
-                  <SelectItem key={p} value={p}>
-                    {p === "simulator" ? "Simulator Adapter (Local / Testing)" : p}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              {supportedProviders.map((p) => (
+                <option key={p} value={p}>
+                  {p === "simulator" ? "Simulator Adapter (Local / Testing)" : p}
+                </option>
+              ))}
             </Select>
             {selectedProvider === "eTimeOffice" && (
               <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded">
@@ -333,11 +311,11 @@ export default function AddStaffDeviceMappingDialog({
             </div>
           )}
 
-          <DialogFooter className="pt-2">
+          <div className="flex justify-end gap-2 pt-2 border-t">
             <Button
               type="button"
               variant="outline"
-              onClick={() => handleClose(false)}
+              onClick={handleClose}
               disabled={createMutation.isPending}
             >
               Cancel
@@ -355,9 +333,9 @@ export default function AddStaffDeviceMappingDialog({
                 "Save Mapping"
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }

@@ -5,15 +5,10 @@ import {
   Fingerprint,
   Plus,
   Search,
-  Filter,
-  CheckCircle2,
-  XCircle,
   AlertTriangle,
   Edit2,
   Trash2,
-  Info,
   Clock,
-  Laptop,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -22,21 +17,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
+import { Dialog } from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -151,28 +133,26 @@ export default function StaffDeviceMappingTab() {
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Select value={providerFilter} onValueChange={setProviderFilter}>
-                <SelectTrigger className="w-[140px] text-xs">
-                  <SelectValue placeholder="Provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Providers</SelectItem>
-                  <SelectItem value="simulator">Simulator</SelectItem>
-                  <SelectItem value="eTimeOffice">eTimeOffice</SelectItem>
-                </SelectContent>
+              <Select
+                value={providerFilter}
+                onChange={(e) => setProviderFilter(e.target.value)}
+                className="w-full sm:w-[150px] text-xs h-9"
+              >
+                <option value="all">All Providers</option>
+                <option value="simulator">Simulator</option>
+                <option value="eTimeOffice">eTimeOffice</option>
               </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px] text-xs">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  <SelectItem value="mapped">Mapped</SelectItem>
-                  <SelectItem value="partial">Partial</SelectItem>
-                  <SelectItem value="unmapped">Unmapped</SelectItem>
-                  <SelectItem value="unknown">Unknown</SelectItem>
-                </SelectContent>
+              <Select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full sm:w-[150px] text-xs h-9"
+              >
+                <option value="all">All Statuses</option>
+                <option value="mapped">Mapped</option>
+                <option value="partial">Partial</option>
+                <option value="unmapped">Unmapped</option>
+                <option value="unknown">Unknown</option>
               </Select>
             </div>
           </div>
@@ -191,7 +171,10 @@ export default function StaffDeviceMappingTab() {
         <ErrorState
           title="Failed to load mappings"
           description={(error as Error)?.message || "An unexpected error occurred while loading mappings."}
-          onRetry={() => refetch()}
+          retryAction={{
+            label: "Retry",
+            onClick: () => refetch(),
+          }}
         />
       ) : mappings.length === 0 ? (
         <Card>
@@ -204,11 +187,13 @@ export default function StaffDeviceMappingTab() {
                   : "Map salon staff members to their external biometric badge numbers to automate attendance ingestion."
               }
               action={
-                canAdjust && !search && !isAllBranchesSelected ? (
-                  <Button onClick={() => setIsAddOpen(true)}>
-                    <Plus className="mr-1.5 h-4 w-4" /> Add First Mapping
-                  </Button>
-                ) : undefined
+                canAdjust && !search && !isAllBranchesSelected
+                  ? {
+                      label: "Add First Mapping",
+                      onClick: () => setIsAddOpen(true),
+                      icon: Plus,
+                    }
+                  : undefined
               }
             />
           </CardContent>
@@ -354,30 +339,28 @@ export default function StaffDeviceMappingTab() {
 
       {/* Deactivation Confirmation Dialog */}
       <Dialog
-        open={Boolean(deactivatingMapping)}
-        onOpenChange={(open) => !open && setDeactivatingMapping(null)}
+        isOpen={Boolean(deactivatingMapping)}
+        onClose={() => setDeactivatingMapping(null)}
+        title="Deactivate Biometric Mapping"
+        maxWidth="md"
       >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Deactivate Biometric Mapping
-            </DialogTitle>
-            <DialogDescription>
-              Are you sure you want to deactivate the mapping for{" "}
-              <strong>{deactivatingMapping?.staffId?.name}</strong> with biometric code{" "}
-              <strong>{deactivatingMapping?.externalEmployeeCode}</strong>?
-            </DialogDescription>
-          </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-sm">
+            Are you sure you want to deactivate the mapping for{" "}
+            <strong>{deactivatingMapping?.staffId?.name}</strong> with biometric code{" "}
+            <strong>{deactivatingMapping?.externalEmployeeCode}</strong>?
+          </p>
 
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
-            <p className="font-semibold">Historical punches are preserved</p>
+            <p className="font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="h-4 w-4" /> Historical punches are preserved
+            </p>
             <p>
               Deactivating will prevent this biometric ID from resolving to this staff member on new punches. Historical attendance and punch records remain intact.
             </p>
           </div>
 
-          <DialogFooter className="pt-2">
+          <div className="flex justify-end gap-2 pt-2 border-t">
             <Button
               variant="outline"
               onClick={() => setDeactivatingMapping(null)}
@@ -392,8 +375,8 @@ export default function StaffDeviceMappingTab() {
             >
               {deactivateMutation.isPending ? "Deactivating..." : "Deactivate Mapping"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
+          </div>
+        </div>
       </Dialog>
     </div>
   );

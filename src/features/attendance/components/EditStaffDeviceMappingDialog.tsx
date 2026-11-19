@@ -1,29 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import type { StaffDeviceMapping } from "../api/attendance.api";
 import { useUpdateStaffDeviceMapping } from "../hooks/useAttendance";
 
@@ -52,9 +37,6 @@ export default function EditStaffDeviceMappingDialog({
   const {
     register,
     handleSubmit,
-    setValue,
-    watch,
-    reset,
     formState: { errors },
   } = useForm<EditMappingFormValues>({
     resolver: zodResolver(editMappingSchema),
@@ -63,8 +45,6 @@ export default function EditStaffDeviceMappingDialog({
       notes: mapping?.notes || "",
     },
   });
-
-  const selectedStatus = watch("mappingStatus");
 
   const onSubmit = async (values: EditMappingFormValues) => {
     if (!mapping) return;
@@ -90,14 +70,16 @@ export default function EditStaffDeviceMappingDialog({
   if (!mapping) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit Mapping Metadata</DialogTitle>
-          <DialogDescription>
-            Update safe operational metadata and notes for this biometric link.
-          </DialogDescription>
-        </DialogHeader>
+    <Dialog
+      isOpen={open}
+      onClose={() => onOpenChange(false)}
+      title="Edit Mapping Metadata"
+      maxWidth="md"
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">
+          Update safe operational metadata and notes for this biometric link.
+        </p>
 
         <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
           <div className="flex justify-between">
@@ -114,24 +96,16 @@ export default function EditStaffDeviceMappingDialog({
           </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Mapping Status
             </label>
-            <Select
-              value={selectedStatus}
-              onValueChange={(val: any) => setValue("mappingStatus", val, { shouldValidate: true })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mapped">Mapped (Active Resolution)</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="unmapped">Unmapped</SelectItem>
-                <SelectItem value="unknown">Unknown</SelectItem>
-              </SelectContent>
+            <Select {...register("mappingStatus")}>
+              <option value="mapped">Mapped (Active Resolution)</option>
+              <option value="partial">Partial</option>
+              <option value="unmapped">Unmapped</option>
+              <option value="unknown">Unknown</option>
             </Select>
             {errors.mappingStatus && (
               <p className="text-xs text-destructive">{errors.mappingStatus.message}</p>
@@ -152,7 +126,7 @@ export default function EditStaffDeviceMappingDialog({
             )}
           </div>
 
-          <DialogFooter className="pt-2">
+          <div className="flex justify-end gap-2 pt-2 border-t">
             <Button
               type="button"
               variant="outline"
@@ -171,9 +145,9 @@ export default function EditStaffDeviceMappingDialog({
                 "Save Changes"
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }

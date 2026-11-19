@@ -58,12 +58,13 @@ export default function EmployeeAttendanceTab({
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/attendance">
-                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                Attendance Workspace
-              </Link>
-            </Button>
+            <Link
+              href="/attendance"
+              className="inline-flex items-center justify-center rounded-lg border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground shadow-xs hover:bg-muted"
+            >
+              <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+              Attendance Workspace
+            </Link>
             {canAdjust && (
               <Button size="sm" onClick={() => setIsAddOpen(true)}>
                 <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -82,19 +83,23 @@ export default function EmployeeAttendanceTab({
           <ErrorState
             title="Failed to load biometric mappings"
             description={(error as Error)?.message || "Could not retrieve employee mappings."}
-            onRetry={() => refetch()}
+            retryAction={{
+              label: "Retry",
+              onClick: () => refetch(),
+            }}
           />
         ) : mappings.length === 0 ? (
           <EmptyState
             title="No biometric mappings assigned"
             description={`No hardware biometric ID is currently mapped to ${employeeName}. You can link their biometric device code here or via Attendance Settings.`}
             action={
-              canAdjust ? (
-                <Button size="sm" onClick={() => setIsAddOpen(true)}>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Map Biometric ID
-                </Button>
-              ) : undefined
+              canAdjust
+                ? {
+                    label: "Map Biometric ID",
+                    onClick: () => setIsAddOpen(true),
+                    icon: Plus,
+                  }
+                : undefined
             }
           />
         ) : (
