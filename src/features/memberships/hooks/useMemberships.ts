@@ -5,6 +5,7 @@ import {
   createMembershipPlan,
   updateMembershipPlan,
   deleteMembershipPlan,
+  duplicateMembershipPlan,
   getCustomerMemberships,
   getCustomerMembership,
   cancelBeneficiaryMembership,
@@ -69,6 +70,16 @@ export const useDeleteMembershipPlan = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteMembershipPlan(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "plans"] });
+    },
+  });
+};
+
+export const useDuplicateMembershipPlan = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => duplicateMembershipPlan(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "plans"] });
     },

@@ -102,6 +102,15 @@ export const deleteMembershipPlan = async (id: string): Promise<void> => {
   await apiClient.delete(`/memberships/plans/${id}`, { branchScope: "none" });
 };
 
+export const duplicateMembershipPlan = async (id: string): Promise<MembershipPlan> => {
+  const { data } = await apiClient.post<{ success: boolean; data: any }>(
+    `/memberships/plans/${id}/duplicate`,
+    {},
+    { branchScope: "none" }
+  );
+  return mapPlanKeys(data.data);
+};
+
 /**
  * 2. Customer Memberships
  */

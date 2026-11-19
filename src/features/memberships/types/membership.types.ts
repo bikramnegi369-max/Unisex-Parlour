@@ -4,6 +4,9 @@ export interface MembershipBenefits {
   serviceDiscountPercentage: number;
   productDiscountPercentage: number;
   eligibleServiceCategoryIds?: string[];
+  eligibleServiceIds?: string[];
+  excludedServiceCategoryIds?: string[];
+  excludedServiceIds?: string[];
   complimentaryPerks: string[];
 }
 
@@ -15,10 +18,19 @@ export interface MembershipPlan {
   code?: string | null;
   tier: MembershipTier;
   description?: string;
+  termsAndConditions?: string;
   price: number;
   validityMonths: number;
+  validityUnit?: "days" | "months" | "years";
+  validityDuration?: number;
   maxBeneficiaries: number;
   benefits: MembershipBenefits;
+  beneficiaryPolicy?: {
+    allowMultipleBeneficiaries?: boolean;
+    maxBeneficiaries?: number;
+    payerMustBeBeneficiary?: boolean;
+    allowBeneficiaryChanges?: boolean;
+  };
   permittedBranchIds?: string[];
   isActive: boolean;
   createdAt?: string;
@@ -62,14 +74,26 @@ export interface CreateMembershipPlanPayload {
   code?: string | null;
   tier?: string;
   description?: string;
+  termsAndConditions?: string;
   price: number;
   validityMonths: number;
+  validityUnit?: "days" | "months" | "years";
+  validityDuration?: number;
   maxBeneficiaries?: number;
   benefits?: {
     serviceDiscountPercentage?: number;
     productDiscountPercentage?: number;
     eligibleServiceCategoryIds?: string[];
+    eligibleServiceIds?: string[];
+    excludedServiceCategoryIds?: string[];
+    excludedServiceIds?: string[];
     complimentaryPerks?: string[];
+  };
+  beneficiaryPolicy?: {
+    allowMultipleBeneficiaries?: boolean;
+    maxBeneficiaries?: number;
+    payerMustBeBeneficiary?: boolean;
+    allowBeneficiaryChanges?: boolean;
   };
   permittedBranchIds?: string[];
   isActive?: boolean;

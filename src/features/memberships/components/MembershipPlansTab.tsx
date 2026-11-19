@@ -6,6 +6,7 @@ import {
   useCreateMembershipPlan,
   useUpdateMembershipPlan,
   useDeleteMembershipPlan,
+  useDuplicateMembershipPlan,
 } from "../hooks/useMemberships";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ import {
   Edit2,
   Trash2,
   ShoppingCart,
+  Copy,
 } from "lucide-react";
 import { MembershipPlanDialog } from "./MembershipPlanDialog";
 import { toast } from "sonner";
@@ -46,6 +48,7 @@ export function MembershipPlansTab({
   const createPlanMutation = useCreateMembershipPlan();
   const updatePlanMutation = useUpdateMembershipPlan();
   const deletePlanMutation = useDeleteMembershipPlan();
+  const duplicatePlanMutation = useDuplicateMembershipPlan();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
@@ -80,6 +83,19 @@ export function MembershipPlansTab({
     }
   };
 
+  const handleDuplicate = async (plan: MembershipPlan) => {
+    try {
+      await duplicatePlanMutation.mutateAsync(plan.id);
+      toast.success(`Plan "${plan.name}" duplicated successfully.`);
+    } catch (err: any) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to duplicate plan.",
+      );
+    }
+  };
+
   const handleSubmitPlan = async (values: MembershipPlanFormValues) => {
     try {
       const payload = {
@@ -87,14 +103,22 @@ export function MembershipPlansTab({
         code: values.code ? values.code.toUpperCase() : null,
         tier: values.tier,
         description: values.description,
+        termsAndConditions: values.termsAndConditions,
         price: values.price,
         validityMonths: values.validityMonths,
+        validityUnit: values.validityUnit,
+        validityDuration: values.validityDuration,
         maxBeneficiaries: values.maxBeneficiaries,
         benefits: {
           serviceDiscountPercentage: values.serviceDiscountPercentage,
           productDiscountPercentage: values.productDiscountPercentage,
+          eligibleServiceCategoryIds: values.eligibleServiceCategoryIds,
+          eligibleServiceIds: values.eligibleServiceIds,
+          excludedServiceCategoryIds: values.excludedServiceCategoryIds,
+          excludedServiceIds: values.excludedServiceIds,
           complimentaryPerks: values.complimentaryPerks,
         },
+        permittedBranchIds: values.permittedBranchIds,
         isActive: values.isActive,
       };
 
@@ -252,6 +276,15 @@ export function MembershipPlansTab({
 
                 {canConfigure && (
                   <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDuplicate(plan)}
+                      className="h-8 px-2.5 text-xs cursor-pointer"
+                      title="Duplicate Plan"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
