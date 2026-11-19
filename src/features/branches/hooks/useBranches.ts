@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useAppDispatch } from "@/hooks/store";
 import { setAvailableBranches, setOrganization, setCurrentBranch } from "@/store/slices/branchSlice";
 import { getBranches } from "../api/branches.api";
@@ -10,7 +10,6 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasOrgWideAccess, hasBranchAccess } from "@/lib/permissions";
 import axios from "axios";
 import type { Branch } from "@/types/branch";
-
 
 export function useBranches() {
   const dispatch = useAppDispatch();
@@ -22,6 +21,11 @@ export function useBranches() {
       try {
         return await getBranches();
       } catch (err) {
+        // If the user does not have permission to view all branches (403),
+        // gracefully fall back instead of throwing an unhandled UI error.
+        if (axios.isAxiosError(err) && err.response?.status === 403) {
+          return null;
+        }
         const errorMessage =
           axios.isAxiosError(err) && err.response?.data?.message
             ? err.response.data.message
@@ -34,12 +38,50 @@ export function useBranches() {
     retry: false,
   });
 
-  // Populate Redux store when branches are fetched
-  useEffect(() => {
-    if (!query.data) return;
+  // Synthesize branches list:
+  // If GET /branches succeeded with data, use it.
+  // If the user lacks branches.view (or query returned null), construct the branch list
+  // directly from the user's active session branchAccess.
+  const effectiveBranches = useMemo<Branch[]>(() => {
+    if (query.data?.branches && query.data.branches.length > 0) {
+      return query.data.branches;
+    }
 
-    dispatch(setOrganization(query.data.organization));
-    dispatch(setAvailableBranches(query.data.branches));
+    if (user?.branchAccess && user.branchAccess.length > 0) {
+      return user.branchAccess
+        .filter((ba) => ba.isActive)
+        .map((ba) => ({
+          id: ba.branchId,
+          name: ba.branchName || "Branch",
+          organizationId: user.organizationId,
+          isActive: ba.isActive,
+        }));
+    }
+
+    return [];
+  }, [query.data?.branches, user?.branchAccess, user?.organizationId]);
+
+  const effectiveOrganization = useMemo(() => {
+    if (query.data?.organization) {
+      return query.data.organization;
+    }
+    if (user?.organizationId) {
+      return {
+        id: user.organizationId,
+        name: "",
+      };
+    }
+    return null;
+  }, [query.data?.organization, user?.organizationId]);
+
+  // Populate Redux store when branches are available
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    if (effectiveOrganization) {
+      dispatch(setOrganization(effectiveOrganization));
+    }
+    dispatch(setAvailableBranches(effectiveBranches));
 
     const storedId = getStoredBranchId();
     const isOrgWide = hasOrgWideAccess(user);
@@ -50,7 +92,7 @@ export function useBranches() {
       } else {
         // Fallback for non-org-wide users: select first active, authorized branch
         removeStoredBranchId();
-        const fallback = query.data.branches.find(
+        const fallback = effectiveBranches.find(
           (b: Branch) => b.isActive && hasBranchAccess(user, b.id)
         );
         if (fallback) {
@@ -62,16 +104,16 @@ export function useBranches() {
       }
     } else {
       // Validate specific stored branch selection
-      const exists = query.data.branches.some((b: Branch) => b.id === storedId);
+      const exists = effectiveBranches.some((b: Branch) => b.id === storedId);
       const isAuthorized = hasBranchAccess(user, storedId);
-      const isActive = query.data.branches.find((b: Branch) => b.id === storedId)?.isActive;
+      const isActive = effectiveBranches.find((b: Branch) => b.id === storedId)?.isActive;
 
       if (exists && isAuthorized && isActive) {
         dispatch(setCurrentBranch(storedId));
       } else {
         // Invalid or unauthorized selection: clear and fallback
         removeStoredBranchId();
-        const fallback = query.data.branches.find(
+        const fallback = effectiveBranches.find(
           (b: Branch) => b.isActive && hasBranchAccess(user, b.id)
         );
         if (fallback) {
@@ -82,13 +124,13 @@ export function useBranches() {
         }
       }
     }
-  }, [query.data, dispatch, user]);
+  }, [effectiveBranches, effectiveOrganization, dispatch, user, isAuthenticated]);
 
   return {
-    branches: query.data?.branches ?? [],
-    organization: query.data?.organization ?? null,
+    branches: effectiveBranches,
+    organization: effectiveOrganization,
     isLoading: query.isLoading,
-    isError: query.isError,
+    isError: query.isError && !query.data && effectiveBranches.length === 0,
     refetch: query.refetch,
     isRefetching: query.isRefetching,
   };
