@@ -9,8 +9,23 @@ import {
 } from "../hooks/useMemberships";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Users, Sparkles, Percent, Calendar, Edit2, Trash2, ShoppingCart } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Plus,
+  Users,
+  Sparkles,
+  Percent,
+  Calendar,
+  Edit2,
+  Trash2,
+  ShoppingCart,
+} from "lucide-react";
 import { MembershipPlanDialog } from "./MembershipPlanDialog";
 import { toast } from "sonner";
 import type { MembershipPlan } from "../types/membership.types";
@@ -46,14 +61,22 @@ export function MembershipPlansTab({
   };
 
   const handleDelete = async (plan: MembershipPlan) => {
-    if (!window.confirm(`Are you sure you want to deactivate the plan "${plan.name}"?`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to deactivate the plan "${plan.name}"?`,
+      )
+    ) {
       return;
     }
     try {
       await deletePlanMutation.mutateAsync(plan.id);
       toast.success(`Plan "${plan.name}" deactivated successfully.`);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Failed to deactivate plan.");
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to deactivate plan.",
+      );
     }
   };
 
@@ -84,7 +107,9 @@ export function MembershipPlansTab({
       }
       setIsDialogOpen(false);
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Failed to save plan.");
+      toast.error(
+        err?.response?.data?.message || err?.message || "Failed to save plan.",
+      );
     }
   };
 
@@ -92,9 +117,12 @@ export function MembershipPlansTab({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Configured Membership Plans</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Configured Membership Plans
+          </h2>
           <p className="text-sm text-muted-foreground">
-            Configure membership privilege tiers, discounts, included perks, and multi-beneficiary limits.
+            Configure membership privilege tiers, discounts, included perks, and
+            multi-beneficiary limits.
           </p>
         </div>
 
@@ -106,17 +134,26 @@ export function MembershipPlansTab({
       </div>
 
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading plans catalog...</div>
+        <div className="text-center py-12 text-muted-foreground">
+          Loading plans catalog...
+        </div>
       ) : !data?.data || data.data.length === 0 ? (
         <Card className="text-center py-12 border-dashed">
           <CardContent className="space-y-3">
             <Sparkles className="mx-auto h-10 w-10 text-muted-foreground" />
-            <p className="font-semibold text-lg">No membership plans configured yet</p>
+            <p className="font-semibold text-lg">
+              No membership plans configured yet
+            </p>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Get started by creating your first tiered membership plan with service discounts and included perks.
+              Get started by creating your first tiered membership plan with
+              service discounts and included perks.
             </p>
             {canConfigure && (
-              <Button onClick={handleOpenCreate} variant="outline" className="gap-1.5 mt-2">
+              <Button
+                onClick={handleOpenCreate}
+                variant="outline"
+                className="gap-1.5 mt-2"
+              >
                 <Plus className="w-4 h-4" /> Create First Plan
               </Button>
             )}
@@ -125,19 +162,33 @@ export function MembershipPlansTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {data.data.map((plan) => (
-            <Card key={plan.id} className="relative overflow-hidden border shadow-sm flex flex-col justify-between">
+            <Card
+              key={plan.id}
+              className="relative overflow-hidden border shadow-sm flex flex-col justify-between"
+            >
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div>
-                    <Badge variant="outline" className="mb-1 text-primary border-primary/30">
+                    <Badge
+                      variant="outline"
+                      className="mb-1 text-primary border-primary/30"
+                    >
                       {plan.tier} Tier
                     </Badge>
-                    <CardTitle className="text-lg leading-snug">{plan.name}</CardTitle>
-                    {plan.code && <CardDescription className="font-mono text-xs">Code: {plan.code}</CardDescription>}
+                    <CardTitle className="text-lg leading-snug">
+                      {plan.name}
+                    </CardTitle>
+                    {plan.code && (
+                      <CardDescription className="font-mono text-xs">
+                        Code: {plan.code}
+                      </CardDescription>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="text-xl font-bold">₹{plan.price}</span>
-                    <span className="text-xs text-muted-foreground block">/ {plan.validityMonths} mos</span>
+                    <span className="text-xs text-muted-foreground block">
+                      / {plan.validityMonths} mos
+                    </span>
                   </div>
                 </div>
               </CardHeader>
@@ -145,31 +196,46 @@ export function MembershipPlansTab({
                 <div className="flex items-center gap-2 text-muted-foreground text-xs">
                   <Users className="w-4 h-4 text-primary shrink-0" />
                   <span>
-                    Allows up to <strong className="text-foreground">{plan.maxBeneficiaries || 1}</strong> beneficiaries
+                    Allows up to{" "}
+                    <strong className="text-foreground">
+                      {plan.maxBeneficiaries || 1}
+                    </strong>{" "}
+                    beneficiaries
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2.5 rounded-lg border text-xs">
                   <div>
-                    <span className="text-muted-foreground block">Service Discount</span>
-                    <strong className="text-emerald-600 font-semibold">{plan.benefits?.serviceDiscountPercentage || 0}% OFF</strong>
+                    <span className="text-muted-foreground block">
+                      Service Discount
+                    </span>
+                    <strong className="text-emerald-600 font-semibold">
+                      {plan.benefits?.serviceDiscountPercentage || 0}% OFF
+                    </strong>
                   </div>
                   <div>
-                    <span className="text-muted-foreground block">Product Discount</span>
-                    <strong className="text-emerald-600 font-semibold">{plan.benefits?.productDiscountPercentage || 0}% OFF</strong>
+                    <span className="text-muted-foreground block">
+                      Product Discount
+                    </span>
+                    <strong className="text-emerald-600 font-semibold">
+                      {plan.benefits?.productDiscountPercentage || 0}% OFF
+                    </strong>
                   </div>
                 </div>
 
-                {plan.benefits?.complimentaryPerks && plan.benefits.complimentaryPerks.length > 0 && (
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground font-medium">Included Perks:</span>
-                    <ul className="text-xs space-y-0.5 list-disc list-inside text-muted-foreground">
-                      {plan.benefits.complimentaryPerks.map((perk, i) => (
-                        <li key={i}>{perk}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                {plan.benefits?.complimentaryPerks &&
+                  plan.benefits.complimentaryPerks.length > 0 && (
+                    <div className="space-y-1">
+                      <span className="text-xs text-muted-foreground font-medium">
+                        Included Perks:
+                      </span>
+                      <ul className="text-xs space-y-0.5 list-disc list-inside text-muted-foreground">
+                        {plan.benefits.complimentaryPerks.map((perk, i) => (
+                          <li key={i}>{perk}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
               </CardContent>
 
               {/* Action Toolbar */}
