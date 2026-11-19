@@ -24,6 +24,7 @@ import { CustomerPreferences } from "./CustomerPreferences";
 import { CustomerNotes } from "./CustomerNotes";
 import { CustomerActivityLog } from "./CustomerActivityLog";
 import { CustomerSubscriptionsTab } from "./CustomerSubscriptionsTab";
+import { CustomerMembershipsProfileTab } from "./CustomerMembershipsProfileTab";
 import { CustomerBillingTab } from "./CustomerBillingTab";
 import { CustomerLoyaltyTab } from "./CustomerLoyaltyTab";
 import {
@@ -210,6 +211,7 @@ export default function CustomerDetailsPage({
     { id: "loyalty", label: "Loyalty Account" },
     { id: "billing", label: "Billing & Invoices" },
     { id: "subscriptions", label: "Subscriptions" },
+    { id: "memberships", label: "Memberships" },
     { id: "preferences", label: "Preferences" },
     { id: "notes", label: "Internal Notes" },
     { id: "activity", label: "Activity Log" },
@@ -253,6 +255,10 @@ export default function CustomerDetailsPage({
 
         {activeTab === "subscriptions" && (
           <CustomerSubscriptionsTab customerId={customerId} />
+        )}
+
+        {activeTab === "memberships" && (
+          <CustomerMembershipsProfileTab customerId={customerId} />
         )}
 
         {activeTab === "preferences" && (
