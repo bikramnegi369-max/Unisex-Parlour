@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Receipt,
   CreditCard,
+  Sparkles,
   MoreHorizontal,
   ChevronUp,
   ChevronDown,
@@ -48,6 +49,8 @@ import { useDispatch } from "react-redux";
 import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
+import { useCreateMembershipPlan } from "@/features/memberships/hooks/useMemberships";
+import type { CreateMembershipPlanPayload } from "@/features/memberships/types/membership.types";
 import {
   useCustomerActiveBenefits,
   useMembershipPlans,
@@ -126,6 +129,7 @@ export function AppointmentDetailsDialog({
 
   const upsellSubMutation = useUpsellAppointmentSubscription();
   const createInvoiceMutation = useCreateInvoice();
+  const createMembershipPlanMutation = useCreateMembershipPlan();
   const canCheckout = hasPermission(user, "billing.checkout");
   const canSellSubscriptions = hasPermission(user, "subscriptions.sell");
   const canSellMemberships =
@@ -512,6 +516,41 @@ export function AppointmentDetailsDialog({
             )}
           </div>
         </div>
+
+        {/* Section: Prominent Membership Privileges & Upsell Card */}
+        {canSellMemberships && customerId && !isTerminal && (
+          <div className="p-3 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                  <CreditCard className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="font-bold text-foreground block">
+                    {activeMembershipBenefits?.hasActiveMembership
+                      ? `Active Membership: ${activeMembershipBenefits.planSnapshot?.name || "Member"}`
+                      : "Membership Privileges & In-Appointment Upsell"}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground block">
+                    {activeMembershipBenefits?.hasActiveMembership
+                      ? `Customer enjoys ${activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services.`
+                      : "Offer customer-specific perks or standard catalogue tiers. Discount applies to this appointment."}
+                  </span>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setIsSellMembershipOpen(true)}
+                className="text-xs h-7.5 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer shrink-0"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                {activeMembershipBenefits?.hasActiveMembership ? "Upgrade / Add Plan" : "Upsell Membership"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Section A: Automated Scheduled Reminder */}
         <div className="space-y-2 border-t border-border pt-3">
@@ -1055,9 +1094,68 @@ export function AppointmentDetailsDialog({
       <SellMembershipDialog
         isOpen={isSellMembershipOpen}
         onClose={() => setIsSellMembershipOpen(false)}
-        isLoading={createInvoiceMutation.isPending}
+        isLoading={
+          createInvoiceMutation.isPending ||
+          createMembershipPlanMutation.isPending
+        }
         plans={membershipPlans}
         initialCustomerId={customerId}
+        onCreateCustomPlanAndSell={async (customPlanPayload, checkoutData) => {
+          try {
+            // 1. Create custom plan
+            const createdPlan =
+              await createMembershipPlanMutation.mutateAsync(customPlanPayload);
+
+            // 2. Add to invoice attached to this appointment
+            const invoice = await createInvoiceMutation.mutateAsync({
+              branchId: appointment.branchId,
+              appointmentId: appointment.id,
+              customerId: checkoutData.payerCustomerId,
+              membershipLines: [
+                {
+                  membershipPlanId: createdPlan.id,
+                  quantity: 1,
+                  soldByStaffId: checkoutData.soldByStaffId || undefined,
+                  payerCustomerId: checkoutData.payerCustomerId,
+                  beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+                },
+              ],
+              notes:
+                checkoutData.notes ||
+                `Custom membership upsold during appointment #${appointmentCodeDisplay}`,
+            });
+
+            setIsSellMembershipOpen(false);
+
+            if (invoice?.id) {
+              toast.success(
+                `Custom membership attached to invoice ${invoice.invoiceNumber || ""}!`,
+                {
+                  action: {
+                    label: "Open Invoice",
+                    onClick: () => router.push(`/billing/${invoice.id}`),
+                  },
+                  duration: 6000,
+                },
+              );
+              router.push(`/billing/${invoice.id}`);
+            } else {
+              toast.success("Custom membership invoice created successfully.");
+            }
+          } catch (err: unknown) {
+            const errorObj = err as Record<string, unknown> | null;
+            const responseObj = errorObj?.response as Record<
+              string,
+              unknown
+            > | null;
+            const msg =
+              ((responseObj?.data as Record<string, unknown> | null)
+                ?.message as string) ||
+              (errorObj?.message as string) ||
+              "Failed to process custom membership upsell.";
+            toast.error(msg);
+          }
+        }}
         onSubmit={async (values) => {
           try {
             const invoice = await createInvoiceMutation.mutateAsync({
