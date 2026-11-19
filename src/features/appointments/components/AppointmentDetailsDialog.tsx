@@ -49,6 +49,7 @@ import { useDispatch } from "react-redux";
 import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
+import { buildSubscriptionPurchasePayload } from "@/features/subscriptions/utils/buildSubscriptionPurchasePayload";
 import { useCreateMembershipPlan } from "@/features/memberships/hooks/useMemberships";
 import {
   useCustomerActiveBenefits,
@@ -517,40 +518,78 @@ export function AppointmentDetailsDialog({
           </div>
         </div>
 
-        {/* Section: Prominent Membership Privileges & Upsell Card */}
-        {canSellMemberships && customerId && !isTerminal && (
-          <div className="p-3 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                  <CreditCard className="w-4 h-4" />
+        {/* Section: Prominent Membership & Subscription Upsell Banner */}
+        {((canSellMemberships || canSellSubscriptions) && customerId && !isTerminal) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Membership Card */}
+            {canSellMemberships && (
+              <div className="p-3 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground block">
+                      {activeMembershipBenefits?.hasActiveMembership
+                        ? `Membership: ${activeMembershipBenefits.planSnapshot?.name || "Active"}`
+                        : "Membership Privileges"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block line-clamp-2">
+                      {activeMembershipBenefits?.hasActiveMembership
+                        ? `Customer receives ${activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services.`
+                        : "Sell catalogue or customized tier. Applies discounts to this appointment."}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-foreground block">
+
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsSellMembershipOpen(true)}
+                    className="text-xs h-7 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
                     {activeMembershipBenefits?.hasActiveMembership
-                      ? `Active Membership: ${activeMembershipBenefits.planSnapshot?.name || "Member"}`
-                      : "Membership Privileges & In-Appointment Upsell"}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground block">
-                    {activeMembershipBenefits?.hasActiveMembership
-                      ? `Customer enjoys ${activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services.`
-                      : "Offer customer-specific perks or standard catalogue tiers. Discount applies to this appointment."}
-                  </span>
+                      ? "Upgrade / Add Plan"
+                      : "Upsell Membership"}
+                  </Button>
                 </div>
               </div>
+            )}
 
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setIsSellMembershipOpen(true)}
-                className="text-xs h-7.5 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer shrink-0"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                {activeMembershipBenefits?.hasActiveMembership
-                  ? "Upgrade / Add Plan"
-                  : "Upsell Membership"}
-              </Button>
-            </div>
+            {/* Subscription Upsell Card */}
+            {canSellSubscriptions && (
+              <div className="p-3 bg-linear-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground block">
+                      Subscription Packages
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block line-clamp-2">
+                      {customerSubsData && customerSubsData.data && customerSubsData.data.length > 0
+                        ? `${customerSubsData.data.length} package(s) on file. Upsell a new package or session quota.`
+                        : "Sell pre-bundled session packages with automated service coverage."}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsSellSubscriptionOpen(true)}
+                    className="text-xs h-7 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs font-semibold cursor-pointer"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    Sell Subscription
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1035,18 +1074,30 @@ export function AppointmentDetailsDialog({
           isLoading={upsellSubMutation.isPending}
           onSubmit={async (values) => {
             try {
+              const canonicalPayload = buildSubscriptionPurchasePayload({
+                values,
+                effectiveBranchId: appointment.branchId,
+                defaultCustomerId: customerId,
+              });
+
+              // Extract flat entitlements if present, or flatten member entitlements for appointment upsell endpoint compatibility
+              const resolvedEntitlements =
+                canonicalPayload.entitlements && canonicalPayload.entitlements.length > 0
+                  ? canonicalPayload.entitlements
+                  : (canonicalPayload.members || []).flatMap((m) => m.entitlements || []);
+
               const res = await upsellSubMutation.mutateAsync({
                 appointmentId: appointment.id,
                 payload: {
                   branchId: appointment.branchId,
-                  planId: values.planId,
-                  soldByStaffId: values.soldByStaffId || undefined,
-                  price: values.price,
-                  entitlements: values.entitlements || [],
-                  permittedBranchIds: values.permittedBranchIds,
-                  startDate: values.startDate,
-                  endDate: values.endDate,
-                  notes: values.notes,
+                  planId: canonicalPayload.planId,
+                  soldByStaffId: canonicalPayload.soldByStaffId || undefined,
+                  price: canonicalPayload.price,
+                  entitlements: resolvedEntitlements,
+                  permittedBranchIds: canonicalPayload.permittedBranchIds,
+                  startDate: canonicalPayload.startDate,
+                  endDate: canonicalPayload.endDate,
+                  notes: canonicalPayload.notes,
                 },
               });
 

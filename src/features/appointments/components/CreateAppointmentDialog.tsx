@@ -59,6 +59,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { useCreateSubscription } from "@/features/subscriptions/hooks/useCreateSubscription";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
+import { buildSubscriptionPurchasePayload } from "@/features/subscriptions/utils/buildSubscriptionPurchasePayload";
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
@@ -2192,7 +2193,7 @@ export function CreateAppointmentDialog({
                     title="Sell a subscription package to this customer"
                   >
                     <CreditCard className="h-3.5 w-3.5 stroke-2 text-emerald-600 dark:text-emerald-400" />
-                    <span>Sell Plan</span>
+                    <span>Sell Subscription</span>
                   </button>
 
                   <button
@@ -3288,20 +3289,15 @@ export function CreateAppointmentDialog({
           isLoading={createSubMutation.isPending}
           onSubmit={async (values) => {
             try {
+              const canonicalPayload = buildSubscriptionPurchasePayload({
+                values,
+                effectiveBranchId,
+                defaultCustomerId: watchedCustomerId,
+              });
+
               const createdSub = await createSubMutation.mutateAsync({
-                payload: {
-                  customerId: values.customerId,
-                  soldByStaffId: values.soldByStaffId || undefined,
-                  planId: values.planId,
-                  price: values.price,
-                  entitlements: values.entitlements,
-                  permittedBranchIds: values.permittedBranchIds,
-                  startDate: values.startDate,
-                  endDate: values.endDate,
-                  notes: values.notes,
-                  branchId: effectiveBranchId,
-                },
-                branchId: effectiveBranchId,
+                payload: canonicalPayload,
+                branchId: effectiveBranchId || undefined,
               });
 
               setIsSellSubscriptionOpen(false);
@@ -3351,130 +3347,132 @@ export function CreateAppointmentDialog({
         />
       </Dialog>
       {/* Membership Upsell / Sale Dialog */}
-      <SellMembershipDialog
-        isOpen={isSellMembershipOpen}
-        onClose={() => setIsSellMembershipOpen(false)}
-        isLoading={
-          createInvoiceMutation.isPending ||
-          createMembershipPlanMutation.isPending
-        }
-        plans={membershipPlans}
-        initialCustomerId={watchedCustomerId}
-        onCreateCustomPlanAndSell={async (customPlanPayload, checkoutData) => {
-          try {
-            if (!effectiveBranchId) {
-              toast.error(
-                "Please select a specific branch before creating an invoice.",
-              );
-              return;
-            }
-
-            const createdPlan =
-              await createMembershipPlanMutation.mutateAsync(customPlanPayload);
-
-            const invoice = await createInvoiceMutation.mutateAsync({
-              branchId: effectiveBranchId,
-              customerId: checkoutData.payerCustomerId,
-              membershipLines: [
-                {
-                  membershipPlanId: createdPlan.id,
-                  quantity: 1,
-                  soldByStaffId: checkoutData.soldByStaffId || undefined,
-                  payerCustomerId: checkoutData.payerCustomerId,
-                  beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
-                  beneficiaries: checkoutData.beneficiaries,
-                },
-              ],
-              notes:
-                checkoutData.notes ||
-                `Membership sold during booking setup for customer`,
-            });
-
-            setIsSellMembershipOpen(false);
-            await queryClient.invalidateQueries({ queryKey: ["memberships"] });
-            await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-            await refetchCustomerBenefits();
-
-            if (invoice?.id) {
-              toast.success(
-                `Membership purchased! Invoice #${invoice.invoiceNumber || ""} created.`,
-                {
-                  action: {
-                    label: "View Invoice",
-                    onClick: () =>
-                      window.open(`/billing/${invoice.id}`, "_blank"),
-                  },
-                  duration: 6000,
-                },
-              );
-            } else {
-              toast.success("Membership plan created and sold successfully!");
-            }
-          } catch (err: unknown) {
-            const msg =
-              err instanceof Error
-                ? err.message
-                : (err as { response?: { data?: { message?: string } } })
-                    ?.response?.data?.message ||
-                  "Failed to sell custom membership.";
-            toast.error(msg);
+      {isSellMembershipOpen && (
+        <SellMembershipDialog
+          isOpen={isSellMembershipOpen}
+          onClose={() => setIsSellMembershipOpen(false)}
+          isLoading={
+            createInvoiceMutation.isPending ||
+            createMembershipPlanMutation.isPending
           }
-        }}
-        onSubmit={async (values) => {
-          try {
-            if (!effectiveBranchId) {
-              toast.error(
-                "Please select a specific branch before creating an invoice.",
-              );
-              return;
-            }
+          plans={membershipPlans}
+          initialCustomerId={watchedCustomerId}
+          onCreateCustomPlanAndSell={async (customPlanPayload, checkoutData) => {
+            try {
+              if (!effectiveBranchId) {
+                toast.error(
+                  "Please select a specific branch before creating an invoice.",
+                );
+                return;
+              }
 
-            const invoice = await createInvoiceMutation.mutateAsync({
-              branchId: effectiveBranchId,
-              customerId: values.payerCustomerId,
-              membershipLines: [
-                {
-                  membershipPlanId: values.membershipPlanId,
-                  quantity: 1,
-                  soldByStaffId: values.soldByStaffId || undefined,
-                  payerCustomerId: values.payerCustomerId,
-                  beneficiaryCustomerIds: values.beneficiaryCustomerIds,
-                  beneficiaries: values.beneficiaries,
-                },
-              ],
-              notes: values.notes || `Membership sold during booking setup`,
-            });
+              const createdPlan =
+                await createMembershipPlanMutation.mutateAsync(customPlanPayload);
 
-            setIsSellMembershipOpen(false);
-            await queryClient.invalidateQueries({ queryKey: ["memberships"] });
-            await queryClient.invalidateQueries({ queryKey: ["invoices"] });
-            await refetchCustomerBenefits();
-
-            if (invoice?.id) {
-              toast.success(
-                `Membership sold! Invoice #${invoice.invoiceNumber || ""} created.`,
-                {
-                  action: {
-                    label: "View Invoice",
-                    onClick: () =>
-                      window.open(`/billing/${invoice.id}`, "_blank"),
+              const invoice = await createInvoiceMutation.mutateAsync({
+                branchId: effectiveBranchId,
+                customerId: checkoutData.payerCustomerId,
+                membershipLines: [
+                  {
+                    membershipPlanId: createdPlan.id,
+                    quantity: 1,
+                    soldByStaffId: checkoutData.soldByStaffId || undefined,
+                    payerCustomerId: checkoutData.payerCustomerId,
+                    beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+                    beneficiaries: checkoutData.beneficiaries,
                   },
-                  duration: 6000,
-                },
-              );
-            } else {
-              toast.success("Membership sale invoice created successfully.");
+                ],
+                notes:
+                  checkoutData.notes ||
+                  `Membership sold during booking setup for customer`,
+              });
+
+              setIsSellMembershipOpen(false);
+              await queryClient.invalidateQueries({ queryKey: ["memberships"] });
+              await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+              await refetchCustomerBenefits();
+
+              if (invoice?.id) {
+                toast.success(
+                  `Membership purchased! Invoice #${invoice.invoiceNumber || ""} created.`,
+                  {
+                    action: {
+                      label: "View Invoice",
+                      onClick: () =>
+                        window.open(`/billing/${invoice.id}`, "_blank"),
+                    },
+                    duration: 6000,
+                  },
+                );
+              } else {
+                toast.success("Membership plan created and sold successfully!");
+              }
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message ||
+                    "Failed to sell custom membership.";
+              toast.error(msg);
             }
-          } catch (err: unknown) {
-            const msg =
-              err instanceof Error
-                ? err.message
-                : (err as { response?: { data?: { message?: string } } })
-                    ?.response?.data?.message || "Failed to sell membership.";
-            toast.error(msg);
-          }
-        }}
-      />
+          }}
+          onSubmit={async (values) => {
+            try {
+              if (!effectiveBranchId) {
+                toast.error(
+                  "Please select a specific branch before creating an invoice.",
+                );
+                return;
+              }
+
+              const invoice = await createInvoiceMutation.mutateAsync({
+                branchId: effectiveBranchId,
+                customerId: values.payerCustomerId,
+                membershipLines: [
+                  {
+                    membershipPlanId: values.membershipPlanId,
+                    quantity: 1,
+                    soldByStaffId: values.soldByStaffId || undefined,
+                    payerCustomerId: values.payerCustomerId,
+                    beneficiaryCustomerIds: values.beneficiaryCustomerIds,
+                    beneficiaries: values.beneficiaries,
+                  },
+                ],
+                notes: values.notes || `Membership sold during booking setup`,
+              });
+
+              setIsSellMembershipOpen(false);
+              await queryClient.invalidateQueries({ queryKey: ["memberships"] });
+              await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+              await refetchCustomerBenefits();
+
+              if (invoice?.id) {
+                toast.success(
+                  `Membership sold! Invoice #${invoice.invoiceNumber || ""} created.`,
+                  {
+                    action: {
+                      label: "View Invoice",
+                      onClick: () =>
+                        window.open(`/billing/${invoice.id}`, "_blank"),
+                    },
+                    duration: 6000,
+                  },
+                );
+              } else {
+                toast.success("Membership sale invoice created successfully.");
+              }
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message || "Failed to sell membership.";
+              toast.error(msg);
+            }
+          }}
+        />
+      )}
     </Dialog>
   );
 }
