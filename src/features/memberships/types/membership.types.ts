@@ -77,6 +77,22 @@ export interface CreateMembershipPlanPayload {
 
 export interface UpdateMembershipPlanPayload extends Partial<CreateMembershipPlanPayload> {}
 
+export interface CustomerActiveBenefits {
+  hasActiveMembership: boolean;
+  membershipId: string | null;
+  membershipCode?: string;
+  planSnapshot?: {
+    name?: string;
+    tier?: string;
+    price?: number;
+    validityMonths?: number;
+    benefits?: MembershipBenefits;
+  };
+  startDate?: string;
+  endDate?: string;
+  permittedBranchIds?: string[];
+}
+
 export interface QueryMembershipPlansParams {
   search?: string;
   tier?: string;

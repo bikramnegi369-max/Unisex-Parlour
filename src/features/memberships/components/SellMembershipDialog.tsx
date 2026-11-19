@@ -20,6 +20,7 @@ interface SellMembershipDialogProps {
   isLoading: boolean;
   plans: MembershipPlan[];
   selectedPlanId?: string | null;
+  initialCustomerId?: string | null;
 }
 
 export function SellMembershipDialog({
@@ -29,6 +30,7 @@ export function SellMembershipDialog({
   isLoading,
   plans,
   selectedPlanId,
+  initialCustomerId,
 }: SellMembershipDialogProps) {
   const { currentBranchId } = useBranchContext();
   const [beneficiaryInputId, setBeneficiaryInputId] = useState("");
@@ -44,8 +46,8 @@ export function SellMembershipDialog({
     resolver: zodResolver(sellMembershipFormSchema) as unknown as Resolver<SellMembershipFormValues>,
     defaultValues: {
       membershipPlanId: selectedPlanId || "",
-      payerCustomerId: "",
-      beneficiaryCustomerIds: [],
+      payerCustomerId: initialCustomerId || "",
+      beneficiaryCustomerIds: initialCustomerId ? [initialCustomerId] : [],
       soldByStaffId: "",
       notes: "",
     },
@@ -65,17 +67,24 @@ export function SellMembershipDialog({
   }, [selectedPlanId, setValue]);
 
   useEffect(() => {
+    if (initialCustomerId) {
+      setValue("payerCustomerId", initialCustomerId);
+      setValue("beneficiaryCustomerIds", [initialCustomerId]);
+    }
+  }, [initialCustomerId, setValue]);
+
+  useEffect(() => {
     if (!isOpen) {
       reset({
         membershipPlanId: selectedPlanId || "",
-        payerCustomerId: "",
-        beneficiaryCustomerIds: [],
+        payerCustomerId: initialCustomerId || "",
+        beneficiaryCustomerIds: initialCustomerId ? [initialCustomerId] : [],
         soldByStaffId: "",
         notes: "",
       });
       setBeneficiaryInputId("");
     }
-  }, [isOpen, selectedPlanId, reset]);
+  }, [isOpen, selectedPlanId, initialCustomerId, reset]);
 
   // Convenience helper: Add Payer as Beneficiary
   const handleAddPayerAsBeneficiary = () => {

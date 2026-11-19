@@ -48,6 +48,9 @@ import { useDispatch } from "react-redux";
 import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
+import { useCustomerActiveBenefits, useMembershipPlans } from "@/features/memberships/hooks/useMemberships";
+import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
+import { useCreateInvoice } from "@/features/billing/hooks/useBillingMutations";
 import type {
   Appointment,
   AppointmentServiceSnapshot,
@@ -90,6 +93,7 @@ export function AppointmentDetailsDialog({
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
   const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
+  const [isSellMembershipOpen, setIsSellMembershipOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const actionsMenuRef = React.useRef<HTMLDivElement>(null);
 
@@ -118,8 +122,10 @@ export function AppointmentDetailsDialog({
   }, [isActionsMenuOpen]);
 
   const upsellSubMutation = useUpsellAppointmentSubscription();
+  const createInvoiceMutation = useCreateInvoice();
   const canCheckout = hasPermission(user, "billing.checkout");
   const canSellSubscriptions = hasPermission(user, "subscriptions.sell");
+  const canSellMemberships = hasPermission(user, "memberships.sell") || hasPermission(user, "memberships.configure");
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -140,6 +146,14 @@ export function AppointmentDetailsDialog({
     { customerId: customerId || undefined, limit: 50 },
     { enabled: Boolean(isOpen && customerId) },
   );
+
+  // Active membership benefits for appointment customer
+  const { data: activeMembershipBenefits } = useCustomerActiveBenefits(
+    customerId || "",
+    appointment?.branchId
+  );
+  const { data: membershipPlansData } = useMembershipPlans({ limit: 100 });
+  const membershipPlans = membershipPlansData?.data || [];
 
   const subsList = customerSubsData?.data;
   const subscriptionMap = React.useMemo(() => {
@@ -286,6 +300,15 @@ export function AppointmentDetailsDialog({
             {appointment.customer?.phone && (
               <div className="text-[11px] text-muted-foreground pl-5">
                 {appointment.customer.phone}
+              </div>
+            )}
+            {activeMembershipBenefits?.hasActiveMembership && (
+              <div className="pl-5 pt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  <CreditCard className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  {activeMembershipBenefits.planSnapshot?.name || "Active Member"} (
+                  {activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% Service Off)
+                </span>
               </div>
             )}
           </div>
@@ -772,6 +795,21 @@ export function AppointmentDetailsDialog({
                         <span>Sell Subscription</span>
                       </button>
                     )}
+
+                    {canSellMemberships && customerId && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setIsSellMembershipOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-left text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer font-medium"
+                      >
+                        <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                        <span>Sell Membership</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1006,6 +1044,60 @@ export function AppointmentDetailsDialog({
           }}
         />
       </Dialog>
+
+      {/* Membership Upsell Dialog from Appointment Context */}
+      <SellMembershipDialog
+        isOpen={isSellMembershipOpen}
+        onClose={() => setIsSellMembershipOpen(false)}
+        isLoading={createInvoiceMutation.isPending}
+        plans={membershipPlans}
+        initialCustomerId={customerId}
+        onSubmit={async (values) => {
+          try {
+            const invoice = await createInvoiceMutation.mutateAsync({
+              branchId: appointment.branchId,
+              appointmentId: appointment.id,
+              customerId: values.payerCustomerId,
+              membershipLines: [
+                {
+                  membershipPlanId: values.membershipPlanId,
+                  quantity: 1,
+                  soldByStaffId: values.soldByStaffId || undefined,
+                  payerCustomerId: values.payerCustomerId,
+                  beneficiaryCustomerIds: values.beneficiaryCustomerIds,
+                },
+              ],
+              notes: values.notes || `Membership upsold during appointment #${appointmentCodeDisplay}`,
+            });
+
+            setIsSellMembershipOpen(false);
+
+            if (invoice?.id) {
+              toast.success(
+                `Membership plan added to invoice ${invoice.invoiceNumber || ""}!`,
+                {
+                  action: {
+                    label: "Open Invoice",
+                    onClick: () => router.push(`/billing/${invoice.id}`),
+                  },
+                  duration: 6000,
+                }
+              );
+              router.push(`/billing/${invoice.id}`);
+            } else {
+              toast.success("Membership sale invoice created successfully.");
+            }
+          } catch (err: unknown) {
+            const errorObj = err as Record<string, unknown> | null;
+            const responseObj = errorObj?.response as Record<string, unknown> | null;
+            const msg =
+              ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+              (errorObj?.message as string) ||
+              "Failed to process membership upsell.";
+            toast.error(msg);
+          }
+        }}
+      />
     </Dialog>
   );
 }

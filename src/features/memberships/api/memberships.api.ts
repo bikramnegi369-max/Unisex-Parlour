@@ -3,6 +3,7 @@ import type { PaginatedResponse } from "@/types/api.types";
 import type {
   MembershipPlan,
   CustomerMembership,
+  CustomerActiveBenefits,
   CreateMembershipPlanPayload,
   UpdateMembershipPlanPayload,
   QueryMembershipPlansParams,
@@ -147,14 +148,7 @@ export const cancelBeneficiaryMembership = async (
 export const getCustomerActiveBenefits = async (
   customerId: string,
   branchId?: string
-): Promise<{
-  hasActiveMembership: boolean;
-  membershipId: string | null;
-  membershipCode?: string;
-  planSnapshot?: any;
-  startDate?: string;
-  endDate?: string;
-}> => {
+): Promise<CustomerActiveBenefits> => {
   const { data } = await apiClient.get<{ success: boolean; data: any }>(
     `/memberships/customer/${customerId}/benefits`,
     {
