@@ -146,6 +146,13 @@ export interface BeneficiaryMemberConfig {
   isCustomized?: boolean;
 }
 
+export interface EnrolledBeneficiaryState {
+  customerId: string;
+  isPrimary?: boolean;
+  benefits?: Partial<MembershipBenefits>;
+  isCustomized?: boolean;
+}
+
 export interface SellMembershipCheckoutPayload {
   membershipPlanId: string;
   payerCustomerId: string;

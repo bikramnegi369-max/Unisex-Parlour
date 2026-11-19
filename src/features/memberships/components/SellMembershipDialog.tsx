@@ -25,12 +25,16 @@ import {
   Tag,
   ShieldCheck,
   UserCheck,
+  RotateCcw,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import type {
   MembershipPlan,
   CreateMembershipPlanPayload,
   SellMembershipCheckoutPayload,
   MembershipBenefits,
+  EnrolledBeneficiaryState,
 } from "../types/membership.types";
 import type { Customer } from "@/features/customers/types/customer.types";
 import { getCustomer } from "@/features/customers/api/customers.api";
@@ -76,47 +80,21 @@ export function SellMembershipDialog({
 }: SellMembershipDialogProps) {
   const { currentBranchId } = useBranchContext();
 
-  // Multi-step journey state: 1 = Who (Payer & Beneficiaries), 2 = Plan or Custom Builder, 3 = Review & Checkout
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // Exactly 2 Steps:
+  // Step 1: Plan and Beneficiary Configuration (The ONLY place where capacity, members, and benefits are managed)
+  // Step 2: Review and Payment Only (No member additions, no capacity toggles, no duplicate inputs)
+  const [step, setStep] = useState<1 | 2>(1);
 
-  // Step 1: Parties
+  // Plan Mode: "catalog" (existing plan) vs "custom" (build custom plan for customer)
+  const [planMode, setPlanMode] = useState<"catalog" | "custom">("catalog");
+  const [chosenPlanId, setChosenPlanId] = useState<string>(selectedPlanId || "");
+
+  // Purchaser / Bill Payer ID
   const [payerCustomerId, setPayerCustomerId] = useState<string>(
     initialCustomerId || "",
   );
-  const [beneficiaryCustomerIds, setBeneficiaryCustomerIds] = useState<
-    string[]
-  >(initialCustomerId ? [initialCustomerId] : []);
-  const [beneficiaryCandidateId, setBeneficiaryCandidateId] =
-    useState<string>("");
 
-  // Per-beneficiary custom benefits override state
-  const [beneficiaryBenefitOverrides, setBeneficiaryBenefitOverrides] = useState<
-    Record<
-      string,
-      {
-        serviceDiscountPercentage?: number;
-        productDiscountPercentage?: number;
-        complimentaryPerks?: string[];
-      }
-    >
-  >({});
-  const [expandedBeneficiaryId, setExpandedBeneficiaryId] = useState<
-    string | null
-  >(null);
-  const [newPerkInputs, setNewPerkInputs] = useState<Record<string, string>>({});
-
-  // Customer profile cache for human-friendly names and phones
-  const [customerProfiles, setCustomerProfiles] = useState<
-    Record<string, Customer>
-  >({});
-
-  // Step 2: Mode selection ("catalog" vs "custom")
-  const [planMode, setPlanMode] = useState<"catalog" | "custom">("catalog");
-  const [chosenPlanId, setChosenPlanId] = useState<string>(
-    selectedPlanId || "",
-  );
-
-  // Option B: Shared Custom Plan Builder Form using MembershipPlanFormFields for 100% template parity
+  // Custom Plan Builder Form (using shared MembershipPlanFormFields for full parity)
   const customPlanForm = useForm<MembershipPlanFormValues>({
     resolver: zodResolver(
       membershipPlanFormSchema,
@@ -131,7 +109,7 @@ export function SellMembershipDialog({
       validityMonths: 12,
       validityUnit: "months",
       validityDuration: 12,
-      maxBeneficiaries: 1, // P0: Exactly 1 by default
+      maxBeneficiaries: 1, // Default is exactly ONE
       serviceDiscountPercentage: 20,
       productDiscountPercentage: 10,
       eligibleServiceCategoryIds: [],
@@ -146,24 +124,101 @@ export function SellMembershipDialog({
 
   const [saveAsPermanentCatalog, setSaveAsPermanentCatalog] = useState(false);
 
-  // Step 3: Staff Attribution & Notes
+  // CANONICAL SINGLE SOURCE OF TRUTH for Enrolled Beneficiaries
+  const [enrolledBeneficiaries, setEnrolledBeneficiaries] = useState<
+    EnrolledBeneficiaryState[]
+  >([]);
+
+  // Expandable inline per-beneficiary editor & tag inputs
+  const [expandedBeneficiaryId, setExpandedBeneficiaryId] = useState<
+    string | null
+  >(null);
+  const [newPerkInputs, setNewPerkInputs] = useState<Record<string, string>>({});
+
+  // Candidate member selector state
+  const [candidateMemberId, setCandidateMemberId] = useState<string>("");
+
+  // Customer profile cache for human-friendly names and phones
+  const [customerProfiles, setCustomerProfiles] = useState<
+    Record<string, Customer>
+  >({});
+
+  // Review step metadata: Staff Attribution & Notes
   const [soldByStaffId, setSoldByStaffId] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Selected catalog plan object
+  const selectedCatalogPlan = useMemo(
+    () => plans.find((p) => p.id === chosenPlanId) || plans[0] || null,
+    [plans, chosenPlanId],
+  );
+
+  const customFormValues = customPlanForm.watch();
+
+  // Effective plan maximum allowed beneficiaries
+  const maxBeneficiaries = useMemo(() => {
+    if (planMode === "catalog") {
+      return selectedCatalogPlan?.maxBeneficiaries || 1;
+    }
+    return customFormValues.maxBeneficiaries || 1;
+  }, [planMode, selectedCatalogPlan, customFormValues.maxBeneficiaries]);
+
+  // Plan baseline benefits
+  const planDefaultBenefits: MembershipBenefits = useMemo(() => {
+    if (planMode === "catalog") {
+      return (
+        selectedCatalogPlan?.benefits || {
+          serviceDiscountPercentage: 0,
+          productDiscountPercentage: 0,
+          complimentaryPerks: [],
+        }
+      );
+    }
+    return {
+      serviceDiscountPercentage: customFormValues.serviceDiscountPercentage || 0,
+      productDiscountPercentage: customFormValues.productDiscountPercentage || 0,
+      complimentaryPerks: customFormValues.complimentaryPerks || [],
+      eligibleServiceCategoryIds: customFormValues.eligibleServiceCategoryIds || [],
+      eligibleServiceIds: customFormValues.eligibleServiceIds || [],
+      excludedServiceCategoryIds: customFormValues.excludedServiceCategoryIds || [],
+      excludedServiceIds: customFormValues.excludedServiceIds || [],
+    };
+  }, [planMode, selectedCatalogPlan, customFormValues]);
 
   // Reset or initialize state on dialog open
   useEffect(() => {
     if (isOpen) {
       setStep(1);
-      setPayerCustomerId(initialCustomerId || "");
-      setBeneficiaryCustomerIds(initialCustomerId ? [initialCustomerId] : []);
-      setBeneficiaryBenefitOverrides({});
-      setExpandedBeneficiaryId(null);
-      setNewPerkInputs({});
+      const initialPayer = initialCustomerId || "";
+      setPayerCustomerId(initialPayer);
       setChosenPlanId(selectedPlanId || (plans[0]?.id ?? ""));
       setPlanMode("catalog");
       setSaveAsPermanentCatalog(false);
       setSoldByStaffId("");
       setNotes("");
+      setCandidateMemberId("");
+      setExpandedBeneficiaryId(null);
+      setNewPerkInputs({});
+
+      // Initialize canonical beneficiaries: Purchaser as primary member if present
+      if (initialPayer) {
+        setEnrolledBeneficiaries([
+          {
+            customerId: initialPayer,
+            isPrimary: true,
+            isCustomized: false,
+          },
+        ]);
+        getCustomer(initialPayer)
+          .then((cust) => {
+            if (cust) {
+              setCustomerProfiles((prev) => ({ ...prev, [cust.id]: cust }));
+            }
+          })
+          .catch(() => {});
+      } else {
+        setEnrolledBeneficiaries([]);
+      }
 
       customPlanForm.reset({
         name: "Custom Customer Membership",
@@ -175,7 +230,7 @@ export function SellMembershipDialog({
         validityMonths: 12,
         validityUnit: "months",
         validityDuration: 12,
-        maxBeneficiaries: 1, // P0: Exactly 1 by default
+        maxBeneficiaries: 1,
         serviceDiscountPercentage: 20,
         productDiscountPercentage: 10,
         eligibleServiceCategoryIds: [],
@@ -186,176 +241,206 @@ export function SellMembershipDialog({
         complimentaryPerks: ["Priority Appointment Scheduling"],
         isActive: true,
       });
-
-      if (initialCustomerId) {
-        getCustomer(initialCustomerId)
-          .then((cust) => {
-            if (cust) {
-              setCustomerProfiles((prev) => ({ ...prev, [cust.id]: cust }));
-            }
-          })
-          .catch(() => {});
-      }
     }
   }, [isOpen, initialCustomerId, selectedPlanId, plans, currentBranchId, customPlanForm]);
 
-  const selectedCatalogPlan = useMemo(
-    () => plans.find((p) => p.id === chosenPlanId),
-    [plans, chosenPlanId],
-  );
-
-  const customFormValues = customPlanForm.watch();
-
-  // Effective max allowed beneficiaries
-  const effectiveMaxBeneficiaries = useMemo(() => {
-    if (planMode === "catalog") {
-      return selectedCatalogPlan?.maxBeneficiaries || 1;
+  // When Payer Customer Changes, update or set primary beneficiary
+  const handlePayerChange = (newPayerId: string, customer?: Customer) => {
+    setPayerCustomerId(newPayerId);
+    if (customer) {
+      setCustomerProfiles((prev) => ({ ...prev, [newPayerId]: customer }));
     }
-    return customFormValues.maxBeneficiaries || 1;
-  }, [planMode, selectedCatalogPlan, customFormValues.maxBeneficiaries]);
+    if (!newPayerId) return;
 
-  // Handle adding payer to beneficiary list
-  const handleAddPayerAsBeneficiary = () => {
-    if (!payerCustomerId) return;
-    if (beneficiaryCustomerIds.includes(payerCustomerId)) return;
-    if (beneficiaryCustomerIds.length >= effectiveMaxBeneficiaries) {
-      toast.warning(
-        `Maximum ${effectiveMaxBeneficiaries} beneficiary allowed for this plan.`,
-      );
-      return;
-    }
-    setBeneficiaryCustomerIds((prev) => [...prev, payerCustomerId]);
+    setEnrolledBeneficiaries((prev) => {
+      // If empty, set payer as primary
+      if (prev.length === 0) {
+        return [{ customerId: newPayerId, isPrimary: true, isCustomized: false }];
+      }
+      // If payer already enrolled, mark them primary
+      const existsIndex = prev.findIndex((b) => b.customerId === newPayerId);
+      if (existsIndex >= 0) {
+        return prev.map((b, idx) => ({
+          ...b,
+          isPrimary: idx === existsIndex,
+        }));
+      }
+      // Replace the first slot if it was the old primary, or if only 1 member allowed
+      if (maxBeneficiaries === 1 || prev[0]?.isPrimary) {
+        const remaining = prev.slice(1);
+        return [{ customerId: newPayerId, isPrimary: true, isCustomized: false }, ...remaining];
+      }
+      return prev;
+    });
   };
 
-  // Handle adding an additional beneficiary
-  const handleAddBeneficiary = (customerId: string, customer?: Customer) => {
+  // Add Member Action (Enforces capacity and duplicate protection)
+  const handleAddMember = (customerId: string, customer?: Customer) => {
     if (!customerId) return;
     if (customer) {
       setCustomerProfiles((prev) => ({ ...prev, [customerId]: customer }));
     }
-    if (beneficiaryCustomerIds.includes(customerId)) {
-      toast.warning("This customer is already added as a beneficiary.");
+
+    if (enrolledBeneficiaries.some((b) => b.customerId === customerId)) {
+      toast.warning("This customer is already enrolled as a member.");
+      setCandidateMemberId("");
       return;
     }
-    if (beneficiaryCustomerIds.length >= effectiveMaxBeneficiaries) {
-      toast.warning(
-        `Maximum ${effectiveMaxBeneficiaries} beneficiaries reached.`,
+
+    if (enrolledBeneficiaries.length >= maxBeneficiaries) {
+      toast.error(
+        `Plan capacity reached (${maxBeneficiaries} maximum member${maxBeneficiaries > 1 ? "s" : ""}). Upgrade or adjust the plan limit to add more members.`,
       );
+      setCandidateMemberId("");
       return;
     }
-    setBeneficiaryCustomerIds((prev) => [...prev, customerId]);
-    setBeneficiaryCandidateId("");
+
+    const isFirst = enrolledBeneficiaries.length === 0;
+    setEnrolledBeneficiaries((prev) => [
+      ...prev,
+      {
+        customerId,
+        isPrimary: isFirst || customerId === payerCustomerId,
+        isCustomized: false,
+      },
+    ]);
+    setCandidateMemberId("");
   };
 
-  const handleRemoveBeneficiary = (customerId: string) => {
-    setBeneficiaryCustomerIds((prev) =>
-      prev.filter((id) => id !== customerId),
-    );
-    setBeneficiaryBenefitOverrides((prev) => {
-      const copy = { ...prev };
-      delete copy[customerId];
-      return copy;
+  // Remove Member Action
+  const handleRemoveMember = (customerId: string) => {
+    setEnrolledBeneficiaries((prev) => {
+      const filtered = prev.filter((b) => b.customerId !== customerId);
+      // If we removed the primary member, promote the first remaining member
+      if (filtered.length > 0 && !filtered.some((b) => b.isPrimary)) {
+        filtered[0] = { ...filtered[0], isPrimary: true };
+      }
+      return filtered;
     });
+
     if (expandedBeneficiaryId === customerId) {
       setExpandedBeneficiaryId(null);
     }
   };
 
-  // Helper to get active baseline perks for a beneficiary (defaults to catalog plan or custom plan values)
-  const getBeneficiaryEffectiveBenefits = (customerId: string) => {
-    const override = beneficiaryBenefitOverrides[customerId];
-    const baseBenefits =
-      planMode === "catalog"
-        ? selectedCatalogPlan?.benefits
-        : {
-            serviceDiscountPercentage:
-              customFormValues.serviceDiscountPercentage || 0,
-            productDiscountPercentage:
-              customFormValues.productDiscountPercentage || 0,
-            complimentaryPerks: customFormValues.complimentaryPerks || [],
-          };
+  // Update Individual Beneficiary Benefit Overrides
+  const handleUpdateBeneficiaryBenefits = (
+    customerId: string,
+    updatedBenefits: Partial<MembershipBenefits>,
+  ) => {
+    setEnrolledBeneficiaries((prev) =>
+      prev.map((b) => {
+        if (b.customerId !== customerId) return b;
+        return {
+          ...b,
+          isCustomized: true,
+          benefits: {
+            ...b.benefits,
+            ...updatedBenefits,
+          },
+        };
+      }),
+    );
+  };
 
+  // Reset Individual Beneficiary Benefits to Plan Defaults
+  const handleResetBeneficiaryBenefits = (customerId: string) => {
+    setEnrolledBeneficiaries((prev) =>
+      prev.map((b) => {
+        if (b.customerId !== customerId) return b;
+        return {
+          ...b,
+          isCustomized: false,
+          benefits: undefined,
+        };
+      }),
+    );
+  };
+
+  // Resolve Effective Benefits for a specific member
+  const getMemberEffectiveBenefits = (member: EnrolledBeneficiaryState) => {
+    if (member.isCustomized && member.benefits) {
+      return {
+        serviceDiscountPercentage:
+          member.benefits.serviceDiscountPercentage !== undefined
+            ? member.benefits.serviceDiscountPercentage
+            : planDefaultBenefits.serviceDiscountPercentage,
+        productDiscountPercentage:
+          member.benefits.productDiscountPercentage !== undefined
+            ? member.benefits.productDiscountPercentage
+            : planDefaultBenefits.productDiscountPercentage,
+        complimentaryPerks:
+          member.benefits.complimentaryPerks !== undefined
+            ? member.benefits.complimentaryPerks
+            : planDefaultBenefits.complimentaryPerks,
+        isOverridden: true,
+      };
+    }
     return {
-      serviceDiscountPercentage:
-        override?.serviceDiscountPercentage !== undefined
-          ? override.serviceDiscountPercentage
-          : baseBenefits?.serviceDiscountPercentage ?? 0,
-      productDiscountPercentage:
-        override?.productDiscountPercentage !== undefined
-          ? override.productDiscountPercentage
-          : baseBenefits?.productDiscountPercentage ?? 0,
-      complimentaryPerks:
-        override?.complimentaryPerks !== undefined
-          ? override.complimentaryPerks
-          : baseBenefits?.complimentaryPerks ?? [],
-      isOverridden: Boolean(
-        override &&
-          (override.serviceDiscountPercentage !== undefined ||
-            override.productDiscountPercentage !== undefined ||
-            override.complimentaryPerks !== undefined),
-      ),
+      serviceDiscountPercentage: planDefaultBenefits.serviceDiscountPercentage,
+      productDiscountPercentage: planDefaultBenefits.productDiscountPercentage,
+      complimentaryPerks: planDefaultBenefits.complimentaryPerks,
+      isOverridden: false,
     };
   };
 
-  // Construct structured payload for per-beneficiary benefits
-  const buildBeneficiariesPayload = () => {
-    return beneficiaryCustomerIds.map((bId) => {
-      const override = beneficiaryBenefitOverrides[bId];
-      if (
-        override &&
-        (override.serviceDiscountPercentage !== undefined ||
-          override.productDiscountPercentage !== undefined ||
-          override.complimentaryPerks !== undefined)
-      ) {
-        return {
-          customerId: bId,
-          benefits: {
-            serviceDiscountPercentage: override.serviceDiscountPercentage,
-            productDiscountPercentage: override.productDiscountPercentage,
-            complimentaryPerks: override.complimentaryPerks,
-          },
-        };
-      }
-      return {
-        customerId: bId,
-      };
-    });
-  };
+  // Capacity validation check
+  const isOverCapacity = enrolledBeneficiaries.length > maxBeneficiaries;
+  const isUnderEnrolled = enrolledBeneficiaries.length === 0;
 
   // Step 1 Validation
-  const canProceedFromStep1 = Boolean(
+  const canProceedToReview = Boolean(
     payerCustomerId &&
-      beneficiaryCustomerIds.length > 0 &&
-      beneficiaryCustomerIds.length <= effectiveMaxBeneficiaries,
+      !isUnderEnrolled &&
+      !isOverCapacity &&
+      (planMode === "catalog"
+        ? chosenPlanId
+        : customFormValues.name?.trim() && customFormValues.price >= 0),
   );
 
-  // Step 2 Validation
-  const canProceedFromStep2 = Boolean(
-    planMode === "catalog"
-      ? chosenPlanId && selectedCatalogPlan
-      : customFormValues.name?.trim() &&
-          customFormValues.price >= 0 &&
-          (customFormValues.validityDuration || customFormValues.validityMonths) > 0,
-  );
-
-  // Submit Final Sale
-  const handleFinalSubmit = async () => {
+  // Construct Final Checkout Payload
+  const handleFinalCheckout = async () => {
     if (!payerCustomerId) {
       toast.error("Please specify who is paying for the membership.");
       return;
     }
-    if (beneficiaryCustomerIds.length === 0) {
+    if (enrolledBeneficiaries.length === 0) {
+      toast.error("Please enroll at least one beneficiary member.");
+      return;
+    }
+    if (enrolledBeneficiaries.length > maxBeneficiaries) {
       toast.error(
-        "Please add at least one beneficiary who will use this membership.",
+        `Enrolled members (${enrolledBeneficiaries.length}) exceed plan maximum capacity (${maxBeneficiaries}).`,
       );
       return;
     }
 
-    const beneficiariesPayload = buildBeneficiariesPayload();
+    // Build canonical beneficiary overrides payload
+    const beneficiariesPayload = enrolledBeneficiaries.map((b) => {
+      if (b.isCustomized && b.benefits) {
+        return {
+          customerId: b.customerId,
+          benefits: {
+            serviceDiscountPercentage:
+              b.benefits.serviceDiscountPercentage ??
+              planDefaultBenefits.serviceDiscountPercentage,
+            productDiscountPercentage:
+              b.benefits.productDiscountPercentage ??
+              planDefaultBenefits.productDiscountPercentage,
+            complimentaryPerks:
+              b.benefits.complimentaryPerks ??
+              planDefaultBenefits.complimentaryPerks,
+          },
+        };
+      }
+      return { customerId: b.customerId };
+    });
+
+    const beneficiaryCustomerIds = enrolledBeneficiaries.map((b) => b.customerId);
 
     if (planMode === "catalog") {
       if (!chosenPlanId) {
-        toast.error("Please select a membership plan.");
+        toast.error("Please select a valid membership plan.");
         return;
       }
       await onSubmit({
@@ -368,19 +453,19 @@ export function SellMembershipDialog({
       });
     } else {
       if (!onCreateCustomPlanAndSell) {
-        toast.error("Custom plan creation is not supported in this view.");
+        toast.error("Custom plan creation is not supported in this context.");
         return;
       }
 
-      // Convert validity duration to months for backward compatibility
       let validityMonths = customFormValues.validityDuration || 12;
-      if (customFormValues.validityUnit === "years")
+      if (customFormValues.validityUnit === "years") {
         validityMonths = (customFormValues.validityDuration || 1) * 12;
-      if (customFormValues.validityUnit === "days")
+      } else if (customFormValues.validityUnit === "days") {
         validityMonths = Math.max(
           1,
           Math.round((customFormValues.validityDuration || 30) / 30),
         );
+      }
 
       const customPayload: CreateMembershipPlanPayload = {
         name: customFormValues.name.trim(),
@@ -391,7 +476,7 @@ export function SellMembershipDialog({
         validityDuration: customFormValues.validityDuration || validityMonths,
         validityUnit: customFormValues.validityUnit || "months",
         maxBeneficiaries: customFormValues.maxBeneficiaries || 1,
-        isCustom: !saveAsPermanentCatalog, // P0: Flag as custom unless explicitly saved to catalog
+        isCustom: !saveAsPermanentCatalog,
         permittedBranchIds:
           customFormValues.permittedBranchIds &&
           customFormValues.permittedBranchIds.length > 0
@@ -437,6 +522,16 @@ export function SellMembershipDialog({
     }
   };
 
+  const planDisplayName =
+    planMode === "catalog"
+      ? selectedCatalogPlan?.name || "Select a Plan"
+      : customFormValues.name || "Custom Plan";
+
+  const planPrice =
+    planMode === "catalog"
+      ? selectedCatalogPlan?.price || 0
+      : customFormValues.price || 0;
+
   return (
     <Dialog
       isOpen={isOpen}
@@ -445,7 +540,7 @@ export function SellMembershipDialog({
       maxWidth="4xl"
     >
       <div className="space-y-6">
-        {/* Step Indicator Header */}
+        {/* Step Indicator Header: Exactly 2 Steps */}
         <div className="flex items-center justify-between border-b pb-4 px-1">
           <div className="flex items-center gap-3">
             <div
@@ -458,9 +553,9 @@ export function SellMembershipDialog({
               1
             </div>
             <div>
-              <p className="text-xs font-semibold">1. Customer & Beneficiaries</p>
+              <p className="text-xs font-semibold">1. Plan & Beneficiaries</p>
               <p className="text-[11px] text-muted-foreground">
-                Who is paying & who will use it?
+                Plan selection, members ({enrolledBeneficiaries.length} of {maxBeneficiaries}) & tailored perks
               </p>
             </div>
           </div>
@@ -472,168 +567,241 @@ export function SellMembershipDialog({
               className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-colors ${
                 step === 2
                   ? "bg-primary text-primary-foreground"
-                  : step > 2
-                    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
-                    : "bg-muted text-muted-foreground"
+                  : "bg-muted text-muted-foreground"
               }`}
             >
               2
             </div>
             <div>
-              <p className="text-xs font-semibold">2. Choose or Build Plan</p>
+              <p className="text-xs font-semibold">2. Review & Payment</p>
               <p className="text-[11px] text-muted-foreground">
-                Catalogue plan or custom perks
-              </p>
-            </div>
-          </div>
-
-          <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-
-          <div className="flex items-center gap-3">
-            <div
-              className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-colors ${
-                step === 3
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              3
-            </div>
-            <div>
-              <p className="text-xs font-semibold">3. Review & Checkout</p>
-              <p className="text-[11px] text-muted-foreground">
-                Unified bill settlement
+                Summary, staff attribution & checkout
               </p>
             </div>
           </div>
         </div>
 
-        {/* STEP 1: Parties (Payer & Beneficiaries) */}
+        {/* ========================================================================= */}
+        {/* STEP 1: PLAN SELECTION, BENEFICIARY ENROLLMENT & BENEFIT CONFIGURATION    */}
+        {/* ========================================================================= */}
         {step === 1 && (
           <div className="space-y-6">
-            <div className="bg-primary/5 border border-primary/20 p-3.5 rounded-lg text-xs flex items-start gap-2.5">
-              <UserCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-foreground">
-                  Clear Purchaser vs. User Privilege Rules:
-                </strong>
-                <p className="text-muted-foreground mt-0.5 leading-relaxed">
-                  The purchaser pays for the membership. Only customers listed as{" "}
-                  <em>beneficiaries</em> receive service & product discounts.
-                  If the purchaser also wishes to use the perks, add them as a
-                  beneficiary below.
-                </p>
+            {/* 1.1 Mode Selection: Catalogue Plan vs Custom Builder */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                  Select or Build Plan
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Configures plan rules & capacity once
+                </span>
               </div>
+
+              <div className="grid grid-cols-2 gap-3 p-1 bg-muted/60 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setPlanMode("catalog")}
+                  className={`py-2 px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                    planMode === "catalog"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-primary" /> Existing Catalogue Plan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlanMode("custom")}
+                  className={`py-2 px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                    planMode === "custom"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Tag className="w-4 h-4 text-emerald-600" /> Build Custom Plan for Customer
+                </button>
+              </div>
+
+              {/* Mode A: Select Catalogue Plan Grid */}
+              {planMode === "catalog" && (
+                <div className="space-y-3 pt-1">
+                  {plans.length === 0 ? (
+                    <div className="text-center py-6 border border-dashed rounded-lg text-xs text-muted-foreground">
+                      No catalogue plans available. Switch to &quot;Build Custom Plan&quot; to configure perks.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 border rounded-lg bg-muted/20">
+                      {plans.map((p) => {
+                        const isSelected = p.id === chosenPlanId;
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => setChosenPlanId(p.id)}
+                            className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
+                                : "border-border bg-card hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold truncate text-foreground">
+                                {p.name}
+                              </span>
+                              <Badge variant="outline" className="text-[9px]">
+                                {p.tier}
+                              </Badge>
+                            </div>
+                            <div className="flex items-baseline justify-between mt-1.5 text-muted-foreground">
+                              <span className="font-bold text-foreground text-sm">
+                                {formatCurrency(p.price)}
+                              </span>
+                              <span className="text-[10px]">
+                                {p.validityMonths} mo • Max {p.maxBeneficiaries || 1} {p.maxBeneficiaries === 1 ? "member" : "members"}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[10px] text-emerald-600 font-medium">
+                              {p.benefits?.serviceDiscountPercentage || 0}% Svcs / {p.benefits?.productDiscountPercentage || 0}% Prods
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Mode B: Custom Plan Builder Form */}
+              {planMode === "custom" && (
+                <div className="p-4 border rounded-lg bg-muted/10 space-y-4">
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded text-xs text-emerald-800 dark:text-emerald-200">
+                    <strong>Custom Membership Builder:</strong> Configure plan capacity, price, and default benefits once below.
+                  </div>
+                  <MembershipPlanFormFields form={customPlanForm} isCustomMode={true} />
+                  <div className="pt-2 border-t">
+                    <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={saveAsPermanentCatalog}
+                        onChange={(e) => setSaveAsPermanentCatalog(e.target.checked)}
+                        className="rounded text-primary h-4 w-4"
+                      />
+                      <span>Save this custom plan to the reusable catalogue for future sales</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Who is paying? */}
-            <div className="space-y-2">
+            {/* 1.2 Purchaser (Bill Payer) Selection */}
+            <div className="space-y-2 pt-2 border-t">
               <label className="text-xs font-semibold flex items-center justify-between">
-                <span>Who is purchasing this membership? (Payer / Bill Payer)</span>
-                <span className="text-[11px] font-normal text-muted-foreground">
-                  Required
-                </span>
+                <span>1. Who is purchasing this membership? (Payer / Bill Payer)</span>
+                <span className="text-[11px] font-normal text-muted-foreground">Required</span>
               </label>
               <CustomerSelector
                 value={payerCustomerId}
-                onChange={(val, cust) => {
-                  setPayerCustomerId(val);
-                  if (cust) {
-                    setCustomerProfiles((prev) => ({ ...prev, [val]: cust }));
-                  }
-                  if (val && beneficiaryCustomerIds.length === 0) {
-                    setBeneficiaryCustomerIds([val]);
-                  }
-                }}
+                onChange={handlePayerChange}
               />
             </div>
 
-            {/* Who will use this membership? */}
+            {/* 1.3 Beneficiary Members Management & Capacity Tracker */}
             <div className="space-y-3 pt-2 border-t">
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                 <div>
                   <label className="text-xs font-semibold flex items-center gap-1.5">
-                    <Users className="w-3.5 h-3.5 text-primary" /> Who will use the
-                    membership benefits? (Beneficiaries)
+                    <Users className="w-3.5 h-3.5 text-primary" /> 2. Enrolled Beneficiaries ({enrolledBeneficiaries.length} of {maxBeneficiaries} added)
                   </label>
                   <p className="text-[11px] text-muted-foreground">
-                    Selected beneficiaries: {beneficiaryCustomerIds.length} (Max
-                    allowed: {effectiveMaxBeneficiaries})
+                    Only enrolled members receive membership discounts. Capacity is governed by the selected plan ({maxBeneficiaries} max).
                   </p>
                 </div>
 
-                {payerCustomerId &&
-                  !beneficiaryCustomerIds.includes(payerCustomerId) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleAddPayerAsBeneficiary}
-                      disabled={
-                        beneficiaryCustomerIds.length >=
-                        effectiveMaxBeneficiaries
-                      }
-                      className="text-xs h-7 gap-1 cursor-pointer"
-                    >
-                      Add Payer as Beneficiary
-                    </Button>
+                {/* Status indicator badge */}
+                <div className="flex items-center gap-2">
+                  {enrolledBeneficiaries.length < maxBeneficiaries ? (
+                    <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 text-[10px]">
+                      {maxBeneficiaries - enrolledBeneficiaries.length} slot{maxBeneficiaries - enrolledBeneficiaries.length > 1 ? "s" : ""} remaining
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-amber-700 bg-amber-500/10 text-[10px]">
+                      Capacity Reached ({maxBeneficiaries}/{maxBeneficiaries})
+                    </Badge>
                   )}
+                </div>
               </div>
 
-              {/* Add Candidate Beneficiary */}
-              {beneficiaryCustomerIds.length < effectiveMaxBeneficiaries && (
-                <div className="p-3 bg-muted/30 border rounded-lg space-y-2">
-                  <span className="text-[11px] font-medium text-muted-foreground">
-                    Add Family / Group Beneficiary:
+              {/* Over-capacity warning if user switched to a lower-capacity plan */}
+              {isOverCapacity && (
+                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>
+                    <strong>Capacity Exceeded:</strong> Selected plan permits a maximum of {maxBeneficiaries} member{maxBeneficiaries > 1 ? "s" : ""}, but {enrolledBeneficiaries.length} are currently enrolled. Please remove excess members before proceeding.
                   </span>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <CustomerSelector
-                        value={beneficiaryCandidateId}
-                        onChange={(id, cust) => {
-                          if (id) handleAddBeneficiary(id, cust);
-                        }}
-                      />
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* Beneficiary List Cards */}
+              {/* Add Member Control (Single Obvious Action) */}
+              {enrolledBeneficiaries.length < maxBeneficiaries ? (
+                <div className="p-3 bg-muted/30 border rounded-lg space-y-2">
+                  <span className="text-[11px] font-medium text-foreground flex items-center gap-1.5">
+                    <Plus className="w-3.5 h-3.5 text-primary" /> Add Member to Membership:
+                  </span>
+                  <CustomerSelector
+                    value={candidateMemberId}
+                    onChange={(id, cust) => {
+                      if (id) handleAddMember(id, cust);
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="p-2.5 bg-muted/40 border border-dashed rounded-lg text-center text-xs text-muted-foreground">
+                  Maximum member limit of {maxBeneficiaries} reached. To add another member, increase plan capacity or remove an enrolled member.
+                </div>
+              )}
+
+              {/* Enrolled Beneficiary Member Cards */}
               <div className="space-y-2 pt-1">
-                {beneficiaryCustomerIds.length === 0 ? (
+                {enrolledBeneficiaries.length === 0 ? (
                   <div className="p-4 border border-dashed rounded-lg text-center text-xs text-muted-foreground">
-                    No beneficiaries designated yet. Please select at least one
-                    customer who will use the membership.
+                    No beneficiary members enrolled yet. Please select or add the member who will enjoy these benefits.
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {beneficiaryCustomerIds.map((bId) => {
-                      const isPayer = bId === payerCustomerId;
-                      const profile = customerProfiles[bId];
+                    {enrolledBeneficiaries.map((member, idx) => {
+                      const profile = customerProfiles[member.customerId];
                       const displayName =
-                        profile?.name || `Customer #${bId.slice(-6)}`;
+                        profile?.name || `Customer #${member.customerId.slice(-6)}`;
                       const phone = profile?.phone;
-                      const isExpanded = expandedBeneficiaryId === bId;
-                      const currentEffective = getBeneficiaryEffectiveBenefits(bId);
-                      const memberOverride = beneficiaryBenefitOverrides[bId];
+                      const isPayer = member.customerId === payerCustomerId;
+                      const isExpanded = expandedBeneficiaryId === member.customerId;
+                      const effective = getMemberEffectiveBenefits(member);
 
                       return (
                         <div
-                          key={bId}
+                          key={member.customerId}
                           className="rounded-lg border bg-card text-xs shadow-2xs overflow-hidden transition-all"
                         >
                           <div className="flex items-center justify-between p-3">
                             <div className="flex items-center gap-2.5 truncate">
                               <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px] shrink-0">
-                                {isPayer ? "P" : "B"}
+                                {member.isPrimary ? "P" : idx + 1}
                               </div>
                               <div className="truncate">
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold block truncate text-foreground">
                                     {displayName}
                                   </span>
-                                  {currentEffective.isOverridden ? (
+                                  {member.isPrimary && (
+                                    <Badge variant="outline" className="text-[9px] text-primary border-primary/30">
+                                      Primary Member
+                                    </Badge>
+                                  )}
+                                  {isPayer && (
+                                    <Badge variant="secondary" className="text-[9px]">
+                                      Purchaser
+                                    </Badge>
+                                  )}
+                                  {effective.isOverridden ? (
                                     <Badge
                                       variant="secondary"
                                       className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-medium"
@@ -645,32 +813,35 @@ export function SellMembershipDialog({
                                       variant="outline"
                                       className="text-[9px] text-muted-foreground"
                                     >
-                                      Standard Plan Perks
+                                      Plan Default Perks
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
                                   {phone && <span>{phone}</span>}
-                                  {phone && isPayer && <span>•</span>}
-                                  {isPayer && (
-                                    <span className="text-primary font-medium">
-                                      Payer & Beneficiary
-                                    </span>
-                                  )}
-                                  <span>•</span>
+                                  {phone && <span>•</span>}
                                   <span className="text-emerald-600 font-semibold">
-                                    {currentEffective.serviceDiscountPercentage}% Svcs / {currentEffective.productDiscountPercentage}% Prods
+                                    {effective.serviceDiscountPercentage}% Svcs / {effective.productDiscountPercentage}% Prods
                                   </span>
+                                  {effective.complimentaryPerks.length > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{effective.complimentaryPerks.length} perk{effective.complimentaryPerks.length > 1 ? "s" : ""}</span>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1">
+
+                            <div className="flex items-center gap-1.5">
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                  setExpandedBeneficiaryId(isExpanded ? null : bId)
+                                  setExpandedBeneficiaryId(
+                                    isExpanded ? null : member.customerId,
+                                  )
                                 }
                                 className={`h-7 px-2 text-[11px] gap-1 cursor-pointer font-medium ${
                                   isExpanded
@@ -679,27 +850,28 @@ export function SellMembershipDialog({
                                 }`}
                               >
                                 <Sliders className="w-3 h-3" />
-                                {isExpanded ? "Close Perks" : "Tailor Perks"}
+                                {isExpanded ? "Close Editor" : "Tailor Perks"}
                                 {isExpanded ? (
                                   <ChevronUp className="w-3 h-3" />
                                 ) : (
                                   <ChevronDown className="w-3 h-3" />
                                 )}
                               </Button>
+
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleRemoveBeneficiary(bId)}
+                                onClick={() => handleRemoveMember(member.customerId)}
                                 className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
-                                title="Remove Beneficiary"
+                                title="Remove Member"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
                           </div>
 
-                          {/* Expandable Per-Beneficiary Benefit Configurator */}
+                          {/* Expandable Per-Beneficiary Benefit Editor */}
                           {isExpanded && (
                             <div className="p-3.5 bg-muted/20 border-t space-y-3">
                               <div className="flex items-center justify-between">
@@ -707,21 +879,15 @@ export function SellMembershipDialog({
                                   <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                                   Individual Benefit Privileges for {displayName}
                                 </span>
-                                {currentEffective.isOverridden && (
+                                {member.isCustomized && (
                                   <Button
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => {
-                                      setBeneficiaryBenefitOverrides((prev) => {
-                                        const copy = { ...prev };
-                                        delete copy[bId];
-                                        return copy;
-                                      });
-                                    }}
-                                    className="h-6 text-[10px] text-muted-foreground hover:text-destructive cursor-pointer"
+                                    onClick={() => handleResetBeneficiaryBenefits(member.customerId)}
+                                    className="h-6 text-[10px] text-muted-foreground hover:text-primary gap-1 cursor-pointer"
                                   >
-                                    Reset to Plan Default
+                                    <RotateCcw className="w-3 h-3" /> Reset to Plan Defaults
                                   </Button>
                                 )}
                               </div>
@@ -736,20 +902,16 @@ export function SellMembershipDialog({
                                     min="0"
                                     max="100"
                                     value={
-                                      memberOverride?.serviceDiscountPercentage ??
-                                      (planMode === "catalog"
-                                        ? selectedCatalogPlan?.benefits?.serviceDiscountPercentage || 0
-                                        : customFormValues.serviceDiscountPercentage || 0)
+                                      member.benefits?.serviceDiscountPercentage ??
+                                      planDefaultBenefits.serviceDiscountPercentage
                                     }
                                     onChange={(e) => {
                                       const val = Number(e.target.value);
-                                      setBeneficiaryBenefitOverrides((prev) => ({
-                                        ...prev,
-                                        [bId]: {
-                                          ...prev[bId],
-                                          serviceDiscountPercentage: isNaN(val) ? 0 : Math.min(100, Math.max(0, val)),
-                                        },
-                                      }));
+                                      handleUpdateBeneficiaryBenefits(member.customerId, {
+                                        serviceDiscountPercentage: isNaN(val)
+                                          ? 0
+                                          : Math.min(100, Math.max(0, val)),
+                                      });
                                     }}
                                     className="text-xs h-8"
                                   />
@@ -764,33 +926,29 @@ export function SellMembershipDialog({
                                     min="0"
                                     max="100"
                                     value={
-                                      memberOverride?.productDiscountPercentage ??
-                                      (planMode === "catalog"
-                                        ? selectedCatalogPlan?.benefits?.productDiscountPercentage || 0
-                                        : customFormValues.productDiscountPercentage || 0)
+                                      member.benefits?.productDiscountPercentage ??
+                                      planDefaultBenefits.productDiscountPercentage
                                     }
                                     onChange={(e) => {
                                       const val = Number(e.target.value);
-                                      setBeneficiaryBenefitOverrides((prev) => ({
-                                        ...prev,
-                                        [bId]: {
-                                          ...prev[bId],
-                                          productDiscountPercentage: isNaN(val) ? 0 : Math.min(100, Math.max(0, val)),
-                                        },
-                                      }));
+                                      handleUpdateBeneficiaryBenefits(member.customerId, {
+                                        productDiscountPercentage: isNaN(val)
+                                          ? 0
+                                          : Math.min(100, Math.max(0, val)),
+                                      });
                                     }}
                                     className="text-xs h-8"
                                   />
                                 </div>
                               </div>
 
-                              {/* Complimentary Perks for this member */}
+                              {/* Complimentary Perks for this individual member */}
                               <div className="space-y-1.5 pt-1">
                                 <label className="text-[10px] font-semibold text-muted-foreground block">
                                   Member Perks & Privileges
                                 </label>
                                 <div className="flex flex-wrap gap-1.5">
-                                  {currentEffective.complimentaryPerks.map((perk, pIdx) => (
+                                  {effective.complimentaryPerks.map((perk, pIdx) => (
                                     <span
                                       key={`${perk}-${pIdx}`}
                                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-secondary text-secondary-foreground border"
@@ -799,16 +957,12 @@ export function SellMembershipDialog({
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          const updated = currentEffective.complimentaryPerks.filter(
+                                          const updated = effective.complimentaryPerks.filter(
                                             (_, idx) => idx !== pIdx,
                                           );
-                                          setBeneficiaryBenefitOverrides((prev) => ({
-                                            ...prev,
-                                            [bId]: {
-                                              ...prev[bId],
-                                              complimentaryPerks: updated,
-                                            },
-                                          }));
+                                          handleUpdateBeneficiaryBenefits(member.customerId, {
+                                            complimentaryPerks: updated,
+                                          });
                                         }}
                                         className="text-muted-foreground hover:text-destructive cursor-pointer ml-0.5"
                                       >
@@ -821,29 +975,29 @@ export function SellMembershipDialog({
                                 <div className="flex gap-1.5 pt-1">
                                   <Input
                                     placeholder="Add perk (e.g., Free Hair Wash, VIP Beverage)"
-                                    value={newPerkInputs[bId] || ""}
+                                    value={newPerkInputs[member.customerId] || ""}
                                     onChange={(e) =>
                                       setNewPerkInputs((prev) => ({
                                         ...prev,
-                                        [bId]: e.target.value,
+                                        [member.customerId]: e.target.value,
                                       }))
                                     }
                                     onKeyDown={(e) => {
                                       if (e.key === "Enter") {
                                         e.preventDefault();
-                                        const perkText = (newPerkInputs[bId] || "").trim();
+                                        const perkText = (
+                                          newPerkInputs[member.customerId] || ""
+                                        ).trim();
                                         if (perkText) {
-                                          const existing = currentEffective.complimentaryPerks;
-                                          setBeneficiaryBenefitOverrides((prev) => ({
-                                            ...prev,
-                                            [bId]: {
-                                              ...prev[bId],
-                                              complimentaryPerks: [...existing, perkText],
-                                            },
-                                          }));
+                                          handleUpdateBeneficiaryBenefits(member.customerId, {
+                                            complimentaryPerks: [
+                                              ...effective.complimentaryPerks,
+                                              perkText,
+                                            ],
+                                          });
                                           setNewPerkInputs((prev) => ({
                                             ...prev,
-                                            [bId]: "",
+                                            [member.customerId]: "",
                                           }));
                                         }
                                       }
@@ -855,19 +1009,19 @@ export function SellMembershipDialog({
                                     variant="secondary"
                                     size="sm"
                                     onClick={() => {
-                                      const perkText = (newPerkInputs[bId] || "").trim();
+                                      const perkText = (
+                                        newPerkInputs[member.customerId] || ""
+                                      ).trim();
                                       if (perkText) {
-                                        const existing = currentEffective.complimentaryPerks;
-                                        setBeneficiaryBenefitOverrides((prev) => ({
-                                          ...prev,
-                                          [bId]: {
-                                            ...prev[bId],
-                                            complimentaryPerks: [...existing, perkText],
-                                          },
-                                        }));
+                                        handleUpdateBeneficiaryBenefits(member.customerId, {
+                                          complimentaryPerks: [
+                                            ...effective.complimentaryPerks,
+                                            perkText,
+                                          ],
+                                        });
                                         setNewPerkInputs((prev) => ({
                                           ...prev,
-                                          [bId]: "",
+                                          [member.customerId]: "",
                                         }));
                                       }
                                     }}
@@ -889,232 +1043,65 @@ export function SellMembershipDialog({
           </div>
         )}
 
-        {/* STEP 2: Choose Plan or Custom Builder (FIXED: P0 Single Scroll Region) */}
+        {/* ========================================================================= */}
+        {/* STEP 2: REVIEW & PAYMENT ONLY (NO DUPLICATE CAPACITY OR MEMBER ENTRY)    */}
+        {/* ========================================================================= */}
         {step === 2 && (
           <div className="space-y-5">
-            {/* Mode Toggle Pills */}
-            <div className="grid grid-cols-2 gap-3 p-1 bg-muted/60 rounded-lg">
-              <button
-                type="button"
-                onClick={() => setPlanMode("catalog")}
-                className={`py-2 px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                  planMode === "catalog"
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Sparkles className="w-4 h-4 text-primary" /> Choose Existing
-                Catalogue Plan
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlanMode("custom")}
-                className={`py-2 px-3 text-xs font-semibold rounded-md flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                  planMode === "custom"
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Tag className="w-4 h-4 text-emerald-600" /> Build Custom Plan
-                for This Customer
-              </button>
-            </div>
-
-            {/* Option A: Catalogue Plan Selection */}
-            {planMode === "catalog" && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Available Standard Plans:
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {plans.length} plans in catalogue
-                  </span>
-                </div>
-
-                {plans.length === 0 ? (
-                  <div className="text-center py-8 border border-dashed rounded-lg text-xs text-muted-foreground space-y-2">
-                    <p>No catalogue plans available yet.</p>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setPlanMode("custom")}
-                      className="text-xs"
-                    >
-                      Build Custom Plan Instead
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {plans.map((p) => {
-                      const isSelected = p.id === chosenPlanId;
-                      return (
-                        <div
-                          key={p.id}
-                          onClick={() => setChosenPlanId(p.id)}
-                          className={`p-3.5 rounded-lg border text-xs cursor-pointer transition-all flex flex-col justify-between space-y-3 ${
-                            isSelected
-                              ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/30"
-                              : "bg-card hover:border-muted-foreground/30"
-                          }`}
-                        >
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <Badge
-                                variant="outline"
-                                className="text-[10px] text-primary mb-1"
-                              >
-                                {p.tier} Tier
-                              </Badge>
-                              <h4 className="font-semibold text-sm leading-snug">
-                                {p.name}
-                              </h4>
-                              <p className="text-[11px] text-muted-foreground">
-                                Up to {p.maxBeneficiaries || 1} beneficiaries
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-base font-bold text-foreground">
-                                {formatCurrency(p.price)}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground block">
-                                / {p.validityMonths} months
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2 bg-muted/30 p-2 rounded text-[11px]">
-                            <div>
-                              <span className="text-muted-foreground block">
-                                Service Discount:
-                              </span>
-                              <strong className="text-emerald-600 font-semibold">
-                                {p.benefits?.serviceDiscountPercentage || 0}% OFF
-                              </strong>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground block">
-                                Product Discount:
-                              </span>
-                              <strong className="text-emerald-600 font-semibold">
-                                {p.benefits?.productDiscountPercentage || 0}% OFF
-                              </strong>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Option B: Customer-Specific Custom Plan Builder (P0 Feature Parity + No Nested Overflow) */}
-            {planMode === "custom" && (
-              <div className="space-y-4 border rounded-lg p-4 bg-muted/10">
-                <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-md text-xs text-emerald-800 dark:text-emerald-200">
-                  <strong>Full Template Parity Custom Builder:</strong> Configure
-                  every commercial, benefit, branch, perk, and multi-member
-                  feature for this specific customer.
-                </div>
-
-                {/* Shared Full-Feature Parity Configuration Form Fields */}
-                <MembershipPlanFormFields
-                  form={customPlanForm}
-                  isCustomMode={true}
-                />
-
-                {/* Reusable Catalogue Opt-In */}
-                <div className="pt-2 border-t">
-                  <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={saveAsPermanentCatalog}
-                      onChange={(e) => setSaveAsPermanentCatalog(e.target.checked)}
-                      className="rounded text-primary h-4 w-4"
-                    />
-                    <span>
-                      Save this custom plan to the reusable catalogue for future
-                      sales
-                    </span>
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* STEP 3: Review & Checkout */}
-        {step === 3 && (
-          <div className="space-y-5">
+            {/* Review Header Banner */}
             <div className="bg-muted/40 border rounded-lg p-4 space-y-4">
               <h4 className="font-semibold text-xs text-foreground flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Purchase &
-                Privilege Summary
+                <ShieldCheck className="w-4 h-4 text-emerald-600" /> Subscription Review & Privilege Summary
               </h4>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Left Column: Plan Specifications */}
                 <div className="space-y-2">
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">
-                      Membership Plan:
-                    </span>
-                    <strong className="text-sm font-semibold">
+                    <span className="text-muted-foreground block text-[11px]">Selected Plan:</span>
+                    <strong className="text-sm font-semibold">{planDisplayName}</strong>
+                    <Badge variant="outline" className="ml-2 text-[10px] text-primary">
                       {planMode === "catalog"
-                        ? selectedCatalogPlan?.name
-                        : customFormValues.name}
-                    </strong>
-                    <Badge
-                      variant="outline"
-                      className="ml-2 text-[10px] text-primary"
-                    >
-                      {planMode === "catalog"
-                        ? selectedCatalogPlan?.tier
+                        ? selectedCatalogPlan?.tier || "Standard"
                         : customFormValues.tier}{" "}
                       Tier
                     </Badge>
                   </div>
 
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">
-                      Validity:
-                    </span>
+                    <span className="text-muted-foreground block text-[11px]">Validity:</span>
                     <span>
                       {planMode === "catalog"
-                        ? `${selectedCatalogPlan?.validityMonths} months`
+                        ? `${selectedCatalogPlan?.validityMonths || 12} months`
                         : `${customFormValues.validityDuration || 12} ${customFormValues.validityUnit || "months"}`}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">
-                      Benefits Provided:
+                    <span className="text-muted-foreground block text-[11px]">Capacity & Enrollment:</span>
+                    <span className="font-semibold text-foreground">
+                      {enrolledBeneficiaries.length} of {maxBeneficiaries} member slots enrolled
                     </span>
+                  </div>
+
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Base Plan Discounts:</span>
                     <div className="flex gap-2 pt-0.5">
                       <span className="font-semibold text-emerald-600">
-                        {planMode === "catalog"
-                          ? selectedCatalogPlan?.benefits
-                              ?.serviceDiscountPercentage || 0
-                          : customFormValues.serviceDiscountPercentage || 0}
-                        % Services
+                        {planDefaultBenefits.serviceDiscountPercentage}% Services
                       </span>
                       <span>•</span>
                       <span className="font-semibold text-emerald-600">
-                        {planMode === "catalog"
-                          ? selectedCatalogPlan?.benefits
-                              ?.productDiscountPercentage || 0
-                          : customFormValues.productDiscountPercentage || 0}
-                        % Products
+                        {planDefaultBenefits.productDiscountPercentage}% Products
                       </span>
                     </div>
                   </div>
                 </div>
 
+                {/* Right Column: Financial & Purchaser Breakdown */}
                 <div className="space-y-2 border-t md:border-t-0 md:border-l md:pl-4">
                   <div>
-                    <span className="text-muted-foreground block text-[11px]">
-                      Payer (Bill Payer):
-                    </span>
+                    <span className="text-muted-foreground block text-[11px]">Purchaser (Bill Payer):</span>
                     <strong className="font-semibold">
                       {customerProfiles[payerCustomerId]?.name ||
                         `Customer #${payerCustomerId.slice(-6)}`}
@@ -1126,67 +1113,83 @@ export function SellMembershipDialog({
                     )}
                   </div>
 
-                  <div>
-                    <span className="text-muted-foreground block text-[11px]">
-                      Designated Beneficiaries & Privileges ({beneficiaryCustomerIds.length}):
-                    </span>
-                    <div className="space-y-1.5 pt-1.5">
-                      {beneficiaryCustomerIds.map((bId) => {
-                        const name =
-                          customerProfiles[bId]?.name ||
-                          `Customer #${bId.slice(-6)}`;
-                        const effective = getBeneficiaryEffectiveBenefits(bId);
-
-                        return (
-                          <div
-                            key={bId}
-                            className="p-1.5 bg-background border rounded text-[11px] flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span className="font-semibold text-foreground">
-                                {name}
-                              </span>
-                              {bId === payerCustomerId && (
-                                <span className="text-[10px] text-muted-foreground">
-                                  (Payer)
-                                </span>
-                              )}
-                              {effective.isOverridden && (
-                                <Badge
-                                  variant="secondary"
-                                  className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 py-0 px-1"
-                                >
-                                  Custom
-                                </Badge>
-                              )}
-                            </div>
-                            <span className="text-emerald-600 font-semibold text-[10px] shrink-0">
-                              {effective.serviceDiscountPercentage}% Svcs / {effective.productDiscountPercentage}% Prods
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
                   <div className="pt-2">
-                    <span className="text-muted-foreground block text-[11px]">
-                      Total Checkout Amount:
-                    </span>
-                    <span className="text-xl font-bold text-foreground">
-                      {formatCurrency(
-                        planMode === "catalog"
-                          ? selectedCatalogPlan?.price || 0
-                          : customFormValues.price || 0,
-                      )}
+                    <span className="text-muted-foreground block text-[11px]">Total Subscription Payable:</span>
+                    <span className="text-2xl font-bold text-foreground">
+                      {formatCurrency(planPrice)}
                     </span>
                   </div>
                 </div>
               </div>
             </div>
 
+            {/* Enrolled Beneficiaries Breakdown in Step 2 (Read-Only Display) */}
+            <div className="space-y-2">
+              <span className="text-xs font-semibold text-foreground uppercase tracking-wider block">
+                Enrolled Beneficiary Privileges ({enrolledBeneficiaries.length}):
+              </span>
+
+              <div className="space-y-1.5">
+                {enrolledBeneficiaries.map((member, idx) => {
+                  const profile = customerProfiles[member.customerId];
+                  const displayName =
+                    profile?.name || `Customer #${member.customerId.slice(-6)}`;
+                  const effective = getMemberEffectiveBenefits(member);
+
+                  return (
+                    <div
+                      key={member.customerId}
+                      className="p-2.5 bg-card border rounded-lg text-xs flex items-center justify-between shadow-2xs"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px] shrink-0">
+                          {member.isPrimary ? "P" : idx + 1}
+                        </div>
+                        <div className="truncate">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">
+                              {displayName}
+                            </span>
+                            {member.isPrimary && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1 text-primary border-primary/30">
+                                Primary
+                              </Badge>
+                            )}
+                            {effective.isOverridden && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-300 py-0 px-1 font-medium"
+                              >
+                                Tailored Perks
+                              </Badge>
+                            )}
+                          </div>
+                          {profile?.phone && (
+                            <span className="text-[10px] text-muted-foreground block">
+                              {profile.phone}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-emerald-600 font-semibold block text-xs">
+                          {effective.serviceDiscountPercentage}% Svcs / {effective.productDiscountPercentage}% Prods
+                        </span>
+                        {effective.complimentaryPerks.length > 0 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            {effective.complimentaryPerks.join(", ")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Staff Attribution & Cashier Notes */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t">
               <div className="space-y-1">
                 <StaffAttributionSelect
                   label="Sold By Staff (Commission Attribution)"
@@ -1197,9 +1200,7 @@ export function SellMembershipDialog({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold">
-                  Notes / Special Instructions
-                </label>
+                <label className="text-xs font-semibold">Notes / Special Instructions</label>
                 <Input
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
@@ -1209,26 +1210,28 @@ export function SellMembershipDialog({
               </div>
             </div>
 
-            <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-xs text-amber-800 dark:text-amber-200">
-              <strong>Unified Checkout Settlement:</strong> Submitting creates a
-              draft invoice and routes directly to the POS settlement screen.
-              Membership benefits become usable immediately for any in-flight
-              appointments under the pending-payment workflow.
+            <div className="bg-primary/5 border border-primary/20 p-3 rounded-lg text-xs flex items-start gap-2 text-foreground">
+              <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <strong>Unified Bill Settlement:</strong> Proceeding creates a draft invoice and opens POS settlement. Membership perks activate immediately across salon appointments under the pending-payment lifecycle.
+              </div>
             </div>
           </div>
         )}
 
-        {/* Modal Action Footer */}
+        {/* ========================================================================= */}
+        {/* MODAL ACTION FOOTER (PRESERVES STATE ON BACK/NEXT)                        */}
+        {/* ========================================================================= */}
         <div className="flex justify-between items-center pt-4 border-t">
-          {step > 1 ? (
+          {step === 2 ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setStep((prev) => (prev - 1) as 1 | 2)}
+              onClick={() => setStep(1)}
               className="text-xs gap-1 cursor-pointer"
             >
-              <ChevronLeft className="w-3.5 h-3.5" /> Back
+              <ChevronLeft className="w-3.5 h-3.5" /> Back to Edit Members
             </Button>
           ) : (
             <Button
@@ -1248,10 +1251,10 @@ export function SellMembershipDialog({
                 type="button"
                 size="sm"
                 onClick={() => setStep(2)}
-                disabled={!canProceedFromStep1}
+                disabled={!canProceedToReview}
                 className="text-xs gap-1 cursor-pointer"
               >
-                Next: Select Plan <ChevronRight className="w-3.5 h-3.5" />
+                Next: Review & Payment <ChevronRight className="w-3.5 h-3.5" />
               </Button>
             )}
 
@@ -1259,24 +1262,12 @@ export function SellMembershipDialog({
               <Button
                 type="button"
                 size="sm"
-                onClick={() => setStep(3)}
-                disabled={!canProceedFromStep2}
-                className="text-xs gap-1 cursor-pointer"
-              >
-                Next: Review & Checkout <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            )}
-
-            {step === 3 && (
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleFinalSubmit}
+                onClick={handleFinalCheckout}
                 disabled={isLoading}
                 className="text-xs gap-1.5 shadow-sm cursor-pointer"
               >
                 <CreditCard className="w-4 h-4" />
-                {isLoading ? "Initiating Sale..." : "Proceed to Checkout"}
+                {isLoading ? "Initiating Sale..." : "Proceed to Payment"}
               </Button>
             )}
           </div>
