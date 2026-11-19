@@ -104,9 +104,60 @@ export interface ProviderStatus {
   }>;
 }
 
+export interface StaffDeviceMapping {
+  _id: string;
+  organizationId: string;
+  branchId: string;
+  provider: string;
+  deviceId: string;
+  externalEmployeeCode: string;
+  staffId: {
+    _id: string;
+    name: string;
+    staffCode: string;
+    email?: string;
+    phone?: string;
+    avatar?: string;
+    role?: string;
+    isActive: boolean;
+  };
+  mappingStatus: 'mapped' | 'unmapped' | 'partial' | 'unknown';
+  mappingMethod: 'code_match' | 'name_match' | 'phone_match' | 'admin_overriden';
+  isActive: boolean;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  notes?: string;
+  createdBy?: {
+    _id: string;
+    name: string;
+    staffCode?: string;
+  };
+  updatedBy?: {
+    _id: string;
+    name: string;
+    staffCode?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffDeviceMappingPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface StaffDeviceMappingListResponse {
+  mappings: StaffDeviceMapping[];
+  pagination: StaffDeviceMappingPagination;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T;
+  pagination?: StaffDeviceMappingPagination;
+  message?: string;
 }
 
 const currentBranch = { branchScope: "current" as const };
@@ -179,5 +230,60 @@ export async function ingestSimulatorEvents(payload: {
   events: Array<Record<string, unknown>>;
 }) {
   const { data } = await apiClient.post<ApiResponse<unknown>>("/attendance/providers/simulator/events", payload, currentBranch);
+  return data.data;
+}
+
+export async function getStaffDeviceMappings(params?: {
+  staffId?: string;
+  provider?: string;
+  deviceId?: string;
+  externalEmployeeCode?: string;
+  mappingStatus?: string;
+  isActive?: boolean;
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<StaffDeviceMappingListResponse> {
+  const { data } = await apiClient.get<ApiResponse<StaffDeviceMapping[]>>("/attendance/mappings", {
+    params,
+    ...currentBranch,
+  });
+  return {
+    mappings: data.data || [],
+    pagination: data.pagination || { total: 0, page: 1, limit: 20, totalPages: 1 },
+  };
+}
+
+export async function getStaffDeviceMappingById(id: string): Promise<StaffDeviceMapping> {
+  const { data } = await apiClient.get<ApiResponse<StaffDeviceMapping>>(`/attendance/mappings/${id}`, currentBranch);
+  return data.data;
+}
+
+export async function createStaffDeviceMapping(payload: {
+  staffId: string;
+  provider: string;
+  deviceId: string;
+  externalEmployeeCode: string;
+  notes?: string;
+  effectiveFrom?: string;
+}): Promise<StaffDeviceMapping> {
+  const { data } = await apiClient.post<ApiResponse<StaffDeviceMapping>>("/attendance/mappings", payload, currentBranch);
+  return data.data;
+}
+
+export async function updateStaffDeviceMapping(
+  id: string,
+  payload: {
+    notes?: string;
+    effectiveTo?: string | null;
+    mappingStatus?: 'mapped' | 'unmapped' | 'partial' | 'unknown';
+  }
+): Promise<StaffDeviceMapping> {
+  const { data } = await apiClient.patch<ApiResponse<StaffDeviceMapping>>(`/attendance/mappings/${id}`, payload, currentBranch);
+  return data.data;
+}
+
+export async function deactivateStaffDeviceMapping(id: string): Promise<StaffDeviceMapping> {
+  const { data } = await apiClient.delete<ApiResponse<StaffDeviceMapping>>(`/attendance/mappings/${id}`, currentBranch);
   return data.data;
 }

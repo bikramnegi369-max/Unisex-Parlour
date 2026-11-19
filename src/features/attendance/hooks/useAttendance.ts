@@ -13,6 +13,11 @@ import {
   recordLeaveException,
   resolveBranchAttendanceConflict,
   resolveLeaveAppointmentConflict,
+  getStaffDeviceMappings,
+  getStaffDeviceMappingById,
+  createStaffDeviceMapping,
+  updateStaffDeviceMapping,
+  deactivateStaffDeviceMapping,
 } from "../api/attendance.api";
 
 function useAttendanceAccess(permission: "attendance.view" | "attendance.adjust" | "attendance.punch" = "attendance.view") {
@@ -92,3 +97,85 @@ export const useResolveBranchAttendanceConflict = () => useAttendanceMutation(re
 export const useResolveLeaveAppointmentConflict = () => useAttendanceMutation(resolveLeaveAppointmentConflict);
 export const useRecordLeaveException = () => useAttendanceMutation(recordLeaveException);
 export const useIngestSimulatorEvents = () => useAttendanceMutation(ingestSimulatorEvents);
+
+export function useStaffDeviceMappings(params?: {
+  staffId?: string;
+  provider?: string;
+  deviceId?: string;
+  externalEmployeeCode?: string;
+  mappingStatus?: string;
+  isActive?: boolean;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const { enabled, getBranchQueryKey } = useAttendanceAccess();
+  return useQuery({
+    queryKey: getBranchQueryKey("staff-device-mappings", [
+      params?.staffId || "",
+      params?.provider || "",
+      params?.deviceId || "",
+      params?.externalEmployeeCode || "",
+      params?.mappingStatus || "",
+      params?.isActive !== undefined ? String(params.isActive) : "",
+      params?.search || "",
+      params?.page || 1,
+      params?.limit || 20,
+    ]),
+    queryFn: () => getStaffDeviceMappings(params),
+    enabled,
+  });
+}
+
+export function useStaffDeviceMappingById(id: string | null) {
+  const { enabled, getBranchQueryKey } = useAttendanceAccess();
+  return useQuery({
+    queryKey: getBranchQueryKey("staff-device-mapping-detail", [id || ""]),
+    queryFn: () => getStaffDeviceMappingById(id!),
+    enabled: enabled && Boolean(id),
+  });
+}
+
+export function useCreateStaffDeviceMapping() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+  return useMutation({
+    mutationFn: createStaffDeviceMapping,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-device-mappings") }),
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-register") }),
+      ]);
+    },
+  });
+}
+
+export function useUpdateStaffDeviceMapping() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateStaffDeviceMapping>[1] }) =>
+      updateStaffDeviceMapping(id, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-device-mappings") }),
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-device-mapping-detail") }),
+      ]);
+    },
+  });
+}
+
+export function useDeactivateStaffDeviceMapping() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+  return useMutation({
+    mutationFn: deactivateStaffDeviceMapping,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-device-mappings") }),
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("staff-device-mapping-detail") }),
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-register") }),
+      ]);
+    },
+  });
+}

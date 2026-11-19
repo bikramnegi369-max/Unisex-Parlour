@@ -27,8 +27,9 @@ import {
   useResolveLeaveAppointmentConflict,
 } from "../hooks/useAttendance";
 import type { AttendanceRegisterStatus, AttendanceStatus } from "../api/attendance.api";
+import StaffDeviceMappingTab from "./StaffDeviceMappingTab";
 
-type Panel = "register" | "conflicts" | "providers";
+type Panel = "register" | "conflicts" | "providers" | "mappings";
 const attendanceStatuses: AttendanceStatus[] = ["present", "late", "early_departure", "incomplete"];
 
 function branchToday(timeZone?: string) {
@@ -199,6 +200,7 @@ export default function AttendanceWorkspace() {
           ["register", "Daily register"],
           ["conflicts", "Reconciliation"],
           ["providers", "Provider sync"],
+          ["mappings", "Device ID Mappings"],
         ] as const).map(([key, label]) => (
           <Button key={key} variant={panel === key ? "default" : "outline"} onClick={() => setPanel(key)} role="tab" aria-selected={panel === key}>
             {label}
@@ -408,6 +410,8 @@ export default function AttendanceWorkspace() {
           </Card>
         </div>
       )}
+
+      {panel === "mappings" && <StaffDeviceMappingTab />}
 
       {!canAdjust && panel !== "providers" && <p className="flex items-center gap-2 text-xs text-muted-foreground"><AlertTriangle className="h-4 w-4" />Read-only access. Reconciliation actions require attendance.adjust.</p>}
     </div>

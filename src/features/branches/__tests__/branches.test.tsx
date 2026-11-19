@@ -433,6 +433,36 @@ describe("Branches Feature Module", () => {
 
       expect(store.getState().branch.currentBranchId).toBeNull();
     });
+
+    it("synthesizes branch list from user session branchAccess when user lacks branches.view (403)", async () => {
+      mockUserSession = {
+        id: "user-stylist",
+        role: "stylist",
+        permissions: ["appointments.view", "billing.create"],
+        hasOrgWideAccess: false,
+        branchAccess: [
+          { branchId: "b-stylist-1", branchName: "Stylist Studio", isActive: true },
+        ],
+      };
+
+      vi.mocked(tokenStorage.getStoredBranchId).mockReturnValueOnce(null);
+
+      const error403 = new Error("Access denied");
+      (error403 as any).response = { status: 403, data: { message: "Access denied" } };
+      (error403 as any).isAxiosError = true;
+      vi.mocked(apiClient.get).mockRejectedValueOnce(error403);
+
+      const { result } = renderHook(() => useBranches(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.branches).toHaveLength(1);
+      });
+
+      expect(result.current.branches[0].id).toBe("b-stylist-1");
+      expect(result.current.branches[0].name).toBe("Stylist Studio");
+      expect(store.getState().branch.currentBranchId).toBe("b-stylist-1");
+      expect(tokenStorage.setStoredBranchId).toHaveBeenCalledWith("b-stylist-1");
+    });
   });
 
   describe("BranchList Component UI Banner Refresh", () => {
