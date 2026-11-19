@@ -48,7 +48,10 @@ import { useDispatch } from "react-redux";
 import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
-import { useCustomerActiveBenefits, useMembershipPlans } from "@/features/memberships/hooks/useMemberships";
+import {
+  useCustomerActiveBenefits,
+  useMembershipPlans,
+} from "@/features/memberships/hooks/useMemberships";
 import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
 import { useCreateInvoice } from "@/features/billing/hooks/useBillingMutations";
 import type {
@@ -125,7 +128,9 @@ export function AppointmentDetailsDialog({
   const createInvoiceMutation = useCreateInvoice();
   const canCheckout = hasPermission(user, "billing.checkout");
   const canSellSubscriptions = hasPermission(user, "subscriptions.sell");
-  const canSellMemberships = hasPermission(user, "memberships.sell") || hasPermission(user, "memberships.configure");
+  const canSellMemberships =
+    hasPermission(user, "memberships.sell") ||
+    hasPermission(user, "memberships.configure");
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -150,7 +155,7 @@ export function AppointmentDetailsDialog({
   // Active membership benefits for appointment customer
   const { data: activeMembershipBenefits } = useCustomerActiveBenefits(
     customerId || "",
-    appointment?.branchId
+    appointment?.branchId,
   );
   const { data: membershipPlansData } = useMembershipPlans({ limit: 100 });
   const membershipPlans = membershipPlansData?.data || [];
@@ -306,8 +311,12 @@ export function AppointmentDetailsDialog({
               <div className="pl-5 pt-1">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
                   <CreditCard className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                  {activeMembershipBenefits.planSnapshot?.name || "Active Member"} (
-                  {activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% Service Off)
+                  {activeMembershipBenefits.planSnapshot?.name ||
+                    "Active Member"}{" "}
+                  (
+                  {activeMembershipBenefits.planSnapshot?.benefits
+                    ?.serviceDiscountPercentage ?? 0}
+                  % Service Off)
                 </span>
               </div>
             )}
@@ -901,23 +910,20 @@ export function AppointmentDetailsDialog({
                   const services = (appointment.services || []).map(
                     (s: AppointmentServiceSnapshot) => {
                       let subCode = s.subscriptionCode || null;
-                      let appliedSubId = s.appliedSubscriptionId || null;
+                      const appliedSubId = s.appliedSubscriptionId || null;
 
                       if (!subCode && appliedSubId) {
-                        const foundSub = (customerSubsData?.data || []).find(
-                          (sub) =>
-                            (sub.id || sub._id) === appliedSubId,
-                        );
-                        if (foundSub?.subscriptionCode) {
-                          subCode = foundSub.subscriptionCode;
+                        const subInfo = subscriptionMap.get(appliedSubId);
+                        if (subInfo?.code) {
+                          subCode = subInfo.code;
                         }
                       }
 
                       const isCovered = Boolean(
                         appliedSubId ||
-                          s.appliedSubscriptionId ||
-                          s.subscriptionUsageId ||
-                          subCode,
+                        s.appliedSubscriptionId ||
+                        s.subscriptionUsageId ||
+                        subCode,
                       );
 
                       return {
@@ -1067,7 +1073,9 @@ export function AppointmentDetailsDialog({
                   beneficiaryCustomerIds: values.beneficiaryCustomerIds,
                 },
               ],
-              notes: values.notes || `Membership upsold during appointment #${appointmentCodeDisplay}`,
+              notes:
+                values.notes ||
+                `Membership upsold during appointment #${appointmentCodeDisplay}`,
             });
 
             setIsSellMembershipOpen(false);
@@ -1081,7 +1089,7 @@ export function AppointmentDetailsDialog({
                     onClick: () => router.push(`/billing/${invoice.id}`),
                   },
                   duration: 6000,
-                }
+                },
               );
               router.push(`/billing/${invoice.id}`);
             } else {
@@ -1089,9 +1097,13 @@ export function AppointmentDetailsDialog({
             }
           } catch (err: unknown) {
             const errorObj = err as Record<string, unknown> | null;
-            const responseObj = errorObj?.response as Record<string, unknown> | null;
+            const responseObj = errorObj?.response as Record<
+              string,
+              unknown
+            > | null;
             const msg =
-              ((responseObj?.data as Record<string, unknown> | null)?.message as string) ||
+              ((responseObj?.data as Record<string, unknown> | null)
+                ?.message as string) ||
               (errorObj?.message as string) ||
               "Failed to process membership upsell.";
             toast.error(msg);
