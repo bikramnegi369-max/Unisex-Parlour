@@ -9,7 +9,10 @@ import {
   getCustomerMemberships,
   getCustomerMembership,
   cancelBeneficiaryMembership,
+  suspendBeneficiaryMembership,
+  reactivateBeneficiaryMembership,
   getCustomerActiveBenefits,
+  getMembershipReports,
 } from "../api/memberships.api";
 import type {
   CreateMembershipPlanPayload,
@@ -27,6 +30,7 @@ export const membershipKeys = {
   customerMembership: (id: string) => [...membershipKeys.all, "customer-membership", id] as const,
   customerBenefits: (customerId: string, branchId?: string) =>
     [...membershipKeys.all, "customer-benefits", customerId, branchId] as const,
+  reports: (branchId?: string) => [...membershipKeys.all, "reports", branchId] as const,
 };
 
 export const useMembershipPlans = (params: QueryMembershipPlansParams = {}) => {
@@ -109,6 +113,32 @@ export const useCancelBeneficiaryMembership = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
       queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.id) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useSuspendBeneficiaryMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      suspendBeneficiaryMembership(id, reason),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.id) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useReactivateBeneficiaryMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => reactivateBeneficiaryMembership(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(id) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
     },
   });
 };
@@ -118,5 +148,12 @@ export const useCustomerActiveBenefits = (customerId: string, branchId?: string)
     queryKey: membershipKeys.customerBenefits(customerId, branchId),
     queryFn: () => getCustomerActiveBenefits(customerId, branchId),
     enabled: Boolean(customerId),
+  });
+};
+
+export const useMembershipReports = (branchId?: string) => {
+  return useQuery({
+    queryKey: membershipKeys.reports(branchId),
+    queryFn: () => getMembershipReports(branchId),
   });
 };

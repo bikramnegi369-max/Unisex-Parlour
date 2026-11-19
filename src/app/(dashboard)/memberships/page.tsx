@@ -2,25 +2,33 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { MembershipsOverviewTab } from "@/features/memberships/components/MembershipsOverviewTab";
 import { CustomerMembershipsTab } from "@/features/memberships/components/CustomerMembershipsTab";
 import { MembershipPlansTab } from "@/features/memberships/components/MembershipPlansTab";
-import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
-import { useMembershipPlans } from "@/features/memberships/hooks/useMemberships";
+import {
+  SellMembershipDialog,
+  type SellMembershipCheckoutPayload,
+} from "@/features/memberships/components/SellMembershipDialog";
+import {
+  useMembershipPlans,
+  useCreateMembershipPlan,
+  useMembershipReports,
+} from "@/features/memberships/hooks/useMemberships";
 import { useCreateInvoice } from "@/features/billing/hooks/useBillingMutations";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { CreditCard, Users, Layers, ShoppingCart, Plus } from "lucide-react";
+import { CreditCard, Users, Layers, ShoppingCart, LayoutDashboard, Plus } from "lucide-react";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import type { SellMembershipFormValues } from "@/features/memberships/schemas/membership.schema";
+import type { CreateMembershipPlanPayload } from "@/features/memberships/types/membership.types";
 
 export default function MembershipsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { currentBranchId, isAllBranchesSelected } = useBranchContext();
-  const [activeTab, setActiveTab] = useState<"memberships" | "plans">("memberships");
+  const [activeTab, setActiveTab] = useState<"overview" | "memberships" | "plans">("overview");
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [preselectedPlanId, setPreselectedPlanId] = useState<string | null>(null);
 
@@ -30,6 +38,9 @@ export default function MembershipsPage() {
   const { data: plansData } = useMembershipPlans();
   const plans = plansData?.data || [];
 
+  const { data: reportsData, isLoading: isReportsLoading } = useMembershipReports(currentBranchId || undefined);
+
+  const createPlanMutation = useCreateMembershipPlan();
   const createInvoiceMutation = useCreateInvoice();
 
   const handleOpenSell = (planId?: string) => {
@@ -41,7 +52,7 @@ export default function MembershipsPage() {
     setIsSellOpen(true);
   };
 
-  const handleSellSubmit = async (values: SellMembershipFormValues) => {
+  const handleSellSubmit = async (payload: SellMembershipCheckoutPayload) => {
     try {
       if (!currentBranchId) {
         toast.error("Branch context required");
@@ -51,17 +62,17 @@ export default function MembershipsPage() {
       // Route through Unified Billing Engine
       const invoicePayload = {
         branchId: currentBranchId,
-        customerId: values.payerCustomerId,
+        customerId: payload.payerCustomerId,
         membershipLines: [
           {
-            membershipPlanId: values.membershipPlanId,
+            membershipPlanId: payload.membershipPlanId,
             quantity: 1,
-            payerCustomerId: values.payerCustomerId,
-            beneficiaryCustomerIds: values.beneficiaryCustomerIds,
-            soldByStaffId: values.soldByStaffId || undefined,
+            payerCustomerId: payload.payerCustomerId,
+            beneficiaryCustomerIds: payload.beneficiaryCustomerIds,
+            soldByStaffId: payload.soldByStaffId || undefined,
           },
         ],
-        notes: values.notes || "Membership Purchase",
+        notes: payload.notes || "Membership Purchase",
       };
 
       const result = await createInvoiceMutation.mutateAsync(invoicePayload);
@@ -75,8 +86,68 @@ export default function MembershipsPage() {
       } else {
         router.push("/billing");
       }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Failed to initiate membership sale.");
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to initiate membership sale.";
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleCreateCustomPlanAndSell = async (
+    customPlanPayload: CreateMembershipPlanPayload,
+    checkoutData: {
+      payerCustomerId: string;
+      beneficiaryCustomerIds: string[];
+      soldByStaffId?: string;
+      notes?: string;
+    },
+  ) => {
+    try {
+      if (!currentBranchId) {
+        toast.error("Branch context required");
+        return;
+      }
+
+      // 1. Create custom plan (isCustom: true unless user opted to save to catalog)
+      const createdPlan = await createPlanMutation.mutateAsync(customPlanPayload);
+
+      // 2. Immediately initiate invoice with newly created custom plan
+      const invoicePayload = {
+        branchId: currentBranchId,
+        customerId: checkoutData.payerCustomerId,
+        membershipLines: [
+          {
+            membershipPlanId: createdPlan.id,
+            quantity: 1,
+            payerCustomerId: checkoutData.payerCustomerId,
+            beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+            soldByStaffId: checkoutData.soldByStaffId || undefined,
+          },
+        ],
+        notes: checkoutData.notes || `Custom membership sold: ${customPlanPayload.name}`,
+      };
+
+      const result = await createInvoiceMutation.mutateAsync(invoicePayload);
+      const invoiceId = result?.id || result?._id;
+
+      toast.success("Custom membership configured and invoice generated! Redirecting to checkout...");
+      setIsSellOpen(false);
+
+      if (invoiceId) {
+        router.push(`/billing/${invoiceId}`);
+      } else {
+        router.push("/billing");
+      }
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to create custom membership sale.";
+      toast.error(errorMsg);
     }
   };
 
@@ -84,11 +155,11 @@ export default function MembershipsPage() {
     <div className="flex-1 space-y-6 p-6 md:p-8">
       <PageHeaderBanner
         title="Memberships"
-        description="Manage membership privilege tiers, multi-beneficiary assignments, and customer privileges."
+        description="Enterprise memberships dashboard, multi-beneficiary privileged sales, and tailored customer plans."
         icon={CreditCard}
         actions={
           canSell ? (
-            <Button onClick={() => handleOpenSell()} className="gap-1.5 shadow-sm">
+            <Button onClick={() => handleOpenSell()} className="gap-1.5 shadow-sm cursor-pointer">
               <ShoppingCart className="w-4 h-4" /> Sell Membership
             </Button>
           ) : undefined
@@ -99,6 +170,19 @@ export default function MembershipsPage() {
       <div className="flex items-center gap-2 border-b border-border pb-2">
         <button
           type="button"
+          onClick={() => setActiveTab("overview")}
+          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+            activeTab === "overview"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <LayoutDashboard className="h-4 w-4" />
+          Overview & Metrics
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab("memberships")}
           className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
             activeTab === "memberships"
@@ -107,7 +191,7 @@ export default function MembershipsPage() {
           }`}
         >
           <Users className="h-4 w-4" />
-          Customer Memberships
+          Enrolled Memberships
         </button>
 
         <button
@@ -120,17 +204,32 @@ export default function MembershipsPage() {
           }`}
         >
           <Layers className="h-4 w-4" />
-          Membership Plans ({plans.length})
+          Catalogue Plans ({plans.length})
         </button>
       </div>
 
       <div>
-        {activeTab === "memberships" ? (
+        {activeTab === "overview" && (
+          <MembershipsOverviewTab
+            reports={reportsData}
+            isLoading={isReportsLoading}
+            onSellMembership={() => handleOpenSell()}
+            onCreatePlan={() => setActiveTab("plans")}
+            onViewCustomerMemberships={() => setActiveTab("memberships")}
+            onViewPlansCatalog={() => setActiveTab("plans")}
+            canSell={canSell}
+            canConfigure={canConfigure}
+          />
+        )}
+
+        {activeTab === "memberships" && (
           <CustomerMembershipsTab
             onSell={() => handleOpenSell()}
             canSell={canSell}
           />
-        ) : (
+        )}
+
+        {activeTab === "plans" && (
           <MembershipPlansTab
             onSellPlan={(pId) => handleOpenSell(pId)}
             canConfigure={canConfigure}
@@ -144,7 +243,8 @@ export default function MembershipsPage() {
         isOpen={isSellOpen}
         onClose={() => setIsSellOpen(false)}
         onSubmit={handleSellSubmit}
-        isLoading={createInvoiceMutation.isPending}
+        onCreateCustomPlanAndSell={handleCreateCustomPlanAndSell}
+        isLoading={createInvoiceMutation.isPending || createPlanMutation.isPending}
         plans={plans}
         selectedPlanId={preselectedPlanId}
       />

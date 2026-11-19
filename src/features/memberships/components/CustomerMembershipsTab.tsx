@@ -11,6 +11,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import Link from "next/link";
 
+import type { CustomerMembershipStatus } from "../types/membership.types";
+
 interface CustomerMembershipsTabProps {
   onSell?: () => void;
   canSell?: boolean;
@@ -22,7 +24,7 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
 
   const { data, isLoading } = useCustomerMemberships({
     search: search.trim() || undefined,
-    status: (statusFilter as any) || undefined,
+    status: (statusFilter || undefined) as CustomerMembershipStatus | undefined,
   });
 
   const cancelMutation = useCancelBeneficiaryMembership();
@@ -34,8 +36,13 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
     try {
       await cancelMutation.mutateAsync({ id: membershipId, reason: reason.trim() });
       toast.success(`Membership for ${beneficiaryName} has been cancelled.`);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || err?.message || "Failed to cancel membership.");
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to cancel membership.";
+      toast.error(errorMsg);
     }
   };
 

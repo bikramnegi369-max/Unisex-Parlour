@@ -32,6 +32,7 @@ export interface MembershipPlan {
     allowBeneficiaryChanges?: boolean;
   };
   permittedBranchIds?: string[];
+  isCustom?: boolean;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -96,6 +97,7 @@ export interface CreateMembershipPlanPayload {
     allowBeneficiaryChanges?: boolean;
   };
   permittedBranchIds?: string[];
+  isCustom?: boolean;
   isActive?: boolean;
 }
 
@@ -104,6 +106,7 @@ export interface UpdateMembershipPlanPayload extends Partial<CreateMembershipPla
 export interface CustomerActiveBenefits {
   hasActiveMembership: boolean;
   membershipId: string | null;
+  status?: CustomerMembershipStatus;
   membershipCode?: string;
   planSnapshot?: {
     name?: string;
@@ -121,6 +124,8 @@ export interface QueryMembershipPlansParams {
   search?: string;
   tier?: string;
   isActive?: "true" | "false";
+  isCustom?: "true" | "false";
+  includeCustom?: "true" | "false";
   page?: number;
   limit?: number;
 }
@@ -133,4 +138,18 @@ export interface QueryCustomerMembershipsParams {
   search?: string;
   page?: number;
   limit?: number;
+}
+
+export interface MembershipReportsSummary {
+  totalMemberships: number;
+  activeMemberships: number;
+  expiredMemberships: number;
+  cancelledMemberships: number;
+  suspendedMemberships: number;
+  pendingPaymentCount: number;
+  soldThisMonthCount: number;
+  expiringSoonCount: number;
+  totalRevenue: number;
+  uniqueBeneficiariesCount: number;
+  activePlansCount: number;
 }

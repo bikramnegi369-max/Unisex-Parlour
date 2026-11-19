@@ -426,8 +426,9 @@ export function MembershipPlanDialog({
                 Leave unchecked to apply discounts to all service categories. Check specific categories to restrict perks.
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-36 overflow-y-auto p-2 bg-muted/20 border rounded-md">
-                {serviceCategories.map((cat: any) => {
-                  const catId = cat.id || cat._id;
+                {serviceCategories.map((cat) => {
+                  const catId = cat.id || (cat as { _id?: string })._id || "";
+                  if (!catId) return null;
                   const isChecked = selectedCategoryIds.includes(catId);
                   return (
                     <label

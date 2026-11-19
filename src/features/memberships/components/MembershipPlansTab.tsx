@@ -74,12 +74,13 @@ export function MembershipPlansTab({
     try {
       await deletePlanMutation.mutateAsync(plan.id);
       toast.success(`Plan "${plan.name}" deactivated successfully.`);
-    } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to deactivate plan.",
-      );
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to deactivate plan.";
+      toast.error(errorMsg);
     }
   };
 
@@ -87,12 +88,13 @@ export function MembershipPlansTab({
     try {
       await duplicatePlanMutation.mutateAsync(plan.id);
       toast.success(`Plan "${plan.name}" duplicated successfully.`);
-    } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to duplicate plan.",
-      );
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to duplicate plan.";
+      toast.error(errorMsg);
     }
   };
 
@@ -130,10 +132,13 @@ export function MembershipPlansTab({
         toast.success(`Plan "${values.name}" created successfully.`);
       }
       setIsDialogOpen(false);
-    } catch (err: any) {
-      toast.error(
-        err?.response?.data?.message || err?.message || "Failed to save plan.",
-      );
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to save plan.";
+      toast.error(errorMsg);
     }
   };
 
