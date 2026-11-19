@@ -582,13 +582,11 @@ export function CreateAppointmentDialog({
   const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
 
   // Fetch active membership benefits for customer if selected
-  const {
-    data: customerMembershipBenefits,
-    refetch: refetchCustomerBenefits,
-  } = useCustomerActiveBenefits(
-    watchedCustomerId || "",
-    effectiveBranchId || undefined,
-  );
+  const { data: customerMembershipBenefits, refetch: refetchCustomerBenefits } =
+    useCustomerActiveBenefits(
+      watchedCustomerId || "",
+      effectiveBranchId || undefined,
+    );
   const { data: membershipPlansData } = useMembershipPlans({ limit: 100 });
   const membershipPlans = membershipPlansData?.data || [];
   const createMembershipPlanMutation = useCreateMembershipPlan();
@@ -708,7 +706,8 @@ export function CreateAppointmentDialog({
       if (s.serviceType === "registered" && s.appliedSubscriptionId) {
         const subCandidates = subscriptionsByService.get(s.serviceId) || [];
         const isStillValid = subCandidates.some(
-          (c) => c.subscriptionId === s.appliedSubscriptionId && c.remaining > 0,
+          (c) =>
+            c.subscriptionId === s.appliedSubscriptionId && c.remaining > 0,
         );
         if (!isStillValid) {
           hasChanged = true;
@@ -724,7 +723,13 @@ export function CreateAppointmentDialog({
     if (hasChanged) {
       setValue("services", sanitized, { shouldValidate: true });
     }
-  }, [effectiveBranchId, getValues, setValue, subscriptionsByService, watchedCustomerId]);
+  }, [
+    effectiveBranchId,
+    getValues,
+    setValue,
+    subscriptionsByService,
+    watchedCustomerId,
+  ]);
 
   // Diagnose ineligible active subscriptions for the selected customer to provide clear UX explanation
   const subscriptionIneligibilityNotice = useMemo(() => {
@@ -746,14 +751,14 @@ export function CreateAppointmentDialog({
         effectiveBranchId &&
         sub.permittedBranchIds &&
         sub.permittedBranchIds.length > 0 &&
-        !sub.permittedBranchIds.includes(effectiveBranchId)
+        !sub.permittedBranchIds.includes(effectiveBranchId),
       );
 
       const isMemberBranchBlocked = Boolean(
         effectiveBranchId &&
         memberEntry?.permittedBranchIds &&
         memberEntry.permittedBranchIds.length > 0 &&
-        !memberEntry.permittedBranchIds.includes(effectiveBranchId)
+        !memberEntry.permittedBranchIds.includes(effectiveBranchId),
       );
 
       return isSubBranchBlocked || isMemberBranchBlocked;
@@ -764,7 +769,12 @@ export function CreateAppointmentDialog({
     }
 
     return null;
-  }, [activeSubscriptions, effectiveBranchId, subscriptionsByService.size, watchedCustomerId]);
+  }, [
+    activeSubscriptions,
+    effectiveBranchId,
+    subscriptionsByService.size,
+    watchedCustomerId,
+  ]);
 
   // Set of all registered service IDs for which this customer has at least 1 remaining entitlement
   const subscribedServiceIds = useMemo(() => {
@@ -1154,7 +1164,7 @@ export function CreateAppointmentDialog({
 
     const hasMembership = Boolean(
       customerMembershipBenefits?.hasActiveMembership &&
-      customerMembershipBenefits.planSnapshot?.benefits
+      customerMembershipBenefits.planSnapshot?.benefits,
     );
     const memBenefits = customerMembershipBenefits?.planSnapshot?.benefits;
     const memDiscountPct = memBenefits?.serviceDiscountPercentage || 0;
@@ -1192,20 +1202,31 @@ export function CreateAppointmentDialog({
                 ? (srv.categoryId as { _id?: string; id?: string }).id ||
                   (srv.categoryId as { _id?: string; id?: string })._id
                 : (srv.categoryId as string | undefined);
-            
-            if (memBenefits?.excludedServiceIds?.includes(srv.id)) isEligible = false;
-            else if (categoryIdStr && memBenefits?.excludedServiceCategoryIds?.includes(categoryIdStr)) isEligible = false;
+
+            if (memBenefits?.excludedServiceIds?.includes(srv.id))
+              isEligible = false;
+            else if (
+              categoryIdStr &&
+              memBenefits?.excludedServiceCategoryIds?.includes(categoryIdStr)
+            )
+              isEligible = false;
             else if (
               (memBenefits?.eligibleServiceCategoryIds?.length || 0) > 0 ||
               (memBenefits?.eligibleServiceIds?.length || 0) > 0
             ) {
-              const inCat = categoryIdStr && memBenefits?.eligibleServiceCategoryIds?.includes(categoryIdStr);
+              const inCat =
+                categoryIdStr &&
+                memBenefits?.eligibleServiceCategoryIds?.includes(
+                  categoryIdStr,
+                );
               const inSvc = memBenefits?.eligibleServiceIds?.includes(srv.id);
               isEligible = Boolean(inCat || inSvc);
             }
 
             if (isEligible) {
-              const disc = Number(((itemPrice * memDiscountPct) / 100).toFixed(2));
+              const disc = Number(
+                ((itemPrice * memDiscountPct) / 100).toFixed(2),
+              );
               membershipDeduction += disc;
             }
           }
@@ -1213,7 +1234,14 @@ export function CreateAppointmentDialog({
       }
     }
 
-    const netTotal = Math.max(0, Number((grossSubtotal - subscriptionDeduction - membershipDeduction).toFixed(2)));
+    const netTotal = Math.max(
+      0,
+      Number(
+        (grossSubtotal - subscriptionDeduction - membershipDeduction).toFixed(
+          2,
+        ),
+      ),
+    );
 
     return {
       count: selectedServices.length,
@@ -1224,7 +1252,8 @@ export function CreateAppointmentDialog({
       netTotal,
       coveredCount,
       hasMembershipDiscount: membershipDeduction > 0,
-      membershipTierName: customerMembershipBenefits?.planSnapshot?.name || "Member",
+      membershipTierName:
+        customerMembershipBenefits?.planSnapshot?.name || "Member",
     };
   }, [services, selectedServices, customerMembershipBenefits]);
 
@@ -2061,7 +2090,9 @@ export function CreateAppointmentDialog({
                     type="button"
                     onClick={() => {
                       if (!watchedCustomerId) {
-                        toast.error("Please select a customer first to sell a membership.");
+                        toast.error(
+                          "Please select a customer first to sell a membership.",
+                        );
                         return;
                       }
                       setIsSellMembershipOpen(true);
@@ -2070,7 +2101,9 @@ export function CreateAppointmentDialog({
                   >
                     <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                     <span>
-                      {customerMembershipBenefits?.hasActiveMembership ? "Upgrade / Add Plan" : "Sell Membership"}
+                      {customerMembershipBenefits?.hasActiveMembership
+                        ? "Upgrade / Add Plan"
+                        : "Sell Membership"}
                     </span>
                   </button>
                 </div>
@@ -2996,7 +3029,8 @@ export function CreateAppointmentDialog({
                           </span>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300 whitespace-nowrap shrink-0">
-                              {selectedServicesSummary.membershipTierName} Benefits
+                              {selectedServicesSummary.membershipTierName}{" "}
+                              Benefits
                             </span>
                           </div>
                         </div>
@@ -3329,7 +3363,9 @@ export function CreateAppointmentDialog({
         onCreateCustomPlanAndSell={async (customPlanPayload, checkoutData) => {
           try {
             if (!effectiveBranchId) {
-              toast.error("Please select a specific branch before creating an invoice.");
+              toast.error(
+                "Please select a specific branch before creating an invoice.",
+              );
               return;
             }
 
@@ -3365,7 +3401,8 @@ export function CreateAppointmentDialog({
                 {
                   action: {
                     label: "View Invoice",
-                    onClick: () => window.open(`/billing/${invoice.id}`, "_blank"),
+                    onClick: () =>
+                      window.open(`/billing/${invoice.id}`, "_blank"),
                   },
                   duration: 6000,
                 },
@@ -3377,15 +3414,18 @@ export function CreateAppointmentDialog({
             const msg =
               err instanceof Error
                 ? err.message
-                : (err as { response?: { data?: { message?: string } } })?.response?.data
-                    ?.message || "Failed to sell custom membership.";
+                : (err as { response?: { data?: { message?: string } } })
+                    ?.response?.data?.message ||
+                  "Failed to sell custom membership.";
             toast.error(msg);
           }
         }}
         onSubmit={async (values) => {
           try {
             if (!effectiveBranchId) {
-              toast.error("Please select a specific branch before creating an invoice.");
+              toast.error(
+                "Please select a specific branch before creating an invoice.",
+              );
               return;
             }
 
@@ -3402,9 +3442,7 @@ export function CreateAppointmentDialog({
                   beneficiaries: values.beneficiaries,
                 },
               ],
-              notes:
-                values.notes ||
-                `Membership sold during booking setup`,
+              notes: values.notes || `Membership sold during booking setup`,
             });
 
             setIsSellMembershipOpen(false);
@@ -3418,7 +3456,8 @@ export function CreateAppointmentDialog({
                 {
                   action: {
                     label: "View Invoice",
-                    onClick: () => window.open(`/billing/${invoice.id}`, "_blank"),
+                    onClick: () =>
+                      window.open(`/billing/${invoice.id}`, "_blank"),
                   },
                   duration: 6000,
                 },
@@ -3430,8 +3469,8 @@ export function CreateAppointmentDialog({
             const msg =
               err instanceof Error
                 ? err.message
-                : (err as { response?: { data?: { message?: string } } })?.response?.data
-                    ?.message || "Failed to sell membership.";
+                : (err as { response?: { data?: { message?: string } } })
+                    ?.response?.data?.message || "Failed to sell membership.";
             toast.error(msg);
           }
         }}
