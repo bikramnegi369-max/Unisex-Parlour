@@ -239,3 +239,29 @@ export const getMembershipReports = async (
   );
   return data.data;
 };
+
+export const getMembershipPurchaseGroup = async (
+  membershipId: string,
+): Promise<import("../types/membership.types").MembershipPurchaseGroup> => {
+  const { data } = await apiClient.get<{
+    success: boolean;
+    data: import("../types/membership.types").MembershipPurchaseGroup;
+  }>(`/memberships/${membershipId}/purchase-group`, { branchScope: "none" });
+  return data.data;
+};
+
+export const addBeneficiaryToMembership = async (
+  membershipId: string,
+  payload: {
+    customerId: string;
+    benefitsOverride?: Partial<import("../types/membership.types").MembershipBenefits>;
+  },
+): Promise<CustomerMembership> => {
+  const { data } = await apiClient.post<{
+    success: boolean;
+    data: RawCustomerMembership;
+  }>(`/memberships/${membershipId}/beneficiaries`, payload, {
+    branchScope: "none",
+  });
+  return mapCustomerMembershipKeys(data.data);
+};

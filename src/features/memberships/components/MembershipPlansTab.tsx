@@ -29,6 +29,7 @@ import {
   Copy,
 } from "lucide-react";
 import { MembershipPlanDialog } from "./MembershipPlanDialog";
+import { MembershipPlanCard } from "./MembershipPlanCard";
 import { toast } from "sonner";
 import type { MembershipPlan } from "../types/membership.types";
 import type { MembershipPlanFormValues } from "../schemas/membership.schema";
@@ -191,127 +192,16 @@ export function MembershipPlansTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {data.data.map((plan) => (
-            <Card
+            <MembershipPlanCard
               key={plan.id}
-              className="relative overflow-hidden border shadow-sm flex flex-col justify-between"
-            >
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <Badge
-                      variant="outline"
-                      className="mb-1 text-primary border-primary/30"
-                    >
-                      {plan.tier} Tier
-                    </Badge>
-                    <CardTitle className="text-lg leading-snug">
-                      {plan.name}
-                    </CardTitle>
-                    {plan.code && (
-                      <CardDescription className="font-mono text-xs">
-                        Code: {plan.code}
-                      </CardDescription>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xl font-bold">₹{plan.price}</span>
-                    <span className="text-xs text-muted-foreground block">
-                      / {plan.validityMonths} mos
-                    </span>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-1 text-sm flex-1">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                  <Users className="w-4 h-4 text-primary shrink-0" />
-                  <span>
-                    Allows up to{" "}
-                    <strong className="text-foreground">
-                      {plan.maxBeneficiaries || 1}
-                    </strong>{" "}
-                    beneficiaries
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 bg-muted/40 p-2.5 rounded-lg border text-xs">
-                  <div>
-                    <span className="text-muted-foreground block">
-                      Service Discount
-                    </span>
-                    <strong className="text-emerald-600 font-semibold">
-                      {plan.benefits?.serviceDiscountPercentage || 0}% OFF
-                    </strong>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block">
-                      Product Discount
-                    </span>
-                    <strong className="text-emerald-600 font-semibold">
-                      {plan.benefits?.productDiscountPercentage || 0}% OFF
-                    </strong>
-                  </div>
-                </div>
-
-                {plan.benefits?.complimentaryPerks &&
-                  plan.benefits.complimentaryPerks.length > 0 && (
-                    <div className="space-y-1">
-                      <span className="text-xs text-muted-foreground font-medium">
-                        Included Perks:
-                      </span>
-                      <ul className="text-xs space-y-0.5 list-disc list-inside text-muted-foreground">
-                        {plan.benefits.complimentaryPerks.map((perk, i) => (
-                          <li key={i}>{perk}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-              </CardContent>
-
-              {/* Action Toolbar */}
-              <div className="p-4 pt-2 border-t bg-muted/20 flex items-center justify-between gap-2">
-                {canSell && onSellPlan && (
-                  <Button
-                    size="sm"
-                    onClick={() => onSellPlan(plan.id)}
-                    className="gap-1.5 text-xs flex-1"
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5" /> Sell Plan
-                  </Button>
-                )}
-
-                {canConfigure && (
-                  <div className="flex gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDuplicate(plan)}
-                      className="h-8 px-2.5 text-xs cursor-pointer"
-                      title="Duplicate Plan"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleOpenEdit(plan)}
-                      className="h-8 px-2.5 text-xs cursor-pointer"
-                      title="Edit Plan"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDelete(plan)}
-                      className="h-8 px-2.5 text-xs text-destructive hover:bg-destructive/10 border-destructive/20 cursor-pointer"
-                      title="Deactivate Plan"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </Card>
+              plan={plan}
+              canSell={canSell}
+              canConfigure={canConfigure}
+              onSell={onSellPlan}
+              onDuplicate={handleDuplicate}
+              onEdit={handleOpenEdit}
+              onDelete={handleDelete}
+            />
           ))}
         </div>
       )}

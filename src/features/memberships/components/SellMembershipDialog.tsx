@@ -43,6 +43,9 @@ import {
   type MembershipPlanFormValues,
 } from "../schemas/membership.schema";
 import { MembershipPlanFormFields } from "./MembershipPlanFormFields";
+import { MembershipPlanCard } from "./MembershipPlanCard";
+import { ServiceEligibilityField } from "./ServiceEligibilityField";
+import { useBranches } from "@/features/branches/hooks/useBranches";
 import { toast } from "sonner";
 
 interface SellMembershipDialogProps {
@@ -79,6 +82,7 @@ export function SellMembershipDialog({
   initialCustomerId,
 }: SellMembershipDialogProps) {
   const { currentBranchId } = useBranchContext();
+  const { branches: allSalonBranches = [] } = useBranches();
 
   // Exactly 2 Steps:
   // Step 1: Plan and Beneficiary Configuration (The ONLY place where capacity, members, and benefits are managed)
@@ -373,6 +377,22 @@ export function SellMembershipDialog({
           member.benefits.complimentaryPerks !== undefined
             ? member.benefits.complimentaryPerks
             : planDefaultBenefits.complimentaryPerks,
+        eligibleServiceCategoryIds:
+          member.benefits.eligibleServiceCategoryIds !== undefined
+            ? member.benefits.eligibleServiceCategoryIds
+            : planDefaultBenefits.eligibleServiceCategoryIds || [],
+        eligibleServiceIds:
+          member.benefits.eligibleServiceIds !== undefined
+            ? member.benefits.eligibleServiceIds
+            : planDefaultBenefits.eligibleServiceIds || [],
+        excludedServiceCategoryIds:
+          member.benefits.excludedServiceCategoryIds !== undefined
+            ? member.benefits.excludedServiceCategoryIds
+            : planDefaultBenefits.excludedServiceCategoryIds || [],
+        excludedServiceIds:
+          member.benefits.excludedServiceIds !== undefined
+            ? member.benefits.excludedServiceIds
+            : planDefaultBenefits.excludedServiceIds || [],
         isOverridden: true,
       };
     }
@@ -380,6 +400,10 @@ export function SellMembershipDialog({
       serviceDiscountPercentage: planDefaultBenefits.serviceDiscountPercentage,
       productDiscountPercentage: planDefaultBenefits.productDiscountPercentage,
       complimentaryPerks: planDefaultBenefits.complimentaryPerks,
+      eligibleServiceCategoryIds: planDefaultBenefits.eligibleServiceCategoryIds || [],
+      eligibleServiceIds: planDefaultBenefits.eligibleServiceIds || [],
+      excludedServiceCategoryIds: planDefaultBenefits.excludedServiceCategoryIds || [],
+      excludedServiceIds: planDefaultBenefits.excludedServiceIds || [],
       isOverridden: false,
     };
   };
@@ -430,6 +454,22 @@ export function SellMembershipDialog({
             complimentaryPerks:
               b.benefits.complimentaryPerks ??
               planDefaultBenefits.complimentaryPerks,
+            eligibleServiceCategoryIds:
+              b.benefits.eligibleServiceCategoryIds ??
+              planDefaultBenefits.eligibleServiceCategoryIds ??
+              [],
+            eligibleServiceIds:
+              b.benefits.eligibleServiceIds ??
+              planDefaultBenefits.eligibleServiceIds ??
+              [],
+            excludedServiceCategoryIds:
+              b.benefits.excludedServiceCategoryIds ??
+              planDefaultBenefits.excludedServiceCategoryIds ??
+              [],
+            excludedServiceIds:
+              b.benefits.excludedServiceIds ??
+              planDefaultBenefits.excludedServiceIds ??
+              [],
           },
         };
       }
@@ -630,41 +670,15 @@ export function SellMembershipDialog({
                       No catalogue plans available. Switch to &quot;Build Custom Plan&quot; to configure perks.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 border rounded-lg bg-muted/20">
-                      {plans.map((p) => {
-                        const isSelected = p.id === chosenPlanId;
-                        return (
-                          <div
-                            key={p.id}
-                            onClick={() => setChosenPlanId(p.id)}
-                            className={`p-3 rounded-lg border text-xs cursor-pointer transition-all ${
-                              isSelected
-                                ? "border-primary bg-primary/5 ring-1 ring-primary shadow-xs"
-                                : "border-border bg-card hover:border-primary/50"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold truncate text-foreground">
-                                {p.name}
-                              </span>
-                              <Badge variant="outline" className="text-[9px]">
-                                {p.tier}
-                              </Badge>
-                            </div>
-                            <div className="flex items-baseline justify-between mt-1.5 text-muted-foreground">
-                              <span className="font-bold text-foreground text-sm">
-                                {formatCurrency(p.price)}
-                              </span>
-                              <span className="text-[10px]">
-                                {p.validityMonths} mo • Max {p.maxBeneficiaries || 1} {p.maxBeneficiaries === 1 ? "member" : "members"}
-                              </span>
-                            </div>
-                            <div className="mt-1 text-[10px] text-emerald-600 font-medium">
-                              {p.benefits?.serviceDiscountPercentage || 0}% Svcs / {p.benefits?.productDiscountPercentage || 0}% Prods
-                            </div>
-                          </div>
-                        );
-                      })}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-72 overflow-y-auto p-1.5 border rounded-lg bg-muted/20">
+                      {plans.map((p) => (
+                        <MembershipPlanCard
+                          key={p.id}
+                          plan={p}
+                          isSelected={p.id === chosenPlanId}
+                          onSelect={(planId) => setChosenPlanId(planId)}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1031,6 +1045,22 @@ export function SellMembershipDialog({
                                   </Button>
                                 </div>
                               </div>
+
+                              {/* Granular Service Eligibility Overrides for this member */}
+                              <div className="space-y-2 pt-2 border-t">
+                                <label className="text-[10px] font-semibold text-muted-foreground block uppercase tracking-wider">
+                                  Service Inclusions & Exclusions for this Member
+                                </label>
+                                <ServiceEligibilityField
+                                  eligibleCategoryIds={effective.eligibleServiceCategoryIds}
+                                  eligibleServiceIds={effective.eligibleServiceIds}
+                                  excludedCategoryIds={effective.excludedServiceCategoryIds}
+                                  excludedServiceIds={effective.excludedServiceIds}
+                                  onChange={(updates) => {
+                                    handleUpdateBeneficiaryBenefits(member.customerId, updates);
+                                  }}
+                                />
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1095,6 +1125,25 @@ export function SellMembershipDialog({
                         {planDefaultBenefits.productDiscountPercentage}% Products
                       </span>
                     </div>
+                  </div>
+
+                  <div>
+                    <span className="text-muted-foreground block text-[11px]">Permitted Branches:</span>
+                    <span className="text-foreground font-medium">
+                      {(() => {
+                        const permitted =
+                          planMode === "catalog"
+                            ? selectedCatalogPlan?.permittedBranchIds || []
+                            : customFormValues.permittedBranchIds || [];
+                        if (permitted.length === 0) {
+                          return "All Salon Branches (Universal Access)";
+                        }
+                        const names = permitted
+                          .map((id) => allSalonBranches.find((b) => b.id === id)?.name || `Branch #${id.slice(-4)}`)
+                          .join(", ");
+                        return `${names} (${permitted.length} branch${permitted.length === 1 ? "" : "es"})`;
+                      })()}
+                    </span>
                   </div>
                 </div>
 
@@ -1176,8 +1225,18 @@ export function SellMembershipDialog({
                         <span className="text-emerald-600 font-semibold block text-xs">
                           {effective.serviceDiscountPercentage}% Svcs / {effective.productDiscountPercentage}% Prods
                         </span>
+                        {/* Service Eligibility Summary */}
+                        <span className="text-[10px] text-muted-foreground block">
+                          {effective.eligibleServiceCategoryIds.length === 0 &&
+                          effective.eligibleServiceIds.length === 0
+                            ? effective.excludedServiceIds.length > 0 ||
+                              effective.excludedServiceCategoryIds.length > 0
+                              ? `All services eligible (${effective.excludedServiceIds.length + effective.excludedServiceCategoryIds.length} excluded)`
+                              : "All services eligible"
+                            : `${effective.eligibleServiceCategoryIds.length} cat(s), ${effective.eligibleServiceIds.length} specific svc(s)`}
+                        </span>
                         {effective.complimentaryPerks.length > 0 && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-muted-foreground block truncate max-w-[200px]">
                             {effective.complimentaryPerks.join(", ")}
                           </span>
                         )}

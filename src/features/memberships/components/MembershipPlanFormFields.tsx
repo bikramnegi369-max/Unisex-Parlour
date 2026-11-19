@@ -21,6 +21,8 @@ import type { MembershipPlanFormValues } from "../schemas/membership.schema";
 import { useServiceCategories } from "@/features/services/hooks/categories/useServiceCategories";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import { BranchAvailabilityField } from "./BranchAvailabilityField";
+import { ServiceEligibilityField } from "./ServiceEligibilityField";
 
 interface MembershipPlanFormFieldsProps {
   form: UseFormReturn<MembershipPlanFormValues>;
@@ -389,108 +391,39 @@ export function MembershipPlanFormFields({
 
       {/* TAB 3: Branch & Category Eligibility Rules */}
       {activeTab === "restrictions" && (
-        <div className="space-y-4 pt-1">
-          {/* Permitted Branches Multi-Select */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-primary" /> Permitted Salon Branches
-            </label>
-            <p className="text-[11px] text-muted-foreground">
-              Leave all unchecked to permit redemption across all salon branches.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-32 overflow-y-auto p-2 bg-muted/20 border rounded-md">
-              {allBranches.map((branch) => {
-                const isChecked = selectedBranchIds.includes(branch.id);
-                return (
-                  <label
-                    key={branch.id}
-                    className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer transition-colors ${
-                      isChecked ? "bg-primary/10 border-primary font-medium" : "bg-card hover:bg-muted"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleBranchSelection(branch.id)}
-                      className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
-                    />
-                    <span className="truncate">{branch.name}</span>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+        <div className="space-y-5 pt-1">
+          {/* Production-grade Permitted Branches Selector */}
+          <BranchAvailabilityField
+            value={watch("permittedBranchIds") || []}
+            onChange={(branches) => setValue("permittedBranchIds", branches)}
+          />
 
-          {/* Service Category Eligibility */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-primary" /> Eligible Service Categories
-            </label>
-            <p className="text-[11px] text-muted-foreground">
-              Leave unchecked to apply discounts to all service categories. Check specific categories to restrict perks.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-32 overflow-y-auto p-2 bg-muted/20 border rounded-md">
-              {serviceCategories.map((cat) => {
-                const catId = cat.id || (cat as { _id?: string })._id || "";
-                if (!catId) return null;
-                const isChecked = selectedCategoryIds.includes(catId);
-                return (
-                  <label
-                    key={catId}
-                    className={`flex items-center gap-2 p-2 rounded border text-xs cursor-pointer transition-colors ${
-                      isChecked ? "bg-primary/10 border-primary font-medium" : "bg-card hover:bg-muted"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => toggleCategorySelection(catId)}
-                      className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
-                    />
-                    <span className="truncate">{cat.name}</span>
-                  </label>
-                );
-              })}
-            </div>
+          {/* Production-grade Service & Category Eligibility Multi-Selector */}
+          <div className="border-t pt-4">
+            <ServiceEligibilityField
+              eligibleCategoryIds={watch("eligibleServiceCategoryIds") || []}
+              eligibleServiceIds={watch("eligibleServiceIds") || []}
+              excludedCategoryIds={watch("excludedServiceCategoryIds") || []}
+              excludedServiceIds={watch("excludedServiceIds") || []}
+              onChange={(updates) => {
+                if (updates.eligibleServiceCategoryIds !== undefined) {
+                  setValue("eligibleServiceCategoryIds", updates.eligibleServiceCategoryIds);
+                }
+                if (updates.eligibleServiceIds !== undefined) {
+                  setValue("eligibleServiceIds", updates.eligibleServiceIds);
+                }
+                if (updates.excludedServiceCategoryIds !== undefined) {
+                  setValue("excludedServiceCategoryIds", updates.excludedServiceCategoryIds);
+                }
+                if (updates.excludedServiceIds !== undefined) {
+                  setValue("excludedServiceIds", updates.excludedServiceIds);
+                }
+              }}
+            />
           </div>
-
-          {/* Specific Services Inclusion */}
-          {allServices.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Specific Service Inclusions (Optional)
-              </label>
-              <p className="text-[11px] text-muted-foreground">
-                Optionally restrict to specific services. If empty, all services in eligible categories apply.
-              </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 max-h-28 overflow-y-auto p-2 bg-muted/20 border rounded-md">
-                {allServices.slice(0, 30).map((srv) => {
-                  const srvId = srv.id || (srv as { _id?: string })._id || "";
-                  if (!srvId) return null;
-                  const isChecked = selectedServiceIds.includes(srvId);
-                  return (
-                    <label
-                      key={srvId}
-                      className={`flex items-center gap-2 p-1.5 rounded border text-[11px] cursor-pointer transition-colors ${
-                        isChecked ? "bg-primary/10 border-primary font-medium" : "bg-card hover:bg-muted"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleServiceSelection(srvId)}
-                        className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
-                      />
-                      <span className="truncate">{srv.name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Terms and Conditions */}
-          <div className="space-y-1">
+          <div className="space-y-1 border-t pt-3">
             <label className="text-xs font-semibold text-foreground">
               Terms & Conditions
             </label>

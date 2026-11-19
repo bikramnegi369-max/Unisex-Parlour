@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/ui/empty-state";
 import { CreditCard, CheckCircle, Clock, XCircle, ShoppingCart, Ban, ExternalLink, Users } from "lucide-react";
 import { useCustomerMemberships } from "@/features/memberships/hooks/useMemberships";
+import { ManageMembershipBeneficiariesDialog } from "@/features/memberships/components/ManageMembershipBeneficiariesDialog";
 
 interface CustomerMembershipsProfileTabProps {
   customerId: string;
@@ -16,6 +17,7 @@ interface CustomerMembershipsProfileTabProps {
 
 export function CustomerMembershipsProfileTab({ customerId }: CustomerMembershipsProfileTabProps) {
   const [filterMode, setFilterMode] = useState<"all" | "beneficiary" | "payer">("all");
+  const [selectedManageMembershipId, setSelectedManageMembershipId] = useState<string | null>(null);
 
   const queryParams = {
     customerId: filterMode === "beneficiary" ? customerId : undefined,
@@ -154,14 +156,24 @@ export function CustomerMembershipsProfileTab({ customerId }: CustomerMembership
                     </TableCell>
                     <TableCell>{getStatusBadge(m.status)}</TableCell>
                     <TableCell className="text-right">
-                      {m.invoiceId && (
-                        <Link
-                          href={`/billing/${typeof m.invoiceId === "object" ? (m.invoiceId as any)?._id || (m.invoiceId as any)?.id : m.invoiceId}`}
-                          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setSelectedManageMembershipId(m.id)}
+                          className="h-7 text-xs gap-1 cursor-pointer"
                         >
-                          Invoice <ExternalLink className="w-3 h-3" />
-                        </Link>
-                      )}
+                          <Users className="w-3.5 h-3.5 text-primary" /> Members
+                        </Button>
+                        {m.invoiceId && (
+                          <Link
+                            href={`/billing/${typeof m.invoiceId === "object" ? (m.invoiceId as any)?._id || (m.invoiceId as any)?.id : m.invoiceId}`}
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            Invoice <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -170,6 +182,14 @@ export function CustomerMembershipsProfileTab({ customerId }: CustomerMembership
           </TableBody>
         </Table>
       </div>
+
+      {selectedManageMembershipId && (
+        <ManageMembershipBeneficiariesDialog
+          isOpen={Boolean(selectedManageMembershipId)}
+          onClose={() => setSelectedManageMembershipId(null)}
+          membershipId={selectedManageMembershipId}
+        />
+      )}
     </div>
   );
 }

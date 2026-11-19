@@ -67,6 +67,41 @@ vi.mock("@/hooks/useBranchContext", () => ({
   useBranchContext: () => ({ currentBranchId: "branch-1" }),
 }));
 
+// Mock useBranches
+vi.mock("@/features/branches/hooks/useBranches", () => ({
+  useBranches: () => ({
+    branches: [
+      { id: "branch-1", name: "Koramangala Flagship" },
+      { id: "branch-2", name: "Indiranagar Salon" },
+    ],
+    isLoading: false,
+  }),
+}));
+
+// Mock useRouter
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
+// Mock useServiceCategories and useServices
+vi.mock("@/features/services/hooks/categories/useServiceCategories", () => ({
+  useServiceCategories: () => ({
+    data: { data: [{ id: "cat-1", name: "Hair Care" }] },
+    isLoading: false,
+  }),
+}));
+
+vi.mock("@/features/services/hooks/services/useServices", () => ({
+  useServices: () => ({
+    data: { data: [{ id: "srv-1", name: "Hair Spa", isActive: true }] },
+    isLoading: false,
+  }),
+}));
+
 // Mock customer API
 vi.mock("@/features/customers/api/customers.api", () => ({
   getCustomer: vi.fn().mockImplementation((id: string) =>

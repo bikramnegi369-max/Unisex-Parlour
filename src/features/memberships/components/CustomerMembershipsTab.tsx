@@ -6,10 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Search, ShieldAlert, CheckCircle, Clock, XCircle, ShoppingCart, Ban, ExternalLink } from "lucide-react";
+import { Search, ShieldAlert, CheckCircle, Clock, XCircle, ShoppingCart, Ban, ExternalLink, Users } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import Link from "next/link";
+import { ManageMembershipBeneficiariesDialog } from "./ManageMembershipBeneficiariesDialog";
 
 import type { CustomerMembershipStatus } from "../types/membership.types";
 
@@ -21,6 +22,7 @@ interface CustomerMembershipsTabProps {
 export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembershipsTabProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [selectedManageMembershipId, setSelectedManageMembershipId] = useState<string | null>(null);
 
   const { data, isLoading } = useCustomerMemberships({
     search: search.trim() || undefined,
@@ -156,16 +158,26 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
                     </TableCell>
                     <TableCell>{getStatusBadge(m.status)}</TableCell>
                     <TableCell className="text-right">
-                      {canCancel && (
+                      <div className="flex items-center justify-end gap-1.5">
                         <Button
                           size="sm"
-                          variant="ghost"
-                          onClick={() => handleCancelBeneficiary(m.id, benName)}
-                          className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                          variant="outline"
+                          onClick={() => setSelectedManageMembershipId(m.id)}
+                          className="h-7 text-xs gap-1 cursor-pointer"
                         >
-                          <Ban className="w-3.5 h-3.5 mr-1" /> Cancel
+                          <Users className="w-3.5 h-3.5 text-primary" /> Members
                         </Button>
-                      )}
+                        {canCancel && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleCancelBeneficiary(m.id, benName)}
+                            className="h-7 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive cursor-pointer"
+                          >
+                            <Ban className="w-3.5 h-3.5 mr-1" /> Cancel
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -174,6 +186,15 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
           </TableBody>
         </Table>
       </div>
+
+      {/* Beneficiary Management Dialog */}
+      {selectedManageMembershipId && (
+        <ManageMembershipBeneficiariesDialog
+          isOpen={Boolean(selectedManageMembershipId)}
+          onClose={() => setSelectedManageMembershipId(null)}
+          membershipId={selectedManageMembershipId}
+        />
+      )}
     </div>
   );
 }

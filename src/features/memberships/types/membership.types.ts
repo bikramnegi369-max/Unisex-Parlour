@@ -38,7 +38,20 @@ export interface MembershipPlan {
   updatedAt?: string;
 }
 
-export type CustomerMembershipStatus = "pending_payment" | "active" | "expired" | "cancelled";
+export type CustomerMembershipStatus = "pending_payment" | "active" | "suspended" | "expired" | "cancelled";
+
+export interface MembershipPurchaseGroup {
+  membershipPurchaseId: string;
+  referenceMembershipId: string;
+  membershipPlanId: string;
+  planName: string;
+  tier: string;
+  maxBeneficiaries: number;
+  enrolledCount: number;
+  availableSlots: number;
+  isCapacityReached: boolean;
+  members: CustomerMembership[];
+}
 
 export interface CustomerMembership {
   id: string;
@@ -56,6 +69,7 @@ export interface CustomerMembership {
     tier: string;
     price: number;
     validityMonths: number;
+    maxBeneficiaries?: number;
     benefits: MembershipBenefits;
   };
   status: CustomerMembershipStatus;

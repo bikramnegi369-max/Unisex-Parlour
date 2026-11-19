@@ -13,6 +13,8 @@ import {
   reactivateBeneficiaryMembership,
   getCustomerActiveBenefits,
   getMembershipReports,
+  getMembershipPurchaseGroup,
+  addBeneficiaryToMembership,
 } from "../api/memberships.api";
 import type {
   CreateMembershipPlanPayload,
@@ -30,6 +32,7 @@ export const membershipKeys = {
   customerMembership: (id: string) => [...membershipKeys.all, "customer-membership", id] as const,
   customerBenefits: (customerId: string, branchId?: string) =>
     [...membershipKeys.all, "customer-benefits", customerId, branchId] as const,
+  purchaseGroup: (id: string) => [...membershipKeys.all, "purchase-group", id] as const,
   reports: (branchId?: string) => [...membershipKeys.all, "reports", branchId] as const,
 };
 
@@ -155,5 +158,35 @@ export const useMembershipReports = (branchId?: string) => {
   return useQuery({
     queryKey: membershipKeys.reports(branchId),
     queryFn: () => getMembershipReports(branchId),
+  });
+};
+
+export const useMembershipPurchaseGroup = (membershipId: string) => {
+  return useQuery({
+    queryKey: membershipKeys.purchaseGroup(membershipId),
+    queryFn: () => getMembershipPurchaseGroup(membershipId),
+    enabled: Boolean(membershipId),
+  });
+};
+
+export const useAddBeneficiaryToMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      customerId,
+      benefitsOverride,
+    }: {
+      membershipId: string;
+      customerId: string;
+      benefitsOverride?: Partial<import("../types/membership.types").MembershipBenefits>;
+    }) =>
+      addBeneficiaryToMembership(membershipId, { customerId, benefitsOverride }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.membershipId) });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.purchaseGroup(variables.membershipId) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
   });
 };
