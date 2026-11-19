@@ -30,6 +30,8 @@ import {
   Package,
 } from "lucide-react";
 import type { MembershipPlan, CreateMembershipPlanPayload } from "../types/membership.types";
+import type { Customer } from "@/features/customers/types/customer.types";
+import { getCustomer } from "@/features/customers/api/customers.api";
 import { toast } from "sonner";
 
 export interface SellMembershipCheckoutPayload {
@@ -84,6 +86,9 @@ export function SellMembershipDialog({
   );
   const [beneficiaryCandidateId, setBeneficiaryCandidateId] = useState<string>("");
 
+  // Customer cache for friendly names and phone display
+  const [customerProfiles, setCustomerProfiles] = useState<Record<string, Customer>>({});
+
   // Step 2: Mode selection ("catalog" vs "custom")
   const [planMode, setPlanMode] = useState<"catalog" | "custom">("catalog");
   const [chosenPlanId, setChosenPlanId] = useState<string>(selectedPlanId || "");
@@ -120,6 +125,19 @@ export function SellMembershipDialog({
       setCustomComplimentaryPerks(["Priority Booking"]);
       setSoldByStaffId("");
       setNotes("");
+
+      // Fetch customer details for initial customer if provided
+      if (initialCustomerId) {
+        getCustomer(initialCustomerId)
+          .then((cust) => {
+            if (cust) {
+              setCustomerProfiles((prev) => ({ ...prev, [cust.id]: cust }));
+            }
+          })
+          .catch(() => {
+            // Silently ignore if not found
+          });
+      }
     }
   }, [isOpen, initialCustomerId, selectedPlanId, plans]);
 
@@ -148,8 +166,11 @@ export function SellMembershipDialog({
   };
 
   // Handle adding an additional beneficiary
-  const handleAddBeneficiary = (customerId: string) => {
+  const handleAddBeneficiary = (customerId: string, customer?: Customer) => {
     if (!customerId) return;
+    if (customer) {
+      setCustomerProfiles((prev) => ({ ...prev, [customerId]: customer }));
+    }
     if (beneficiaryCustomerIds.includes(customerId)) {
       toast.warning("This customer is already added as a beneficiary.");
       return;
@@ -353,8 +374,11 @@ export function SellMembershipDialog({
               </label>
               <CustomerSelector
                 value={payerCustomerId}
-                onChange={(val) => {
+                onChange={(val, cust) => {
                   setPayerCustomerId(val);
+                  if (cust) {
+                    setCustomerProfiles((prev) => ({ ...prev, [val]: cust }));
+                  }
                   // Default payer into beneficiary list if empty
                   if (val && beneficiaryCustomerIds.length === 0) {
                     setBeneficiaryCustomerIds([val]);
@@ -397,8 +421,8 @@ export function SellMembershipDialog({
                     <div className="flex-1">
                       <CustomerSelector
                         value={beneficiaryCandidateId}
-                        onChange={(id) => {
-                          if (id) handleAddBeneficiary(id);
+                        onChange={(id, cust) => {
+                          if (id) handleAddBeneficiary(id, cust);
                         }}
                       />
                     </div>
@@ -416,20 +440,30 @@ export function SellMembershipDialog({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {beneficiaryCustomerIds.map((bId) => {
                       const isPayer = bId === payerCustomerId;
+                      const profile = customerProfiles[bId];
+                      const displayName = profile?.name || `Customer #${bId.slice(-6)}`;
+                      const phone = profile?.phone;
+
                       return (
                         <div
                           key={bId}
                           className="flex items-center justify-between p-2.5 rounded-lg border bg-card text-xs shadow-2xs"
                         >
                           <div className="flex items-center gap-2 truncate">
-                            <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[10px]">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px] shrink-0">
                               {isPayer ? "P" : "B"}
                             </div>
                             <div className="truncate">
-                              <span className="font-semibold block truncate">Customer #{bId.slice(-6)}</span>
-                              {isPayer && (
-                                <span className="text-[10px] text-primary font-medium">Payer & Beneficiary</span>
-                              )}
+                              <span className="font-semibold block truncate text-foreground">
+                                {displayName}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                                {phone && <span>{phone}</span>}
+                                {phone && isPayer && <span>•</span>}
+                                {isPayer && (
+                                  <span className="text-primary font-medium">Payer & Beneficiary</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                           <Button
@@ -437,7 +471,8 @@ export function SellMembershipDialog({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemoveBeneficiary(bId)}
-                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
+                            title="Remove Beneficiary"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -803,7 +838,14 @@ export function SellMembershipDialog({
                 <div className="space-y-2 border-t md:border-t-0 md:border-l md:pl-4">
                   <div>
                     <span className="text-muted-foreground block text-[11px]">Payer (Bill Payer):</span>
-                    <strong className="font-semibold">Customer #{payerCustomerId.slice(-6)}</strong>
+                    <strong className="font-semibold">
+                      {customerProfiles[payerCustomerId]?.name || `Customer #${payerCustomerId.slice(-6)}`}
+                    </strong>
+                    {customerProfiles[payerCustomerId]?.phone && (
+                      <span className="text-[10px] text-muted-foreground block">
+                        {customerProfiles[payerCustomerId]?.phone}
+                      </span>
+                    )}
                   </div>
 
                   <div>
@@ -811,11 +853,14 @@ export function SellMembershipDialog({
                       Designated Beneficiaries ({beneficiaryCustomerIds.length}):
                     </span>
                     <div className="flex flex-wrap gap-1 pt-1">
-                      {beneficiaryCustomerIds.map((bId) => (
-                        <Badge key={bId} variant="secondary" className="text-[10px]">
-                          Customer #{bId.slice(-6)} {bId === payerCustomerId && "(Payer)"}
-                        </Badge>
-                      ))}
+                      {beneficiaryCustomerIds.map((bId) => {
+                        const name = customerProfiles[bId]?.name || `Customer #${bId.slice(-6)}`;
+                        return (
+                          <Badge key={bId} variant="secondary" className="text-[10px]">
+                            {name} {bId === payerCustomerId && "(Payer)"}
+                          </Badge>
+                        );
+                      })}
                     </div>
                   </div>
 
