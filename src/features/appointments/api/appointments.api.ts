@@ -495,10 +495,19 @@ export const upsellAppointmentSubscription = async (
 
   const rawInvoice = data.data?.invoice as Record<string, unknown> | undefined;
   const normalizedInvoice = rawInvoice ? normalizeInvoice(rawInvoice) : undefined;
+  const rawSubInvoiceId =
+    typeof mappedSub?.invoiceId === "object" && mappedSub?.invoiceId !== null
+      ? (mappedSub.invoiceId as { id?: string; _id?: string }).id ||
+        (mappedSub.invoiceId as { id?: string; _id?: string })._id
+      : mappedSub?.invoiceId;
+
   const invoiceId =
-    data.data?.invoiceId ||
+    (typeof data.data?.invoiceId === "object" && data.data?.invoiceId !== null
+      ? (data.data.invoiceId as { id?: string; _id?: string }).id ||
+        (data.data.invoiceId as { id?: string; _id?: string })._id
+      : data.data?.invoiceId) ||
     normalizedInvoice?.id ||
-    mappedSub?.invoiceId ||
+    rawSubInvoiceId ||
     undefined;
 
   return {
@@ -508,6 +517,67 @@ export const upsellAppointmentSubscription = async (
     summary: data.data?.summary,
   };
 };
+
+/**
+ * Upsell membership plan for a given appointment.
+ * Dedicated endpoint: POST /api/v1/appointments/:appointmentId/upsell-membership
+ * Returns separate membership sale invoice, created customer memberships, and updated appointment with immediate discount applied.
+ */
+export const upsellAppointmentMembership = async (
+  appointmentId: string,
+  payload: import("../types/appointment.types").UpsellMembershipPayload
+): Promise<import("../types/appointment.types").UpsellMembershipResponseData> => {
+  const { mapCustomerMembershipKeys } = await import(
+    "@/features/memberships/api/memberships.api"
+  );
+  const { normalizeInvoice } = await import(
+    "@/features/billing/api/billing.api"
+  );
+
+  const config: { branchScope?: { type: "branch"; branchId: string } | "current" | "none" } =
+    payload.branchId && payload.branchId !== "all"
+      ? { branchScope: { type: "branch", branchId: payload.branchId } }
+      : { branchScope: "current" };
+
+  const { data } = await apiClient.post<
+    import("../types/appointment.types").UpsellMembershipResponse
+  >(
+    `/appointments/${appointmentId}/upsell-membership`,
+    payload,
+    config
+  );
+
+  const rawMem = data.data?.customerMembership as unknown as Parameters<typeof mapCustomerMembershipKeys>[0];
+  const mappedMem = rawMem ? mapCustomerMembershipKeys(rawMem) : (data.data?.customerMembership as import("@/features/memberships/types/membership.types").CustomerMembership);
+
+  const rawMems = data.data?.customerMemberships as unknown as Array<Parameters<typeof mapCustomerMembershipKeys>[0]>;
+  const mappedMems = Array.isArray(rawMems) ? rawMems.map(mapCustomerMembershipKeys) : [];
+
+  const rawInvoice = data.data?.invoice as Record<string, unknown> | undefined;
+  const normalizedInvoice = rawInvoice ? normalizeInvoice(rawInvoice) : undefined;
+  const memInvoiceId =
+    typeof mappedMem?.invoiceId === "string"
+      ? mappedMem.invoiceId
+      : (mappedMem?.invoiceId as { id?: string; _id?: string } | undefined)?.id ||
+        (mappedMem?.invoiceId as { id?: string; _id?: string } | undefined)?._id ||
+        undefined;
+
+  const invoiceId =
+    (typeof data.data?.invoiceId === "string" ? data.data.invoiceId : undefined) ||
+    normalizedInvoice?.id ||
+    memInvoiceId ||
+    undefined;
+
+  return {
+    customerMembership: mappedMem,
+    customerMemberships: mappedMems,
+    invoice: normalizedInvoice,
+    invoiceId,
+    appointment: data.data?.appointment,
+    summary: data.data?.summary,
+  };
+};
+
 
 
 

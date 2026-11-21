@@ -511,9 +511,15 @@ export const createSubscription = async (
   const mappedSub = mapSubscriptionKeys(rawSub);
 
   // Extract invoiceId and invoice from either top-level or subscription level
+  const rawMappedInvoiceId =
+    typeof mappedSub.invoiceId === "object" && mappedSub.invoiceId !== null
+      ? (mappedSub.invoiceId as { id?: string; _id?: string }).id ||
+        (mappedSub.invoiceId as { id?: string; _id?: string })._id
+      : mappedSub.invoiceId;
+
   const invoiceId =
     (typeof rawData.invoiceId === "string" ? rawData.invoiceId : undefined) ||
-    mappedSub.invoiceId ||
+    rawMappedInvoiceId ||
     (typeof rawData.invoice === "object" && rawData.invoice !== null
       ? (rawData.invoice as { id?: string; _id?: string }).id ||
         (rawData.invoice as { id?: string; _id?: string })._id
@@ -566,9 +572,15 @@ export const renewSubscription = async (
 
   const mappedSub = mapSubscriptionKeys(rawSub);
 
+  const rawMappedInvoiceId =
+    typeof mappedSub.invoiceId === "object" && mappedSub.invoiceId !== null
+      ? (mappedSub.invoiceId as { id?: string; _id?: string }).id ||
+        (mappedSub.invoiceId as { id?: string; _id?: string })._id
+      : mappedSub.invoiceId;
+
   const invoiceId =
     (typeof rawData.invoiceId === "string" ? rawData.invoiceId : undefined) ||
-    mappedSub.invoiceId ||
+    rawMappedInvoiceId ||
     (typeof rawData.invoice === "object" && rawData.invoice !== null
       ? (rawData.invoice as { id?: string; _id?: string }).id ||
         (rawData.invoice as { id?: string; _id?: string })._id

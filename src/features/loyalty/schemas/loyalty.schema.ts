@@ -24,9 +24,17 @@ export const loyaltyProgramConfigSchema = z.object({
     .min(1, "Maximum percentage must be at least 1%")
     .max(100, "Maximum percentage cannot exceed 100%")
     .default(20),
+  // NEW: Whether subscription purchases earn loyalty points
+  earnOnSubscriptions: z.boolean().default(false),
+  // NEW: Whether membership purchases earn loyalty points
+  earnOnMembershipPurchases: z.boolean().default(true),
+  // Maximum points per invoice (null or 0 means no cap)
+  maxPointsPerInvoice: z.number().int().min(0).nullable().default(null),
 });
 
-export type LoyaltyProgramConfigFormValues = z.infer<typeof loyaltyProgramConfigSchema>;
+export type LoyaltyProgramConfigFormValues = z.infer<
+  typeof loyaltyProgramConfigSchema
+>;
 
 export const manualPointsAdjustSchema = z.object({
   operation: z.enum(["CREDIT", "DEBIT"], {
@@ -42,5 +50,6 @@ export const manualPointsAdjustSchema = z.object({
     .max(500, "Reason cannot exceed 500 characters"),
 });
 
-export type ManualPointsAdjustFormValues = z.infer<typeof manualPointsAdjustSchema>;
-
+export type ManualPointsAdjustFormValues = z.infer<
+  typeof manualPointsAdjustSchema
+>;

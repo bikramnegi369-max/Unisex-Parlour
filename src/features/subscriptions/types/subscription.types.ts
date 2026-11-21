@@ -70,8 +70,26 @@ export interface Subscription {
   endDate: string;
   status: SubscriptionStatus;
   paymentStatus?: "unpaid" | "partially_paid" | "paid";
-  invoiceId?: string;
+  invoiceId?:
+    | string
+    | {
+        id?: string;
+        _id?: string;
+        invoiceNumber?: string;
+        status?: string;
+        paymentStatus?: string;
+        amountPaid?: number;
+        amountDue?: number;
+      }
+    | null;
   invoiceNumber?: string;
+  invoiceHistory?: Array<{
+    invoiceId: string | { _id?: string; id?: string };
+    invoiceNumber: string;
+    status: "draft" | "finalized" | "cancelled";
+    issuedAt: string;
+    cancelledAt?: string | null;
+  }>;
   amountPaid?: number;
   amountDue?: number;
   isPaid?: boolean;

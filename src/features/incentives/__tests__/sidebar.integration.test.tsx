@@ -59,7 +59,7 @@ function createTestStore(collapsed = false) {
       ui: {
         sidebarOpen: false,
         sidebarCollapsed: collapsed,
-        theme: "light",
+        theme: "light" as const,
       },
     },
   });

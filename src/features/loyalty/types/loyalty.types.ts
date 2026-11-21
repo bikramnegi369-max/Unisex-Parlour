@@ -15,6 +15,9 @@ export interface LoyaltyProgramConfig {
   redemptionRate: number; // ₹ per point, default 1
   minRedemptionPoints: number; // default 20
   maxRedemptionPercentage: number; // max % of bill, default 20
+  earnOnSubscriptions?: boolean;
+  earnOnMembershipPurchases?: boolean;
+  maxPointsPerInvoice?: number | null;
   isConfigured?: boolean;
   updatedAt?: string;
 }

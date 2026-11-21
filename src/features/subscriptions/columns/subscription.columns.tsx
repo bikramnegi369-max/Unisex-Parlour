@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
 import { formatCurrency, formatDate } from "@/lib/formatters";
-import { Eye, Edit, Ban, Gift, Building2, User, Users, RefreshCw, Receipt } from "lucide-react";
+import { Eye, Edit, Ban, Gift, Building2, User, Users, RefreshCw, Receipt, PlusCircle, FileText } from "lucide-react";
 import type { Subscription } from "../types/subscription.types";
 import { SubscriptionStatusBadge , SubscriptionPaymentBadge} from "../components/SubscriptionStatusBadge";
 
@@ -13,6 +13,7 @@ interface SubscriptionColumnsOptions {
   onRedeem: (subscription: Subscription) => void;
   onRenew?: (subscription: Subscription) => void;
   onGenerateInvoice?: (subscription: Subscription) => void;
+  isGeneratingInvoice?: boolean;
   canView: boolean;
   canEdit: boolean;
   canCancel: boolean;
@@ -29,6 +30,7 @@ export const getSubscriptionColumns = ({
   onRedeem,
   onRenew,
   onGenerateInvoice,
+  isGeneratingInvoice = false,
   canView,
   canEdit,
   canCancel,
@@ -245,16 +247,74 @@ export const getSubscriptionColumns = ({
             </button>
           )}
 
-          {canGenerateInvoice && onGenerateInvoice && !sub.invoiceId && (
-            <button
-              type="button"
-              onClick={() => onGenerateInvoice(sub)}
-              className="cursor-pointer h-8 w-8 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-600 flex items-center justify-center transition-colors text-emerald-600 dark:text-emerald-400"
-              title="Generate Separate Invoice"
-            >
-              <Receipt className="h-4 w-4" />
-            </button>
-          )}
+          {/* Authoritative Invoice Lifecycle Actions */}
+          {(() => {
+            const hasPopulatedInvoiceObj =
+              sub.invoiceId && typeof sub.invoiceId === "object";
+            const invoiceStatus = hasPopulatedInvoiceObj
+              ? (sub.invoiceId as { status?: string }).status
+              : undefined;
+            const invoiceIdStr = hasPopulatedInvoiceObj
+              ? (sub.invoiceId as { _id?: string; id?: string })._id ||
+                (sub.invoiceId as { _id?: string; id?: string }).id
+              : typeof sub.invoiceId === "string"
+                ? sub.invoiceId
+                : null;
+
+            const isInvoiceCancelled =
+              invoiceStatus === "cancelled" ||
+              (!sub.invoiceId &&
+                Array.isArray(sub.invoiceHistory) &&
+                sub.invoiceHistory.length > 0 &&
+                sub.invoiceHistory[sub.invoiceHistory.length - 1].status === "cancelled");
+
+            const hasActiveOrPaidInvoice =
+              Boolean(invoiceIdStr) && invoiceStatus !== "cancelled";
+
+            if (hasActiveOrPaidInvoice) {
+              return (
+                <Link
+                  href={`/billing/${invoiceIdStr}`}
+                  className="cursor-pointer h-8 w-8 rounded-lg hover:bg-blue-500/10 hover:text-blue-600 flex items-center justify-center transition-colors text-blue-600 dark:text-blue-400"
+                  title="View Invoice"
+                >
+                  <FileText className="h-4 w-4" />
+                </Link>
+              );
+            }
+
+            if (canGenerateInvoice && onGenerateInvoice) {
+              if (isInvoiceCancelled) {
+                return (
+                  <button
+                    type="button"
+                    disabled={isGeneratingInvoice}
+                    onClick={() => onGenerateInvoice(sub)}
+                    className="cursor-pointer h-8 w-8 rounded-lg hover:bg-amber-500/10 hover:text-amber-600 flex items-center justify-center transition-colors text-amber-600 dark:text-amber-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate New Invoice (Replacement)"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                  </button>
+                );
+              }
+
+              if (!sub.invoiceId) {
+                return (
+                  <button
+                    type="button"
+                    disabled={isGeneratingInvoice}
+                    onClick={() => onGenerateInvoice(sub)}
+                    className="cursor-pointer h-8 w-8 rounded-lg hover:bg-emerald-500/10 hover:text-emerald-600 flex items-center justify-center transition-colors text-emerald-600 dark:text-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Generate Separate Invoice"
+                  >
+                    <Receipt className="h-4 w-4" />
+                  </button>
+                );
+              }
+            }
+
+            return null;
+          })()}
 
           {canRedeem && isActive && (
             <button

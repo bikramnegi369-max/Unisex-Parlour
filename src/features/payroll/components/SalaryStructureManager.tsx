@@ -3,8 +3,13 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { payrollApi, SalaryStructure } from "../api/payroll.api";
+import {
+  payrollApi,
+  SalaryStructure,
+  AllowanceDeductionItem,
+} from "../api/payroll.api";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
+import type { Employee } from "@/features/employees/types/employee.types";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,7 +35,7 @@ export function SalaryStructureManager() {
   const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({
     limit: 100,
   });
-  const employees = employeesData?.data || [];
+  const employees: Employee[] = employeesData?.data || [];
 
   const [selectedStaffId, setSelectedStaffId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -45,6 +50,8 @@ export function SalaryStructureManager() {
   const [effectiveFrom, setEffectiveFrom] = useState<string>(
     new Date().toISOString().split("T")[0],
   );
+  const [annualPaidLeave, setAnnualPaidLeave] = useState<number>(0);
+  const [carryForwardDays, setCarryForwardDays] = useState<number>(0);
   const [allowances, setAllowances] = useState<
     Array<{ name: string; amount: number }>
   >([]);
@@ -53,10 +60,7 @@ export function SalaryStructureManager() {
   >([]);
 
   // Fetch active structure for selected staff
-  const {
-    data: activeStructure,
-    isLoading: isLoadingStructure,
-  } = useQuery({
+  const { data: activeStructure, isLoading: isLoadingStructure } = useQuery({
     queryKey: ["payroll", "structure", selectedStaffId],
     queryFn: () => payrollApi.getEffectiveSalaryStructure(selectedStaffId),
     enabled: !!selectedStaffId,
@@ -78,23 +82,27 @@ export function SalaryStructureManager() {
     },
   });
 
-  const filteredEmployees = (employees || []).filter((emp) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      emp.name.toLowerCase().includes(q) ||
-      emp.staffCode.toLowerCase().includes(q) ||
-      emp.designation.toLowerCase().includes(q)
-    );
-  });
-
-  const selectedEmployee = (employees || []).find(
-    (e) => (e.id || e._id) === selectedStaffId,
+  const filteredEmployees: Employee[] = (employees || []).filter(
+    (emp: Employee) => {
+      const q = searchTerm.toLowerCase();
+      return (
+        emp.name.toLowerCase().includes(q) ||
+        emp.staffCode.toLowerCase().includes(q) ||
+        emp.designation.toLowerCase().includes(q)
+      );
+    },
   );
 
-  const openConfigModalForStaff = (emp: (typeof employees)[number]) => {
+  const selectedEmployee = (employees || []).find(
+    (e: Employee) => (e.id || e._id) === selectedStaffId,
+  );
+
+  const openConfigModalForStaff = (emp: Employee) => {
     const empId = emp.id || emp._id;
     if (!empId) {
-      toast.error("Cannot configure a salary structure for an employee without an ID.");
+      toast.error(
+        "Cannot configure a salary structure for an employee without an ID.",
+      );
       return;
     }
 
@@ -106,12 +114,20 @@ export function SalaryStructureManager() {
       setPayType(activeStructure.payType || "fixed_monthly");
       setBaseSalary(activeStructure.baseSalary || 0);
       setHourlyRate(activeStructure.hourlyRate || 0);
+      setAnnualPaidLeave(
+        activeStructure.paidLeavePolicy?.annualEntitlement || 0,
+      );
+      setCarryForwardDays(
+        activeStructure.paidLeavePolicy?.carryForwardDays || 0,
+      );
       setAllowances(activeStructure.allowances || []);
       setDeductions(activeStructure.deductions || []);
     } else {
       setPayType("fixed_monthly");
       setBaseSalary(0);
       setHourlyRate(0);
+      setAnnualPaidLeave(0);
+      setCarryForwardDays(0);
       setAllowances([]);
       setDeductions([]);
     }
@@ -149,6 +165,10 @@ export function SalaryStructureManager() {
       payType,
       baseSalary: Number(baseSalary),
       hourlyRate: Number(hourlyRate),
+      paidLeavePolicy: {
+        annualEntitlement: Number(annualPaidLeave || 0),
+        carryForwardDays: Number(carryForwardDays || 0),
+      },
       allowances: allowances.filter((a) => a.name.trim() && a.amount > 0),
       deductions: deductions.filter((d) => d.name.trim() && d.amount > 0),
       effectiveFrom: new Date(effectiveFrom).toISOString(),
@@ -185,7 +205,7 @@ export function SalaryStructureManager() {
         </div>
 
         {/* List */}
-        <div className="space-y-2 max-h-[540px] overflow-y-auto pr-1">
+        <div className="space-y-2 max-h-135 overflow-y-auto pr-1">
           {isLoadingEmployees ? (
             <div className="py-12 text-center text-xs text-muted-foreground">
               Loading employee roster...
@@ -195,7 +215,7 @@ export function SalaryStructureManager() {
               No employees found matching criteria
             </div>
           ) : (
-            filteredEmployees.map((emp) => {
+            filteredEmployees.map((emp: Employee) => {
               const empId = emp.id || emp._id || "";
               const isSelected = empId === selectedStaffId;
               return (
@@ -309,7 +329,7 @@ export function SalaryStructureManager() {
             </div>
 
             {/* Core Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl bg-muted/30 border">
                 <div className="text-xs font-medium text-muted-foreground">
                   Base Monthly Salary
@@ -325,6 +345,26 @@ export function SalaryStructureManager() {
                 </div>
                 <div className="text-base font-semibold capitalize text-foreground mt-1.5">
                   {activeStructure.payType.replace("_", " ")}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-muted/30 border">
+                <div className="text-xs font-medium text-muted-foreground">
+                  Annual Paid Leave
+                </div>
+                <div className="text-xl font-bold font-mono text-foreground mt-1 flex items-baseline gap-1">
+                  <span>
+                    {activeStructure.paidLeavePolicy?.annualEntitlement ?? 0}
+                  </span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    days
+                  </span>
+                  {(activeStructure.paidLeavePolicy?.carryForwardDays || 0) >
+                    0 && (
+                    <span className="text-xs font-normal text-emerald-600 ml-1">
+                      (+{activeStructure.paidLeavePolicy?.carryForwardDays} CF)
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -355,7 +395,11 @@ export function SalaryStructureManager() {
                   <span className="text-emerald-600 font-mono">
                     +₹
                     {(activeStructure.allowances || [])
-                      .reduce((sum, a) => sum + (a.amount || 0), 0)
+                      .reduce(
+                        (sum: number, a: AllowanceDeductionItem) =>
+                          sum + (a.amount || 0),
+                        0,
+                      )
                       .toLocaleString()}
                   </span>
                 </div>
@@ -365,17 +409,21 @@ export function SalaryStructureManager() {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {activeStructure.allowances.map((a, i) => (
-                      <div
-                        key={i}
-                        className="flex justify-between text-xs py-1 border-b border-border/50"
-                      >
-                        <span className="text-muted-foreground">{a.name}</span>
-                        <span className="font-mono font-medium text-foreground">
-                          ₹{a.amount.toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
+                    {activeStructure.allowances.map(
+                      (a: AllowanceDeductionItem, i: number) => (
+                        <div
+                          key={i}
+                          className="flex justify-between text-xs py-1 border-b border-border/50"
+                        >
+                          <span className="text-muted-foreground">
+                            {a.name}
+                          </span>
+                          <span className="font-mono font-medium text-foreground">
+                            ₹{a.amount.toLocaleString()}
+                          </span>
+                        </div>
+                      ),
+                    )}
                   </div>
                 )}
               </div>
@@ -387,7 +435,11 @@ export function SalaryStructureManager() {
                   <span className="text-red-500 font-mono">
                     -₹
                     {(activeStructure.deductions || [])
-                      .reduce((sum, d) => sum + (d.amount || 0), 0)
+                      .reduce(
+                        (sum: number, d: AllowanceDeductionItem) =>
+                          sum + (d.amount || 0),
+                        0,
+                      )
                       .toLocaleString()}
                   </span>
                 </div>
@@ -397,17 +449,21 @@ export function SalaryStructureManager() {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    {activeStructure.deductions.map((d, i) => (
-                      <div
-                        key={i}
-                        className="flex justify-between text-xs py-1 border-b border-border/50"
-                      >
-                        <span className="text-muted-foreground">{d.name}</span>
-                        <span className="font-mono font-medium text-foreground">
-                          ₹{d.amount.toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
+                    {activeStructure.deductions.map(
+                      (d: AllowanceDeductionItem, i: number) => (
+                        <div
+                          key={i}
+                          className="flex justify-between text-xs py-1 border-b border-border/50"
+                        >
+                          <span className="text-muted-foreground">
+                            {d.name}
+                          </span>
+                          <span className="font-mono font-medium text-foreground">
+                            ₹{d.amount.toLocaleString()}
+                          </span>
+                        </div>
+                      ),
+                    )}
                   </div>
                 )}
               </div>
@@ -468,9 +524,7 @@ export function SalaryStructureManager() {
               <select
                 value={payType}
                 onChange={(e) =>
-                  setPayType(
-                    e.target.value as "fixed_monthly" | "hourly",
-                  )
+                  setPayType(e.target.value as "fixed_monthly" | "hourly")
                 }
                 className="w-full text-xs h-9 border rounded-lg px-3 bg-background"
               >
@@ -517,6 +571,51 @@ export function SalaryStructureManager() {
               Determines the starting period from which this compensation
               applies.
             </p>
+          </div>
+
+          {/* Paid Leave Policy Section */}
+          <div className="space-y-3 border-t pt-3">
+            <span className="text-xs font-bold uppercase text-foreground block">
+              Paid Leave Policy
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold block text-foreground mb-1">
+                  Annual Paid Leave Entitlement (Days)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  step="0.5"
+                  required
+                  value={annualPaidLeave}
+                  onChange={(e) => setAnnualPaidLeave(Number(e.target.value))}
+                  className="h-9 text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Eligible paid leave days per calendar year.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block text-foreground mb-1">
+                  Carry-Forward Days (Optional)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  step="0.5"
+                  value={carryForwardDays}
+                  onChange={(e) => setCarryForwardDays(Number(e.target.value))}
+                  className="h-9 text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Unused balance carried forward from previous leave year.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Allowances */}

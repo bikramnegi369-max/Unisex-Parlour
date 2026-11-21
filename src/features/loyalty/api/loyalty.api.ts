@@ -146,6 +146,9 @@ export async function getLoyaltyProgram(): Promise<LoyaltyProgramConfig> {
     redemptionRate: typeof raw.redemptionRate === "number" ? raw.redemptionRate : 1,
     minRedemptionPoints: typeof raw.minRedemptionPoints === "number" ? raw.minRedemptionPoints : 20,
     maxRedemptionPercentage: typeof raw.maxRedemptionPercentage === "number" ? raw.maxRedemptionPercentage : 20,
+    earnOnSubscriptions: typeof raw.earnOnSubscriptions === "boolean" ? raw.earnOnSubscriptions : false,
+    earnOnMembershipPurchases: typeof raw.earnOnMembershipPurchases === "boolean" ? raw.earnOnMembershipPurchases : true,
+    maxPointsPerInvoice: typeof raw.maxPointsPerInvoice === "number" ? raw.maxPointsPerInvoice : null,
     isConfigured: typeof raw.isConfigured === "boolean" ? raw.isConfigured : false,
     updatedAt: (raw.updatedAt as string) || undefined,
   };
@@ -164,6 +167,9 @@ export async function updateLoyaltyProgram(
     redemptionRate: payload.redemptionRate,
     minRedemptionPoints: payload.minRedemptionPoints,
     maxRedemptionPercentage: payload.maxRedemptionPercentage,
+    earnOnSubscriptions: payload.earnOnSubscriptions,
+    earnOnMembershipPurchases: payload.earnOnMembershipPurchases,
+    maxPointsPerInvoice: payload.maxPointsPerInvoice,
   };
 
   const { data } = await apiClient.put<ApiResponse<{ program?: Record<string, unknown> } | Record<string, unknown>>>(
@@ -186,6 +192,9 @@ export async function updateLoyaltyProgram(
     redemptionRate: typeof raw.redemptionRate === "number" ? raw.redemptionRate : (payload.redemptionRate ?? 1),
     minRedemptionPoints: typeof raw.minRedemptionPoints === "number" ? raw.minRedemptionPoints : (payload.minRedemptionPoints ?? 20),
     maxRedemptionPercentage: typeof raw.maxRedemptionPercentage === "number" ? raw.maxRedemptionPercentage : (payload.maxRedemptionPercentage ?? 20),
+    earnOnSubscriptions: typeof raw.earnOnSubscriptions === "boolean" ? raw.earnOnSubscriptions : (payload.earnOnSubscriptions ?? false),
+    earnOnMembershipPurchases: typeof raw.earnOnMembershipPurchases === "boolean" ? raw.earnOnMembershipPurchases : (payload.earnOnMembershipPurchases ?? true),
+    maxPointsPerInvoice: typeof raw.maxPointsPerInvoice === "number" ? raw.maxPointsPerInvoice : (payload.maxPointsPerInvoice ?? null),
     isConfigured: typeof raw.isConfigured === "boolean" ? raw.isConfigured : true,
     updatedAt: (raw.updatedAt as string) || undefined,
   };
