@@ -41,7 +41,9 @@ export const mapCustomerMembershipKeys = (
   return {
     ...m,
     id: m._id || m.id || "",
-    customerId: customerObj ? customerObj._id || customerObj.id || "" : (m.customerId as string),
+    customerId: customerObj
+      ? customerObj._id || customerObj.id || ""
+      : (m.customerId as string),
     customer: customerObj
       ? {
           id: customerObj._id || customerObj.id || "",
@@ -95,21 +97,20 @@ export const getMembershipPlans = async (
 export const getMembershipPlan = async (
   id: string,
 ): Promise<MembershipPlan> => {
-  const { data } = await apiClient.get<{ success: boolean; data: RawMembershipPlan }>(
-    `/memberships/plans/${id}`,
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.get<{
+    success: boolean;
+    data: RawMembershipPlan;
+  }>(`/memberships/plans/${id}`, { branchScope: "none" });
   return mapPlanKeys(data.data);
 };
 
 export const createMembershipPlan = async (
   payload: CreateMembershipPlanPayload,
 ): Promise<MembershipPlan> => {
-  const { data } = await apiClient.post<{ success: boolean; data: RawMembershipPlan }>(
-    "/memberships/plans",
-    payload,
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.post<{
+    success: boolean;
+    data: RawMembershipPlan;
+  }>("/memberships/plans", payload, { branchScope: "none" });
   return mapPlanKeys(data.data);
 };
 
@@ -117,11 +118,10 @@ export const updateMembershipPlan = async (
   id: string,
   payload: UpdateMembershipPlanPayload,
 ): Promise<MembershipPlan> => {
-  const { data } = await apiClient.put<{ success: boolean; data: RawMembershipPlan }>(
-    `/memberships/plans/${id}`,
-    payload,
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.put<{
+    success: boolean;
+    data: RawMembershipPlan;
+  }>(`/memberships/plans/${id}`, payload, { branchScope: "none" });
   return mapPlanKeys(data.data);
 };
 
@@ -132,11 +132,10 @@ export const deleteMembershipPlan = async (id: string): Promise<void> => {
 export const duplicateMembershipPlan = async (
   id: string,
 ): Promise<MembershipPlan> => {
-  const { data } = await apiClient.post<{ success: boolean; data: RawMembershipPlan }>(
-    `/memberships/plans/${id}/duplicate`,
-    {},
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.post<{
+    success: boolean;
+    data: RawMembershipPlan;
+  }>(`/memberships/plans/${id}/duplicate`, {}, { branchScope: "none" });
   return mapPlanKeys(data.data);
 };
 
@@ -171,10 +170,10 @@ export const getCustomerMemberships = async (
 export const getCustomerMembership = async (
   id: string,
 ): Promise<CustomerMembership> => {
-  const { data } = await apiClient.get<{ success: boolean; data: RawCustomerMembership }>(
-    `/memberships/${id}`,
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.get<{
+    success: boolean;
+    data: RawCustomerMembership;
+  }>(`/memberships/${id}`, { branchScope: "none" });
   return mapCustomerMembershipKeys(data.data);
 };
 
@@ -182,11 +181,10 @@ export const cancelBeneficiaryMembership = async (
   id: string,
   reason: string,
 ): Promise<CustomerMembership> => {
-  const { data } = await apiClient.patch<{ success: boolean; data: RawCustomerMembership }>(
-    `/memberships/${id}/cancel`,
-    { reason },
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.patch<{
+    success: boolean;
+    data: RawCustomerMembership;
+  }>(`/memberships/${id}/cancel`, { reason }, { branchScope: "none" });
   return mapCustomerMembershipKeys(data.data);
 };
 
@@ -194,22 +192,20 @@ export const suspendBeneficiaryMembership = async (
   id: string,
   reason: string,
 ): Promise<CustomerMembership> => {
-  const { data } = await apiClient.patch<{ success: boolean; data: RawCustomerMembership }>(
-    `/memberships/${id}/suspend`,
-    { reason },
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.patch<{
+    success: boolean;
+    data: RawCustomerMembership;
+  }>(`/memberships/${id}/suspend`, { reason }, { branchScope: "none" });
   return mapCustomerMembershipKeys(data.data);
 };
 
 export const reactivateBeneficiaryMembership = async (
   id: string,
 ): Promise<CustomerMembership> => {
-  const { data } = await apiClient.patch<{ success: boolean; data: RawCustomerMembership }>(
-    `/memberships/${id}/reactivate`,
-    {},
-    { branchScope: "none" },
-  );
+  const { data } = await apiClient.patch<{
+    success: boolean;
+    data: RawCustomerMembership;
+  }>(`/memberships/${id}/reactivate`, {}, { branchScope: "none" });
   return mapCustomerMembershipKeys(data.data);
 };
 
@@ -217,26 +213,26 @@ export const getCustomerActiveBenefits = async (
   customerId: string,
   branchId?: string,
 ): Promise<CustomerActiveBenefits> => {
-  const { data } = await apiClient.get<{ success: boolean; data: CustomerActiveBenefits }>(
-    `/memberships/customer/${customerId}/benefits`,
-    {
-      params: branchId ? { branchId } : {},
-      branchScope: "none",
-    },
-  );
+  const { data } = await apiClient.get<{
+    success: boolean;
+    data: CustomerActiveBenefits;
+  }>(`/memberships/customer/${customerId}/benefits`, {
+    params: branchId ? { branchId } : {},
+    branchScope: "none",
+  });
   return data.data;
 };
 
 export const getMembershipReports = async (
   branchId?: string,
 ): Promise<MembershipReportsSummary> => {
-  const { data } = await apiClient.get<{ success: boolean; data: MembershipReportsSummary }>(
-    "/memberships/reports",
-    {
-      params: branchId && branchId !== "all" ? { branchId } : {},
-      branchScope: "none",
-    },
-  );
+  const { data } = await apiClient.get<{
+    success: boolean;
+    data: MembershipReportsSummary;
+  }>("/memberships/reports", {
+    params: branchId && branchId !== "all" ? { branchId } : {},
+    branchScope: "none",
+  });
   return data.data;
 };
 
@@ -254,7 +250,9 @@ export const addBeneficiaryToMembership = async (
   membershipId: string,
   payload: {
     customerId: string;
-    benefitsOverride?: Partial<import("../types/membership.types").MembershipBenefits>;
+    benefitsOverride?: Partial<
+      import("../types/membership.types").MembershipBenefits
+    >;
   },
 ): Promise<CustomerMembership> => {
   const { data } = await apiClient.post<{
@@ -264,4 +262,70 @@ export const addBeneficiaryToMembership = async (
     branchScope: "none",
   });
   return mapCustomerMembershipKeys(data.data);
+};
+
+export const sellMembership = async (
+  payload: import("../types/membership.types").SellMembershipCheckoutPayload,
+): Promise<import("../types/membership.types").SellMembershipResponseData> => {
+  const { data } = await apiClient.post<{
+    success: boolean;
+    data: import("../types/membership.types").SellMembershipResponseData;
+  }>("/memberships/sell", payload, {
+    branchScope: payload.branchId ? "none" : undefined,
+  });
+
+  const raw = data.data;
+  return {
+    ...raw,
+    customerMemberships: Array.isArray(raw.customerMemberships)
+      ? raw.customerMemberships.map(mapCustomerMembershipKeys)
+      : [],
+    customerMembership: raw.customerMembership
+      ? mapCustomerMembershipKeys(raw.customerMembership)
+      : ({} as CustomerMembership),
+  };
+};
+
+export const getMembershipUsageHistory = async (
+  membershipId: string,
+  params: { page?: number; limit?: number } = {},
+): Promise<import("../types/membership.types").MembershipUsageHistoryResponse> => {
+  const { data } = await apiClient.get<{
+    success: boolean;
+    data: import("../types/membership.types").MembershipUsageHistoryResponse;
+  }>(`/memberships/${membershipId}/usage`, {
+    params,
+    branchScope: "none",
+  });
+  return data.data;
+};
+
+export const triggerMembershipRenewalReminder = async (
+  membershipId: string,
+  payload: { channel?: "sms" | "email" | "both"; force?: boolean } = {},
+): Promise<{
+  success: boolean;
+  channel?: string;
+  sentTo?: string;
+  expiryDate?: string;
+  deliveryOutcome?: string;
+  skipped?: boolean;
+  reason?: string;
+}> => {
+  const { data } = await apiClient.post<{
+    success: boolean;
+    message: string;
+    data: {
+      success: boolean;
+      channel?: string;
+      sentTo?: string;
+      expiryDate?: string;
+      deliveryOutcome?: string;
+      skipped?: boolean;
+      reason?: string;
+    };
+  }>(`/memberships/${membershipId}/renewal-reminder`, payload, {
+    branchScope: "none",
+  });
+  return data.data;
 };

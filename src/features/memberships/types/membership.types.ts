@@ -76,12 +76,59 @@ export interface CustomerMembership {
   startDate: string;
   endDate: string;
   permittedBranchIds?: string[];
+  isPrimary?: boolean;
   invoiceId?: string | { id?: string; _id?: string; invoiceNumber?: string; paymentStatus?: string; payableAmount?: number };
   cancelledAt?: string | null;
   cancellationReason?: string | null;
+  renewalReminder?: {
+    status?: "none" | "scheduled" | "sent" | "failed";
+    sentAt?: string | null;
+    failedAt?: string | null;
+    failureReason?: string | null;
+    channel?: "sms" | "email" | "both";
+  };
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface MembershipUsageRecord {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  invoiceStatus: string;
+  paymentStatus: string;
+  usedAt: string;
+  branch?: { id: string; name: string; code: string } | null;
+  customer?: { id: string; name: string; phone: string } | null;
+  itemType: string;
+  itemId?: string | null;
+  itemName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  benefitType: string;
+  membershipDiscountAmount: number;
+  finalPrice: number;
+}
+
+export interface MembershipUsageHistoryResponse {
+  membership: {
+    id: string;
+    membershipCode: string;
+    status: CustomerMembershipStatus;
+    planName: string;
+    tier: string;
+    beneficiary?: { _id?: string; id?: string; name?: string; phone?: string };
+    payer?: { _id?: string; id?: string; name?: string; phone?: string };
+  };
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  };
+  usage: MembershipUsageRecord[];
 }
 
 export interface CreateMembershipPlanPayload {
@@ -115,7 +162,7 @@ export interface CreateMembershipPlanPayload {
   isActive?: boolean;
 }
 
-export interface UpdateMembershipPlanPayload extends Partial<CreateMembershipPlanPayload> {}
+export type UpdateMembershipPlanPayload = Partial<CreateMembershipPlanPayload>;
 
 export interface CustomerActiveBenefits {
   hasActiveMembership: boolean;
@@ -168,15 +215,37 @@ export interface EnrolledBeneficiaryState {
 }
 
 export interface SellMembershipCheckoutPayload {
-  membershipPlanId: string;
+  membershipPlanId?: string;
+  planId?: string;
   payerCustomerId: string;
   beneficiaryCustomerIds: string[];
   beneficiaries?: Array<{
     customerId: string;
     benefits?: Partial<MembershipBenefits>;
   }>;
+  branchId?: string | null;
   soldByStaffId?: string;
   notes?: string;
+  billImmediately?: boolean;
+  customPlan?: CreateMembershipPlanPayload;
+}
+
+export interface SellMembershipResponseData {
+  success: boolean;
+  membershipPurchaseId: string;
+  membershipPlanId: string;
+  planName: string;
+  payerCustomerId: string;
+  status: CustomerMembershipStatus;
+  customerMemberships: CustomerMembership[];
+  customerMembership: CustomerMembership;
+  invoice?: {
+    id: string;
+    invoiceNumber: string;
+    paymentStatus: string;
+    payableAmount: number;
+    amountPaid: number;
+  } | null;
 }
 
 export interface MembershipReportsSummary {

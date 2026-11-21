@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Search, ShieldAlert, CheckCircle, Clock, XCircle, ShoppingCart, Ban, ExternalLink, Users } from "lucide-react";
+import { SyncButton } from "@/components/ui/sync-button";
+import { Search, ShieldAlert, CheckCircle, Clock, XCircle, ShoppingCart, Ban, ExternalLink, Users, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import Link from "next/link";
 import { ManageMembershipBeneficiariesDialog } from "./ManageMembershipBeneficiariesDialog";
-
-import type { CustomerMembershipStatus } from "../types/membership.types";
+import { CustomerMembershipDetailsModal } from "./CustomerMembershipDetailsModal";
+import type { CustomerMembership, CustomerMembershipStatus } from "../types/membership.types";
 
 interface CustomerMembershipsTabProps {
   onSell?: () => void;
@@ -23,8 +24,9 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [selectedManageMembershipId, setSelectedManageMembershipId] = useState<string | null>(null);
+  const [selectedDetailsMembership, setSelectedDetailsMembership] = useState<CustomerMembership | null>(null);
 
-  const { data, isLoading } = useCustomerMemberships({
+  const { data, isLoading, isFetching, refetch } = useCustomerMemberships({
     search: search.trim() || undefined,
     status: (statusFilter || undefined) as CustomerMembershipStatus | undefined,
   });
@@ -90,6 +92,12 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
               </Button>
             ))}
           </div>
+
+          <SyncButton
+            isSyncing={isFetching}
+            onSync={() => refetch()}
+            label="Refresh"
+          />
 
           {canSell && onSell && (
             <Button onClick={onSell} className="gap-1.5 text-xs h-8 shadow-sm">
@@ -162,6 +170,14 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => setSelectedDetailsMembership(m)}
+                          className="h-7 text-xs gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-muted-foreground" /> View Details
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => setSelectedManageMembershipId(m.id)}
                           className="h-7 text-xs gap-1 cursor-pointer"
                         >
@@ -186,6 +202,15 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
           </TableBody>
         </Table>
       </div>
+
+      {/* Complete Customer Membership Details Modal */}
+      {selectedDetailsMembership && (
+        <CustomerMembershipDetailsModal
+          isOpen={Boolean(selectedDetailsMembership)}
+          onClose={() => setSelectedDetailsMembership(null)}
+          membership={selectedDetailsMembership}
+        />
+      )}
 
       {/* Beneficiary Management Dialog */}
       {selectedManageMembershipId && (

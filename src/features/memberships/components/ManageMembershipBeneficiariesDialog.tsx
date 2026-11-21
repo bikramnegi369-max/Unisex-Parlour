@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SyncButton } from "@/components/ui/sync-button";
 import { CustomerSelector } from "@/features/customers/components/CustomerSelector";
 import { ServiceEligibilityField } from "./ServiceEligibilityField";
 import {
@@ -38,7 +39,7 @@ export function ManageMembershipBeneficiariesDialog({
   onClose,
   membershipId,
 }: ManageMembershipBeneficiariesDialogProps) {
-  const { data: group, isLoading, refetch } = useMembershipPurchaseGroup(membershipId);
+  const { data: group, isLoading, isFetching, refetch } = useMembershipPurchaseGroup(membershipId);
   const addBeneficiaryMutation = useAddBeneficiaryToMembership();
   const cancelBeneficiaryMutation = useCancelBeneficiaryMembership();
 
@@ -167,21 +168,28 @@ export function ManageMembershipBeneficiariesDialog({
             </div>
           </div>
 
-          {/* Capacity Badge */}
-          <div className="text-right">
-            <span className="text-[11px] text-muted-foreground block font-medium">
-              Capacity Usage
-            </span>
-            <div className="flex items-center gap-1.5 justify-end mt-0.5">
-              <span
-                className={`font-bold text-xs px-2 py-0.5 rounded-full ${
-                  isCapacityReached
-                    ? "bg-red-500/15 text-red-600 border border-red-500/30"
-                    : "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
-                }`}
-              >
-                {enrolledCount} of {maxBeneficiaries} members
+          {/* Capacity Badge & Refresh */}
+          <div className="flex items-center gap-3">
+            <SyncButton
+              isSyncing={isFetching}
+              onSync={() => refetch()}
+              label="Sync"
+            />
+            <div className="text-right">
+              <span className="text-[11px] text-muted-foreground block font-medium">
+                Capacity Usage
               </span>
+              <div className="flex items-center gap-1.5 justify-end mt-0.5">
+                <span
+                  className={`font-bold text-xs px-2 py-0.5 rounded-full ${
+                    isCapacityReached
+                      ? "bg-red-500/15 text-red-600 border border-red-500/30"
+                      : "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
+                  }`}
+                >
+                  {enrolledCount} of {maxBeneficiaries} members
+                </span>
+              </div>
             </div>
           </div>
         </div>

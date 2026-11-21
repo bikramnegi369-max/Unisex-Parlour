@@ -39,6 +39,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
+import { useCustomerActiveBenefits } from "@/features/memberships/hooks/useMemberships";
+import { isServiceEligibleForMembershipBenefits } from "@/features/memberships/utils/membershipEligibility";
 
 interface SaleBasketPanelProps {
   onCheckout: () => void;
@@ -52,6 +54,12 @@ export function SaleBasketPanel({
   const dispatch = useDispatch();
   const basket = useSelector((state: RootState) => state.saleBasket);
   const { currentBranchId } = useBranchContext();
+
+  // If customer has an existing persisted active/pending membership in backend, load their privileges
+  const { data: customerBenefitsData } = useCustomerActiveBenefits(
+    basket.customer?.id || "",
+    currentBranchId || undefined,
+  );
 
   // Financial calculations derived from basket
   const totals = useMemo(() => {
@@ -91,38 +99,63 @@ export function SaleBasketPanel({
       subtotal += memLine.price;
     }
 
-    // Membership tier discount calculation
-    let membershipDiscount = 0;
-    const activeMem = basket.membershipLines[0];
-    if (activeMem) {
-      if (activeMem.serviceDiscountPercentage > 0) {
-        for (const sLine of basket.walkinServiceLines) {
-          if (!sLine.isCoveredBySubscription) {
-            membershipDiscount +=
-              (sLine.unitPrice *
-                sLine.quantity *
-                activeMem.serviceDiscountPercentage) /
-              100;
-          }
+    // Membership tier discount calculation:
+    // Check in-cart membership line first, fallback to existing active/pending membership benefits
+    const inCartMem = basket.membershipLines[0];
+    const backendSnapshot = customerBenefitsData?.hasActiveMembership
+      ? customerBenefitsData.planSnapshot?.benefits
+      : null;
+
+    const effectiveServicePct =
+      inCartMem?.serviceDiscountPercentage !== undefined
+        ? inCartMem.serviceDiscountPercentage
+        : backendSnapshot?.serviceDiscountPercentage || 0;
+
+    const effectiveProductPct =
+      inCartMem?.productDiscountPercentage !== undefined
+        ? inCartMem.productDiscountPercentage
+        : backendSnapshot?.productDiscountPercentage || 0;
+
+    const effectiveBenefits = inCartMem
+      ? {
+          serviceDiscountPercentage: inCartMem.serviceDiscountPercentage,
+          productDiscountPercentage: inCartMem.productDiscountPercentage,
         }
-        for (const aptLine of basket.appointmentLines) {
-          if (!aptLine.isCoveredBySubscription) {
+      : backendSnapshot;
+
+    let membershipDiscount = 0;
+
+    if (effectiveServicePct > 0) {
+      for (const sLine of basket.walkinServiceLines) {
+        if (!sLine.isCoveredBySubscription) {
+          const isEligible = isServiceEligibleForMembershipBenefits(
+            { serviceId: sLine.serviceId, categoryId: sLine.categoryId },
+            effectiveBenefits,
+          );
+          if (isEligible) {
             membershipDiscount +=
-              (aptLine.unitPrice *
-                aptLine.quantity *
-                activeMem.serviceDiscountPercentage) /
-              100;
+              (sLine.unitPrice * sLine.quantity * effectiveServicePct) / 100;
           }
         }
       }
-      if (activeMem.productDiscountPercentage > 0) {
-        for (const pLine of basket.productLines) {
-          membershipDiscount +=
-            (pLine.unitPrice *
-              pLine.quantity *
-              activeMem.productDiscountPercentage) /
-            100;
+      for (const aptLine of basket.appointmentLines) {
+        if (!aptLine.isCoveredBySubscription) {
+          const isEligible = isServiceEligibleForMembershipBenefits(
+            { serviceId: aptLine.serviceId, categoryId: aptLine.categoryId },
+            effectiveBenefits,
+          );
+          if (isEligible) {
+            membershipDiscount +=
+              (aptLine.unitPrice * aptLine.quantity * effectiveServicePct) / 100;
+          }
         }
+      }
+    }
+
+    if (effectiveProductPct > 0) {
+      for (const pLine of basket.productLines) {
+        membershipDiscount +=
+          (pLine.unitPrice * pLine.quantity * effectiveProductPct) / 100;
       }
     }
 
@@ -143,8 +176,15 @@ export function SaleBasketPanel({
         basket.productLines.length +
         basket.subscriptionLines.length +
         basket.membershipLines.length,
+      hasMembershipBenefits:
+        effectiveServicePct > 0 || effectiveProductPct > 0,
+      activeMembershipTier:
+        inCartMem?.tier ||
+        (customerBenefitsData?.hasActiveMembership
+          ? customerBenefitsData.planSnapshot?.tier || "Standard"
+          : null),
     };
-  }, [basket]);
+  }, [basket, customerBenefitsData]);
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border select-none">
@@ -346,10 +386,13 @@ export function SaleBasketPanel({
                             Plan Quota
                           </Badge>
                         )}
+                      </div>
+                      <div className="mt-1">
                         <StaffAttributionSelect
                           branchId={currentBranchId}
                           label="Performed by"
                           value={s.performedByStaffId}
+                          compact
                           onChange={(staffId) =>
                             dispatch(setWalkinServicePerformer({ serviceId: s.serviceId, staffId }))
                           }
@@ -465,14 +508,17 @@ export function SaleBasketPanel({
                         {p.sku ? `SKU: ${p.sku} | ` : ""}
                         {formatCurrency(p.unitPrice)} each
                       </div>
-                      <StaffAttributionSelect
-                        branchId={currentBranchId}
-                        label="Sold by"
-                        value={p.soldByStaffId}
-                        onChange={(staffId) =>
-                          dispatch(setProductSeller({ productId: p.productId, staffId }))
-                        }
-                      />
+                      <div className="mt-1">
+                        <StaffAttributionSelect
+                          branchId={currentBranchId}
+                          label="Sold by"
+                          value={p.soldByStaffId}
+                          compact
+                          onChange={(staffId) =>
+                            dispatch(setProductSeller({ productId: p.productId, staffId }))
+                          }
+                        />
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <div className="flex items-center border border-border rounded">
@@ -548,14 +594,17 @@ export function SaleBasketPanel({
                           : "Service Package"}
                       </div>
                       {!sub.subscriptionId && (
-                        <StaffAttributionSelect
-                          branchId={currentBranchId}
-                          label="Sold by"
-                          value={sub.soldByStaffId}
-                          onChange={(staffId) =>
-                            dispatch(setSubscriptionSeller({ planId: sub.planId, staffId }))
-                          }
-                        />
+                        <div className="mt-1">
+                          <StaffAttributionSelect
+                            branchId={currentBranchId}
+                            label="Sold by"
+                            value={sub.soldByStaffId}
+                            compact
+                            onChange={(staffId) =>
+                              dispatch(setSubscriptionSeller({ planId: sub.planId, staffId }))
+                            }
+                          />
+                        </div>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -586,48 +635,77 @@ export function SaleBasketPanel({
             {basket.membershipLines.length > 0 && (
               <div className="pt-2 space-y-1.5">
                 <div className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                  <Crown className="h-3 w-3" /> Membership Plan
+                  <Crown className="h-3 w-3" /> Membership
                 </div>
-                {basket.membershipLines.map((mem) => (
-                  <div
-                    key={mem.membershipPlanId}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 gap-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground truncate">
-                        {mem.name}
+                {basket.membershipLines.map((mem) => {
+                  const lineKey = mem.customerMembershipId || mem.membershipPurchaseId || mem.membershipPlanId;
+                  return (
+                    <div
+                      key={lineKey}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1 gap-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-foreground truncate">
+                          {mem.name}
+                        </div>
+                        {mem.isExistingPending || mem.customerMembershipId ? (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium border border-amber-500/20">
+                              Existing Membership – Pending Payment
+                            </span>
+                            {mem.membershipCode && (
+                              <span className="text-[10px] font-mono text-muted-foreground">
+                                ({mem.membershipCode})
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-amber-600 font-semibold">
+                            {mem.tier} Tier Plan (New Enrollment)
+                          </div>
+                        )}
+                        {!mem.customerMembershipId && (
+                          <div className="mt-1">
+                            <StaffAttributionSelect
+                              branchId={currentBranchId}
+                              label="Sold by"
+                              value={mem.soldByStaffId}
+                              compact
+                              onChange={(staffId) =>
+                                dispatch(
+                                  setMembershipSeller({
+                                    membershipPlanId: mem.membershipPlanId,
+                                    customerMembershipId: mem.customerMembershipId,
+                                    staffId,
+                                  }),
+                                )
+                              }
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div className="text-[10px] text-amber-600 font-semibold">
-                        {mem.tier} Tier Plan
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-mono font-medium">
+                          {formatCurrency(mem.price)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          onClick={() =>
+                            dispatch(
+                              removeMembershipFromBasket(
+                                mem.customerMembershipId || mem.membershipPlanId,
+                              ),
+                            )
+                          }
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       </div>
-                      <StaffAttributionSelect
-                        branchId={currentBranchId}
-                        label="Sold by"
-                        value={mem.soldByStaffId}
-                        onChange={(staffId) =>
-                          dispatch(setMembershipSeller({ membershipPlanId: mem.membershipPlanId, staffId }))
-                        }
-                      />
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono font-medium">
-                        {formatCurrency(mem.price)}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                        onClick={() =>
-                          dispatch(
-                            removeMembershipFromBasket(mem.membershipPlanId),
-                          )
-                        }
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
@@ -652,7 +730,10 @@ export function SaleBasketPanel({
 
         {totals.membershipDiscount > 0 && (
           <div className="flex items-center justify-between text-xs text-amber-600 font-medium">
-            <span>Membership Tier Discount</span>
+            <span className="flex items-center gap-1">
+              <Crown className="w-3 h-3" />
+              <span>Membership Tier Discount {totals.activeMembershipTier ? `(${totals.activeMembershipTier})` : ""}</span>
+            </span>
             <span className="font-mono">
               -{formatCurrency(totals.membershipDiscount)}
             </span>

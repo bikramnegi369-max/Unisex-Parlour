@@ -15,12 +15,16 @@ import {
   getMembershipReports,
   getMembershipPurchaseGroup,
   addBeneficiaryToMembership,
+  sellMembership,
+  getMembershipUsageHistory,
+  triggerMembershipRenewalReminder,
 } from "../api/memberships.api";
 import type {
   CreateMembershipPlanPayload,
   UpdateMembershipPlanPayload,
   QueryMembershipPlansParams,
   QueryCustomerMembershipsParams,
+  SellMembershipCheckoutPayload,
 } from "../types/membership.types";
 
 export const membershipKeys = {
@@ -187,6 +191,74 @@ export const useAddBeneficiaryToMembership = () => {
       queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.membershipId) });
       queryClient.invalidateQueries({ queryKey: membershipKeys.purchaseGroup(variables.membershipId) });
       queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useSellMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SellMembershipCheckoutPayload) =>
+      sellMembership(payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "customer-memberships"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "reports"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "plans"],
+      });
+      if (data.payerCustomerId) {
+        queryClient.invalidateQueries({
+          queryKey: [...membershipKeys.all, "customer-benefits", data.payerCustomerId],
+        });
+      }
+      for (const m of data.customerMemberships || []) {
+        if (m.customerId) {
+          queryClient.invalidateQueries({
+            queryKey: [...membershipKeys.all, "customer-benefits", m.customerId],
+          });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    },
+  });
+};
+
+export const useMembershipUsageHistory = (
+  membershipId: string | null | undefined,
+  params: { page?: number; limit?: number } = {},
+) => {
+  return useQuery({
+    queryKey: [...membershipKeys.all, "usage", membershipId, params],
+    queryFn: () => getMembershipUsageHistory(membershipId!, params),
+    enabled: Boolean(membershipId),
+    staleTime: 1000 * 60 * 2,
+  });
+};
+
+export const useTriggerRenewalReminder = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      channel,
+      force,
+    }: {
+      membershipId: string;
+      channel?: "sms" | "email" | "both";
+      force?: boolean;
+    }) => triggerMembershipRenewalReminder(membershipId, { channel, force }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "customer-memberships"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: membershipKeys.customerMembership(variables.membershipId),
+      });
     },
   });
 };

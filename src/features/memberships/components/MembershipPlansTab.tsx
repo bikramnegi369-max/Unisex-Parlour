@@ -10,6 +10,7 @@ import {
 } from "../hooks/useMemberships";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SyncButton } from "@/components/ui/sync-button";
 import {
   Card,
   CardContent,
@@ -45,7 +46,7 @@ export function MembershipPlansTab({
   canConfigure = true,
   canSell = true,
 }: MembershipPlansTabProps) {
-  const { data, isLoading } = useMembershipPlans();
+  const { data, isLoading, isFetching, refetch } = useMembershipPlans();
   const createPlanMutation = useCreateMembershipPlan();
   const updatePlanMutation = useUpdateMembershipPlan();
   const deletePlanMutation = useDeleteMembershipPlan();
@@ -156,11 +157,18 @@ export function MembershipPlansTab({
           </p>
         </div>
 
-        {canConfigure && (
-          <Button onClick={handleOpenCreate} className="gap-1.5 shadow-sm">
-            <Plus className="w-4 h-4" /> Add Plan Template
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <SyncButton
+            isSyncing={isFetching}
+            onSync={() => refetch()}
+            label="Refresh"
+          />
+          {canConfigure && (
+            <Button onClick={handleOpenCreate} className="gap-1.5 shadow-sm">
+              <Plus className="w-4 h-4" /> Add Plan Template
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (

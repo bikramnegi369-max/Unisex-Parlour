@@ -256,7 +256,10 @@ export interface CreateInvoicePayload {
   productLines?: { productId: string; quantity: number; soldByStaffId?: string | null }[];
   subscriptionLines?: { planId: string; soldByStaffId?: string | null }[];
   membershipLines?: {
-    membershipPlanId: string;
+    membershipPlanId?: string;
+    customerMembershipId?: string;
+    customerMembershipIds?: string[];
+    membershipPurchaseId?: string;
     quantity?: number;
     soldByStaffId?: string | null;
     payerCustomerId?: string;
@@ -289,7 +292,10 @@ export interface UpdateDraftInvoicePayload {
   productLines?: { productId: string; quantity: number; soldByStaffId?: string | null }[];
   subscriptionLines?: { planId: string }[];
   membershipLines?: {
-    membershipPlanId: string;
+    membershipPlanId?: string;
+    customerMembershipId?: string;
+    customerMembershipIds?: string[];
+    membershipPurchaseId?: string;
     quantity?: number;
     payerCustomerId?: string;
     beneficiaryCustomerIds?: string[];
