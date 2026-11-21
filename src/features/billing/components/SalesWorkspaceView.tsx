@@ -11,6 +11,7 @@ import {
   addSubscriptionToBasket,
   addMembershipToBasket,
   addWalkinServiceToBasket,
+  recalculateSubscriptionCoverage,
   clearSaleBasket,
 } from "@/store/slices/saleBasketSlice";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -19,6 +20,16 @@ import {
   useCheckoutQueue,
   useMembershipPlans,
 } from "../hooks/useBillingQueries";
+import {
+  useCustomerMemberships,
+  useSellMembership,
+  useCreateMembershipPlan,
+  useMembershipPlans as useCanonicalMembershipPlans,
+} from "@/features/memberships/hooks/useMemberships";
+import { useCreateSubscription } from "@/features/subscriptions/hooks/useCreateSubscription";
+import { buildSubscriptionPurchasePayload } from "@/features/subscriptions/utils/buildSubscriptionPurchasePayload";
+import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
+import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
 import { useCreateInvoice } from "../hooks/useBillingMutations";
 import { useServices } from "@/features/services/hooks/services/useServices";
 import { useServiceCategories } from "@/features/services/hooks/categories/useServiceCategories";
@@ -34,6 +45,7 @@ import { SaleBasketPanel } from "./SaleBasketPanel";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/dialog";
 import {
   Search,
   Calendar,
@@ -55,6 +67,7 @@ import { useUpdateAppointmentStatus } from "@/features/appointments/hooks/useApp
 import { requiresSubscriptionVerification } from "@/features/appointments/utils/appointmentSubscription";
 import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
 import { SubscriptionPlanInfoModal } from "@/features/subscriptions/components/SubscriptionPlanInfoModal";
+import { CustomerMembershipDetailsModal } from "@/features/memberships/components/CustomerMembershipDetailsModal";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type { Product } from "@/features/inventory/types/inventory.types";
 import type { SubscriptionPlan } from "@/features/subscriptions/types/plan.types";
@@ -65,6 +78,7 @@ import type {
 } from "@/features/subscriptions/types/subscription.types";
 import type { Service } from "@/features/services/types/service.types";
 import type { MembershipPlanItem } from "../api/billing.api";
+import type { CustomerMembership } from "@/features/memberships/types/membership.types";
 
 type CatalogTab =
   | "appointments"
@@ -86,12 +100,28 @@ export function SalesWorkspaceView() {
   const [subscriptionViewMode, setSubscriptionViewMode] = useState<
     "uninvoiced" | "catalog"
   >("uninvoiced");
+  const [membershipViewMode, setMembershipViewMode] = useState<
+    "pending" | "catalog"
+  >("pending");
   const [selectedSubForInfo, setSelectedSubForInfo] =
     useState<Subscription | null>(null);
+  const [selectedMemForInfo, setSelectedMemForInfo] =
+    useState<CustomerMembership | null>(null);
   const [appointmentForSubVerification, setAppointmentForSubVerification] =
     useState<Appointment | null>(null);
 
+  // Modal states for full enrollment workflows
+  const [isSellMembershipOpen, setIsSellMembershipOpen] = useState(false);
+  const [selectedPlanIdForSellMembership, setSelectedPlanIdForSellMembership] =
+    useState<string | null>(null);
+  const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
+  const [selectedPlanForSellSubscription, setSelectedPlanForSellSubscription] =
+    useState<SubscriptionPlan | null>(null);
+
   const updateStatusMutation = useUpdateAppointmentStatus();
+  const sellMembershipMutation = useSellMembership();
+  const createMembershipPlanMutation = useCreateMembershipPlan();
+  const createSubMutation = useCreateSubscription();
 
   const currentCustomerId = basket.customer?.id;
 
@@ -125,6 +155,16 @@ export function SalesWorkspaceView() {
 
   const { data: membershipPlansData, isLoading: isMemPlansLoading } =
     useMembershipPlans(currentBranchId || undefined);
+
+  const { data: canonicalMembershipPlansData } = useCanonicalMembershipPlans({
+    limit: 100,
+  });
+
+  const canonicalPlans = useMemo(() => {
+    return Array.isArray(canonicalMembershipPlansData?.data)
+      ? canonicalMembershipPlansData.data
+      : [];
+  }, [canonicalMembershipPlansData]);
 
   const { data: customersData } = useCustomers({ limit: 100 });
 
@@ -161,10 +201,19 @@ export function SalesWorkspaceView() {
         limit: 50,
       },
       {
-        enabled:
-          activeTab === "subscriptions" && Boolean(currentCustomerId),
+        enabled: activeTab === "subscriptions" && Boolean(currentCustomerId),
       },
     );
+
+  // Fetch sold memberships awaiting invoice / payment for the selected customer
+  const {
+    data: pendingMembershipsData,
+    isLoading: isPendingMembershipsLoading,
+  } = useCustomerMemberships({
+    customerId: currentCustomerId || undefined,
+    status: "pending_payment",
+    limit: 50,
+  });
   const { data: customerSubsData } = useSubscriptions(
     { customerId: currentCustomerId || undefined, limit: 50 },
     { enabled: Boolean(currentCustomerId) },
@@ -175,6 +224,33 @@ export function SalesWorkspaceView() {
       return sub.status === "active" || sub.status === "pending_payment";
     });
   }, [customerSubsData?.data]);
+
+  // Automatically synchronize subscription coverage in the basket whenever customer subscriptions update
+  React.useEffect(() => {
+    if (
+      activeSubscriptions.length > 0 &&
+      (basket.walkinServiceLines.length > 0 ||
+        basket.appointmentLines.length > 0)
+    ) {
+      dispatch(
+        recalculateSubscriptionCoverage({
+          subscriptions: activeSubscriptions.map((s) => ({
+            id: s.id || s._id || "",
+            subscriptionCode: s.subscriptionCode,
+            entitlements: (s.entitlements || []).map((e) => ({
+              serviceId: e.serviceId,
+              remainingQuantity: e.remainingQuantity,
+            })),
+          })),
+        }),
+      );
+    }
+  }, [
+    activeSubscriptions,
+    basket.appointmentLines.length,
+    basket.walkinServiceLines.length,
+    dispatch,
+  ]);
 
   const subscriptionsByService = useMemo(() => {
     const map = new Map<
@@ -334,15 +410,16 @@ export function SalesWorkspaceView() {
 
       const isCovered = Boolean(
         appliedSubId ||
-          s.appliedSubscriptionId ||
-          s.subscriptionUsageId ||
-          subCode,
+        s.appliedSubscriptionId ||
+        s.subscriptionUsageId ||
+        subCode,
       );
 
       return {
         appointmentId: apt.id,
         appointmentCode,
         serviceId: s.serviceId || undefined,
+        categoryId: s.category || undefined,
         name: s.name,
         duration: s.duration,
         unitPrice: s.price,
@@ -532,6 +609,33 @@ export function SalesWorkspaceView() {
         suggestedPrice: sub.price,
       }),
     );
+
+    // Immediately evaluate and cover eligible services in basket using this subscription's entitlements
+    if (Array.isArray(sub.entitlements) && sub.entitlements.length > 0) {
+      dispatch(
+        recalculateSubscriptionCoverage({
+          subscriptions: [
+            {
+              id: sub.id,
+              subscriptionCode: sub.subscriptionCode,
+              entitlements: sub.entitlements.map((e) => ({
+                serviceId: e.serviceId,
+                remainingQuantity: e.remainingQuantity,
+              })),
+            },
+            ...activeSubscriptions.map((s) => ({
+              id: s.id || s._id || "",
+              subscriptionCode: s.subscriptionCode,
+              entitlements: (s.entitlements || []).map((e) => ({
+                serviceId: e.serviceId,
+                remainingQuantity: e.remainingQuantity,
+              })),
+            })),
+          ],
+        }),
+      );
+    }
+
     toast.success(`Added subscription ${sub.subscriptionCode} to basket.`);
   };
 
@@ -604,10 +708,37 @@ export function SalesWorkspaceView() {
         entitlements: plan.entitlements,
       }),
     );
+
+    // Immediately evaluate and cover eligible services in basket using this plan's entitlements
+    if (Array.isArray(plan.entitlements) && plan.entitlements.length > 0) {
+      dispatch(
+        recalculateSubscriptionCoverage({
+          subscriptions: [
+            {
+              id: plan.id,
+              subscriptionCode: "NEW-SUB",
+              entitlements: plan.entitlements.map((e) => ({
+                serviceId: e.serviceId,
+                remainingQuantity: e.quantity,
+              })),
+            },
+            ...activeSubscriptions.map((s) => ({
+              id: s.id || s._id || "",
+              subscriptionCode: s.subscriptionCode,
+              entitlements: (s.entitlements || []).map((e) => ({
+                serviceId: e.serviceId,
+                remainingQuantity: e.remainingQuantity,
+              })),
+            })),
+          ],
+        }),
+      );
+    }
+
     toast.success(`Added ${plan.name} to basket.`);
   };
 
-  // Handle membership add
+  // Handle membership add from catalog
   const handleAddMembership = (plan: MembershipPlanItem) => {
     if (!basket.customer) {
       toast.error("Please select a customer or appointment first.");
@@ -624,9 +755,69 @@ export function SalesWorkspaceView() {
           plan.benefits?.serviceDiscountPercentage || 0,
         productDiscountPercentage:
           plan.benefits?.productDiscountPercentage || 0,
+        isExistingPending: false,
       }),
     );
     toast.success(`Enrolled ${plan.name} in basket.`);
+  };
+
+  // Handle adding existing sold membership awaiting invoice
+  const handleAddSoldMembership = (cm: CustomerMembership) => {
+    if (!basket.customer) {
+      const custObj =
+        typeof cm.customerId === "object" && cm.customerId !== null
+          ? cm.customerId
+          : typeof cm.payerCustomerId === "object" &&
+              cm.payerCustomerId !== null
+            ? cm.payerCustomerId
+            : null;
+      if (custObj && (custObj as { id?: string; _id?: string }).id) {
+        const c = custObj as {
+          id?: string;
+          _id?: string;
+          name: string;
+          phone: string;
+          email?: string;
+        };
+        dispatch(
+          setBasketCustomer({
+            id: c.id || c._id || "",
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+          }),
+        );
+      } else {
+        toast.error("Please select a customer or appointment first.");
+        return;
+      }
+    }
+
+    const planId =
+      typeof cm.membershipPlanId === "object" && cm.membershipPlanId !== null
+        ? (cm.membershipPlanId as { id?: string; _id?: string }).id ||
+          (cm.membershipPlanId as { id?: string; _id?: string })._id ||
+          ""
+        : String(cm.membershipPlanId || "");
+
+    dispatch(
+      addMembershipToBasket({
+        membershipPlanId: planId,
+        customerMembershipId: cm.id || cm._id,
+        membershipPurchaseId: cm.membershipPurchaseId,
+        membershipCode: cm.membershipCode,
+        name: cm.planSnapshot?.name || "Membership",
+        code: cm.membershipCode,
+        tier: cm.planSnapshot?.tier || "Standard",
+        price: cm.planSnapshot?.price || 0,
+        serviceDiscountPercentage:
+          cm.planSnapshot?.benefits?.serviceDiscountPercentage || 0,
+        productDiscountPercentage:
+          cm.planSnapshot?.benefits?.productDiscountPercentage || 0,
+        isExistingPending: true,
+      }),
+    );
+    toast.success(`Added pending membership ${cm.membershipCode} to basket.`);
   };
 
   // Handle walkin service add
@@ -639,9 +830,16 @@ export function SalesWorkspaceView() {
     const hasRemainingQuota = subCandidates.some((c) => c.remaining > 0);
     const topCandidate = subCandidates.find((c) => c.remaining > 0);
 
+    const catId =
+      typeof svc.categoryId === "object" && svc.categoryId !== null
+        ? (svc.categoryId as { _id?: string; id?: string })._id ||
+          (svc.categoryId as { _id?: string; id?: string }).id
+        : String(svc.categoryId || "");
+
     dispatch(
       addWalkinServiceToBasket({
         serviceId: svc.id,
+        categoryId: catId,
         name: svc.name,
         duration: svc.duration,
         unitPrice: svc.pricing?.basePrice || 0,
@@ -717,9 +915,14 @@ export function SalesWorkspaceView() {
               ?.soldByStaffId || undefined,
         })),
         membershipLines: basket.membershipLines.map((m) => ({
-          membershipPlanId: m.membershipPlanId,
+          membershipPlanId: m.membershipPlanId || undefined,
+          customerMembershipId: m.customerMembershipId || undefined,
+          membershipPurchaseId: m.membershipPurchaseId || undefined,
           quantity: 1,
           soldByStaffId: m.soldByStaffId || undefined,
+          payerCustomerId: m.payerCustomerId || undefined,
+          beneficiaryCustomerIds: m.beneficiaryCustomerIds || undefined,
+          beneficiaries: m.beneficiaries || undefined,
         })),
         serviceLines: basket.walkinServiceLines.map((s) => ({
           serviceId: s.serviceId,
@@ -1263,43 +1466,63 @@ export function SalesWorkspaceView() {
           {activeTab === "subscriptions" && (
             <div className="space-y-4">
               {/* Mode Switcher: Sold (Uninvoiced) Subscriptions vs Subscription Catalog Plans */}
-              <div className="flex items-center gap-2 border-b border-border pb-3">
+              <div className="flex items-center justify-between gap-2 border-b border-border pb-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      subscriptionViewMode === "uninvoiced"
+                        ? "default"
+                        : "outline"
+                    }
+                    onClick={() => setSubscriptionViewMode("uninvoiced")}
+                    className="h-8 text-xs gap-1.5"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Sold Subscriptions (Pending Invoice)
+                    {currentCustomerId &&
+                      Array.isArray(uninvoicedSubsData?.data) &&
+                      uninvoicedSubsData.data.length > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 px-1 text-[10px] ml-1"
+                        >
+                          {uninvoicedSubsData.data.length}
+                        </Badge>
+                      )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      subscriptionViewMode === "catalog" ? "default" : "outline"
+                    }
+                    onClick={() => setSubscriptionViewMode("catalog")}
+                    className="h-8 text-xs gap-1.5"
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                    Subscription Plans Catalog
+                  </Button>
+                </div>
+
+                {/* Prominent Sell Subscription Header Action */}
                 <Button
                   type="button"
                   size="sm"
-                  variant={
-                    subscriptionViewMode === "uninvoiced"
-                      ? "default"
-                      : "outline"
-                  }
-                  onClick={() => setSubscriptionViewMode("uninvoiced")}
-                  className="h-8 text-xs gap-1.5"
+                  onClick={() => {
+                    if (!currentCustomerId) {
+                      toast.error("Please select a customer before selling a subscription.");
+                      return;
+                    }
+                    setSelectedPlanForSellSubscription(null);
+                    setIsSellSubscriptionOpen(true);
+                  }}
+                  className="h-8 text-xs gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-xs"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  Sold Subscriptions (Pending Invoice)
-                  {currentCustomerId &&
-                    Array.isArray(uninvoicedSubsData?.data) &&
-                    uninvoicedSubsData.data.length > 0 && (
-                      <Badge
-                        variant="secondary"
-                        className="h-4 px-1 text-[10px] ml-1"
-                      >
-                        {uninvoicedSubsData.data.length}
-                      </Badge>
-                    )}
-                </Button>
-
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={
-                    subscriptionViewMode === "catalog" ? "default" : "outline"
-                  }
-                  onClick={() => setSubscriptionViewMode("catalog")}
-                  className="h-8 text-xs gap-1.5"
-                >
-                  <Package className="h-3.5 w-3.5" />
-                  Subscription Plans Catalog
+                  Sell Subscription
                 </Button>
               </div>
 
@@ -1363,15 +1586,35 @@ export function SalesWorkspaceView() {
                                     title="View Subscription Package & Plan Details"
                                   >
                                     <Eye className="h-3.5 w-3.5" />
-                                    <span className="sr-only">View Details</span>
+                                    <span className="sr-only">
+                                      View Details
+                                    </span>
                                   </Button>
                                 </div>
-                                <Badge
-                                  variant="outline"
-                                  className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40"
-                                >
-                                  Uninvoiced
-                                </Badge>
+                                {(() => {
+                                  const isCancelledPrevious =
+                                    Array.isArray(sub.invoiceHistory) &&
+                                    sub.invoiceHistory.length > 0 &&
+                                    sub.invoiceHistory[
+                                      sub.invoiceHistory.length - 1
+                                    ].status === "cancelled";
+
+                                  return isCancelledPrevious ? (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                                    >
+                                      Invoice Cancelled (Ready to Bill)
+                                    </Badge>
+                                  ) : (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40"
+                                    >
+                                      Uninvoiced
+                                    </Badge>
+                                  );
+                                })()}
                               </div>
 
                               <div className="mt-2 space-y-1">
@@ -1414,17 +1657,22 @@ export function SalesWorkspaceView() {
                                     isSubInBasket ? "secondary" : "default"
                                   }
                                   size="sm"
+                                  disabled={isSubInBasket}
                                   onClick={() => handleAddSoldSubscription(sub)}
-                                  className="h-7 text-[11px] px-2.5 gap-1"
+                                  className={`h-7 text-[11px] px-2.5 gap-1.5 transition-all select-none ${
+                                    isSubInBasket
+                                      ? "bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 font-medium"
+                                      : "bg-purple-600 hover:bg-purple-700 text-white font-medium shadow-xs"
+                                  }`}
                                 >
                                   {isSubInBasket ? (
                                     <>
-                                      <Check className="h-3 w-3 text-emerald-600" />
+                                      <Check className="h-3.5 w-3.5 text-purple-700 dark:text-purple-300" />
                                       <span>In Basket</span>
                                     </>
                                   ) : (
                                     <>
-                                      <Plus className="h-3 w-3" />
+                                      <Plus className="h-3.5 w-3.5" />
                                       <span>Add to Basket</span>
                                     </>
                                   )}
@@ -1480,14 +1728,33 @@ export function SalesWorkspaceView() {
                                 <span className="font-mono font-bold text-sm text-foreground">
                                   {formatCurrency(plan.suggestedPrice)}
                                 </span>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleAddSubscription(plan)}
-                                  className="h-7 text-[11px] px-2.5 gap-1 text-purple-700 border-purple-300 hover:bg-purple-50"
-                                >
-                                  <Plus className="h-3 w-3" /> Add Plan
-                                </Button>
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      if (!currentCustomerId) {
+                                        toast.error("Please select a customer before selling a subscription.");
+                                        return;
+                                      }
+                                      setSelectedPlanForSellSubscription(plan);
+                                      setIsSellSubscriptionOpen(true);
+                                    }}
+                                    className="h-7 text-[11px] px-2.5 gap-1 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-medium select-none"
+                                  >
+                                    <Sparkles className="h-3 w-3" /> Sell
+                                    Subscription
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleAddSubscription(plan)}
+                                    className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground font-medium select-none"
+                                    title="Add directly to sale basket"
+                                  >
+                                    <Plus className="h-3.5 w-3.5" /> Add
+                                  </Button>
+                                </div>
                               </div>
                             </div>
                           ),
@@ -1502,58 +1769,305 @@ export function SalesWorkspaceView() {
           {/* 5. Memberships Source */}
           {activeTab === "memberships" && (
             <div className="space-y-3">
-              {isMemPlansLoading ? (
-                <div className="py-12 text-center text-xs text-muted-foreground">
-                  Loading membership plans...
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Array.isArray(membershipPlansData) &&
-                    membershipPlansData.map((plan: MembershipPlanItem) => (
-                      <div
-                        key={plan._id}
-                        className="p-3 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-card text-xs flex flex-col justify-between"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
-                              <Crown className="h-3.5 w-3.5" />
-                              {plan.name}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className="text-[10px] bg-amber-50 text-amber-700 border-amber-300"
-                            >
-                              {plan.tier || "Standard"} Tier
-                            </Badge>
-                          </div>
-                          <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                            <div>
-                              • {plan.benefits?.serviceDiscountPercentage}% OFF
-                              Salon Services
-                            </div>
-                            <div>
-                              • {plan.benefits?.productDiscountPercentage}% OFF
-                              Retail Products
-                            </div>
-                          </div>
-                        </div>
+              {/* Toggle: Sold Memberships vs Plans Catalog */}
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-border flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      membershipViewMode === "pending" ? "default" : "outline"
+                    }
+                    onClick={() => setMembershipViewMode("pending")}
+                    className="h-8 text-xs gap-1.5"
+                  >
+                    <Crown className="h-3.5 w-3.5" />
+                    Sold Memberships (Pending Invoice)
+                    {Array.isArray(pendingMembershipsData?.data) &&
+                      pendingMembershipsData.data.length > 0 && (
+                        <Badge
+                          variant="secondary"
+                          className="ml-1 px-1.5 py-0 text-[10px] h-4 bg-amber-500/20 text-amber-700 dark:text-amber-300 border-none"
+                        >
+                          {pendingMembershipsData.data.length}
+                        </Badge>
+                      )}
+                  </Button>
 
-                        <div className="mt-3 pt-2 border-t border-border flex items-center justify-between gap-2">
-                          <span className="font-mono font-bold text-sm text-foreground">
-                            {formatCurrency(plan.price)}
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleAddMembership(plan)}
-                            className="h-7 text-[11px] px-2.5 gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      membershipViewMode === "catalog" ? "default" : "outline"
+                    }
+                    onClick={() => setMembershipViewMode("catalog")}
+                    className="h-8 text-xs gap-1.5"
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                    Membership Plans Catalog
+                  </Button>
+                </div>
+
+                {/* Prominent Sell Membership Header Action */}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    if (!currentCustomerId) {
+                      toast.error("Please select a customer before selling a membership.");
+                      return;
+                    }
+                    setSelectedPlanIdForSellMembership(null);
+                    setIsSellMembershipOpen(true);
+                  }}
+                  className="h-8 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-xs"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Sell Membership
+                </Button>
+              </div>
+
+              {/* Sub-view 1: Pending Sold Memberships */}
+              {membershipViewMode === "pending" && (
+                <div className="space-y-3">
+                  {!currentCustomerId ? (
+                    <div className="py-12 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                      Select a customer to view their sold memberships.
+                    </div>
+                  ) : isPendingMembershipsLoading ? (
+                    <div className="py-12 text-center text-xs text-muted-foreground">
+                      Loading pending memberships...
+                    </div>
+                  ) : !Array.isArray(pendingMembershipsData?.data) ||
+                    pendingMembershipsData.data.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                      No pending memberships found waiting for invoice
+                      generation.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {pendingMembershipsData.data.map(
+                        (cm: CustomerMembership) => {
+                          const isMemInBasket = basket.membershipLines.some(
+                            (l) =>
+                              l.customerMembershipId === (cm.id || cm._id) ||
+                              (cm.membershipPurchaseId &&
+                                l.membershipPurchaseId ===
+                                  cm.membershipPurchaseId),
+                          );
+                          const customerName =
+                            cm.customer?.name ||
+                            (typeof cm.customerId === "object" &&
+                            cm.customerId !== null
+                              ? (cm.customerId as { name?: string }).name
+                              : "Customer");
+                          const customerPhone =
+                            cm.customer?.phone ||
+                            (typeof cm.customerId === "object" &&
+                            cm.customerId !== null
+                              ? (cm.customerId as { phone?: string }).phone
+                              : "");
+
+                          return (
+                            <div
+                              key={cm.id || cm._id}
+                              className={`p-3 rounded-lg border text-xs flex flex-col justify-between transition-all ${
+                                isMemInBasket
+                                  ? "border-amber-500 bg-amber-500/5 ring-1 ring-amber-500"
+                                  : "border-amber-200 dark:border-amber-900/50 bg-card"
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono font-bold text-amber-700 dark:text-amber-300">
+                                      {cm.membershipCode}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => setSelectedMemForInfo(cm)}
+                                      className="h-6 w-6 p-0 text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10 rounded-md"
+                                      title="View Membership Privileges & Beneficiary Details"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" />
+                                      <span className="sr-only">
+                                        View Details
+                                      </span>
+                                    </Button>
+                                  </div>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[10px] bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40"
+                                  >
+                                    {cm.planSnapshot?.tier || "Standard"} Tier
+                                  </Badge>
+                                </div>
+
+                                <div className="mt-2 space-y-1">
+                                  <div className="font-semibold text-foreground flex items-center gap-1.5">
+                                    <User className="h-3 w-3 text-muted-foreground" />
+                                    {customerName}{" "}
+                                    {customerPhone ? `(${customerPhone})` : ""}
+                                  </div>
+                                  <div className="text-[11px] text-muted-foreground space-y-0.5">
+                                    <div>
+                                      Plan:{" "}
+                                      {cm.planSnapshot?.name || "Membership"}
+                                    </div>
+                                    <div>
+                                      •{" "}
+                                      {cm.planSnapshot?.benefits
+                                        ?.serviceDiscountPercentage ?? 0}
+                                      % OFF Services
+                                    </div>
+                                    <div>
+                                      •{" "}
+                                      {cm.planSnapshot?.benefits
+                                        ?.productDiscountPercentage ?? 0}
+                                      % OFF Products
+                                    </div>
+                                  </div>
+                                  {cm.notes && (
+                                    <p className="text-[11px] text-muted-foreground italic truncate">
+                                      &ldquo;{cm.notes}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="mt-3 pt-2 border-t border-border flex items-center justify-between gap-2">
+                                <span className="font-mono font-bold text-sm text-foreground">
+                                  {formatCurrency(cm.planSnapshot?.price || 0)}
+                                </span>
+
+                                <div className="flex items-center gap-1.5">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSelectedMemForInfo(cm)}
+                                    className="h-7 text-[11px] px-2.5 gap-1 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                    View Details
+                                  </Button>
+
+                                  <Button
+                                    variant={
+                                      isMemInBasket ? "secondary" : "default"
+                                    }
+                                    size="sm"
+                                    disabled={isMemInBasket}
+                                    onClick={() => handleAddSoldMembership(cm)}
+                                    className={`h-7 text-[11px] px-2.5 gap-1.5 transition-all select-none ${
+                                      isMemInBasket
+                                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 font-medium"
+                                        : "bg-amber-600 hover:bg-amber-700 text-white font-medium shadow-xs"
+                                    }`}
+                                  >
+                                    {isMemInBasket ? (
+                                      <>
+                                        <Check className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
+                                        <span>In Basket</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="h-3.5 w-3.5" />
+                                        <span>Add to Basket</span>
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Sub-view 2: Membership Plans Catalog */}
+              {membershipViewMode === "catalog" && (
+                <div className="space-y-3">
+                  {isMemPlansLoading ? (
+                    <div className="py-12 text-center text-xs text-muted-foreground">
+                      Loading membership plans...
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {Array.isArray(membershipPlansData) &&
+                        membershipPlansData.map((plan: MembershipPlanItem) => (
+                          <div
+                            key={plan._id}
+                            className="p-3 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-card text-xs flex flex-col justify-between"
                           >
-                            <Plus className="h-3 w-3" /> Enroll
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-amber-700 dark:text-amber-300 flex items-center gap-1">
+                                  <Crown className="h-3.5 w-3.5" />
+                                  {plan.name}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] bg-amber-50 text-amber-700 border-amber-300"
+                                >
+                                  {plan.tier || "Standard"} Tier
+                                </Badge>
+                              </div>
+                              <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+                                <div>
+                                  • {plan.benefits?.serviceDiscountPercentage}%
+                                  OFF Salon Services
+                                </div>
+                                <div>
+                                  • {plan.benefits?.productDiscountPercentage}%
+                                  OFF Retail Products
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 pt-2 border-t border-border flex items-center justify-between gap-2">
+                              <span className="font-mono font-bold text-sm text-foreground">
+                                {formatCurrency(plan.price)}
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (!currentCustomerId) {
+                                      toast.error("Please select a customer before selling a membership.");
+                                      return;
+                                    }
+                                    setSelectedPlanIdForSellMembership(
+                                      plan.id || plan._id,
+                                    );
+                                    setIsSellMembershipOpen(true);
+                                  }}
+                                  className="h-7 text-[11px] px-2.5 gap-1 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 font-medium select-none"
+                                >
+                                  <Sparkles className="h-3 w-3" /> Sell
+                                  Membership
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleAddMembership(plan)}
+                                  className="h-7 text-[11px] px-2 text-muted-foreground hover:text-foreground font-medium select-none"
+                                  title="Add directly to sale basket"
+                                >
+                                  <Plus className="h-3.5 w-3.5" /> Add
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1590,6 +2104,277 @@ export function SalesWorkspaceView() {
           onClose={() => setSelectedSubForInfo(null)}
           getBranchName={getBranchName}
         />
+      )}
+
+      {/* Customer Membership & Privileges Info Modal */}
+      {selectedMemForInfo && (
+        <CustomerMembershipDetailsModal
+          membership={selectedMemForInfo}
+          isOpen={Boolean(selectedMemForInfo)}
+          onClose={() => setSelectedMemForInfo(null)}
+        />
+      )}
+
+      {/* Sell Membership Full Workflow Dialog */}
+      {isSellMembershipOpen && (
+        <SellMembershipDialog
+          isOpen={isSellMembershipOpen}
+          onClose={() => {
+            setIsSellMembershipOpen(false);
+            setSelectedPlanIdForSellMembership(null);
+          }}
+          isLoading={
+            sellMembershipMutation.isPending ||
+            createMembershipPlanMutation.isPending
+          }
+          plans={canonicalPlans}
+          selectedPlanId={selectedPlanIdForSellMembership}
+          initialCustomerId={currentCustomerId || null}
+          lockCustomer={Boolean(currentCustomerId)}
+          onCreateCustomPlanAndSell={async (
+            customPlanPayload,
+            checkoutData,
+          ) => {
+            if (!currentBranchId || isAllBranchesSelected) {
+              toast.error(
+                "Please select a specific branch before selling a membership.",
+              );
+              return;
+            }
+
+            try {
+              const createdPlan =
+                await createMembershipPlanMutation.mutateAsync(
+                  customPlanPayload,
+                );
+
+              const res = await sellMembershipMutation.mutateAsync({
+                membershipPlanId: createdPlan.id,
+                payerCustomerId: checkoutData.payerCustomerId,
+                beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+                beneficiaries: checkoutData.beneficiaries,
+                branchId: currentBranchId,
+                soldByStaffId: checkoutData.soldByStaffId || undefined,
+                notes:
+                  checkoutData.notes ||
+                  "Membership sold from sales workspace catalogue",
+                billImmediately: true,
+              });
+
+              setIsSellMembershipOpen(false);
+              setSelectedPlanIdForSellMembership(null);
+
+              // If customer wasn't set in basket, auto-set to the purchaser
+              if (!basket.customer && checkoutData.payerCustomerId) {
+                handleSelectCustomer(checkoutData.payerCustomerId);
+              }
+
+              // Invalidate membership and benefit caches so benefits activate immediately
+              await queryClient.invalidateQueries({
+                queryKey: ["memberships"],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["customer-memberships"],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["customer-benefits"],
+              });
+
+              const memberCount =
+                res?.customerMemberships?.length ||
+                checkoutData.beneficiaryCustomerIds?.length ||
+                1;
+              const memCode = res?.customerMembership?.membershipCode || "";
+              toast.success(
+                `Membership created and sold! Enrolled ${memberCount} member(s). ${memCode ? `Code: ${memCode}` : ""}`.trim(),
+              );
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message ||
+                    "Failed to sell custom membership.";
+              toast.error(msg);
+            }
+          }}
+          onSubmit={async (values) => {
+            if (!currentBranchId || isAllBranchesSelected) {
+              toast.error(
+                "Please select a specific branch before selling a membership.",
+              );
+              return;
+            }
+
+            try {
+              const res = await sellMembershipMutation.mutateAsync({
+                membershipPlanId: values.membershipPlanId,
+                payerCustomerId: values.payerCustomerId,
+                beneficiaryCustomerIds: values.beneficiaryCustomerIds,
+                beneficiaries: values.beneficiaries,
+                branchId: currentBranchId,
+                soldByStaffId: values.soldByStaffId || undefined,
+                notes:
+                  values.notes ||
+                  "Membership sold from sales workspace catalogue",
+                billImmediately: true,
+              });
+
+              setIsSellMembershipOpen(false);
+              setSelectedPlanIdForSellMembership(null);
+
+              // If customer wasn't set in basket, auto-set to the purchaser
+              if (!basket.customer && values.payerCustomerId) {
+                handleSelectCustomer(values.payerCustomerId);
+              }
+
+              // Invalidate membership and benefit caches so benefits activate immediately
+              await queryClient.invalidateQueries({
+                queryKey: ["memberships"],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["customer-memberships"],
+              });
+              await queryClient.invalidateQueries({
+                queryKey: ["customer-benefits"],
+              });
+
+              const memberCount =
+                res?.customerMemberships?.length ||
+                values.beneficiaryCustomerIds?.length ||
+                1;
+              const memCode = res?.customerMembership?.membershipCode || "";
+              toast.success(
+                `Membership sold successfully! Enrolled ${memberCount} member(s). ${memCode ? `Code: ${memCode}` : ""}`.trim(),
+              );
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message || "Failed to sell membership.";
+              toast.error(msg);
+            }
+          }}
+        />
+      )}
+
+      {/* Sell Subscription Full Workflow Dialog */}
+      {isSellSubscriptionOpen && (
+        <Dialog
+          isOpen={isSellSubscriptionOpen}
+          onClose={() => {
+            setIsSellSubscriptionOpen(false);
+            setSelectedPlanForSellSubscription(null);
+          }}
+          maxWidth="5xl"
+          title="Sell Customer Subscription"
+        >
+          <CreateSubscriptionDialog
+            isOpen={isSellSubscriptionOpen}
+            onClose={() => {
+              setIsSellSubscriptionOpen(false);
+              setSelectedPlanForSellSubscription(null);
+            }}
+            isLoading={createSubMutation.isPending}
+            initialCustomerId={currentCustomerId}
+            initialPlan={selectedPlanForSellSubscription}
+            branchId={currentBranchId || undefined}
+            lockCustomer={Boolean(currentCustomerId)}
+            onSubmit={async (formValues) => {
+              if (!currentBranchId || isAllBranchesSelected) {
+                toast.error(
+                  "Please select a specific branch before selling a subscription.",
+                );
+                return;
+              }
+
+              try {
+                const canonicalPayload = buildSubscriptionPurchasePayload({
+                  values: formValues,
+                  effectiveBranchId: currentBranchId,
+                  defaultCustomerId: currentCustomerId,
+                });
+
+                const createdSub = await createSubMutation.mutateAsync({
+                  payload: canonicalPayload,
+                  branchId: currentBranchId,
+                });
+
+                setIsSellSubscriptionOpen(false);
+                setSelectedPlanForSellSubscription(null);
+
+                // If basket customer wasn't set, auto-set to purchaser
+                if (!basket.customer && canonicalPayload.payerCustomerId) {
+                  handleSelectCustomer(canonicalPayload.payerCustomerId);
+                }
+
+                await queryClient.invalidateQueries({
+                  queryKey: ["subscriptions"],
+                });
+
+                // Immediately evaluate subscription coverage in current basket lines
+                const subEntitlements =
+                  createdSub?.entitlements ||
+                  formValues.entitlements ||
+                  selectedPlanForSellSubscription?.entitlements ||
+                  [];
+
+                if (
+                  Array.isArray(subEntitlements) &&
+                  subEntitlements.length > 0
+                ) {
+                  dispatch(
+                    recalculateSubscriptionCoverage({
+                      subscriptions: [
+                        {
+                          id: createdSub?.id || "NEW-SUB",
+                          subscriptionCode:
+                            createdSub?.subscriptionCode || "NEW-SUB",
+                          entitlements: subEntitlements.map((e) => ({
+                            serviceId: e.serviceId,
+                            remainingQuantity:
+                              "remainingQuantity" in e &&
+                              typeof e.remainingQuantity === "number"
+                                ? e.remainingQuantity
+                                : "quantity" in e &&
+                                    typeof e.quantity === "number"
+                                  ? e.quantity
+                                  : 1,
+                          })),
+                        },
+                        ...activeSubscriptions.map((s) => ({
+                          id: s.id || s._id || "",
+                          subscriptionCode: s.subscriptionCode,
+                          entitlements: (s.entitlements || []).map((e) => ({
+                            serviceId: e.serviceId,
+                            remainingQuantity: e.remainingQuantity,
+                          })),
+                        })),
+                      ],
+                    }),
+                  );
+                }
+
+                toast.success(
+                  `Subscription ${createdSub?.subscriptionCode || ""} sold successfully!`,
+                );
+              } catch (err: unknown) {
+                const errorObj = err as Record<string, unknown> | null;
+                const responseObj = errorObj?.response as Record<
+                  string,
+                  unknown
+                > | null;
+                const msg =
+                  ((responseObj?.data as Record<string, unknown> | null)
+                    ?.message as string) ||
+                  (errorObj?.message as string) ||
+                  "Failed to sell subscription.";
+                toast.error(msg);
+              }
+            }}
+          />
+        </Dialog>
       )}
     </div>
   );

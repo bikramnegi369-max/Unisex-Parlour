@@ -1,0 +1,264 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  getMembershipPlans,
+  getMembershipPlan,
+  createMembershipPlan,
+  updateMembershipPlan,
+  deleteMembershipPlan,
+  duplicateMembershipPlan,
+  getCustomerMemberships,
+  getCustomerMembership,
+  cancelBeneficiaryMembership,
+  suspendBeneficiaryMembership,
+  reactivateBeneficiaryMembership,
+  getCustomerActiveBenefits,
+  getMembershipReports,
+  getMembershipPurchaseGroup,
+  addBeneficiaryToMembership,
+  sellMembership,
+  getMembershipUsageHistory,
+  triggerMembershipRenewalReminder,
+} from "../api/memberships.api";
+import type {
+  CreateMembershipPlanPayload,
+  UpdateMembershipPlanPayload,
+  QueryMembershipPlansParams,
+  QueryCustomerMembershipsParams,
+  SellMembershipCheckoutPayload,
+} from "../types/membership.types";
+
+export const membershipKeys = {
+  all: ["memberships"] as const,
+  plans: (params?: QueryMembershipPlansParams) => [...membershipKeys.all, "plans", params] as const,
+  plan: (id: string) => [...membershipKeys.all, "plan", id] as const,
+  customerMemberships: (params?: QueryCustomerMembershipsParams) =>
+    [...membershipKeys.all, "customer-memberships", params] as const,
+  customerMembership: (id: string) => [...membershipKeys.all, "customer-membership", id] as const,
+  customerBenefits: (customerId: string, branchId?: string) =>
+    [...membershipKeys.all, "customer-benefits", customerId, branchId] as const,
+  purchaseGroup: (id: string) => [...membershipKeys.all, "purchase-group", id] as const,
+  reports: (branchId?: string) => [...membershipKeys.all, "reports", branchId] as const,
+};
+
+export const useMembershipPlans = (params: QueryMembershipPlansParams = {}) => {
+  return useQuery({
+    queryKey: membershipKeys.plans(params),
+    queryFn: () => getMembershipPlans(params),
+  });
+};
+
+export const useMembershipPlan = (id: string) => {
+  return useQuery({
+    queryKey: membershipKeys.plan(id),
+    queryFn: () => getMembershipPlan(id),
+    enabled: Boolean(id),
+  });
+};
+
+export const useCreateMembershipPlan = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateMembershipPlanPayload) => createMembershipPlan(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "plans"] });
+    },
+  });
+};
+
+export const useUpdateMembershipPlan = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateMembershipPlanPayload }) =>
+      updateMembershipPlan(id, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "plans"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.plan(variables.id) });
+    },
+  });
+};
+
+export const useDeleteMembershipPlan = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteMembershipPlan(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "plans"] });
+    },
+  });
+};
+
+export const useDuplicateMembershipPlan = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => duplicateMembershipPlan(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "plans"] });
+    },
+  });
+};
+
+export const useCustomerMemberships = (params: QueryCustomerMembershipsParams = {}) => {
+  return useQuery({
+    queryKey: membershipKeys.customerMemberships(params),
+    queryFn: () => getCustomerMemberships(params),
+  });
+};
+
+export const useCustomerMembership = (id: string) => {
+  return useQuery({
+    queryKey: membershipKeys.customerMembership(id),
+    queryFn: () => getCustomerMembership(id),
+    enabled: Boolean(id),
+  });
+};
+
+export const useCancelBeneficiaryMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      cancelBeneficiaryMembership(id, reason),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.id) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useSuspendBeneficiaryMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      suspendBeneficiaryMembership(id, reason),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.id) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useReactivateBeneficiaryMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => reactivateBeneficiaryMembership(id),
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(id) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useCustomerActiveBenefits = (customerId: string, branchId?: string) => {
+  return useQuery({
+    queryKey: membershipKeys.customerBenefits(customerId, branchId),
+    queryFn: () => getCustomerActiveBenefits(customerId, branchId),
+    enabled: Boolean(customerId),
+  });
+};
+
+export const useMembershipReports = (branchId?: string) => {
+  return useQuery({
+    queryKey: membershipKeys.reports(branchId),
+    queryFn: () => getMembershipReports(branchId),
+  });
+};
+
+export const useMembershipPurchaseGroup = (membershipId: string) => {
+  return useQuery({
+    queryKey: membershipKeys.purchaseGroup(membershipId),
+    queryFn: () => getMembershipPurchaseGroup(membershipId),
+    enabled: Boolean(membershipId),
+  });
+};
+
+export const useAddBeneficiaryToMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      customerId,
+      benefitsOverride,
+    }: {
+      membershipId: string;
+      customerId: string;
+      benefitsOverride?: Partial<import("../types/membership.types").MembershipBenefits>;
+    }) =>
+      addBeneficiaryToMembership(membershipId, { customerId, benefitsOverride }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "customer-memberships"] });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.customerMembership(variables.membershipId) });
+      queryClient.invalidateQueries({ queryKey: membershipKeys.purchaseGroup(variables.membershipId) });
+      queryClient.invalidateQueries({ queryKey: [...membershipKeys.all, "reports"] });
+    },
+  });
+};
+
+export const useSellMembership = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SellMembershipCheckoutPayload) =>
+      sellMembership(payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "customer-memberships"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "reports"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "plans"],
+      });
+      if (data.payerCustomerId) {
+        queryClient.invalidateQueries({
+          queryKey: [...membershipKeys.all, "customer-benefits", data.payerCustomerId],
+        });
+      }
+      for (const m of data.customerMemberships || []) {
+        if (m.customerId) {
+          queryClient.invalidateQueries({
+            queryKey: [...membershipKeys.all, "customer-benefits", m.customerId],
+          });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+    },
+  });
+};
+
+export const useMembershipUsageHistory = (
+  membershipId: string | null | undefined,
+  params: { page?: number; limit?: number } = {},
+) => {
+  return useQuery({
+    queryKey: [...membershipKeys.all, "usage", membershipId, params],
+    queryFn: () => getMembershipUsageHistory(membershipId!, params),
+    enabled: Boolean(membershipId),
+    staleTime: 1000 * 60 * 2,
+  });
+};
+
+export const useTriggerRenewalReminder = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      channel,
+      force,
+    }: {
+      membershipId: string;
+      channel?: "sms" | "email" | "both";
+      force?: boolean;
+    }) => triggerMembershipRenewalReminder(membershipId, { channel, force }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...membershipKeys.all, "customer-memberships"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: membershipKeys.customerMembership(variables.membershipId),
+      });
+    },
+  });
+};

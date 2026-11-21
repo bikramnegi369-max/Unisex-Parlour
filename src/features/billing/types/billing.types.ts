@@ -255,7 +255,28 @@ export interface CreateInvoicePayload {
   }[];
   productLines?: { productId: string; quantity: number; soldByStaffId?: string | null }[];
   subscriptionLines?: { planId: string; soldByStaffId?: string | null }[];
-  membershipLines?: { membershipPlanId: string; quantity?: number; soldByStaffId?: string | null }[];
+  membershipLines?: {
+    membershipPlanId?: string;
+    customerMembershipId?: string;
+    customerMembershipIds?: string[];
+    membershipPurchaseId?: string;
+    quantity?: number;
+    soldByStaffId?: string | null;
+    payerCustomerId?: string;
+    beneficiaryCustomerIds?: string[];
+    beneficiaries?: Array<{
+      customerId: string;
+      benefits?: {
+        serviceDiscountPercentage?: number;
+        productDiscountPercentage?: number;
+        complimentaryPerks?: string[];
+        eligibleServiceCategoryIds?: string[];
+        eligibleServiceIds?: string[];
+        excludedServiceCategoryIds?: string[];
+        excludedServiceIds?: string[];
+      };
+    }>;
+  }[];
   membershipPlanId?: string;
   discountTotal?: number;
   redeemLoyaltyPoints?: number;
@@ -270,7 +291,27 @@ export interface UpdateDraftInvoicePayload {
   }[];
   productLines?: { productId: string; quantity: number; soldByStaffId?: string | null }[];
   subscriptionLines?: { planId: string }[];
-  membershipLines?: { membershipPlanId: string; quantity?: number }[];
+  membershipLines?: {
+    membershipPlanId?: string;
+    customerMembershipId?: string;
+    customerMembershipIds?: string[];
+    membershipPurchaseId?: string;
+    quantity?: number;
+    payerCustomerId?: string;
+    beneficiaryCustomerIds?: string[];
+    beneficiaries?: Array<{
+      customerId: string;
+      benefits?: {
+        serviceDiscountPercentage?: number;
+        productDiscountPercentage?: number;
+        complimentaryPerks?: string[];
+        eligibleServiceCategoryIds?: string[];
+        eligibleServiceIds?: string[];
+        excludedServiceCategoryIds?: string[];
+        excludedServiceIds?: string[];
+      };
+    }>;
+  }[];
   membershipPlanId?: string;
   discountTotal?: number;
   redeemLoyaltyPoints?: number;

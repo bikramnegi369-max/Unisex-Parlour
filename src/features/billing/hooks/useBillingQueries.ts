@@ -36,7 +36,9 @@ export function useInvoice(id: string | undefined) {
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "billing.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
+  // Guard against reserved route segments or non-hex MongoDB ObjectIds
+  const isValidId = Boolean(id) && id !== "sales" && id !== "new" && /^[0-9a-fA-F]{24}$/.test(id!);
+  const isEnabled = isAuthenticated && hasViewPermission && isValidId && (currentBranchId !== null || isOrgWide);
   const queryKey = getBranchQueryKey("invoice", [id || ""]);
 
   return useQuery({
@@ -54,8 +56,10 @@ export function useInvoicePayments(invoiceId: string | undefined) {
   const hasPaymentsViewPermission =
     hasPermission(user, "payments.view") || hasPermission(user, "billing.view");
 
+  // Guard against reserved route segments or non-hex MongoDB ObjectIds
+  const isValidId = Boolean(invoiceId) && invoiceId !== "sales" && invoiceId !== "new" && /^[0-9a-fA-F]{24}$/.test(invoiceId!);
   const isEnabled =
-    isAuthenticated && hasPaymentsViewPermission && !!invoiceId && (currentBranchId !== null || isOrgWide);
+    isAuthenticated && hasPaymentsViewPermission && isValidId && (currentBranchId !== null || isOrgWide);
   const queryKey = getBranchQueryKey("invoice-payments", [invoiceId || ""]);
 
   return useQuery({

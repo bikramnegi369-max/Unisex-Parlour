@@ -11,6 +11,7 @@ export interface BasketAppointmentLine {
   appointmentId: string;
   appointmentCode: string;
   serviceId?: string;
+  categoryId?: string;
   name: string;
   duration?: number;
   unitPrice: number;
@@ -44,6 +45,10 @@ export interface BasketSubscriptionLine {
 
 export interface BasketMembershipLine {
   membershipPlanId: string;
+  customerMembershipId?: string;
+  membershipPurchaseId?: string;
+  membershipCode?: string;
+  isExistingPending?: boolean;
   name: string;
   code?: string;
   tier: string;
@@ -52,10 +57,25 @@ export interface BasketMembershipLine {
   serviceDiscountPercentage: number;
   productDiscountPercentage: number;
   soldByStaffId?: string | null;
+  payerCustomerId?: string;
+  beneficiaryCustomerIds?: string[];
+  beneficiaries?: Array<{
+    customerId: string;
+    benefits?: {
+      serviceDiscountPercentage?: number;
+      productDiscountPercentage?: number;
+      complimentaryPerks?: string[];
+      eligibleServiceCategoryIds?: string[];
+      eligibleServiceIds?: string[];
+      excludedServiceCategoryIds?: string[];
+      excludedServiceIds?: string[];
+    };
+  }>;
 }
 
 export interface BasketWalkinServiceLine {
   serviceId: string;
+  categoryId?: string;
   name: string;
   duration?: number;
   unitPrice: number;
@@ -260,23 +280,108 @@ export const saleBasketSlice = createSlice({
     },
 
     addMembershipToBasket: (state, action: PayloadAction<BasketMembershipLine>) => {
-      // Typically only 1 active membership plan in cart
-      state.membershipLines = [action.payload];
+      // Typically 1 active membership in cart, but support replacing or keeping single membership line
+      const existingIndex = state.membershipLines.findIndex(
+        (m) =>
+          (action.payload.customerMembershipId && m.customerMembershipId === action.payload.customerMembershipId) ||
+          (action.payload.membershipPurchaseId && m.membershipPurchaseId === action.payload.membershipPurchaseId) ||
+          (!action.payload.customerMembershipId && m.membershipPlanId === action.payload.membershipPlanId),
+      );
+      if (existingIndex >= 0) {
+        state.membershipLines[existingIndex] = action.payload;
+      } else {
+        // Enforce 1 membership line in basket
+        state.membershipLines = [action.payload];
+      }
       savePersistedState(state);
     },
 
     removeMembershipFromBasket: (state, action: PayloadAction<string>) => {
-      state.membershipLines = state.membershipLines.filter((m) => m.membershipPlanId !== action.payload);
+      state.membershipLines = state.membershipLines.filter(
+        (m) =>
+          m.membershipPlanId !== action.payload &&
+          m.customerMembershipId !== action.payload &&
+          m.membershipPurchaseId !== action.payload,
+      );
       savePersistedState(state);
     },
     setMembershipSeller: (
       state,
-      action: PayloadAction<{ membershipPlanId: string; staffId: string | null }>,
+      action: PayloadAction<{ membershipPlanId?: string; customerMembershipId?: string; staffId: string | null }>,
     ) => {
-      const line = state.membershipLines.find(
-        (item) => item.membershipPlanId === action.payload.membershipPlanId,
+      const line = state.membershipLines.find((item) =>
+        action.payload.customerMembershipId
+          ? item.customerMembershipId === action.payload.customerMembershipId
+          : item.membershipPlanId === action.payload.membershipPlanId,
       );
       if (line) line.soldByStaffId = action.payload.staffId;
+      savePersistedState(state);
+    },
+
+    recalculateSubscriptionCoverage: (
+      state,
+      action: PayloadAction<{
+        subscriptions: Array<{
+          id: string;
+          subscriptionCode: string;
+          entitlements: Array<{
+            serviceId: string;
+            remainingQuantity: number;
+          }>;
+        }>;
+      }>,
+    ) => {
+      // Build mutable tracking pool for remaining service entitlements
+      const remainingEntitlements = new Map<string, Array<{ id: string; code: string; remaining: number }>>();
+      for (const sub of action.payload.subscriptions) {
+        for (const ent of sub.entitlements || []) {
+          if (ent.remainingQuantity > 0) {
+            const list = remainingEntitlements.get(ent.serviceId) || [];
+            list.push({
+              id: sub.id,
+              code: sub.subscriptionCode,
+              remaining: ent.remainingQuantity,
+            });
+            remainingEntitlements.set(ent.serviceId, list);
+          }
+        }
+      }
+
+      // Check walkin services and cover eligible lines up to quota
+      for (const s of state.walkinServiceLines) {
+        const pool = remainingEntitlements.get(s.serviceId);
+        if (pool && pool.length > 0) {
+          const firstAvailable = pool.find((item) => item.remaining > 0);
+          if (firstAvailable) {
+            s.isCoveredBySubscription = true;
+            s.appliedSubscriptionId = firstAvailable.id;
+            s.subscriptionCode = firstAvailable.code;
+            firstAvailable.remaining -= s.quantity;
+            continue;
+          }
+        }
+        // If not covered by available quota, clear coverage flag
+        s.isCoveredBySubscription = false;
+        s.appliedSubscriptionId = null;
+        s.subscriptionCode = null;
+      }
+
+      // Check appointment services and cover eligible lines up to quota
+      for (const apt of state.appointmentLines) {
+        if (!apt.serviceId) continue;
+        const pool = remainingEntitlements.get(apt.serviceId);
+        if (pool && pool.length > 0) {
+          const firstAvailable = pool.find((item) => item.remaining > 0);
+          if (firstAvailable) {
+            apt.isCoveredBySubscription = true;
+            apt.appliedSubscriptionId = firstAvailable.id;
+            apt.subscriptionCode = firstAvailable.code;
+            firstAvailable.remaining -= apt.quantity;
+            continue;
+          }
+        }
+      }
+
       savePersistedState(state);
     },
 
@@ -409,6 +514,7 @@ export const {
   setBasketLoyaltyRedemption,
   setBasketNotes,
   setExistingDraft,
+  recalculateSubscriptionCoverage,
   clearSaleBasket,
 } = saleBasketSlice.actions;
 

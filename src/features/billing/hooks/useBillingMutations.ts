@@ -44,12 +44,15 @@ export function useCreateInvoice() {
             key === "invoices" ||
             key === "checkout-queue" ||
             key === "appointments" ||
-            key === "appointment"
+            key === "appointment" ||
+            key === "subscriptions" ||
+            key === "subscription"
           );
         },
       });
       broadcastCrossTabInvalidation("appointments");
       broadcastCrossTabInvalidation("invoices");
+      broadcastCrossTabInvalidation("subscriptions");
     },
   });
 }
@@ -181,6 +184,8 @@ export function useCancelInvoice() {
             key === "customers" ||
             key === "customer" ||
             key === "loyalty-ledger" ||
+            key === "subscriptions" ||
+            key === "subscription" ||
             (key === "invoice" &&
               (query.queryKey.includes(variables.id) ||
                 query.queryKey.some(
@@ -189,6 +194,8 @@ export function useCancelInvoice() {
           );
         },
       });
+      broadcastCrossTabInvalidation("subscriptions");
+      broadcastCrossTabInvalidation("invoices");
     },
   });
 }

@@ -59,9 +59,17 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { useCreateSubscription } from "@/features/subscriptions/hooks/useCreateSubscription";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
+import { buildSubscriptionPurchasePayload } from "@/features/subscriptions/utils/buildSubscriptionPurchasePayload";
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
+import {
+  useCustomerActiveBenefits,
+  useMembershipPlans,
+  useCreateMembershipPlan,
+} from "@/features/memberships/hooks/useMemberships";
+import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
+import { useCreateInvoice } from "@/features/billing/hooks/useBillingMutations";
 
 const EMPTY_SERVICES: Service[] = [];
 const EMPTY_EMPLOYEES: Employee[] = [];
@@ -574,6 +582,18 @@ export function CreateAppointmentDialog({
   const createSubMutation = useCreateSubscription();
   const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
 
+  // Fetch active membership benefits for customer if selected
+  const { data: customerMembershipBenefits, refetch: refetchCustomerBenefits } =
+    useCustomerActiveBenefits(
+      watchedCustomerId || "",
+      effectiveBranchId || undefined,
+    );
+  const { data: membershipPlansData } = useMembershipPlans({ limit: 100 });
+  const membershipPlans = membershipPlansData?.data || [];
+  const createMembershipPlanMutation = useCreateMembershipPlan();
+  const createInvoiceMutation = useCreateInvoice();
+  const [isSellMembershipOpen, setIsSellMembershipOpen] = useState(false);
+
   const activeSubscriptions: Subscription[] = useMemo(() => {
     return (customerSubsData?.data || []).filter((sub: Subscription) => {
       // Include both 'active' and 'pending_payment' subscriptions when backend considers entitlements redeemable
@@ -687,7 +707,8 @@ export function CreateAppointmentDialog({
       if (s.serviceType === "registered" && s.appliedSubscriptionId) {
         const subCandidates = subscriptionsByService.get(s.serviceId) || [];
         const isStillValid = subCandidates.some(
-          (c) => c.subscriptionId === s.appliedSubscriptionId && c.remaining > 0,
+          (c) =>
+            c.subscriptionId === s.appliedSubscriptionId && c.remaining > 0,
         );
         if (!isStillValid) {
           hasChanged = true;
@@ -703,7 +724,13 @@ export function CreateAppointmentDialog({
     if (hasChanged) {
       setValue("services", sanitized, { shouldValidate: true });
     }
-  }, [effectiveBranchId, getValues, setValue, subscriptionsByService, watchedCustomerId]);
+  }, [
+    effectiveBranchId,
+    getValues,
+    setValue,
+    subscriptionsByService,
+    watchedCustomerId,
+  ]);
 
   // Diagnose ineligible active subscriptions for the selected customer to provide clear UX explanation
   const subscriptionIneligibilityNotice = useMemo(() => {
@@ -725,14 +752,14 @@ export function CreateAppointmentDialog({
         effectiveBranchId &&
         sub.permittedBranchIds &&
         sub.permittedBranchIds.length > 0 &&
-        !sub.permittedBranchIds.includes(effectiveBranchId)
+        !sub.permittedBranchIds.includes(effectiveBranchId),
       );
 
       const isMemberBranchBlocked = Boolean(
         effectiveBranchId &&
         memberEntry?.permittedBranchIds &&
         memberEntry.permittedBranchIds.length > 0 &&
-        !memberEntry.permittedBranchIds.includes(effectiveBranchId)
+        !memberEntry.permittedBranchIds.includes(effectiveBranchId),
       );
 
       return isSubBranchBlocked || isMemberBranchBlocked;
@@ -743,7 +770,12 @@ export function CreateAppointmentDialog({
     }
 
     return null;
-  }, [activeSubscriptions, effectiveBranchId, subscriptionsByService.size, watchedCustomerId]);
+  }, [
+    activeSubscriptions,
+    effectiveBranchId,
+    subscriptionsByService.size,
+    watchedCustomerId,
+  ]);
 
   // Set of all registered service IDs for which this customer has at least 1 remaining entitlement
   const subscribedServiceIds = useMemo(() => {
@@ -1123,12 +1155,20 @@ export function CreateAppointmentDialog({
     subscribedServiceIds,
   ]);
 
-  // Pricing & duration totals with accurate subscription coverage deductions
+  // Pricing & duration totals with accurate subscription and membership discount deductions
   const selectedServicesSummary = useMemo(() => {
     let totalDuration = 0;
     let grossSubtotal = 0;
     let subscriptionDeduction = 0;
+    let membershipDeduction = 0;
     let coveredCount = 0;
+
+    const hasMembership = Boolean(
+      customerMembershipBenefits?.hasActiveMembership &&
+      customerMembershipBenefits.planSnapshot?.benefits,
+    );
+    const memBenefits = customerMembershipBenefits?.planSnapshot?.benefits;
+    const memDiscountPct = memBenefits?.serviceDiscountPercentage || 0;
 
     for (const item of selectedServices) {
       if (item.serviceType === "custom") {
@@ -1136,7 +1176,11 @@ export function CreateAppointmentDialog({
         const price = Number(item.price) || 0;
         totalDuration += duration;
         grossSubtotal += price;
-        // Custom services never consume subscription entitlements
+        // Custom services never consume subscription entitlements, but membership discount applies
+        if (hasMembership && memDiscountPct > 0) {
+          const disc = Number(((price * memDiscountPct) / 100).toFixed(2));
+          membershipDeduction += disc;
+        }
       } else {
         const srv = services.find((s: Service) => s.id === item.serviceId);
         if (srv) {
@@ -1151,22 +1195,68 @@ export function CreateAppointmentDialog({
           if (item.appliedSubscriptionId) {
             coveredCount += 1;
             subscriptionDeduction += itemPrice;
+          } else if (hasMembership && memDiscountPct > 0) {
+            // Check service/category eligibility
+            let isEligible = true;
+            const categoryIdStr =
+              typeof srv.categoryId === "object" && srv.categoryId !== null
+                ? (srv.categoryId as { _id?: string; id?: string }).id ||
+                  (srv.categoryId as { _id?: string; id?: string })._id
+                : (srv.categoryId as string | undefined);
+
+            if (memBenefits?.excludedServiceIds?.includes(srv.id))
+              isEligible = false;
+            else if (
+              categoryIdStr &&
+              memBenefits?.excludedServiceCategoryIds?.includes(categoryIdStr)
+            )
+              isEligible = false;
+            else if (
+              (memBenefits?.eligibleServiceCategoryIds?.length || 0) > 0 ||
+              (memBenefits?.eligibleServiceIds?.length || 0) > 0
+            ) {
+              const inCat =
+                categoryIdStr &&
+                memBenefits?.eligibleServiceCategoryIds?.includes(
+                  categoryIdStr,
+                );
+              const inSvc = memBenefits?.eligibleServiceIds?.includes(srv.id);
+              isEligible = Boolean(inCat || inSvc);
+            }
+
+            if (isEligible) {
+              const disc = Number(
+                ((itemPrice * memDiscountPct) / 100).toFixed(2),
+              );
+              membershipDeduction += disc;
+            }
           }
         }
       }
     }
 
-    const netTotal = Math.max(0, grossSubtotal - subscriptionDeduction);
+    const netTotal = Math.max(
+      0,
+      Number(
+        (grossSubtotal - subscriptionDeduction - membershipDeduction).toFixed(
+          2,
+        ),
+      ),
+    );
 
     return {
       count: selectedServices.length,
       totalDuration,
       grossSubtotal,
       subscriptionDeduction,
+      membershipDeduction,
       netTotal,
       coveredCount,
+      hasMembershipDiscount: membershipDeduction > 0,
+      membershipTierName:
+        customerMembershipBenefits?.planSnapshot?.name || "Member",
     };
-  }, [services, selectedServices]);
+  }, [services, selectedServices, customerMembershipBenefits]);
 
   // Group filtered services by category for clean accordion navigation when 100s of services exist
   const categorizedServices = useMemo(() => {
@@ -1976,6 +2066,50 @@ export function CreateAppointmentDialog({
                 </div>
               )}
 
+              {/* Customer Membership Privileges / Upsell Banner */}
+              {watchedCustomerId && (
+                <div className="p-2.5 rounded-xl border border-amber-500/30 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent text-xs flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-foreground block">
+                        {customerMembershipBenefits?.hasActiveMembership
+                          ? `Active Member: ${customerMembershipBenefits.planSnapshot?.name || "Member"}`
+                          : "Customer has no active membership"}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground block">
+                        {customerMembershipBenefits?.hasActiveMembership
+                          ? `${customerMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services automatically applied to this booking.`
+                          : "Upsell a membership to unlock exclusive service & product discounts."}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!watchedCustomerId) {
+                        toast.error(
+                          "Please select a customer first to sell a membership.",
+                        );
+                        return;
+                      }
+                      setIsSellMembershipOpen(true);
+                    }}
+                    className="h-7 px-2.5 rounded-lg text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1 transition-all cursor-pointer shadow-2xs whitespace-nowrap"
+                  >
+                    <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    <span>
+                      {customerMembershipBenefits?.hasActiveMembership
+                        ? "Upgrade / Add Plan"
+                        : "Sell Membership"}
+                    </span>
+                  </button>
+                </div>
+              )}
+
               {/* Branch restriction notice for customer subscriptions */}
               {subscriptionIneligibilityNotice && (
                 <div className="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
@@ -2025,6 +2159,24 @@ export function CreateAppointmentDialog({
                     onClick={() => {
                       if (!watchedCustomerId) {
                         toast.error(
+                          "Please select a customer first to sell a membership.",
+                        );
+                        return;
+                      }
+                      setIsSellMembershipOpen(true);
+                    }}
+                    className="h-8 px-3 rounded-lg text-xs font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 active:bg-amber-500/25 border border-amber-500/30 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs whitespace-nowrap hover:shadow-xs"
+                    title="Sell or configure a membership plan for this customer"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 stroke-2 text-amber-600 dark:text-amber-400" />
+                    <span>Sell Membership</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!watchedCustomerId) {
+                        toast.error(
                           "Please select a customer first to sell a subscription.",
                         );
                         return;
@@ -2041,7 +2193,7 @@ export function CreateAppointmentDialog({
                     title="Sell a subscription package to this customer"
                   >
                     <CreditCard className="h-3.5 w-3.5 stroke-2 text-emerald-600 dark:text-emerald-400" />
-                    <span>Sell Plan</span>
+                    <span>Sell Subscription</span>
                   </button>
 
                   <button
@@ -2864,6 +3016,42 @@ export function CreateAppointmentDialog({
                   </div>
                 )}
 
+                {/* Membership Discount Callout */}
+                {selectedServicesSummary.hasMembershipDiscount && (
+                  <div className="booking-summary-discount relative overflow-hidden p-3 rounded-xl bg-linear-to-r from-amber-500/15 via-amber-500/10 to-orange-500/10 border border-amber-500/30 shadow-xs shrink-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <CreditCard className="h-4.5 w-4.5" />
+                        </div>
+                        <div className="min-w-0 flex flex-col gap-0.5">
+                          <span className="font-bold text-xs text-foreground">
+                            Membership Discount Applied
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300 whitespace-nowrap shrink-0">
+                              {selectedServicesSummary.membershipTierName}{" "}
+                              Benefits
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 pl-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 block">
+                          Savings
+                        </span>
+                        <span className="font-extrabold text-base text-amber-600 dark:text-amber-400 tracking-tight">
+                          -
+                          {formatCurrency(
+                            selectedServicesSummary.membershipDeduction,
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Plan Total Discount Callout - Upgraded Savings Card UI/UX */}
                 {selectedServicesSummary.coveredCount > 0 && (
                   <div className="booking-summary-discount relative overflow-hidden p-3 rounded-xl bg-linear-to-r from-emerald-500/15 via-emerald-500/10 to-teal-500/10 border border-emerald-500/30 shadow-xs shrink-0">
@@ -3101,20 +3289,15 @@ export function CreateAppointmentDialog({
           isLoading={createSubMutation.isPending}
           onSubmit={async (values) => {
             try {
+              const canonicalPayload = buildSubscriptionPurchasePayload({
+                values,
+                effectiveBranchId,
+                defaultCustomerId: watchedCustomerId,
+              });
+
               const createdSub = await createSubMutation.mutateAsync({
-                payload: {
-                  customerId: values.customerId,
-                  soldByStaffId: values.soldByStaffId || undefined,
-                  planId: values.planId,
-                  price: values.price,
-                  entitlements: values.entitlements,
-                  permittedBranchIds: values.permittedBranchIds,
-                  startDate: values.startDate,
-                  endDate: values.endDate,
-                  notes: values.notes,
-                  branchId: effectiveBranchId,
-                },
-                branchId: effectiveBranchId,
+                payload: canonicalPayload,
+                branchId: effectiveBranchId || undefined,
               });
 
               setIsSellSubscriptionOpen(false);
@@ -3163,6 +3346,133 @@ export function CreateAppointmentDialog({
           }}
         />
       </Dialog>
+      {/* Membership Upsell / Sale Dialog */}
+      {isSellMembershipOpen && (
+        <SellMembershipDialog
+          isOpen={isSellMembershipOpen}
+          onClose={() => setIsSellMembershipOpen(false)}
+          isLoading={
+            createInvoiceMutation.isPending ||
+            createMembershipPlanMutation.isPending
+          }
+          plans={membershipPlans}
+          initialCustomerId={watchedCustomerId}
+          onCreateCustomPlanAndSell={async (customPlanPayload, checkoutData) => {
+            try {
+              if (!effectiveBranchId) {
+                toast.error(
+                  "Please select a specific branch before creating an invoice.",
+                );
+                return;
+              }
+
+              const createdPlan =
+                await createMembershipPlanMutation.mutateAsync(customPlanPayload);
+
+              const invoice = await createInvoiceMutation.mutateAsync({
+                branchId: effectiveBranchId,
+                customerId: checkoutData.payerCustomerId,
+                membershipLines: [
+                  {
+                    membershipPlanId: createdPlan.id,
+                    quantity: 1,
+                    soldByStaffId: checkoutData.soldByStaffId || undefined,
+                    payerCustomerId: checkoutData.payerCustomerId,
+                    beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+                    beneficiaries: checkoutData.beneficiaries,
+                  },
+                ],
+                notes:
+                  checkoutData.notes ||
+                  `Membership sold during booking setup for customer`,
+              });
+
+              setIsSellMembershipOpen(false);
+              await queryClient.invalidateQueries({ queryKey: ["memberships"] });
+              await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+              await refetchCustomerBenefits();
+
+              if (invoice?.id) {
+                toast.success(
+                  `Membership purchased! Invoice #${invoice.invoiceNumber || ""} created.`,
+                  {
+                    action: {
+                      label: "View Invoice",
+                      onClick: () =>
+                        window.open(`/billing/${invoice.id}`, "_blank"),
+                    },
+                    duration: 6000,
+                  },
+                );
+              } else {
+                toast.success("Membership plan created and sold successfully!");
+              }
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message ||
+                    "Failed to sell custom membership.";
+              toast.error(msg);
+            }
+          }}
+          onSubmit={async (values) => {
+            try {
+              if (!effectiveBranchId) {
+                toast.error(
+                  "Please select a specific branch before creating an invoice.",
+                );
+                return;
+              }
+
+              const invoice = await createInvoiceMutation.mutateAsync({
+                branchId: effectiveBranchId,
+                customerId: values.payerCustomerId,
+                membershipLines: [
+                  {
+                    membershipPlanId: values.membershipPlanId,
+                    quantity: 1,
+                    soldByStaffId: values.soldByStaffId || undefined,
+                    payerCustomerId: values.payerCustomerId,
+                    beneficiaryCustomerIds: values.beneficiaryCustomerIds,
+                    beneficiaries: values.beneficiaries,
+                  },
+                ],
+                notes: values.notes || `Membership sold during booking setup`,
+              });
+
+              setIsSellMembershipOpen(false);
+              await queryClient.invalidateQueries({ queryKey: ["memberships"] });
+              await queryClient.invalidateQueries({ queryKey: ["invoices"] });
+              await refetchCustomerBenefits();
+
+              if (invoice?.id) {
+                toast.success(
+                  `Membership sold! Invoice #${invoice.invoiceNumber || ""} created.`,
+                  {
+                    action: {
+                      label: "View Invoice",
+                      onClick: () =>
+                        window.open(`/billing/${invoice.id}`, "_blank"),
+                    },
+                    duration: 6000,
+                  },
+                );
+              } else {
+                toast.success("Membership sale invoice created successfully.");
+              }
+            } catch (err: unknown) {
+              const msg =
+                err instanceof Error
+                  ? err.message
+                  : (err as { response?: { data?: { message?: string } } })
+                      ?.response?.data?.message || "Failed to sell membership.";
+              toast.error(msg);
+            }
+          }}
+        />
+      )}
     </Dialog>
   );
 }

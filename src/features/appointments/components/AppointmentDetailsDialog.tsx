@@ -30,6 +30,7 @@ import {
   RefreshCw,
   Receipt,
   CreditCard,
+  Sparkles,
   MoreHorizontal,
   ChevronUp,
   ChevronDown,
@@ -48,6 +49,14 @@ import { useDispatch } from "react-redux";
 import { setBasketAppointment } from "@/store/slices/saleBasketSlice";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
 import { CreateSubscriptionDialog } from "@/features/subscriptions/components/CreateSubscriptionDialog";
+import { buildSubscriptionPurchasePayload } from "@/features/subscriptions/utils/buildSubscriptionPurchasePayload";
+import { useCreateMembershipPlan } from "@/features/memberships/hooks/useMemberships";
+import {
+  useCustomerActiveBenefits,
+  useMembershipPlans,
+} from "@/features/memberships/hooks/useMemberships";
+import { SellMembershipDialog } from "@/features/memberships/components/SellMembershipDialog";
+import { useCreateInvoice } from "@/features/billing/hooks/useBillingMutations";
 import type {
   Appointment,
   AppointmentServiceSnapshot,
@@ -90,6 +99,7 @@ export function AppointmentDetailsDialog({
   const { user } = useAuth();
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
   const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
+  const [isSellMembershipOpen, setIsSellMembershipOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
   const actionsMenuRef = React.useRef<HTMLDivElement>(null);
 
@@ -118,8 +128,14 @@ export function AppointmentDetailsDialog({
   }, [isActionsMenuOpen]);
 
   const upsellSubMutation = useUpsellAppointmentSubscription();
+  const createInvoiceMutation = useCreateInvoice();
+  const createMembershipPlanMutation = useCreateMembershipPlan();
   const canCheckout = hasPermission(user, "billing.checkout");
   const canSellSubscriptions = hasPermission(user, "subscriptions.sell");
+  const canSellMemberships =
+    hasPermission(user, "memberships.sell") ||
+    hasPermission(user, "memberships.configure") ||
+    hasPermission(user, "billing.checkout");
 
   // Fetch real-time fresh single appointment details from GET /appointments/:id
   // Enabled only when the dialog is open and we have an appointment ID.
@@ -140,6 +156,14 @@ export function AppointmentDetailsDialog({
     { customerId: customerId || undefined, limit: 50 },
     { enabled: Boolean(isOpen && customerId) },
   );
+
+  // Active membership benefits for appointment customer
+  const { data: activeMembershipBenefits } = useCustomerActiveBenefits(
+    customerId || "",
+    appointment?.branchId,
+  );
+  const { data: membershipPlansData } = useMembershipPlans({ limit: 100 });
+  const membershipPlans = membershipPlansData?.data || [];
 
   const subsList = customerSubsData?.data;
   const subscriptionMap = React.useMemo(() => {
@@ -286,6 +310,19 @@ export function AppointmentDetailsDialog({
             {appointment.customer?.phone && (
               <div className="text-[11px] text-muted-foreground pl-5">
                 {appointment.customer.phone}
+              </div>
+            )}
+            {activeMembershipBenefits?.hasActiveMembership && (
+              <div className="pl-5 pt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  <CreditCard className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  {activeMembershipBenefits.planSnapshot?.name ||
+                    "Active Member"}{" "}
+                  (
+                  {activeMembershipBenefits.planSnapshot?.benefits
+                    ?.serviceDiscountPercentage ?? 0}
+                  % Service Off)
+                </span>
               </div>
             )}
           </div>
@@ -480,6 +517,81 @@ export function AppointmentDetailsDialog({
             )}
           </div>
         </div>
+
+        {/* Section: Prominent Membership & Subscription Upsell Banner */}
+        {((canSellMemberships || canSellSubscriptions) && customerId && !isTerminal) && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Membership Card */}
+            {canSellMemberships && (
+              <div className="p-3 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground block">
+                      {activeMembershipBenefits?.hasActiveMembership
+                        ? `Membership: ${activeMembershipBenefits.planSnapshot?.name || "Active"}`
+                        : "Membership Privileges"}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block line-clamp-2">
+                      {activeMembershipBenefits?.hasActiveMembership
+                        ? `Customer receives ${activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services.`
+                        : "Sell catalogue or customized tier. Applies discounts to this appointment."}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsSellMembershipOpen(true)}
+                    className="text-xs h-7 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    {activeMembershipBenefits?.hasActiveMembership
+                      ? "Upgrade / Add Plan"
+                      : "Upsell Membership"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Subscription Upsell Card */}
+            {canSellSubscriptions && (
+              <div className="p-3 bg-linear-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
+                <div className="flex items-start gap-2">
+                  <div className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-foreground block">
+                      Subscription Packages
+                    </span>
+                    <span className="text-[11px] text-muted-foreground block line-clamp-2">
+                      {customerSubsData && customerSubsData.data && customerSubsData.data.length > 0
+                        ? `${customerSubsData.data.length} package(s) on file. Upsell a new package or session quota.`
+                        : "Sell pre-bundled session packages with automated service coverage."}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsSellSubscriptionOpen(true)}
+                    className="text-xs h-7 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs font-semibold cursor-pointer"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    Sell Subscription
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Section A: Automated Scheduled Reminder */}
         <div className="space-y-2 border-t border-border pt-3">
@@ -772,6 +884,21 @@ export function AppointmentDetailsDialog({
                         <span>Sell Subscription</span>
                       </button>
                     )}
+
+                    {canSellMemberships && customerId && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setIsActionsMenuOpen(false);
+                          setIsSellMembershipOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs text-left text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer font-medium"
+                      >
+                        <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                        <span>Sell Membership</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -863,23 +990,20 @@ export function AppointmentDetailsDialog({
                   const services = (appointment.services || []).map(
                     (s: AppointmentServiceSnapshot) => {
                       let subCode = s.subscriptionCode || null;
-                      let appliedSubId = s.appliedSubscriptionId || null;
+                      const appliedSubId = s.appliedSubscriptionId || null;
 
                       if (!subCode && appliedSubId) {
-                        const foundSub = (customerSubsData?.data || []).find(
-                          (sub) =>
-                            (sub.id || sub._id) === appliedSubId,
-                        );
-                        if (foundSub?.subscriptionCode) {
-                          subCode = foundSub.subscriptionCode;
+                        const subInfo = subscriptionMap.get(appliedSubId);
+                        if (subInfo?.code) {
+                          subCode = subInfo.code;
                         }
                       }
 
                       const isCovered = Boolean(
                         appliedSubId ||
-                          s.appliedSubscriptionId ||
-                          s.subscriptionUsageId ||
-                          subCode,
+                        s.appliedSubscriptionId ||
+                        s.subscriptionUsageId ||
+                        subCode,
                       );
 
                       return {
@@ -950,18 +1074,30 @@ export function AppointmentDetailsDialog({
           isLoading={upsellSubMutation.isPending}
           onSubmit={async (values) => {
             try {
+              const canonicalPayload = buildSubscriptionPurchasePayload({
+                values,
+                effectiveBranchId: appointment.branchId,
+                defaultCustomerId: customerId,
+              });
+
+              // Extract flat entitlements if present, or flatten member entitlements for appointment upsell endpoint compatibility
+              const resolvedEntitlements =
+                canonicalPayload.entitlements && canonicalPayload.entitlements.length > 0
+                  ? canonicalPayload.entitlements
+                  : (canonicalPayload.members || []).flatMap((m) => m.entitlements || []);
+
               const res = await upsellSubMutation.mutateAsync({
                 appointmentId: appointment.id,
                 payload: {
                   branchId: appointment.branchId,
-                  planId: values.planId,
-                  soldByStaffId: values.soldByStaffId || undefined,
-                  price: values.price,
-                  entitlements: values.entitlements || [],
-                  permittedBranchIds: values.permittedBranchIds,
-                  startDate: values.startDate,
-                  endDate: values.endDate,
-                  notes: values.notes,
+                  planId: canonicalPayload.planId,
+                  soldByStaffId: canonicalPayload.soldByStaffId || undefined,
+                  price: canonicalPayload.price,
+                  entitlements: resolvedEntitlements,
+                  permittedBranchIds: canonicalPayload.permittedBranchIds,
+                  startDate: canonicalPayload.startDate,
+                  endDate: canonicalPayload.endDate,
+                  notes: canonicalPayload.notes,
                 },
               });
 
@@ -1006,6 +1142,127 @@ export function AppointmentDetailsDialog({
           }}
         />
       </Dialog>
+
+      {/* Membership Upsell Dialog from Appointment Context */}
+      <SellMembershipDialog
+        isOpen={isSellMembershipOpen}
+        onClose={() => setIsSellMembershipOpen(false)}
+        isLoading={
+          createInvoiceMutation.isPending ||
+          createMembershipPlanMutation.isPending
+        }
+        plans={membershipPlans}
+        initialCustomerId={customerId}
+        onCreateCustomPlanAndSell={async (customPlanPayload, checkoutData) => {
+          try {
+            // 1. Create custom plan
+            const createdPlan =
+              await createMembershipPlanMutation.mutateAsync(customPlanPayload);
+
+            // 2. Add to invoice attached to this appointment
+            const invoice = await createInvoiceMutation.mutateAsync({
+              branchId: appointment.branchId,
+              appointmentId: appointment.id,
+              customerId: checkoutData.payerCustomerId,
+              membershipLines: [
+                {
+                  membershipPlanId: createdPlan.id,
+                  quantity: 1,
+                  soldByStaffId: checkoutData.soldByStaffId || undefined,
+                  payerCustomerId: checkoutData.payerCustomerId,
+                  beneficiaryCustomerIds: checkoutData.beneficiaryCustomerIds,
+                  beneficiaries: checkoutData.beneficiaries,
+                },
+              ],
+              notes:
+                checkoutData.notes ||
+                `Custom membership upsold during appointment #${appointmentCodeDisplay}`,
+            });
+
+            setIsSellMembershipOpen(false);
+
+            if (invoice?.id) {
+              toast.success(
+                `Custom membership attached to invoice ${invoice.invoiceNumber || ""}!`,
+                {
+                  action: {
+                    label: "Open Invoice",
+                    onClick: () => router.push(`/billing/${invoice.id}`),
+                  },
+                  duration: 6000,
+                },
+              );
+              router.push(`/billing/${invoice.id}`);
+            } else {
+              toast.success("Custom membership invoice created successfully.");
+            }
+          } catch (err: unknown) {
+            const errorObj = err as Record<string, unknown> | null;
+            const responseObj = errorObj?.response as Record<
+              string,
+              unknown
+            > | null;
+            const msg =
+              ((responseObj?.data as Record<string, unknown> | null)
+                ?.message as string) ||
+              (errorObj?.message as string) ||
+              "Failed to process custom membership upsell.";
+            toast.error(msg);
+          }
+        }}
+        onSubmit={async (values) => {
+          try {
+            const invoice = await createInvoiceMutation.mutateAsync({
+              branchId: appointment.branchId,
+              appointmentId: appointment.id,
+              customerId: values.payerCustomerId,
+              membershipLines: [
+                {
+                  membershipPlanId: values.membershipPlanId,
+                  quantity: 1,
+                  soldByStaffId: values.soldByStaffId || undefined,
+                  payerCustomerId: values.payerCustomerId,
+                  beneficiaryCustomerIds: values.beneficiaryCustomerIds,
+                  beneficiaries: values.beneficiaries,
+                },
+              ],
+              notes:
+                values.notes ||
+                `Membership upsold during appointment #${appointmentCodeDisplay}`,
+            });
+
+            setIsSellMembershipOpen(false);
+
+            if (invoice?.id) {
+              toast.success(
+                `Membership plan added to invoice ${invoice.invoiceNumber || ""}!`,
+                {
+                  action: {
+                    label: "Open Invoice",
+                    onClick: () => router.push(`/billing/${invoice.id}`),
+                  },
+                  duration: 6000,
+                },
+              );
+              router.push(`/billing/${invoice.id}`);
+            } else {
+              toast.success("Membership sale invoice created successfully.");
+            }
+          } catch (err: unknown) {
+            const errorObj = err as Record<string, unknown> | null;
+            const responseObj = errorObj?.response as Record<
+              string,
+              unknown
+            > | null;
+            const msg =
+              ((responseObj?.data as Record<string, unknown> | null)
+                ?.message as string) ||
+              (errorObj?.message as string) ||
+              "Failed to process membership upsell.";
+            toast.error(msg);
+          }
+        }}
+      />
     </Dialog>
   );
 }
