@@ -336,6 +336,7 @@ export function SubscriptionList() {
         onRedeem: handleRedeem,
         onRenew: handleRenew,
         onGenerateInvoice: handleGenerateInvoice,
+        isGeneratingInvoice: createInvoiceMutation.isPending,
         canView,
         canEdit: canConfigure,
         canCancel: canConfigure,
@@ -351,6 +352,7 @@ export function SubscriptionList() {
       handleRedeem,
       handleRenew,
       handleGenerateInvoice,
+      createInvoiceMutation.isPending,
       canView,
       canConfigure,
       canRedeem,
@@ -649,6 +651,7 @@ export function SubscriptionList() {
                 onCancel={handleCancel}
                 onRedeem={handleRedeem}
                 onGenerateInvoice={handleGenerateInvoice}
+                isGeneratingInvoice={createInvoiceMutation.isPending}
                 canView={canView}
                 canEdit={canConfigure}
                 canCancel={canConfigure}

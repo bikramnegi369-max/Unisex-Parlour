@@ -60,6 +60,7 @@ interface CreateSubscriptionDialogProps {
   initialCustomerId?: string;
   initialPlan?: SubscriptionPlan | null;
   branchId?: string;
+  lockCustomer?: boolean;
 }
 
 export function CreateSubscriptionDialog({
@@ -70,6 +71,7 @@ export function CreateSubscriptionDialog({
   initialCustomerId,
   initialPlan,
   branchId: propBranchId,
+  lockCustomer = false,
 }: CreateSubscriptionDialogProps) {
   const {
     availableBranches,
@@ -1095,7 +1097,7 @@ export function CreateSubscriptionDialog({
               <span className="text-destructive">*</span>
             </span>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-primary/10 text-primary">
-              Invoice Owner
+              {lockCustomer ? "Locked to Workspace Customer" : "Invoice Owner"}
             </span>
           </label>
           <Controller
@@ -1126,7 +1128,7 @@ export function CreateSubscriptionDialog({
                 }}
                 branchId={effectiveBranchId || undefined}
                 error={errors.customerId?.message}
-                disabled={isLoading}
+                disabled={lockCustomer || isLoading}
               />
             )}
           />

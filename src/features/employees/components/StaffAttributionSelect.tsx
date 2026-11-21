@@ -8,6 +8,8 @@ interface StaffAttributionSelectProps {
   value?: string | null;
   onChange: (staffId: string | null) => void;
   disabled?: boolean;
+  compact?: boolean;
+  className?: string;
 }
 
 export function StaffAttributionSelect({
@@ -16,6 +18,8 @@ export function StaffAttributionSelect({
   value,
   onChange,
   disabled = false,
+  compact = false,
+  className = "",
 }: StaffAttributionSelectProps) {
   const hasSpecificBranch = Boolean(branchId && branchId !== "all");
   const { data, isLoading, isError } = useEmployees(
@@ -28,8 +32,38 @@ export function StaffAttributionSelect({
   );
   const employees = data?.data || [];
 
+  if (compact) {
+    return (
+      <div className={`flex items-center gap-1.5 min-w-0 ${className}`}>
+        <span className="text-[10px] text-muted-foreground shrink-0 font-medium">{label}:</span>
+        <select
+          aria-label={label}
+          value={value || ""}
+          onChange={(event) => onChange(event.target.value || null)}
+          disabled={disabled || !hasSpecificBranch || isLoading || isError}
+          className="h-6 max-w-[170px] truncate rounded border border-input/60 bg-background px-1.5 text-[11px] text-foreground focus:outline-hidden focus:ring-1 focus:ring-ring"
+        >
+          <option value="">
+            {isLoading
+              ? "Loading..."
+              : isError
+                ? "Unavailable"
+                : employees.length
+                  ? "Select staff"
+                  : "No active staff"}
+          </option>
+          {employees.map((employee) => (
+            <option key={employee.id} value={employee.id}>
+              {employee.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
   return (
-    <label className="block space-y-1">
+    <label className={`block space-y-1 ${className}`}>
       <span className="text-xs font-medium text-foreground">{label}</span>
       <select
         aria-label={label}

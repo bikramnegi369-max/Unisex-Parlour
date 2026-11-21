@@ -5,6 +5,11 @@ export interface AllowanceDeductionItem {
   amount: number;
 }
 
+export interface PaidLeavePolicy {
+  annualEntitlement: number;
+  carryForwardDays?: number;
+}
+
 export interface SalaryStructure {
   id?: string;
   _id?: string;
@@ -12,6 +17,7 @@ export interface SalaryStructure {
   payType: "fixed_monthly" | "hourly";
   baseSalary: number;
   hourlyRate: number;
+  paidLeavePolicy?: PaidLeavePolicy;
   allowances: AllowanceDeductionItem[];
   deductions: AllowanceDeductionItem[];
   effectiveFrom: string;
@@ -77,6 +83,7 @@ export interface PayrollRecord {
     payType: string;
     baseSalary: number;
     hourlyRate: number;
+    paidLeavePolicy?: PaidLeavePolicy;
     allowances: AllowanceDeductionItem[];
     deductions: AllowanceDeductionItem[];
   };
@@ -88,9 +95,12 @@ export interface PayrollRecord {
     earlyDepartureDays: number;
     incompleteDays: number;
     unresolvedConflicts: number;
+    paidLeaveEntitlement?: number;
+    previouslyConsumedPaidLeave?: number;
     paidLeaveDays: number;
     unpaidLeaveDays: number;
     absentDays: number;
+    payableDays?: number;
   };
   incentiveEvaluationIds?: string[];
   incentiveAmountInPaise?: number;
@@ -103,6 +113,9 @@ export interface PayrollRecord {
   incentiveLedgerAmountInPaise?: number;
   calculations: {
     prorationFactor: number;
+    dailySalaryRate?: number;
+    payableDays?: number;
+    proratedBaseSalary?: number;
     grossBaseSalary: number;
     totalAllowances: number;
     totalGrossPay: number;

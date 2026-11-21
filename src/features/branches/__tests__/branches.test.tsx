@@ -441,7 +441,7 @@ describe("Branches Feature Module", () => {
         permissions: ["appointments.view", "billing.create"],
         hasOrgWideAccess: false,
         branchAccess: [
-          { branchId: "b-stylist-1", branchName: "Stylist Studio", isActive: true },
+          { branchId: "b-stylist-1", isActive: true } as any,
         ],
       };
 

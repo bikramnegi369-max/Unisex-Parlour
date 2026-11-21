@@ -41,6 +41,8 @@ import {
   useCommitAppointmentServices,
 } from "../hooks/useAppointments";
 import { useSubscriptions } from "@/features/subscriptions/hooks/useSubscriptions";
+import { useCustomerActiveBenefits } from "@/features/memberships/hooks/useMemberships";
+import { isServiceEligibleForMembershipBenefits } from "@/features/memberships/utils/membershipEligibility";
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 import type {
   Appointment,
@@ -95,6 +97,12 @@ export function EditAppointmentServicesDialog({
         return s.status === "active" || s.status === "pending_payment";
       }),
     [customerSubscriptionsData?.data],
+  );
+
+  // 1d. Fetch active & pending_payment customer membership benefits
+  const { data: activeMembershipBenefits } = useCustomerActiveBenefits(
+    customerId || "",
+    appointment?.branchId,
   );
 
   // Build remaining quota map per serviceId across active customer subscriptions
@@ -419,7 +427,14 @@ export function EditAppointmentServicesDialog({
   const draftTotals = useMemo(() => {
     let gross = 0;
     let subscriptionDeduction = 0;
+    let membershipDeduction = 0;
     let coveredCount = 0;
+    let memberDiscountedCount = 0;
+
+    const memBenefits = activeMembershipBenefits?.hasActiveMembership
+      ? activeMembershipBenefits.planSnapshot?.benefits
+      : null;
+    const memDiscountPct = memBenefits?.serviceDiscountPercentage || 0;
 
     for (const l of selectedLines) {
       const lineCost = l.customPrice ?? l.price ?? 0;
@@ -427,16 +442,27 @@ export function EditAppointmentServicesDialog({
       if (l.appliedSubscriptionId || l.isRedeemedViaSubscription) {
         subscriptionDeduction += lineCost;
         coveredCount += 1;
+      } else if (memBenefits && memDiscountPct > 0) {
+        const srvObj = l.serviceId
+          ? allServices.find((s) => s.id === l.serviceId) || { id: l.serviceId }
+          : undefined;
+        if (srvObj && isServiceEligibleForMembershipBenefits(srvObj, memBenefits)) {
+          const discountAmt = Math.round((lineCost * memDiscountPct) / 100);
+          membershipDeduction += discountAmt;
+          memberDiscountedCount += 1;
+        }
       }
     }
 
     return {
       gross,
       subscriptionDeduction,
-      netPayable: Math.max(0, gross - subscriptionDeduction),
+      membershipDeduction,
+      netPayable: Math.max(0, gross - subscriptionDeduction - membershipDeduction),
       coveredCount,
+      memberDiscountedCount,
     };
-  }, [selectedLines]);
+  }, [selectedLines, activeMembershipBenefits, allServices]);
 
   const draftTotalPrice = draftTotals.netPayable;
 
@@ -1079,6 +1105,34 @@ export function EditAppointmentServicesDialog({
                     line.serviceType === "custom" ||
                     !line.serviceId,
                   );
+
+                  const memBenefits = activeMembershipBenefits?.hasActiveMembership
+                    ? activeMembershipBenefits.planSnapshot?.benefits
+                    : null;
+                  const memDiscountPct = memBenefits?.serviceDiscountPercentage || 0;
+                  const srvObj = line.serviceId
+                    ? allServices.find((s) => s.id === line.serviceId) || {
+                        id: line.serviceId,
+                      }
+                    : undefined;
+                  const isMemEligible =
+                    !isCovered &&
+                    !isCustomLine &&
+                    Boolean(
+                      srvObj &&
+                        memBenefits &&
+                        memDiscountPct > 0 &&
+                        isServiceEligibleForMembershipBenefits(
+                          srvObj,
+                          memBenefits,
+                        ),
+                    );
+                  const memDiscountAmt = isMemEligible
+                    ? Math.round(
+                        ((line.customPrice ?? line.price ?? 0) * memDiscountPct) /
+                          100,
+                      )
+                    : 0;
                   const lineKey =
                     line.serviceId ||
                     line._id ||
@@ -1199,6 +1253,15 @@ export function EditAppointmentServicesDialog({
                                 ) : null}
                               </div>
                             ) : null)}
+
+                          {!isCovered && isMemEligible && (
+                            <div className="inline-flex items-center gap-1.5 flex-nowrap shrink-0">
+                              <span className="h-6 inline-flex items-center gap-1.5 px-2.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-500/30 whitespace-nowrap shadow-2xs shrink-0">
+                                <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
+                                <span>Member Privilege (-{memDiscountPct}%)</span>
+                              </span>
+                            </div>
+                          )}
                         </div>
                         <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-2 mt-1">
                           <span className="flex items-center gap-1">
@@ -1216,6 +1279,12 @@ export function EditAppointmentServicesDialog({
                             <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
                               <Tag className="h-2.5 w-2.5" />
                               Negotiated Price
+                            </span>
+                          )}
+                          {isMemEligible && (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              Member Price: {formatCurrency(Math.max(0, (line.customPrice ?? line.price ?? 0) - memDiscountAmt))}
                             </span>
                           )}
                         </div>
@@ -1410,6 +1479,23 @@ export function EditAppointmentServicesDialog({
                               <span>View Subscribed</span>
                               <ChevronRight className="h-3 w-3" />
                             </button>
+                          </div>
+                        )}
+
+                      {/* Membership Plan Active Banner */}
+                      {activeMembershipBenefits?.hasActiveMembership &&
+                        !serviceSearchQuery && (
+                          <div className="flex items-center justify-between gap-3 px-3 py-2 bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 rounded-xl text-xs transition-all">
+                            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 min-w-0">
+                              <Sparkles className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                              <span className="truncate font-medium">
+                                Active Membership:{" "}
+                                <span className="font-bold">
+                                  {activeMembershipBenefits.planSnapshot?.name || "Member Tier"}
+                                </span>{" "}
+                                ({activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services)
+                              </span>
+                            </div>
                           </div>
                         )}
 
@@ -1837,6 +1923,17 @@ export function EditAppointmentServicesDialog({
                     </span>
                   </>
                 )}
+                {draftTotals.membershipDeduction > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="text-amber-600 dark:text-amber-400 font-bold flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      Member Saved: -
+                      {formatCurrency(draftTotals.membershipDeduction)} (
+                      {draftTotals.memberDiscountedCount})
+                    </span>
+                  </>
+                )}
                 <span>•</span>
                 <span className="text-primary font-bold text-sm">
                   Payable: {formatCurrency(draftTotalPrice)}
@@ -1945,6 +2042,44 @@ export function EditAppointmentServicesDialog({
                   </div>
                 </div>
               </div>
+
+              {/* Recalculated Financial Impact */}
+              {previewData.initiatingAppointment?.pricing && (
+                <div className="p-3 bg-card border border-border rounded-xl space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Recalculated Financial Impact
+                  </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">
+                      Subtotal:{" "}
+                      <span className="font-semibold text-foreground">
+                        {formatCurrency(
+                          previewData.initiatingAppointment.pricing.subtotal,
+                        )}
+                      </span>
+                    </span>
+                    {(previewData.initiatingAppointment.pricing.discount || 0) >
+                      0 && (
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Privilege Discount: -
+                        {formatCurrency(
+                          previewData.initiatingAppointment.pricing.discount ||
+                            0,
+                        )}
+                      </span>
+                    )}
+                    <span className="font-bold text-foreground">
+                      Payable:{" "}
+                      <span className="text-sm font-extrabold text-primary">
+                        {formatCurrency(
+                          previewData.initiatingAppointment.pricing.total,
+                        )}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Affected Bookings in Cascade */}
               {(() => {

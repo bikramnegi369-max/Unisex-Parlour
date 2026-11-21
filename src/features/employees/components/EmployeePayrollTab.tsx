@@ -55,6 +55,8 @@ export function EmployeePayrollTab({
   );
   const [baseSalary, setBaseSalary] = useState<number>(0);
   const [hourlyRate, setHourlyRate] = useState<number>(0);
+  const [annualPaidLeave, setAnnualPaidLeave] = useState<number>(0);
+  const [carryForwardDays, setCarryForwardDays] = useState<number>(0);
   const [effectiveFrom, setEffectiveFrom] = useState<string>(
     new Date().toISOString().split("T")[0],
   );
@@ -115,12 +117,16 @@ export function EmployeePayrollTab({
       setPayType(activeStructure.payType || "fixed_monthly");
       setBaseSalary(activeStructure.baseSalary || 0);
       setHourlyRate(activeStructure.hourlyRate || 0);
+      setAnnualPaidLeave(activeStructure.paidLeavePolicy?.annualEntitlement || 0);
+      setCarryForwardDays(activeStructure.paidLeavePolicy?.carryForwardDays || 0);
       setAllowances(activeStructure.allowances || []);
       setDeductions(activeStructure.deductions || []);
     } else {
       setPayType("fixed_monthly");
       setBaseSalary(0);
       setHourlyRate(0);
+      setAnnualPaidLeave(0);
+      setCarryForwardDays(0);
       setAllowances([]);
       setDeductions([]);
     }
@@ -158,6 +164,10 @@ export function EmployeePayrollTab({
       payType,
       baseSalary: Number(baseSalary),
       hourlyRate: Number(hourlyRate),
+      paidLeavePolicy: {
+        annualEntitlement: Number(annualPaidLeave || 0),
+        carryForwardDays: Number(carryForwardDays || 0),
+      },
       allowances: allowances.filter((a) => a.name.trim() && a.amount > 0),
       deductions: deductions.filter((d) => d.name.trim() && d.amount > 0),
       effectiveFrom: new Date(effectiveFrom).toISOString(),
@@ -216,7 +226,7 @@ export function EmployeePayrollTab({
           </div>
         ) : activeStructure ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="p-4 rounded-xl bg-muted/40 border">
                 <span className="text-xs font-medium text-muted-foreground">
                   Base Monthly Rate
@@ -232,6 +242,21 @@ export function EmployeePayrollTab({
                 </span>
                 <div className="text-base font-semibold capitalize text-foreground mt-1.5">
                   {activeStructure.payType.replace("_", " ")}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-muted/40 border">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Annual Paid Leave
+                </span>
+                <div className="text-xl font-bold font-mono text-foreground mt-1 flex items-baseline gap-1">
+                  <span>{activeStructure.paidLeavePolicy?.annualEntitlement ?? 0}</span>
+                  <span className="text-xs font-normal text-muted-foreground">days</span>
+                  {(activeStructure.paidLeavePolicy?.carryForwardDays || 0) > 0 && (
+                    <span className="text-xs font-normal text-emerald-600 ml-1">
+                      (+{activeStructure.paidLeavePolicy?.carryForwardDays} CF)
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -585,6 +610,51 @@ export function EmployeePayrollTab({
               Determines the starting payroll period from which this
               compensation applies.
             </p>
+          </div>
+
+          {/* Paid Leave Policy Section */}
+          <div className="space-y-3 border-t pt-3">
+            <span className="text-xs font-bold uppercase text-foreground block">
+              Paid Leave Policy
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-semibold block text-foreground mb-1">
+                  Annual Paid Leave Entitlement (Days)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  step="0.5"
+                  required
+                  value={annualPaidLeave}
+                  onChange={(e) => setAnnualPaidLeave(Number(e.target.value))}
+                  className="h-9 text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Eligible paid leave days per calendar year.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold block text-foreground mb-1">
+                  Carry-Forward Days (Optional)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="365"
+                  step="0.5"
+                  value={carryForwardDays}
+                  onChange={(e) => setCarryForwardDays(Number(e.target.value))}
+                  className="h-9 text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Unused balance carried forward from previous leave year.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Allowances */}

@@ -16,5 +16,6 @@ export {
   usePreviewAppointmentServices,
   useCommitAppointmentServices,
   useUpsellAppointmentSubscription,
+  useUpsellAppointmentMembership,
 } from "./useAppointmentMutations";
 

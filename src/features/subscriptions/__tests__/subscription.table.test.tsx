@@ -260,5 +260,160 @@ describe("SubscriptionTable & Columns", () => {
     fireEvent.click(renewButtons[0]);
     expect(onRenew).toHaveBeenCalledWith(mockSubscriptions[0]);
   });
+
+  describe("Invoice Lifecycle Actions and Visibilities", () => {
+    it("renders 'Generate Separate Invoice' when subscription has no invoice", () => {
+      const onGenerateInvoice = vi.fn();
+      const uninvoicedSub: Subscription = {
+        ...mockSubscriptions[0],
+        id: "sub_uninvoiced",
+        invoiceId: undefined,
+      };
+
+      const columns = getSubscriptionColumns({
+        onView,
+        onEdit,
+        onCancel,
+        onRedeem,
+        onGenerateInvoice,
+        canView: true,
+        canEdit: true,
+        canCancel: true,
+        canRedeem: true,
+        canGenerateInvoice: true,
+        getBranchName,
+      });
+
+      render(
+        <SubscriptionTable
+          columns={columns}
+          data={[uninvoicedSub]}
+          isLoading={false}
+          onView={onView}
+          onEdit={onEdit}
+          onCancel={onCancel}
+          onRedeem={onRedeem}
+          onGenerateInvoice={onGenerateInvoice}
+          canView={true}
+          canEdit={true}
+          canCancel={true}
+          canRedeem={true}
+          canGenerateInvoice={true}
+          getBranchName={getBranchName}
+        />
+      );
+
+      const generateButtons = screen.getAllByTitle("Generate Separate Invoice");
+      expect(generateButtons.length).toBeGreaterThan(0);
+      fireEvent.click(generateButtons[0]);
+      expect(onGenerateInvoice).toHaveBeenCalledWith(uninvoicedSub);
+    });
+
+    it("renders 'Generate New Invoice' when previous invoice was cancelled", () => {
+      const onGenerateInvoice = vi.fn();
+      const cancelledInvoiceSub: Subscription = {
+        ...mockSubscriptions[0],
+        id: "sub_cancelled_inv",
+        invoiceId: {
+          id: "inv_cancelled",
+          status: "cancelled",
+        },
+        invoiceHistory: [
+          {
+            invoiceId: "inv_cancelled",
+            invoiceNumber: "INV-001",
+            status: "cancelled",
+            issuedAt: "2026-09-01T00:00:00Z",
+            cancelledAt: "2026-09-02T00:00:00Z",
+          },
+        ],
+      };
+
+      const columns = getSubscriptionColumns({
+        onView,
+        onEdit,
+        onCancel,
+        onRedeem,
+        onGenerateInvoice,
+        canView: true,
+        canEdit: true,
+        canCancel: true,
+        canRedeem: true,
+        canGenerateInvoice: true,
+        getBranchName,
+      });
+
+      render(
+        <SubscriptionTable
+          columns={columns}
+          data={[cancelledInvoiceSub]}
+          isLoading={false}
+          onView={onView}
+          onEdit={onEdit}
+          onCancel={onCancel}
+          onRedeem={onRedeem}
+          onGenerateInvoice={onGenerateInvoice}
+          canView={true}
+          canEdit={true}
+          canCancel={true}
+          canRedeem={true}
+          canGenerateInvoice={true}
+          getBranchName={getBranchName}
+        />
+      );
+
+      const regenButtons = screen.getAllByTitle("Generate New Invoice (Replacement)");
+      expect(regenButtons.length).toBeGreaterThan(0);
+      fireEvent.click(regenButtons[0]);
+      expect(onGenerateInvoice).toHaveBeenCalledWith(cancelledInvoiceSub);
+    });
+
+    it("renders 'View Invoice' link when subscription has active or paid invoice", () => {
+      const activeInvoiceSub: Subscription = {
+        ...mockSubscriptions[0],
+        id: "sub_active_inv",
+        invoiceId: {
+          id: "inv_active_123",
+          status: "draft",
+          invoiceNumber: "INV-100",
+        },
+      };
+
+      const columns = getSubscriptionColumns({
+        onView,
+        onEdit,
+        onCancel,
+        onRedeem,
+        canView: true,
+        canEdit: true,
+        canCancel: true,
+        canRedeem: true,
+        canGenerateInvoice: true,
+        getBranchName,
+      });
+
+      render(
+        <SubscriptionTable
+          columns={columns}
+          data={[activeInvoiceSub]}
+          isLoading={false}
+          onView={onView}
+          onEdit={onEdit}
+          onCancel={onCancel}
+          onRedeem={onRedeem}
+          canView={true}
+          canEdit={true}
+          canCancel={true}
+          canRedeem={true}
+          canGenerateInvoice={true}
+          getBranchName={getBranchName}
+        />
+      );
+
+      const viewInvoiceLinks = screen.getAllByTitle("View Invoice");
+      expect(viewInvoiceLinks.length).toBeGreaterThan(0);
+      expect(viewInvoiceLinks[0].getAttribute("href")).toBe("/billing/inv_active_123");
+    });
+  });
 });
 

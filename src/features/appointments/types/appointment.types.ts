@@ -48,6 +48,10 @@ export interface AppointmentServiceSnapshot {
   subscriptionPlanName?: string | null;
   isRedeemedViaSubscription?: boolean;
   subscriptionUsageId?: string | null;
+  appliedCustomerMembershipId?: string | null;
+  membershipCode?: string | null;
+  membershipDiscountAmount?: number;
+  membershipDiscountPercentage?: number;
 }
 
 export interface AppointmentPricing {
@@ -303,6 +307,10 @@ export interface ServiceModificationPreviewData {
       appliedSubscriptionId?: string | null;
       serviceType?: "registered" | "custom";
       isCustom?: boolean;
+      appliedCustomerMembershipId?: string | null;
+      membershipCode?: string | null;
+      membershipDiscountAmount?: number;
+      membershipDiscountPercentage?: number;
     }>;
   };
   duration?: number;
@@ -320,6 +328,10 @@ export interface ServiceModificationPreviewData {
     appliedSubscriptionId?: string | null;
     serviceType?: "registered" | "custom";
     isCustom?: boolean;
+    appliedCustomerMembershipId?: string | null;
+    membershipCode?: string | null;
+    membershipDiscountAmount?: number;
+    membershipDiscountPercentage?: number;
   }>;
   affectedAppointments?: CascadeAffectedAppointment[];
   shiftedAppointments?: CascadeAffectedAppointment[];
@@ -429,4 +441,46 @@ export interface UpsellSubscriptionResponse {
   message?: string;
   data: UpsellSubscriptionResponseData;
 }
+
+export interface UpsellMembershipPayload {
+  branchId?: string;
+  planId?: string | null;
+  payerCustomerId?: string | null;
+  beneficiaryCustomerIds?: string[];
+  beneficiaries?: Array<{
+    customerId: string;
+    benefits?: Partial<import("@/features/memberships/types/membership.types").MembershipBenefits>;
+  }>;
+  soldByStaffId?: string | null;
+  notes?: string;
+  billImmediately?: boolean;
+  customPlan?: {
+    name: string;
+    price: number;
+    validityMonths?: number;
+    maxBeneficiaries?: number;
+    benefits?: Partial<import("@/features/memberships/types/membership.types").MembershipBenefits>;
+  };
+}
+
+export interface UpsellMembershipResponseData {
+  customerMembership: import("@/features/memberships/types/membership.types").CustomerMembership;
+  customerMemberships: import("@/features/memberships/types/membership.types").CustomerMembership[];
+  invoice?: import("@/features/billing/types/billing.types").Invoice;
+  invoiceId?: string;
+  appointment?: Appointment;
+  summary?: {
+    appliedMembershipCode?: string;
+    newlyDiscountedServicesCount?: number;
+    totalMembershipDiscount?: number;
+  };
+}
+
+export interface UpsellMembershipResponse {
+  success: boolean;
+  status: string;
+  message?: string;
+  data: UpsellMembershipResponseData;
+}
+
 

@@ -827,9 +827,12 @@ export function PayrollDashboardView() {
                           <div className="text-xs space-y-0.5">
                             <div className="font-mono text-[11px]">
                               <span className="font-semibold text-emerald-600">
-                                {att.presentDays}
+                                {att.payableDays != null ? att.payableDays : (att.presentDays + att.paidLeaveDays)}
                               </span>{" "}
-                              / {att.eligibleDays} days present
+                              payable days
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {att.presentDays} present · {att.paidLeaveDays} paid leave
                             </div>
                             {att.unpaidLeaveDays > 0 && (
                               <div className="text-red-500 font-semibold text-[10px]">

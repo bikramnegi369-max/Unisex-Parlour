@@ -114,19 +114,56 @@ export function CalculationBreakdownDialog({
           </div>
         </div>
 
-        {/* Step-by-Step Proration Mathematical Transparency */}
+        {/* Step-by-Step Attendance-Driven Mathematical Transparency */}
         <div className="border rounded-xl p-4 bg-background space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            1. Calendar-Day Proration Formula
+            1. Attendance-Driven Salary Calculation
           </h4>
-          <div className="p-3 rounded-lg bg-muted/40 font-mono text-xs text-foreground space-y-1 border">
+          <div className="p-3 rounded-lg bg-muted/40 font-mono text-xs text-foreground space-y-2 border">
             <div>
-              Daily Rate = Base Salary (₹{structure.baseSalary.toLocaleString()}) ÷ Total Month Days ({att.totalDaysInMonth}) ={" "}
-              <strong>₹{(structure.baseSalary / att.totalDaysInMonth).toFixed(2)} / day</strong>
+              Daily Rate = Monthly Base Salary (₹{structure.baseSalary.toLocaleString()}) ÷ Total Month Days ({att.totalDaysInMonth}) ={" "}
+              <strong>₹{(calc.dailySalaryRate || structure.baseSalary / att.totalDaysInMonth).toFixed(2)} / day</strong>
             </div>
             <div>
-              Gross Base = Daily Rate × Eligible Days ({att.eligibleDays}) ={" "}
-              <strong className="text-emerald-600">₹{calc.grossBaseSalary.toLocaleString()}</strong>
+              Payable Days = Verified Present Days ({att.presentDays}) + Eligible Paid Leave ({att.paidLeaveDays}) ={" "}
+              <strong className="text-blue-600 font-bold">{att.payableDays ?? (att.presentDays + att.paidLeaveDays)} days</strong>
+            </div>
+            <div>
+              Prorated Base Salary = Daily Rate × Payable Days ={" "}
+              <strong className="text-emerald-600">₹{(calc.proratedBaseSalary || calc.grossBaseSalary).toLocaleString()}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* Paid Leave Entitlement Transparency */}
+        <div className="border rounded-xl p-4 bg-background space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            2. Paid Leave Entitlement Consumption
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+            <div className="p-2.5 rounded-lg border bg-muted/20">
+              <span className="block text-[11px] text-muted-foreground">Annual Entitlement</span>
+              <span className="font-bold text-sm text-foreground">
+                {att.paidLeaveEntitlement ?? (structure.paidLeavePolicy?.annualEntitlement ?? 0)} days
+              </span>
+            </div>
+            <div className="p-2.5 rounded-lg border bg-muted/20">
+              <span className="block text-[11px] text-muted-foreground">Previously Consumed</span>
+              <span className="font-bold text-sm text-foreground">
+                {att.previouslyConsumedPaidLeave ?? 0} days
+              </span>
+            </div>
+            <div className="p-2.5 rounded-lg border bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200/50">
+              <span className="block text-[11px] text-emerald-800 dark:text-emerald-300">Paid Leave This Period</span>
+              <span className="font-bold text-sm text-emerald-600">
+                {att.paidLeaveDays} days
+              </span>
+            </div>
+            <div className="p-2.5 rounded-lg border bg-red-50 dark:bg-red-950/40 border-red-200/50">
+              <span className="block text-[11px] text-red-800 dark:text-red-300">Unpaid Leave (LOP)</span>
+              <span className="font-bold text-sm text-red-600">
+                {att.unpaidLeaveDays} days
+              </span>
             </div>
           </div>
         </div>
@@ -134,7 +171,7 @@ export function CalculationBreakdownDialog({
         {/* Attendance & Leave Ingestion Summary */}
         <div className="border rounded-xl p-4 bg-background space-y-3">
           <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            2. Attendance Muster Roll & Leave Records
+            3. Attendance Muster Roll & Leave Records
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
             <div className="p-2.5 rounded-lg bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/50">
@@ -163,7 +200,7 @@ export function CalculationBreakdownDialog({
         {record.adjustments && record.adjustments.length > 0 && (
           <div className="border rounded-xl p-4 bg-background space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              3. Authorized Manual Adjustments
+              4. Authorized Manual Adjustments
             </h4>
             <div className="space-y-1.5 text-xs">
               {record.adjustments.map((adj, idx) => (

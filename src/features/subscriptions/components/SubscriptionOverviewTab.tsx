@@ -115,17 +115,27 @@ export function SubscriptionOverviewTab({
                 </span>
               </div>
             )}
-            {subscription.invoiceId && (
-              <div className="flex justify-between items-center pt-1 border-t border-border/50">
-                <span className="text-muted-foreground">Sale Invoice:</span>
-                <Link
-                  href={`/billing/${subscription.invoiceId}`}
-                  className="font-bold text-xs text-primary underline underline-offset-2 hover:opacity-80"
-                >
-                  {subscription.invoiceNumber || `#${subscription.invoiceId.slice(-6)}`}
-                </Link>
-              </div>
-            )}
+            {(() => {
+              const invId =
+                typeof subscription.invoiceId === "object" && subscription.invoiceId !== null
+                  ? (subscription.invoiceId as { id?: string; _id?: string }).id ||
+                    (subscription.invoiceId as { id?: string; _id?: string })._id
+                  : subscription.invoiceId;
+
+              if (!invId) return null;
+
+              return (
+                <div className="flex justify-between items-center pt-1 border-t border-border/50">
+                  <span className="text-muted-foreground">Sale Invoice:</span>
+                  <Link
+                    href={`/billing/${invId}`}
+                    className="font-bold text-xs text-primary underline underline-offset-2 hover:opacity-80"
+                  >
+                    {subscription.invoiceNumber || `#${invId.slice(-6)}`}
+                  </Link>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </div>

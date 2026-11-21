@@ -14,7 +14,7 @@ describe("Incentives Frontend Route, Permissions & Navigation Contract Verificat
       email: "manager@salon.com",
       role: "manager",
       organizationId: "org_1",
-      branchAccess: [{ branchId: "b1", role: "manager", isActive: true }],
+      branchAccess: [{ branchId: "b1", branchName: "Main Branch", isActive: true }],
       permissions: ["incentives.view"],
     };
 
@@ -28,7 +28,7 @@ describe("Incentives Frontend Route, Permissions & Navigation Contract Verificat
       email: "stylist@salon.com",
       role: "stylist",
       organizationId: "org_1",
-      branchAccess: [{ branchId: "b1", role: "stylist", isActive: true }],
+      branchAccess: [{ branchId: "b1", branchName: "Main Branch", isActive: true }],
       permissions: ["appointments.view"],
     };
 

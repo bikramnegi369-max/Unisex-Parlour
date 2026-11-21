@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useForm, type Resolver } from "react-hook-form";
+import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Settings, CheckCircle2, ShieldAlert } from "lucide-react";
@@ -26,6 +26,7 @@ export function LoyaltyProgramConfigCard() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting, isDirty },
     reset,
   } = useForm<LoyaltyProgramConfigFormValues>({
@@ -39,6 +40,9 @@ export function LoyaltyProgramConfigCard() {
       redemptionRate: 1,
       minRedemptionPoints: 20,
       maxRedemptionPercentage: 20,
+      earnOnSubscriptions: false,
+      earnOnMembershipPurchases: true,
+      maxPointsPerInvoice: null,
     },
     values: config
       ? {
@@ -48,8 +52,16 @@ export function LoyaltyProgramConfigCard() {
           redemptionRate: config.redemptionRate,
           minRedemptionPoints: config.minRedemptionPoints,
           maxRedemptionPercentage: config.maxRedemptionPercentage,
+          earnOnSubscriptions: config.earnOnSubscriptions ?? false,
+          earnOnMembershipPurchases: config.earnOnMembershipPurchases ?? true,
+          maxPointsPerInvoice: config.maxPointsPerInvoice ?? null,
         }
       : undefined,
+  });
+
+  const maxPointsPerInvoice = useWatch({
+    control,
+    name: "maxPointsPerInvoice",
   });
 
   const onSubmit = async (values: LoyaltyProgramConfigFormValues) => {
@@ -68,6 +80,9 @@ export function LoyaltyProgramConfigCard() {
         redemptionRate: values.redemptionRate,
         minRedemptionPoints: values.minRedemptionPoints,
         maxRedemptionPercentage: values.maxRedemptionPercentage,
+        earnOnSubscriptions: values.earnOnSubscriptions,
+        earnOnMembershipPurchases: values.earnOnMembershipPurchases,
+        maxPointsPerInvoice: values.maxPointsPerInvoice,
       });
       toast.success("Loyalty program configuration updated successfully.");
       reset(values);
@@ -292,6 +307,92 @@ export function LoyaltyProgramConfigCard() {
               Default: 20% max bill coverage
             </p>
           </div>
+        </div>
+
+        {/* NEW: Max Points Per Invoice */}
+        <div className="space-y-1.5 pt-3 border-t border-border/60">
+          <label
+            htmlFor="maxPointsPerInvoice"
+            className="text-xs font-semibold text-foreground"
+          >
+            Max Points Per Invoice
+          </label>
+          <Input
+            id="maxPointsPerInvoice"
+            type="number"
+            min="0"
+            step="1"
+            disabled={!canConfigure}
+            {...register("maxPointsPerInvoice")}
+            className="text-xs"
+          />
+          {errors.maxPointsPerInvoice && (
+            <p className="text-[10px] text-destructive">
+              {errors.maxPointsPerInvoice.message}
+            </p>
+          )}
+          <p className="text-[10px] text-muted-foreground ml-2">
+            Maximum loyalty points that can be earned per invoice:{" "}
+            {maxPointsPerInvoice === null ||
+            maxPointsPerInvoice === undefined ||
+            maxPointsPerInvoice === ("" as unknown as number) ? (
+              <span className="font-medium text-primary">unlimited</span>
+            ) : (
+              <span className="font-medium text-primary">
+                {maxPointsPerInvoice}
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* NEW: Earn on Subscriptions */}
+        <div className="space-y-1.5 pt-3 border-t border-border/60">
+          <label
+            htmlFor="earnOnSubscriptions"
+            className="text-xs font-semibold text-foreground"
+          >
+            Earn on Subscriptions
+          </label>
+          <Input
+            id="earnOnSubscriptions"
+            type="checkbox"
+            disabled={!canConfigure}
+            {...register("earnOnSubscriptions")}
+            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+          />
+          {errors.earnOnSubscriptions && (
+            <p className="text-[10px] text-destructive">
+              {errors.earnOnSubscriptions.message}
+            </p>
+          )}
+          <p className="text-[10px] text-muted-foreground ml-2">
+            Include subscription purchases in loyalty points earning
+          </p>
+        </div>
+
+        {/* NEW: Earn on Membership Purchases */}
+        <div className="space-y-1.5 pt-3 border-t border-border/60">
+          <label
+            htmlFor="earnOnMembershipPurchases"
+            className="text-xs font-semibold text-foreground"
+          >
+            Earn on Membership Purchases
+          </label>
+          <Input
+            id="earnOnMembershipPurchases"
+            type="checkbox"
+            disabled={!canConfigure}
+            {...register("earnOnMembershipPurchases")}
+            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+          />
+          {errors.earnOnMembershipPurchases && (
+            <p className="text-[10px] text-destructive">
+              {errors.earnOnMembershipPurchases.message}
+            </p>
+          )}
+          <p className="text-[10px] text-muted-foreground ml-2">
+            Include membership plan purchases in loyalty points earning
+          </p>
         </div>
 
         {/* Master Switch Toggle & Submit */}

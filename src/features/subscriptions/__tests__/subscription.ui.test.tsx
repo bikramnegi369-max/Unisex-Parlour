@@ -19,7 +19,29 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/auth/hooks/useAuth", () => ({
-  useAuth: vi.fn(),
+  useAuth: vi.fn(() => ({
+    user: {
+      id: "usr_1",
+      name: "Admin User",
+      role: "admin",
+      permissions: ["subscriptions.create", "subscriptions.manage", "subscriptions.cancel", "subscriptions.rebill"],
+      hasOrgWideAccess: true,
+      branchAccess: [],
+    },
+    isAuthenticated: true,
+    isLoading: false,
+    isError: false,
+    login: vi.fn(),
+    isLoggingIn: false,
+    logout: vi.fn(),
+    isLoggingOut: false,
+    sendOtp: vi.fn(),
+    isSendingOtp: false,
+    verifyOtp: vi.fn(),
+    isVerifyingOtp: false,
+    activateChangePassword: vi.fn(),
+    isActivatingChangePassword: false,
+  })),
 }));
 
 vi.mock("@/hooks/useBranchContext", () => ({
