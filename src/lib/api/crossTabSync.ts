@@ -18,6 +18,8 @@ export type CrossTabSyncScope =
   | "subscriptions"
   | "loyalty"
   | "inventory"
+  | "expenses"
+  | "finance"
   | "branch"
   | "auth"
   | "all";
@@ -186,6 +188,22 @@ export function useCrossTabSync() {
               key === "service" ||
               key === "service-categories" ||
               key === "service-category"
+            );
+          }
+          if (scope === "expenses") {
+            return (
+              key === "expenses" ||
+              key === "expenses-summary" ||
+              key === "petty-cash-balance" ||
+              key === "petty-cash-transactions"
+            );
+          }
+          if (scope === "finance") {
+            return (
+              key === "finance" ||
+              key === "operating-profit" ||
+              key === "day-closures" ||
+              key === "day-closure-system-totals"
             );
           }
           return key === scope;

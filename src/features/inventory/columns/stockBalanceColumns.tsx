@@ -66,13 +66,26 @@ export const buildStockBalanceColumns = ({
       const item = row.original;
       const available = Math.max(0, item.onHand - (item.allocated ?? 0));
       return (
-        <div className="text-right min-w-28">
+        <div className="text-right min-w-36">
           <span className="font-bold text-foreground text-sm">
             {item.onHand}
           </span>{" "}
           <span className="text-[11px] text-muted-foreground font-normal">
             {item.product?.stockUnit || "units"}
           </span>
+          <div className="text-[11px] text-muted-foreground mt-0.5 space-x-1">
+            <span title="Salon Consumables">Cons: {item.onHandConsumables ?? 0}</span>
+            <span>•</span>
+            <span title="Retail Products">Ret: {item.onHandRetail ?? 0}</span>
+            {(item.onHandUnallocated ?? 0) > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium" title="Unallocated remainder">
+                  Unalloc: {item.onHandUnallocated}
+                </span>
+              </>
+            )}
+          </div>
           {item.allocated > 0 && (
             <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
               ({available} avail / {item.allocated} res)

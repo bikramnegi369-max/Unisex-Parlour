@@ -11,6 +11,62 @@ export interface AttendanceStaff {
   designation: string;
 }
 
+export interface MonthlyMusterRollMetrics {
+  totalDaysInMonth: number;
+  eligibleDays: number;
+  presentDays: number;
+  lateDays: number;
+  earlyDepartureDays: number;
+  incompleteDays: number;
+  approvedPaidLeaveDays: number;
+  approvedUnpaidLeaveDays: number;
+  absentDays: number;
+}
+
+export interface MonthlyMusterRollRow {
+  staff: {
+    _id: string;
+    name: string;
+    staffCode: string;
+    designation: string;
+  };
+  metrics: MonthlyMusterRollMetrics;
+  dailyBreakdown: Record<string, { status: string; date: string; attendanceId?: string; isReconciled?: boolean; leaveId?: string }>;
+}
+
+export interface MonthlyMusterRollResponse {
+  monthYear: string;
+  branchId: string;
+  totalStaff: number;
+  dates: string[];
+  consolidatedTotals: {
+    totalStaff: number;
+    presentDays: number;
+    lateDays: number;
+    earlyDepartureDays: number;
+    incompleteDays: number;
+    approvedPaidLeaveDays: number;
+    approvedUnpaidLeaveDays: number;
+    absentDays: number;
+    totalWorkingDaysEvaluated: number;
+  };
+  musterRoll: MonthlyMusterRollRow[];
+}
+
+export interface RecordStaffPunchPayload {
+  staffId?: string;
+  punchType: "in" | "out";
+  notes?: string;
+}
+
+export interface RecordStaffPunchResponse {
+  punch: AttendancePunch;
+  attendanceRecord: AttendanceRecord | null;
+  attendanceDate: string;
+  status: AttendanceStatus;
+  attendanceClaim: string;
+}
+
 export interface AttendancePunch {
   _id: string;
   punchType: "in" | "out";
@@ -285,5 +341,23 @@ export async function updateStaffDeviceMapping(
 
 export async function deactivateStaffDeviceMapping(id: string): Promise<StaffDeviceMapping> {
   const { data } = await apiClient.delete<ApiResponse<StaffDeviceMapping>>(`/attendance/mappings/${id}`, currentBranch);
+  return data.data;
+}
+
+export async function recordStaffPunch(payload: RecordStaffPunchPayload): Promise<RecordStaffPunchResponse> {
+  const { data } = await apiClient.post<ApiResponse<RecordStaffPunchResponse>>("/attendance/punch", payload, currentBranch);
+  return data.data;
+}
+
+export async function getMonthlyMusterRoll(params: {
+  monthYear: string;
+  branchId?: string;
+  search?: string;
+  status?: string;
+}): Promise<MonthlyMusterRollResponse> {
+  const { data } = await apiClient.get<ApiResponse<MonthlyMusterRollResponse>>("/attendance/monthly-summary", {
+    params,
+    ...currentBranch,
+  });
   return data.data;
 }

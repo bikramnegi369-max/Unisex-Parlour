@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, hasAnyPermission, PermissionType } from "@/lib/permissions";
 import { routePermissions, RoutePath } from "@/lib/permissions/routePermissions";
 import Unauthorized from "./Unauthorized";
 
@@ -51,7 +51,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   const requiredPermission = routePermissions[matchingKey];
-  const isAuthorized = requiredPermission === null || hasPermission(user, requiredPermission);
+  const isAuthorized =
+    requiredPermission === null
+      ? true
+      : Array.isArray(requiredPermission)
+      ? hasAnyPermission(user, requiredPermission as PermissionType[])
+      : hasPermission(user, requiredPermission as PermissionType);
 
   if (!isAuthorized) {
     return <Unauthorized />;

@@ -11,8 +11,15 @@ export const routePermissions = {
   "/roles": "roles.view",
   "/branches": "branches.view",
   "/billing": "billing.view",
+  "/expenses": "expenses.view",
   "/finance": "finance.view",
-  "/reports": "reports.view",
+  "/reports": [
+    "reports.revenue.view",
+    "reports.performance.view",
+    "reports.retention.view",
+    "reports.inventory.view",
+    "reports.services.view",
+  ],
   "/customers": "customers.view",
   "/appointments": "appointments.view",
   "/employees": "employees.view",
@@ -32,7 +39,7 @@ export const routePermissions = {
   "/payroll": "payroll.view",
   "/incentives": "incentives.view",
   "/settings": "settings.view",
-} as const satisfies Record<string, PermissionType | null>;
+} as const satisfies Record<string, PermissionType | readonly PermissionType[] | null>;
 
 export type RoutePath = keyof typeof routePermissions;
 

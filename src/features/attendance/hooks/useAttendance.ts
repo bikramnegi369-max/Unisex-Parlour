@@ -18,6 +18,8 @@ import {
   createStaffDeviceMapping,
   updateStaffDeviceMapping,
   deactivateStaffDeviceMapping,
+  recordStaffPunch,
+  getMonthlyMusterRoll,
 } from "../api/attendance.api";
 
 function useAttendanceAccess(permission: "attendance.view" | "attendance.adjust" | "attendance.punch" = "attendance.view") {
@@ -177,5 +179,39 @@ export function useDeactivateStaffDeviceMapping() {
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-register") }),
       ]);
     },
+  });
+}
+
+export function useRecordStaffPunch() {
+  const queryClient = useQueryClient();
+  const { getBranchQueryKey } = useBranchContext();
+  return useMutation({
+    mutationFn: recordStaffPunch,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-register") }),
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-detail") }),
+        queryClient.invalidateQueries({ queryKey: getBranchQueryKey("monthly-muster-roll") }),
+      ]);
+    },
+  });
+}
+
+export function useMonthlyMusterRoll(params: {
+  monthYear: string;
+  branchId?: string;
+  search?: string;
+  status?: string;
+}) {
+  const { enabled, getBranchQueryKey } = useAttendanceAccess();
+  return useQuery({
+    queryKey: getBranchQueryKey("monthly-muster-roll", [
+      params.monthYear,
+      params.branchId || "current",
+      params.search || "",
+      params.status || "all",
+    ]),
+    queryFn: () => getMonthlyMusterRoll(params),
+    enabled: enabled && Boolean(params.monthYear),
   });
 }

@@ -368,4 +368,180 @@ export const inventoryApi = {
 
     return mapStockBalanceDTO(data.data);
   },
+
+  // 8. Stock Batches (FIFO Lots)
+  async getBatches(params?: {
+    productId?: string;
+    stockDomain?: string;
+    isValued?: boolean;
+    status?: string;
+    branchId?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<any>> {
+    const { data } = await apiClient.get<PaginatedResponse<any>>(
+      "/inventory/batches",
+      {
+        params,
+        branchScope: params?.branchId
+          ? { type: "branch", branchId: params.branchId }
+          : "current",
+      },
+    );
+    return data;
+  },
+
+  // 9. Opening Stock Batch Valuation
+  async valueBatch(
+    batchId: string,
+    payload: {
+      unitCostPrice: number;
+      notes: string;
+      sourceDocumentRef?: string;
+      branchId?: string;
+    },
+  ): Promise<ApiResponse<any>> {
+    const { data } = await apiClient.post<ApiResponse<any>>(
+      `/inventory/batches/${batchId}/valuation`,
+      payload,
+      {
+        branchScope: payload.branchId
+          ? { type: "branch", branchId: payload.branchId }
+          : "current",
+      },
+    );
+    return data;
+  },
+
+  // 10. Stocktake Lifecycle APIs
+  async createStocktake(
+    payload: {
+      title?: string;
+      targetDomain?: "all" | "salon_consumables" | "retail_products";
+      notes?: string;
+      branchId?: string;
+    },
+    idempotencyKey?: string,
+  ): Promise<any> {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) {
+      headers["Idempotency-Key"] = idempotencyKey;
+    }
+    const { data } = await apiClient.post<ApiResponse<any>>(
+      "/inventory/stocktakes",
+      payload,
+      {
+        headers,
+        branchScope: payload.branchId
+          ? { type: "branch", branchId: payload.branchId }
+          : "current",
+      },
+    );
+    return data.data;
+  },
+
+  async listStocktakes(params?: {
+    branchId?: string;
+    status?: string;
+    targetDomain?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<PaginatedResponse<any>> {
+    const { data } = await apiClient.get<PaginatedResponse<any>>(
+      "/inventory/stocktakes",
+      {
+        params,
+        branchScope: params?.branchId
+          ? { type: "branch", branchId: params.branchId }
+          : "current",
+      },
+    );
+    return data;
+  },
+
+  async getStocktakeById(id: string, branchId?: string): Promise<any> {
+    const { data } = await apiClient.get<ApiResponse<any>>(
+      `/inventory/stocktakes/${id}`,
+      {
+        branchScope: branchId
+          ? { type: "branch", branchId }
+          : "current",
+      },
+    );
+    return data.data;
+  },
+
+  async recordStocktakeCounts(
+    id: string,
+    payload: {
+      items: Array<{
+        productId: string;
+        stockDomain: "salon_consumables" | "retail_products";
+        countedQuantity: number;
+        notes?: string;
+      }>;
+      branchId?: string;
+    },
+  ): Promise<any> {
+    const { data } = await apiClient.put<ApiResponse<any>>(
+      `/inventory/stocktakes/${id}/counts`,
+      { items: payload.items },
+      {
+        branchScope: payload.branchId
+          ? { type: "branch", branchId: payload.branchId }
+          : "current",
+      },
+    );
+    return data.data;
+  },
+
+  async getStocktakeDiscrepancies(id: string, branchId?: string): Promise<any> {
+    const { data } = await apiClient.get<ApiResponse<any>>(
+      `/inventory/stocktakes/${id}/discrepancies`,
+      {
+        branchScope: branchId
+          ? { type: "branch", branchId }
+          : "current",
+      },
+    );
+    return data.data;
+  },
+
+  async postStocktake(
+    id: string,
+    payload?: { branchId?: string },
+    idempotencyKey?: string,
+  ): Promise<any> {
+    const headers: Record<string, string> = {};
+    if (idempotencyKey) {
+      headers["Idempotency-Key"] = idempotencyKey;
+    }
+    const { data } = await apiClient.post<ApiResponse<any>>(
+      `/inventory/stocktakes/${id}/post`,
+      {},
+      {
+        headers,
+        branchScope: payload?.branchId
+          ? { type: "branch", branchId: payload.branchId }
+          : "current",
+      },
+    );
+    return data.data;
+  },
+
+  async cancelStocktake(
+    id: string,
+    payload: { reason?: string; branchId?: string },
+  ): Promise<any> {
+    const { data } = await apiClient.post<ApiResponse<any>>(
+      `/inventory/stocktakes/${id}/cancel`,
+      { reason: payload.reason },
+      {
+        branchScope: payload.branchId
+          ? { type: "branch", branchId: payload.branchId }
+          : "current",
+      },
+    );
+    return data.data;
+  },
 };

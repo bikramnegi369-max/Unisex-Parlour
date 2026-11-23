@@ -24,7 +24,13 @@ export const INVENTORY_QUERY_KEYS = {
   stock: (organizationId: string | null, branchId: string | null, filters?: StockFilters) =>
     getScopeQueryKey("inventory-stock", branchId, [organizationId, filters]),
   movements: (organizationId: string | null, branchId: string | null, filters?: MovementFilters) =>
-    getScopeQueryKey("inventory-movements", branchId, [organizationId, filters])
+    getScopeQueryKey("inventory-movements", branchId, [organizationId, filters]),
+  stocktakes: (organizationId: string | null, branchId: string | null, filters?: any) =>
+    getScopeQueryKey("inventory-stocktakes", branchId, [organizationId, filters]),
+  stocktake: (organizationId: string | null, branchId: string | null, id: string) =>
+    getScopeQueryKey("inventory-stocktake-detail", branchId, [organizationId, id]),
+  stocktakeDiscrepancies: (organizationId: string | null, branchId: string | null, id: string) =>
+    getScopeQueryKey("inventory-stocktake-discrepancies", branchId, [organizationId, id]),
 };
 
 export const useProducts = (filters?: ProductFilters) => {
@@ -156,5 +162,167 @@ export const useRecordTransfer = () => {
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-stock" });
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "inventory-movements" });
     }
+  });
+};
+
+export const useStocktakes = (filters?: {
+  branchId?: string;
+  status?: string;
+  targetDomain?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const { currentBranchId, currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+  const effectiveBranchId =
+    filters?.branchId === "all" ? null : filters?.branchId || currentBranchId;
+  const hasScope = effectiveBranchId !== null || hasOrgWideAccess(user);
+
+  return useQuery({
+    queryKey: INVENTORY_QUERY_KEYS.stocktakes(organizationId, effectiveBranchId, filters),
+    queryFn: () => inventoryApi.listStocktakes({ ...filters, branchId: effectiveBranchId || undefined }),
+    enabled:
+      Boolean(organizationId) &&
+      isAuthenticated &&
+      hasPermission(user, "inventory.view") &&
+      hasScope,
+  });
+};
+
+export const useStocktake = (id: string, branchId?: string) => {
+  const { currentBranchId, currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+  const effectiveBranchId = branchId || currentBranchId;
+
+  return useQuery({
+    queryKey: INVENTORY_QUERY_KEYS.stocktake(organizationId, effectiveBranchId, id),
+    queryFn: () => inventoryApi.getStocktakeById(id, effectiveBranchId || undefined),
+    enabled:
+      Boolean(id) &&
+      Boolean(organizationId) &&
+      isAuthenticated &&
+      hasPermission(user, "inventory.view") &&
+      Boolean(effectiveBranchId),
+  });
+};
+
+export const useStocktakeDiscrepancies = (id: string, branchId?: string) => {
+  const { currentBranchId, currentOrganization } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const organizationId = currentOrganization?.id || null;
+  const effectiveBranchId = branchId || currentBranchId;
+
+  return useQuery({
+    queryKey: INVENTORY_QUERY_KEYS.stocktakeDiscrepancies(organizationId, effectiveBranchId, id),
+    queryFn: () => inventoryApi.getStocktakeDiscrepancies(id, effectiveBranchId || undefined),
+    enabled:
+      Boolean(id) &&
+      Boolean(organizationId) &&
+      isAuthenticated &&
+      hasPermission(user, "inventory.view") &&
+      Boolean(effectiveBranchId),
+  });
+};
+
+export const useCreateStocktake = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      payload,
+      idempotencyKey,
+    }: {
+      payload: {
+        title?: string;
+        targetDomain?: "all" | "salon_consumables" | "retail_products";
+        notes?: string;
+        branchId?: string;
+      };
+      idempotencyKey?: string;
+    }) => inventoryApi.createStocktake(payload, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" && query.queryKey[0].startsWith("inventory-stocktakes"),
+      });
+    },
+  });
+};
+
+export const useRecordStocktakeCounts = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: {
+        items: Array<{
+          productId: string;
+          stockDomain: "salon_consumables" | "retail_products";
+          countedQuantity: number;
+          notes?: string;
+        }>;
+        branchId?: string;
+      };
+    }) => inventoryApi.recordStocktakeCounts(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" &&
+          (query.queryKey[0].startsWith("inventory-stocktake-detail") ||
+            query.queryKey[0].startsWith("inventory-stocktake-discrepancies") ||
+            query.queryKey[0].startsWith("inventory-stocktakes")),
+      });
+    },
+  });
+};
+
+export const usePostStocktake = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+      idempotencyKey,
+    }: {
+      id: string;
+      payload?: { branchId?: string };
+      idempotencyKey?: string;
+    }) => inventoryApi.postStocktake(id, payload, idempotencyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" &&
+          (query.queryKey[0].startsWith("inventory-stocktakes") ||
+            query.queryKey[0].startsWith("inventory-stocktake-detail") ||
+            query.queryKey[0].startsWith("inventory-stocktake-discrepancies") ||
+            query.queryKey[0].startsWith("inventory-stock") ||
+            query.queryKey[0].startsWith("inventory-movements")),
+      });
+    },
+  });
+};
+
+export const useCancelStocktake = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { reason?: string; branchId?: string };
+    }) => inventoryApi.cancelStocktake(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          typeof query.queryKey[0] === "string" &&
+          (query.queryKey[0].startsWith("inventory-stocktakes") ||
+            query.queryKey[0].startsWith("inventory-stocktake-detail")),
+      });
+    },
   });
 };

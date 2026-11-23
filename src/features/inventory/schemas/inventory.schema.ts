@@ -95,3 +95,32 @@ export const domainAllocationSchema = z.object({
 });
 
 export type DomainAllocationInput = z.infer<typeof domainAllocationSchema>;
+
+export const createStocktakeSchema = z.object({
+  title: z.string().max(200, "Title cannot exceed 200 characters").trim().optional().default("Physical Stocktake"),
+  targetDomain: z.enum(["all", "salon_consumables", "retail_products"]).default("all"),
+  notes: z.string().max(1000, "Notes cannot exceed 1000 characters").trim().optional().default(""),
+  branchId: z.string().optional(),
+});
+
+export const recordStocktakeCountItemSchema = z.object({
+  productId: objectIdSchema,
+  stockDomain: z.enum(["salon_consumables", "retail_products"]),
+  countedQuantity: z.coerce
+    .number()
+    .min(0, "Counted quantity must be non-negative")
+    .refine(validateDecimalPrecision, "Counted quantity cannot exceed 3 decimal places"),
+  notes: z.string().max(500, "Notes cannot exceed 500 characters").trim().optional().default(""),
+});
+
+export const recordStocktakeCountsSchema = z.object({
+  items: z.array(recordStocktakeCountItemSchema).min(1, "At least one count entry is required"),
+});
+
+export const cancelStocktakeSchema = z.object({
+  reason: z.string().max(500, "Reason cannot exceed 500 characters").trim().optional().default("Cancelled by manager"),
+});
+
+export type CreateStocktakeFormValues = z.infer<typeof createStocktakeSchema>;
+export type RecordStocktakeCountsFormValues = z.infer<typeof recordStocktakeCountsSchema>;
+export type CancelStocktakeFormValues = z.infer<typeof cancelStocktakeSchema>;

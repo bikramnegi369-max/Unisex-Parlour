@@ -7,7 +7,7 @@ import { toggleSidebarCollapse } from "@/store/slices/uiSlice";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasPermission } from "@/lib/permissions";
+import { hasPermission, hasAnyPermission, PermissionType } from "@/lib/permissions";
 import {
   routePermissions,
   RoutePath,
@@ -92,6 +92,7 @@ const navGroups: SidebarGroup[] = [
   {
     title: "Finance & Insights",
     items: [
+      { name: "Expenses", href: "/expenses", icon: Receipt },
       { name: "Finance", href: "/finance", icon: CircleDollarSign },
       { name: "Incentives", href: "/incentives", icon: TrendingUp },
       { name: "Payroll", href: "/payroll", icon: Banknote },
@@ -201,7 +202,10 @@ export default function Sidebar({ onClose }: SidebarProps) {
             if (requiredPermission === null) {
               return true;
             }
-            return hasPermission(user, requiredPermission);
+            if (Array.isArray(requiredPermission)) {
+              return hasAnyPermission(user, requiredPermission as PermissionType[]);
+            }
+            return hasPermission(user, requiredPermission as PermissionType);
           });
 
           if (visibleItems.length === 0) return null;

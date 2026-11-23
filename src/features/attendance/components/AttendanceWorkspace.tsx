@@ -25,11 +25,13 @@ import {
   useRecordLeaveException,
   useResolveBranchAttendanceConflict,
   useResolveLeaveAppointmentConflict,
+  useRecordStaffPunch,
 } from "../hooks/useAttendance";
 import type { AttendanceRegisterStatus, AttendanceStatus } from "../api/attendance.api";
 import StaffDeviceMappingTab from "./StaffDeviceMappingTab";
+import MonthlyMusterRollTab from "./MonthlyMusterRollTab";
 
-type Panel = "register" | "conflicts" | "providers" | "mappings";
+type Panel = "register" | "muster" | "conflicts" | "providers" | "mappings";
 const attendanceStatuses: AttendanceStatus[] = ["present", "late", "early_departure", "incomplete"];
 
 function branchToday(timeZone?: string) {
@@ -90,6 +92,24 @@ export default function AttendanceWorkspace() {
   const resolveAppointmentMutation = useResolveLeaveAppointmentConflict();
   const leaveExceptionMutation = useRecordLeaveException();
   const simulatorMutation = useIngestSimulatorEvents();
+  const punchMutation = useRecordStaffPunch();
+
+  const [punchNotes, setPunchNotes] = useState("");
+
+  const handleQuickPunch = (punchType: "in" | "out") => {
+    punchMutation.mutate(
+      { punchType, notes: punchNotes.trim() || undefined },
+      {
+        onSuccess: (data) => {
+          toast.success(`Successfully clocked ${punchType}! Current status: ${data.status}`);
+          setPunchNotes("");
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Failed to record punch.");
+        },
+      }
+    );
+  };
 
   const rows = useMemo(() => register.data?.data || [], [register.data?.data]);
   const registerSummary = useMemo(() => ({
@@ -187,6 +207,49 @@ export default function AttendanceWorkspace() {
         </div>
       </div>
 
+      {/* Quick Punch Bar for Authenticated Staff */}
+      {canPunch && (
+        <Card className="border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg">
+                <CalendarClock className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Staff Quick Punch</p>
+                <p className="text-xs text-muted-foreground">Clock in or out for your shift at {currentBranch?.name || "current branch"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Input
+                placeholder="Notes (optional)"
+                className="h-9 w-44 text-xs bg-background"
+                value={punchNotes}
+                onChange={(e) => setPunchNotes(e.target.value)}
+              />
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => handleQuickPunch("in")}
+                disabled={punchMutation.isPending}
+              >
+                Clock In
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-slate-300 text-slate-700 hover:bg-slate-100"
+                onClick={() => handleQuickPunch("out")}
+                disabled={punchMutation.isPending}
+              >
+                Clock Out
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-4 text-sm text-muted-foreground">
           A chronological in-punch followed by an out-punch is required to record present. Incomplete or missing punches are not
@@ -198,6 +261,7 @@ export default function AttendanceWorkspace() {
       <div className="flex flex-wrap gap-2 border-b pb-3" role="tablist" aria-label="Attendance sections">
         {([
           ["register", "Daily register"],
+          ["muster", "Monthly Muster Roll"],
           ["conflicts", "Reconciliation"],
           ["providers", "Provider sync"],
           ["mappings", "Device ID Mappings"],
@@ -207,6 +271,13 @@ export default function AttendanceWorkspace() {
           </Button>
         ))}
       </div>
+
+      {panel === "muster" && (
+        <MonthlyMusterRollTab
+          currentBranchId={currentBranchId}
+          isAllBranchesSelected={isAllBranchesSelected}
+        />
+      )}
 
       {panel === "register" && (
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">

@@ -9,6 +9,7 @@ import {
   Search,
   SlidersHorizontal,
   Plus,
+  ClipboardList,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,11 @@ import {
   useBranchStock,
   useStockMovements,
 } from "../hooks/useInventory";
-import type { Product, ProductUsageType, StockBalance } from "../types/inventory.types";
+import type {
+  Product,
+  ProductUsageType,
+  StockBalance,
+} from "../types/inventory.types";
 
 import { StockBalanceTable } from "./StockBalanceTable";
 import { ProductCatalogTable } from "./ProductCatalogTable";
@@ -37,6 +42,7 @@ import { ConsumptionModal } from "./ConsumptionModal";
 import { AdjustmentModal } from "./AdjustmentModal";
 import { TransferModal } from "./TransferModal";
 import { DomainAllocationModal } from "./DomainAllocationModal";
+import { StocktakeListView } from "./StocktakeListView";
 import { useDispatch } from "react-redux";
 import { addProductToBasket } from "@/store/slices/saleBasketSlice";
 
@@ -46,7 +52,7 @@ export const InventoryDashboardView: React.FC = () => {
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<
-    "stock" | "catalogue" | "movements"
+    "stock" | "catalogue" | "movements" | "stocktake"
   >("stock");
 
   // Search & Filtering
@@ -206,7 +212,9 @@ export const InventoryDashboardView: React.FC = () => {
     setIsAllocateModalOpen(true);
   };
 
-  const handleTabSync = async (tab: "stock" | "catalogue" | "movements") => {
+  const handleTabSync = async (
+    tab: "stock" | "catalogue" | "movements" | "stocktake",
+  ) => {
     try {
       if (tab === "stock") {
         await refetchStock();
@@ -214,7 +222,7 @@ export const InventoryDashboardView: React.FC = () => {
       } else if (tab === "catalogue") {
         await refetchProducts();
         toast.success("Product catalogue synchronized");
-      } else {
+      } else if (tab === "movements") {
         await refetchMovements();
         toast.success("Movement audit ledger synchronized");
       }
@@ -307,6 +315,15 @@ export const InventoryDashboardView: React.FC = () => {
           >
             <ArrowRightLeft className="w-4 h-4" />
             <span>Movement Ledger</span>
+          </Button>
+          <Button
+            variant={activeTab === "stocktake" ? "secondary" : "ghost"}
+            size="sm"
+            onClick={() => setActiveTab("stocktake")}
+            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
+          >
+            <ClipboardList className="w-4 h-4" />
+            <span>Physical Stocktake</span>
           </Button>
         </div>
 
@@ -502,7 +519,14 @@ export const InventoryDashboardView: React.FC = () => {
         </div>
       )}
 
-      {/* 6. MODALS */}
+      {/* 6. TAB 4: Physical Stocktake Audits */}
+      {activeTab === "stocktake" && (
+        <div className="space-y-4">
+          <StocktakeListView />
+        </div>
+      )}
+
+      {/* 7. MODALS */}
       <ProductFormModal
         isOpen={isProductModalOpen}
         onClose={() => setIsProductModalOpen(false)}

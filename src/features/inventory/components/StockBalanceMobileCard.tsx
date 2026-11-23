@@ -72,6 +72,19 @@ export function StockBalanceMobileCard({
           <span className="font-bold text-foreground text-sm">
             {balance.onHand} {product?.stockUnit || "units"}
           </span>
+          <div className="text-[10px] text-muted-foreground mt-0.5 space-x-1">
+            <span>Cons: {balance.onHandConsumables ?? 0}</span>
+            <span>•</span>
+            <span>Ret: {balance.onHandRetail ?? 0}</span>
+            {(balance.onHandUnallocated ?? 0) > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  Unalloc: {balance.onHandUnallocated}
+                </span>
+              </>
+            )}
+          </div>
           {balance.allocated > 0 && (
             <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
               ({available} avail / {balance.allocated} res)

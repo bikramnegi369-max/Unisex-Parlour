@@ -47,6 +47,8 @@ vi.mock("../hooks/useAttendance", () => ({
   useRecordLeaveException: () => ({ mutate: vi.fn(), isPending: false }),
   useResolveBranchAttendanceConflict: () => ({ mutate: vi.fn(), isPending: false }),
   useResolveLeaveAppointmentConflict: () => ({ mutate: vi.fn(), isPending: false }),
+  useRecordStaffPunch: () => ({ mutate: vi.fn(), isPending: false }),
+  useMonthlyMusterRoll: () => ({ isLoading: false, isError: false, data: null }),
 }));
 
 afterEach(cleanup);
