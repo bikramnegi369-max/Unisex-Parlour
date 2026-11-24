@@ -443,13 +443,23 @@ export function EditAppointmentServicesDialog({
         subscriptionDeduction += lineCost;
         coveredCount += 1;
       } else if (memBenefits && memDiscountPct > 0) {
-        const srvObj = l.serviceId
-          ? allServices.find((s) => s.id === l.serviceId) || { id: l.serviceId }
-          : undefined;
-        if (srvObj && isServiceEligibleForMembershipBenefits(srvObj, memBenefits)) {
+        const isCustomLine = Boolean(
+          l.isCustom || l.serviceType === "custom" || !l.serviceId,
+        );
+        if (isCustomLine) {
+          // Custom services receive membership benefit if the plan includes a general service discount
           const discountAmt = Math.round((lineCost * memDiscountPct) / 100);
           membershipDeduction += discountAmt;
           memberDiscountedCount += 1;
+        } else {
+          const srvObj = l.serviceId
+            ? allServices.find((s) => s.id === l.serviceId) || { id: l.serviceId }
+            : undefined;
+          if (srvObj && isServiceEligibleForMembershipBenefits(srvObj, memBenefits)) {
+            const discountAmt = Math.round((lineCost * memDiscountPct) / 100);
+            membershipDeduction += discountAmt;
+            memberDiscountedCount += 1;
+          }
         }
       }
     }
@@ -1117,15 +1127,15 @@ export function EditAppointmentServicesDialog({
                     : undefined;
                   const isMemEligible =
                     !isCovered &&
-                    !isCustomLine &&
                     Boolean(
-                      srvObj &&
-                        memBenefits &&
+                      memBenefits &&
                         memDiscountPct > 0 &&
-                        isServiceEligibleForMembershipBenefits(
-                          srvObj,
-                          memBenefits,
-                        ),
+                        (isCustomLine ||
+                          (srvObj &&
+                            isServiceEligibleForMembershipBenefits(
+                              srvObj,
+                              memBenefits,
+                            ))),
                     );
                   const memDiscountAmt = isMemEligible
                     ? Math.round(

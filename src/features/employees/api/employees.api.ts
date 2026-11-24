@@ -160,3 +160,74 @@ export const unlinkUserAccount = async (id: string): Promise<{ id: string }> => 
   });
   return { id };
 };
+
+// --- Staff Roster / Shift Scheduling ---
+
+export interface ShiftTime {
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+}
+
+export interface DaySchedule {
+  dayOfWeek: number; // 0=Sunday, 1=Monday ... 6=Saturday
+  isWorkingDay: boolean;
+  shifts: ShiftTime[];
+}
+
+export interface DateOverride {
+  date: string; // "YYYY-MM-DD"
+  isWorkingDay: boolean;
+  reason?: string;
+  shifts: ShiftTime[];
+}
+
+export interface StaffRoster {
+  id?: string;
+  _id?: string;
+  organizationId: string;
+  branchId: string;
+  staffId: string;
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+  weeklySchedule: DaySchedule[];
+  overrides: DateOverride[];
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateStaffRosterPayload {
+  branchId: string;
+  weeklySchedule?: DaySchedule[];
+  overrides?: DateOverride[];
+  effectiveFrom?: string;
+  effectiveTo?: string | null;
+}
+
+export const getStaffRoster = async (
+  staffId: string,
+  branchId: string
+): Promise<StaffRoster | null> => {
+  const { data } = await apiClient.get<{ success: boolean; data: StaffRoster | null }>(
+    `/staff/${staffId}/roster`,
+    {
+      params: { branchId },
+      branchScope: { type: "branch", branchId },
+    }
+  );
+  return data.data;
+};
+
+export const updateStaffRoster = async (
+  staffId: string,
+  payload: UpdateStaffRosterPayload
+): Promise<StaffRoster> => {
+  const { data } = await apiClient.put<{ success: boolean; data: StaffRoster }>(
+    `/staff/${staffId}/roster`,
+    payload,
+    {
+      branchScope: { type: "branch", branchId: payload.branchId },
+    }
+  );
+  return data.data;
+};

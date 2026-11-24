@@ -27,7 +27,7 @@ export function EntityProfileLayout({
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start w-full min-w-0">
       {/* Sidebar Navigation Card */}
-      <div className="w-full lg:w-56 xl:w-64 shrink-0 min-w-0">
+      <div className="w-full lg:w-64 xl:w-72 shrink-0 min-w-0">
         <div className="bg-card border border-border/80 rounded-2xl p-2 shadow-2xs">
           <nav
             role="tablist"
@@ -42,8 +42,9 @@ export function EntityProfileLayout({
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => onTabChange(tab.id)}
+                  title={tab.label}
                   className={cn(
-                    "cursor-pointer flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap",
+                    "cursor-pointer flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all",
                     isActive
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
@@ -55,7 +56,7 @@ export function EntityProfileLayout({
                         {tab.icon}
                       </span>
                     )}
-                    <span className="truncate">{tab.label}</span>
+                    <span className="whitespace-nowrap">{tab.label}</span>
                   </div>
 
                   {tab.badge !== undefined && tab.badge !== null && tab.badge !== "" && (

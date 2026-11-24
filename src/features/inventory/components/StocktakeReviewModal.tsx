@@ -54,7 +54,10 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
     "all",
   );
 
-  const discrepancies: StocktakeDiscrepancyItem[] = summary?.discrepancies || [];
+  const discrepancies: StocktakeDiscrepancyItem[] =
+    summary?.discrepancies || (summary as any)?.items || [];
+
+  const canPost = Boolean(summary?.canPost ?? (summary as any)?.isPostable);
 
   const filteredDiscrepancies = discrepancies.filter((d) => {
     if (filterDiscrepancy === "variances_only") {
@@ -67,7 +70,7 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
   });
 
   const handlePost = async () => {
-    if (!summary?.canPost) {
+    if (!canPost) {
       toast.error(
         summary?.blockers?.[0] || "Cannot post stocktake due to incomplete counts or unresolved recounts."
       );
@@ -130,10 +133,10 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
               </Badge>
               <Badge
                 variant={
-                  summary?.canPost ? "default" : "destructive"
+                  canPost ? "default" : "destructive"
                 }
               >
-                {summary?.canPost ? "READY TO POST" : "BLOCKED"}
+                {canPost ? "READY TO POST" : "BLOCKED"}
               </Badge>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -159,7 +162,7 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
               size="sm"
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handlePost}
-              disabled={!summary?.canPost || postMutation.isPending}
+              disabled={!canPost || postMutation.isPending}
             >
               <Lock className="w-4 h-4 mr-1" />
               {postMutation.isPending ? "Reconciling..." : "Approve & Post Reconciliation"}
@@ -200,7 +203,7 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
         </div>
 
         {/* Blocking Warnings Banner */}
-        {summary && !summary.canPost && (
+        {summary && !canPost && (
           <div className="mb-3 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-md">
             <div className="flex items-center space-x-2 text-rose-800 dark:text-rose-300 font-semibold text-xs mb-1">
               <ShieldAlert className="w-4 h-4 text-rose-600" />
@@ -231,7 +234,7 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
               className="text-xs h-7"
               onClick={() => setFilterDiscrepancy("variances_only")}
             >
-              Discrepancies Only ({summary?.discrepantItems ?? 0})
+              Discrepancies Only ({summary?.discrepantItems ?? (summary as any)?.discrepanciesCount ?? 0})
             </Button>
             <Button
               variant={filterDiscrepancy === "matched_only" ? "default" : "outline"}
@@ -270,15 +273,20 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredDiscrepancies.map((d) => {
+                filteredDiscrepancies.map((d: any, idx: number) => {
                   const varVal = d.varianceAgainstLive ?? 0;
                   const isPositive = varVal > 0;
                   const isNegative = varVal < 0;
                   const isZero = varVal === 0;
 
+                  const rowKey = d.itemId || d._id || d.id || `disc-${idx}`;
+                  const prodObj = typeof d.productId === "object" && d.productId !== null ? d.productId : null;
+                  const productName = d.productName || prodObj?.name || "Product";
+                  const sku = d.sku || prodObj?.sku || "";
+
                   return (
                     <tr
-                      key={d.itemId}
+                      key={rowKey}
                       className={
                         d.status === "recount_required"
                           ? "bg-rose-50/50 dark:bg-rose-950/20"
@@ -289,9 +297,9 @@ export const StocktakeReviewModal: React.FC<StocktakeReviewModalProps> = ({
                     >
                       <td className="py-2 px-3">
                         <div className="font-semibold text-gray-900 dark:text-gray-100">
-                          {d.productName}
+                          {productName}
                         </div>
-                        <div className="text-[10px] text-gray-400 font-mono">{d.sku}</div>
+                        <div className="text-[10px] text-gray-400 font-mono">{sku}</div>
                       </td>
                       <td className="py-2 px-3">
                         <Badge

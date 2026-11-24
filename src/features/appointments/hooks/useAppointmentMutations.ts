@@ -31,7 +31,14 @@ export function useCreateAppointment() {
     mutationFn: (payload: CreateAppointmentPayload) => createAppointment(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === "appointments",
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "appointments" ||
+            key === "staff-availability" ||
+            key === "calendar-staff-availability"
+          );
+        },
       });
       broadcastCrossTabInvalidation("appointments");
     },
@@ -48,7 +55,12 @@ export function useUpdateAppointmentMetadata() {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return key === "appointments" || key === "appointment";
+          return (
+            key === "appointments" ||
+            key === "appointment" ||
+            key === "staff-availability" ||
+            key === "calendar-staff-availability"
+          );
         },
       });
       broadcastCrossTabInvalidation("appointments");
@@ -66,7 +78,12 @@ export function useRescheduleAppointment() {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return key === "appointments" || key === "appointment";
+          return (
+            key === "appointments" ||
+            key === "appointment" ||
+            key === "staff-availability" ||
+            key === "calendar-staff-availability"
+          );
         },
       });
       broadcastCrossTabInvalidation("appointments");
@@ -84,7 +101,12 @@ export function useAssignAppointmentStaff() {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return key === "appointments" || key === "appointment";
+          return (
+            key === "appointments" ||
+            key === "appointment" ||
+            key === "staff-availability" ||
+            key === "calendar-staff-availability"
+          );
         },
       });
       broadcastCrossTabInvalidation("appointments");
@@ -106,7 +128,9 @@ export function useUpdateAppointmentStatus() {
           return (
             key === "appointments" ||
             key === "appointment" ||
-            key === "checkout-queue"
+            key === "checkout-queue" ||
+            key === "staff-availability" ||
+            key === "calendar-staff-availability"
           );
         },
       });

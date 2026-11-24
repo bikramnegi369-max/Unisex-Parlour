@@ -47,7 +47,9 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
     if (items.length > 0) {
       const initialMap: Record<string, CountRowState> = {};
       items.forEach((item) => {
-        initialMap[item.id] = {
+        const itemId = item.id || (item as any)._id;
+        if (!itemId) return;
+        initialMap[itemId] = {
           countedQuantity:
             item.countedQuantity !== null && item.countedQuantity !== undefined
               ? String(item.countedQuantity)
@@ -108,7 +110,9 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
     let hasValidationError = false;
 
     for (const item of items) {
-      const row = countRows[item.id];
+      const itemId = item.id || (item as any)._id;
+      if (!itemId) continue;
+      const row = countRows[itemId];
       if (!row || row.countedQuantity === "") {
         continue; // Uncounted line - skipped in this batch update
       }
@@ -125,16 +129,21 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
         hasValidationError = true;
         setCountRows((prev) => ({
           ...prev,
-          [item.id]: {
-            ...prev[item.id],
+          [itemId]: {
+            ...prev[itemId],
             error: isDiscrete
               ? `Whole number required for ${item.stockUnit}`
               : "Invalid number or >3 decimals",
           },
         }));
       } else {
+        const rawProdId =
+          typeof item.productId === "object" && item.productId !== null
+            ? (item.productId as any)._id || (item.productId as any).id
+            : item.productId || item.product?.id;
+
         entriesToSubmit.push({
-          productId: item.productId,
+          productId: String(rawProdId),
           stockDomain: item.stockDomain,
           countedQuantity: num,
           notes: row.notes || "",
@@ -175,8 +184,12 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
     if (filterStatus === "recount_required" && item.status !== "recount_required") return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const pName = item.product?.name?.toLowerCase() || "";
-      const sku = item.product?.sku?.toLowerCase() || "";
+      const productObj =
+        typeof item.productId === "object" && item.productId !== null
+          ? (item.productId as any)
+          : item.product;
+      const pName = (productObj?.name || item.product?.name || "").toLowerCase();
+      const sku = (productObj?.sku || item.product?.sku || "").toLowerCase();
       return pName.includes(q) || sku.includes(q);
     }
     return true;
@@ -344,14 +357,25 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item) => {
-                  const row = countRows[item.id] || { countedQuantity: "", notes: "" };
+                filteredItems.map((item, index) => {
+                  const itemId = (item.id || (item as any)._id || `item-${index}`) as string;
+                  const row = countRows[itemId] || { countedQuantity: "", notes: "" };
                   const isRecount = item.status === "recount_required";
                   const isCounted = item.status === "counted";
 
+                  const productObj =
+                    typeof item.productId === "object" && item.productId !== null
+                      ? (item.productId as any)
+                      : item.product;
+                  const productName = productObj?.name || item.product?.name || "Product";
+                  const productSku =
+                    productObj?.sku ||
+                    item.product?.sku ||
+                    (typeof item.productId === "string" ? item.productId : "");
+
                   return (
                     <tr
-                      key={item.id}
+                      key={itemId}
                       className={
                         isRecount
                           ? "bg-rose-50/50 dark:bg-rose-950/20"
@@ -362,10 +386,10 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
                     >
                       <td className="py-2 px-3">
                         <div className="font-semibold text-gray-900 dark:text-gray-100">
-                          {item.product?.name || "Product"}
+                          {productName}
                         </div>
                         <div className="text-[10px] text-gray-400 font-mono">
-                          {item.product?.sku || item.productId}
+                          {productSku}
                         </div>
                       </td>
                       <td className="py-2 px-3">
@@ -392,7 +416,7 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
                             placeholder="Uncounted"
                             value={row.countedQuantity}
                             onChange={(e) =>
-                              handleQuantityChange(item.id, e.target.value, item.stockUnit)
+                              handleQuantityChange(itemId, e.target.value, item.stockUnit)
                             }
                             className={`h-8 text-xs font-mono w-28 ${
                               row.error
@@ -429,7 +453,7 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
                         <Input
                           placeholder="e.g. Expired shelf pack"
                           value={row.notes}
-                          onChange={(e) => handleNotesChange(item.id, e.target.value)}
+                          onChange={(e) => handleNotesChange(itemId, e.target.value)}
                           className="h-8 text-xs w-44"
                           disabled={stocktake?.status === "completed"}
                         />

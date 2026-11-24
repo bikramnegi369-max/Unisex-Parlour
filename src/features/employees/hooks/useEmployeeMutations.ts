@@ -11,6 +11,8 @@ import {
   removeStaffService,
   linkUserAccount,
   unlinkUserAccount,
+  updateStaffRoster,
+  type UpdateStaffRosterPayload,
 } from "../api/employees.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import type { Employee, EmployeePayload, EmployeeStatus } from "../types/employee.types";
@@ -206,6 +208,32 @@ export function useUnlinkUserAccount() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("employee", [data.id]) });
       queryClient.invalidateQueries({ queryKey: getBranchQueryKey("employees") });
+    },
+  });
+}
+
+export function useUpdateStaffRoster() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      staffId,
+      payload,
+    }: {
+      staffId: string;
+      payload: UpdateStaffRosterPayload;
+    }) => updateStaffRoster(staffId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return (
+            key === "staff-roster" ||
+            key === "staff-availability" ||
+            key === "calendar-staff-availability"
+          );
+        },
+      });
     },
   });
 }

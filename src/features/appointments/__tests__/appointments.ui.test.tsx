@@ -15,6 +15,10 @@ vi.mock("@/features/leaves/hooks/useLeaveQueries", () => ({
   useLeaves: () => ({ data: { data: [] }, isLoading: false }),
 }));
 
+vi.mock("../hooks/useStaffAvailability", () => ({
+  useCalendarStaffAvailability: () => ({ data: null, isLoading: false }),
+}));
+
 vi.mock("@/hooks/useBranchContext", () => ({
   useBranchContext: () => ({
     currentBranch: { id: "br_1", name: "Main Salon", timezone: "Asia/Kolkata" },

@@ -38,6 +38,7 @@ import { EmployeeOverview } from "./EmployeeOverview";
 import { EmployeePayrollTab } from "./EmployeePayrollTab";
 import { EmployeeIncentivesTab } from "./EmployeeIncentivesTab";
 import EmployeeAttendanceTab from "./EmployeeAttendanceTab";
+import { EmployeeRosterTab } from "./EmployeeRosterTab";
 import {
   EntityProfileLayout,
   type ProfileTabItem,
@@ -69,6 +70,7 @@ import {
   Banknote,
   Award,
   Fingerprint,
+  Clock,
 } from "lucide-react";
 import UserSelector from "./UserSelector";
 import { useUser } from "@/features/users/hooks/useUser";
@@ -397,6 +399,11 @@ export default function EmployeeDetailsPage({
         label: "Service Capabilities",
         icon: <Scissors size={15} />,
         badge: serviceCount,
+      },
+      {
+        id: "roster",
+        label: "Roster & Shifts",
+        icon: <Clock size={15} />,
       },
       {
         id: "account",
@@ -1118,6 +1125,12 @@ export default function EmployeeDetailsPage({
           <EmployeeAttendanceTab
             employeeId={employee.id || employee._id || employeeId}
             employeeName={employee.name}
+          />
+        )}
+
+        {activeTab === "roster" && employee && (
+          <EmployeeRosterTab
+            employeeId={employee.id || employee._id || employeeId}
           />
         )}
       </EntityProfileLayout>

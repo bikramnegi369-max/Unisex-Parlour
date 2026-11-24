@@ -63,6 +63,12 @@ import { buildSubscriptionPurchasePayload } from "@/features/subscriptions/utils
 import type { Subscription } from "@/features/subscriptions/types/subscription.types";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
+import { useStaffAvailability } from "../hooks/useStaffAvailability";
+import {
+  REASON_LABELS,
+  type AvailabilityStatus,
+  type AvailabilityReasonCode,
+} from "../api/staffAvailability.api";
 import {
   useCustomerActiveBenefits,
   useMembershipPlans,
@@ -128,6 +134,8 @@ interface CustomServiceBookingSummaryRowProps {
   index: number;
   onPriceChange: (index: number, val: string) => void;
   onRemove: (index: number) => void;
+  memberDiscountPercentage?: number;
+  isMemberEligible?: boolean;
 }
 
 const CustomServiceBookingSummaryRow = React.memo(
@@ -136,10 +144,19 @@ const CustomServiceBookingSummaryRow = React.memo(
     index,
     onPriceChange,
     onRemove,
+    memberDiscountPercentage = 0,
+    isMemberEligible = false,
   }: CustomServiceBookingSummaryRowProps) {
     const customName = item.name || "Custom Service";
     const customDuration = Number(item.duration) || 0;
     const customPrice = Number(item.price) || 0;
+    const discountedPrice =
+      isMemberEligible && memberDiscountPercentage > 0
+        ? Math.max(
+            0,
+            Number((customPrice * (1 - memberDiscountPercentage / 100)).toFixed(2)),
+          )
+        : customPrice;
 
     return (
       <div className="rounded-xl px-3.5 py-2.5 border transition-all text-xs bg-purple-500/5 border-purple-500/30 ring-1 ring-purple-500/15">
@@ -153,6 +170,12 @@ const CustomServiceBookingSummaryRow = React.memo(
               <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 bg-purple-500/15 px-1.5 py-0.2 rounded border border-purple-500/30 shrink-0 whitespace-nowrap">
                 Custom Service
               </span>
+              {isMemberEligible && memberDiscountPercentage > 0 && (
+                <span className="text-[10px] text-amber-700 dark:text-amber-300 font-semibold bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded-full inline-flex items-center gap-1 shrink-0">
+                  <Sparkles className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                  Member: -{memberDiscountPercentage}%
+                </span>
+              )}
             </div>
             <span className="text-[11px] text-muted-foreground block pt-0.5">
               {customDuration} mins • One-off agreed service
@@ -173,7 +196,7 @@ const CustomServiceBookingSummaryRow = React.memo(
                 placeholder="0"
                 onChange={(e) => onPriceChange(index, e.target.value)}
                 className="w-18 text-xs font-bold text-right bg-transparent text-foreground focus:outline-none"
-                title="Agreed price for this custom service"
+                title="Agreed base price for this custom service"
               />
             </div>
 
@@ -189,14 +212,27 @@ const CustomServiceBookingSummaryRow = React.memo(
           </div>
         </div>
 
-        {/* Row 2: Note that subscription cannot be applied */}
+        {/* Row 2: Note that subscription cannot be applied, plus member pricing breakdown */}
         <div className="flex items-center justify-between pt-2 mt-2 border-t border-border/40 text-[11px] text-muted-foreground">
           <span className="text-[10px] italic">
             Custom services cannot consume subscription entitlements
           </span>
-          <span className="font-extrabold text-foreground text-xs leading-tight">
-            {formatCurrency(customPrice)}
-          </span>
+          <div className="text-right shrink-0 flex flex-col items-end justify-center min-w-16">
+            {isMemberEligible && memberDiscountPercentage > 0 ? (
+              <>
+                <span className="line-through text-muted-foreground text-[10px] font-normal leading-none whitespace-nowrap">
+                  {formatCurrency(customPrice)}
+                </span>
+                <span className="text-amber-600 dark:text-amber-400 font-extrabold text-xs leading-tight whitespace-nowrap mt-0.5">
+                  {formatCurrency(discountedPrice)}
+                </span>
+              </>
+            ) : (
+              <span className="font-extrabold text-foreground text-xs leading-tight whitespace-nowrap">
+                {formatCurrency(customPrice)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1007,19 +1043,6 @@ export function CreateAppointmentDialog({
   const { staffServicesMap, isLoading: isLoadingStaffServices } =
     useMultipleStaffServices(employeeIds);
 
-  // Filter staff to only those who are assigned ALL selected services
-  const qualifiedEmployees = useMemo(() => {
-    if (selectedServiceIds.length === 0) {
-      return employees;
-    }
-    return employees.filter((emp: Employee) => {
-      const assignedServices = staffServicesMap[emp.id] || [];
-      return selectedServiceIds.every((reqServiceId) =>
-        assignedServices.includes(reqServiceId),
-      );
-    });
-  }, [employees, selectedServiceIds, staffServicesMap]);
-
   // Fetch that day's scheduled/in-progress appointments to calculate real-time staff availability
   const { data: dayAppointmentsData } = useAppointments({
     branchId: effectiveBranchId,
@@ -1077,6 +1100,25 @@ export function CreateAppointmentDialog({
     return map;
   }, [dayLeaves, appointmentDate]);
 
+  // Authoritative real-time staff availability query from backend
+  const { data: slotAvailabilityData } = useStaffAvailability(
+    {
+      branchId: effectiveBranchId,
+      date: appointmentDate || format(new Date(), "yyyy-MM-dd"),
+      startTime: selectedStartTime || "09:00",
+      duration: requestedDuration > 0 ? requestedDuration : 30,
+      serviceIds: selectedServiceIds,
+    },
+    {
+      enabled: Boolean(
+        isOpen &&
+        effectiveBranchId &&
+        appointmentDate &&
+        selectedStartTime,
+      ),
+    },
+  );
+
   // Map of staffId -> availability info for the chosen slot, duration & leave status
   const staffAvailabilityMap = useMemo(() => {
     const map = new Map<
@@ -1086,8 +1128,43 @@ export function CreateAppointmentDialog({
         isOnLeave: boolean;
         leaveReason?: string;
         conflictSlot?: string;
+        status?: AvailabilityStatus;
+        reasons?: AvailabilityReasonCode[];
+        statusLabel?: string;
       }
     >();
+
+    if (slotAvailabilityData?.staff && slotAvailabilityData.staff.length > 0) {
+      for (const evalItem of slotAvailabilityData.staff) {
+        const isAvail = evalItem.status === "available";
+        const isLeave =
+          evalItem.reasons.includes("APPROVED_LEAVE") ||
+          evalItem.reasons.includes("PARTIAL_DAY_LEAVE_CONFLICT");
+
+        // Primary reason label derived from authoritative REASON_LABELS
+        let label = "";
+        if (evalItem.reasons && evalItem.reasons.length > 0) {
+          const primaryReason = evalItem.reasons[0] as AvailabilityReasonCode;
+          label = (primaryReason in REASON_LABELS)
+            ? REASON_LABELS[primaryReason]
+            : String(primaryReason);
+        } else if (evalItem.status === "requires_review") {
+          label = "Attendance Review Required";
+        } else if (!isAvail) {
+          label = "Unavailable";
+        }
+
+        map.set(evalItem.staffId, {
+          isAvailable: isAvail,
+          isOnLeave: isLeave,
+          leaveReason: isLeave ? label : undefined,
+          status: evalItem.status,
+          reasons: evalItem.reasons,
+          statusLabel: label,
+        });
+      }
+      return map;
+    }
 
     for (const emp of employees) {
       // 1. Check if employee is on approved leave today
@@ -1097,12 +1174,15 @@ export function CreateAppointmentDialog({
           isAvailable: false,
           isOnLeave: true,
           leaveReason: leave.leaveType || leave.reason || "On Leave",
+          status: "unavailable",
+          reasons: ["APPROVED_LEAVE"],
+          statusLabel: "On Leave",
         });
         continue;
       }
 
       if (!selectedStartTime) {
-        map.set(emp.id, { isAvailable: true, isOnLeave: false });
+        map.set(emp.id, { isAvailable: true, isOnLeave: false, status: "available", reasons: [] });
         continue;
       }
 
@@ -1119,7 +1199,6 @@ export function CreateAppointmentDialog({
           ? timeToMinutes(app.endTime)
           : appStart + appDuration;
 
-        // Overlap test: [requestedStart, requestedEnd) overlaps with [appStart, appEnd)
         return (
           Math.max(requestedStart, appStart) < Math.min(requestedEnd, appEnd)
         );
@@ -1135,20 +1214,48 @@ export function CreateAppointmentDialog({
           isAvailable: false,
           isOnLeave: false,
           conflictSlot: `${appStart} - ${appEnd}`,
+          status: "unavailable",
+          reasons: ["APPOINTMENT_CONFLICT"],
+          statusLabel: `Busy: ${appStart} - ${appEnd}`,
         });
       } else {
-        map.set(emp.id, { isAvailable: true, isOnLeave: false });
+        map.set(emp.id, { isAvailable: true, isOnLeave: false, status: "available", reasons: [] });
       }
     }
 
     return map;
   }, [
+    slotAvailabilityData,
     employees,
     staffLeaveMap,
     dayAppointments,
     selectedStartTime,
     requestedDuration,
   ]);
+
+  // Filter and sort staff: available first, then unavailable, ensuring service qualification
+  const qualifiedEmployees = useMemo(() => {
+    let list = employees;
+    if (selectedServiceIds.length > 0) {
+      list = employees.filter((emp: Employee) => {
+        const avail = staffAvailabilityMap.get(emp.id);
+        if (avail?.reasons?.includes("SERVICE_NOT_SUPPORTED")) {
+          return false;
+        }
+        const assignedServices = staffServicesMap[emp.id] || [];
+        return selectedServiceIds.every((reqServiceId) =>
+          assignedServices.includes(reqServiceId),
+        );
+      });
+    }
+
+    return [...list].sort((a, b) => {
+      const aAvail = staffAvailabilityMap.get(a.id)?.isAvailable ? 0 : 1;
+      const bAvail = staffAvailabilityMap.get(b.id)?.isAvailable ? 0 : 1;
+      if (aAvail !== bAvail) return aAvail - bAvail;
+      return a.name.localeCompare(b.name);
+    });
+  }, [employees, selectedServiceIds, staffServicesMap, staffAvailabilityMap]);
 
   // Derived active category: if "subscribed" is selected but customer has no active subscriptions, fall back to "all"
   const activeCategoryId =
@@ -1514,11 +1621,11 @@ export function CreateAppointmentDialog({
       }
     }
 
-    // Validate that the selected staff is not on approved leave
+    // Validate that the selected staff is available
     if (data.staffId) {
       const avail = staffAvailabilityMap.get(data.staffId);
-      if (avail?.isOnLeave) {
-        const msg = `Selected staff member is on approved leave (${avail.leaveReason || "On Leave"}). Please reassign to another staff member.`;
+      if (avail && !avail.isAvailable) {
+        const msg = `Selected staff member is unavailable (${avail.statusLabel || "Unavailable"}). Please reassign to an available staff member.`;
         setConflictError(msg);
         toast.error(msg);
         return;
@@ -2796,23 +2903,23 @@ export function CreateAppointmentDialog({
                   </option>
                   {qualifiedEmployees.map((e: Employee) => {
                     const avail = staffAvailabilityMap.get(e.id);
-                    const isOnLeave = avail?.isOnLeave;
-                    const isBusy = avail && !avail.isAvailable && !isOnLeave;
+                    const isAvail = avail ? avail.isAvailable : true;
+                    const statusLabel = avail?.statusLabel;
 
                     let statusTag = "";
-                    if (isOnLeave) {
-                      statusTag = ` 🏖️ [On Leave: ${avail?.leaveReason || "Approved Leave"}]`;
-                    } else if (isBusy) {
-                      statusTag = ` ⏳ [Busy: ${avail?.conflictSlot || "Conflict"}]`;
+                    if (statusLabel) {
+                      statusTag = ` [${statusLabel}]`;
+                    } else if (!isAvail) {
+                      statusTag = ` [Unavailable]`;
                     }
 
                     return (
                       <option
                         key={e.id}
                         value={e.id}
-                        disabled={isOnLeave}
+                        disabled={!isAvail}
                         className={
-                          isOnLeave
+                          !isAvail
                             ? "text-muted-foreground bg-muted/40 italic"
                             : ""
                         }
@@ -2825,10 +2932,11 @@ export function CreateAppointmentDialog({
                 </Select>
               )}
               {selectedStaffId &&
-                staffAvailabilityMap.get(selectedStaffId)?.isOnLeave && (
+                staffAvailabilityMap.get(selectedStaffId) &&
+                !staffAvailabilityMap.get(selectedStaffId)?.isAvailable && (
                   <p className="text-[11px] text-destructive flex items-center gap-1 font-medium mt-1">
                     <AlertTriangle className="h-3 w-3 shrink-0" />
-                    Selected staff member is on approved leave for this date.
+                    Selected staff member is unavailable ({staffAvailabilityMap.get(selectedStaffId)?.statusLabel || "Unavailable"}).
                     Please reassign to available staff.
                   </p>
                 )}
@@ -2981,7 +3089,17 @@ export function CreateAppointmentDialog({
                     className="space-y-2 flex-1 min-h-0 overflow-y-auto pr-1"
                   >
                     {selectedServices.map((item, idx) => {
+                      const memBenefits =
+                        customerMembershipBenefits?.hasActiveMembership
+                          ? customerMembershipBenefits.planSnapshot?.benefits
+                          : null;
+                      const generalMemDiscountPct =
+                        memBenefits?.serviceDiscountPercentage || 0;
+
                       if (item.serviceType === "custom") {
+                        const isCustomMemberEligible = Boolean(
+                          memBenefits && generalMemDiscountPct > 0,
+                        );
                         return (
                           <CustomServiceBookingSummaryRow
                             key={item.id || item._id || `custom-line-${idx}`}
@@ -2989,6 +3107,10 @@ export function CreateAppointmentDialog({
                             index={idx}
                             onPriceChange={handleCustomServicePriceChange}
                             onRemove={handleRemoveServiceByIndex}
+                            isMemberEligible={isCustomMemberEligible}
+                            memberDiscountPercentage={
+                              isCustomMemberEligible ? generalMemDiscountPct : 0
+                            }
                           />
                         );
                       }
@@ -3007,13 +3129,9 @@ export function CreateAppointmentDialog({
                         registeredItem.serviceId,
                       );
 
-                      const memBenefits =
-                        customerMembershipBenefits?.hasActiveMembership
-                          ? customerMembershipBenefits.planSnapshot?.benefits
-                          : null;
                       const isMemberEligible = Boolean(
                         memBenefits &&
-                        (memBenefits.serviceDiscountPercentage || 0) > 0 &&
+                        generalMemDiscountPct > 0 &&
                         srv &&
                         isServiceEligibleForMembershipBenefits(
                           srv,
@@ -3021,7 +3139,7 @@ export function CreateAppointmentDialog({
                         ),
                       );
                       const memberDiscountPercentage = isMemberEligible
-                        ? memBenefits?.serviceDiscountPercentage || 0
+                        ? generalMemDiscountPct
                         : 0;
 
                       return (

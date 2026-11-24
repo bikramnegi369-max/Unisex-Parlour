@@ -204,6 +204,13 @@ export interface AttendanceIncentiveEvaluation {
   };
 }
 
+export interface PopulatedInvoiceRef {
+  _id: string;
+  invoiceNumber: string;
+  status?: string;
+  totalAmount?: number;
+}
+
 export interface IncentiveLedgerEntry {
   id: string;
   _id?: string;
@@ -215,7 +222,7 @@ export interface IncentiveLedgerEntry {
   sourceType: IncentiveLedgerSourceType;
   evaluationId?: string | null;
   settlementEventId?: string | null;
-  invoiceId?: string | null;
+  invoiceId?: string | PopulatedInvoiceRef | null;
   lineItemId?: string | null;
   reversesLedgerId?: string | null;
   refundAmountInPaise?: number | null;

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Image from "next/image";
 import type { Employee } from "../types/employee.types";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,12 @@ import {
   Mail,
   UserCheck,
   Calendar,
+  Copy,
+  Check,
+  IdCard,
 } from "lucide-react";
 import { formatDate } from "@/lib/formatters";
+import { toast } from "sonner";
 
 interface EmployeeProfileHeaderProps {
   employee: Employee;
@@ -43,6 +47,20 @@ export function EmployeeProfileHeader({
     .map((part) => part.charAt(0).toUpperCase())
     .slice(0, 2)
     .join("");
+
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyStaffCode = async () => {
+    if (!employee.staffCode) return;
+    try {
+      await navigator.clipboard.writeText(employee.staffCode);
+      setCopiedCode(true);
+      toast.success(`Staff Code copied: ${employee.staffCode}`);
+      setTimeout(() => setCopiedCode(false), 2000);
+    } catch {
+      toast.error("Failed to copy Staff Code");
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -139,6 +157,22 @@ export function EmployeeProfileHeader({
               <span className="font-semibold text-primary bg-primary/10 px-2.5 py-0.5 rounded-md border border-primary/20">
                 {employee.designation}
               </span>
+              {employee.staffCode && (
+                <button
+                  type="button"
+                  onClick={handleCopyStaffCode}
+                  className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold text-foreground/90 bg-muted/80 hover:bg-muted px-2.5 py-0.5 rounded-md border border-border/80 transition-colors cursor-pointer group shadow-2xs"
+                  title="Click to copy Staff Code"
+                >
+                  <IdCard size={13} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                  <span>{employee.staffCode}</span>
+                  {copiedCode ? (
+                    <Check size={12} className="text-emerald-600" />
+                  ) : (
+                    <Copy size={12} className="text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+                  )}
+                </button>
+              )}
               {employee.joiningDate && (
                 <span className="flex items-center gap-1">
                   <Calendar size={13} className="text-muted-foreground/70" />
