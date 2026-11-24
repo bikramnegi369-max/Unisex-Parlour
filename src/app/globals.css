@@ -255,6 +255,15 @@
     height: 8px;
   }
 
+  /* Utility to hide scrollbars in tab bars and chip ribbons while preserving smooth native scrolling */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
   ::-webkit-scrollbar-track {
     background: transparent;
   }

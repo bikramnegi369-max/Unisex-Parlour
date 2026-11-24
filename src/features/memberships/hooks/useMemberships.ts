@@ -97,10 +97,14 @@ export const useDuplicateMembershipPlan = () => {
   });
 };
 
-export const useCustomerMemberships = (params: QueryCustomerMembershipsParams = {}) => {
+export const useCustomerMemberships = (
+  params: QueryCustomerMembershipsParams = {},
+  options?: { enabled?: boolean },
+) => {
   return useQuery({
     queryKey: membershipKeys.customerMemberships(params),
     queryFn: () => getCustomerMemberships(params),
+    ...options,
   });
 };
 

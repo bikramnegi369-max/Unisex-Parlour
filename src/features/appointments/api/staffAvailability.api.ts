@@ -108,6 +108,15 @@ export interface CalendarStaffLane {
     isReconciled: boolean;
     conflictType: string;
   } | null;
+  attendanceDetails?: {
+    status: "present" | "absent" | "review_required" | "not_started" | "on_leave" | "clocked_out";
+    attendanceDate: string;
+    scheduledShiftStart?: string | null;
+    scheduledShiftEnd?: string | null;
+    clockInTime?: string | null;
+    clockOutTime?: string | null;
+    reviewReason?: string | null;
+  } | null;
 }
 
 export interface CalendarAvailabilityResponse {

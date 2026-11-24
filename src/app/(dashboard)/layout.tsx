@@ -9,16 +9,21 @@ import { useAppDispatch, useAppSelector } from "@/hooks/store";
 import { setSidebarOpen, setTheme } from "@/store/slices/uiSlice";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const pathname = usePathname();
   const dispatch = useAppDispatch();
   const isMobileOpen = useAppSelector((state) => state.ui.sidebarOpen);
   const theme = useAppSelector((state) => state.ui.theme);
   const isMobile = useMediaQuery("(max-width: 767px)");
+
+  // Full-bleed viewport routes (such as POS / Unified Sales Workspace) manage their own internal scrolling & panes
+  const isFullBleedWorkspace = pathname?.startsWith("/billing/sales");
 
   // Initialize branch context — fetches user's branches and populates Redux
   useBranches();
@@ -75,11 +80,23 @@ export default function DashboardLayout({
           <Header />
 
           {/* Dynamic Route Content */}
-          <main className="flex-1 overflow-y-auto p-4 bg-slate-50/20 dark:bg-slate-900/10 relative z-0">
-            <div className="max-w-7xl mx-auto flex flex-col min-h-full">
-              <Breadcrumbs />
-              <div className="flex-1 pb-8">{children}</div>
-            </div>
+          <main
+            className={`flex-1 relative z-0 ${
+              isFullBleedWorkspace
+                ? "overflow-hidden p-0 bg-background"
+                : "overflow-y-auto p-4 bg-slate-50/20 dark:bg-slate-900/10"
+            }`}
+          >
+            {isFullBleedWorkspace ? (
+              <div className="h-full w-full overflow-hidden flex flex-col">
+                {children}
+              </div>
+            ) : (
+              <div className="max-w-7xl mx-auto flex flex-col min-h-full">
+                <Breadcrumbs />
+                <div className="flex-1 pb-8">{children}</div>
+              </div>
+            )}
           </main>
         </div>
       </div>

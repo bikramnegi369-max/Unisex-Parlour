@@ -61,6 +61,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Eye,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useUpdateAppointmentStatus } from "@/features/appointments/hooks/useAppointmentMutations";
@@ -68,6 +69,11 @@ import { requiresSubscriptionVerification } from "@/features/appointments/utils/
 import { SubscriptionVerificationModal } from "@/features/appointments/components/SubscriptionVerificationModal";
 import { SubscriptionPlanInfoModal } from "@/features/subscriptions/components/SubscriptionPlanInfoModal";
 import { CustomerMembershipDetailsModal } from "@/features/memberships/components/CustomerMembershipDetailsModal";
+import { CustomerSelector } from "@/features/customers/components/CustomerSelector";
+import { AppointmentDetailsDialog } from "@/features/appointments/components/AppointmentDetailsDialog";
+import { useAuth } from "@/features/auth/hooks/useAuth";
+import { hasPermission } from "@/lib/permissions";
+import type { Customer } from "@/features/customers/types/customer.types";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
 import type { Product } from "@/features/inventory/types/inventory.types";
 import type { SubscriptionPlan } from "@/features/subscriptions/types/plan.types";
@@ -94,9 +100,21 @@ export function SalesWorkspaceView() {
   const { currentBranchId, isAllBranchesSelected, getBranchName } =
     useBranchContext();
   const basket = useSelector((state: RootState) => state.saleBasket);
+  const { user } = useAuth();
+
+  const canEditAppointments = hasPermission(user, "appointments.edit");
+  const canStatusAppointments = hasPermission(
+    user,
+    "appointments.update_status",
+  );
+  const canDeleteAppointments = hasPermission(user, "appointments.delete");
 
   const [activeTab, setActiveTab] = useState<CatalogTab>("appointments");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedAppointmentForDetails, setSelectedAppointmentForDetails] =
+    useState<Appointment | null>(null);
+  const [isAppointmentDetailsOpen, setIsAppointmentDetailsOpen] =
+    useState(false);
   const [subscriptionViewMode, setSubscriptionViewMode] = useState<
     "uninvoiced" | "catalog"
   >("uninvoiced");
@@ -209,11 +227,16 @@ export function SalesWorkspaceView() {
   const {
     data: pendingMembershipsData,
     isLoading: isPendingMembershipsLoading,
-  } = useCustomerMemberships({
-    customerId: currentCustomerId || undefined,
-    status: "pending_payment",
-    limit: 50,
-  });
+  } = useCustomerMemberships(
+    {
+      customerId: currentCustomerId || undefined,
+      status: "pending_payment",
+      limit: 50,
+    },
+    {
+      enabled: activeTab === "memberships" && Boolean(currentCustomerId),
+    },
+  );
   const { data: customerSubsData } = useSubscriptions(
     { customerId: currentCustomerId || undefined, limit: 50 },
     { enabled: Boolean(currentCustomerId) },
@@ -863,16 +886,44 @@ export function SalesWorkspaceView() {
   };
 
   // Customer picker selector
-  const handleSelectCustomer = (customerId: string) => {
+  const handleSelectCustomer = (customerId: string, customerObj?: Customer) => {
+    if (!customerId) {
+      dispatch(
+        setBasketCustomer({
+          id: "",
+          name: "",
+          phone: "",
+          email: null,
+        }),
+      );
+      return;
+    }
+
+    if (customerObj) {
+      dispatch(
+        setBasketCustomer({
+          id: customerObj.id || customerObj._id || customerId,
+          name: customerObj.name,
+          phone: customerObj.phone,
+          email: customerObj.email || null,
+        }),
+      );
+      toast.success(`Customer set to ${customerObj.name}`);
+      return;
+    }
+
     const list = Array.isArray(customersData?.data) ? customersData.data : [];
-    const found = list.find((c: { id: string }) => c.id === customerId);
+    const found = list.find(
+      (c: { id?: string; _id?: string }) =>
+        c.id === customerId || c._id === customerId,
+    );
     if (found) {
       dispatch(
         setBasketCustomer({
-          id: found.id,
+          id: found.id || found._id || customerId,
           name: found.name,
           phone: found.phone,
-          email: found.email,
+          email: found.email || null,
         }),
       );
       toast.success(`Customer set to ${found.name}`);
@@ -995,7 +1046,7 @@ export function SalesWorkspaceView() {
   }
 
   return (
-    <div className="h-[calc(100vh-65px)] flex flex-col md:flex-row overflow-hidden bg-background">
+    <div className="h-full w-full flex flex-col md:flex-row overflow-hidden bg-background">
       {/* LEFT 65%: Multi-Source Catalog & Selection Area */}
       <div className="flex-1 flex flex-col h-full min-w-0 border-r border-border">
         {/* Top Header & Customer Context */}
@@ -1013,44 +1064,34 @@ export function SalesWorkspaceView() {
             </p>
           </div>
 
-          {/* Quick Customer Switcher */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              Customer:
-            </span>
-            <select
+          {/* Searchable Production Customer Selector */}
+          <div className="w-full sm:w-80">
+            <CustomerSelector
               value={basket.customer?.id || ""}
-              onChange={(e) => handleSelectCustomer(e.target.value)}
-              className="h-8 text-xs border border-border rounded-md px-2 bg-background font-medium focus:ring-1 focus:ring-primary w-48"
-            >
-              <option value="">-- Choose Customer --</option>
-              {Array.isArray(customersData?.data) &&
-                customersData.data.map(
-                  (c: { id: string; name: string; phone: string }) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.phone})
-                    </option>
-                  ),
-                )}
-            </select>
+              onChange={(customerId, customerObj) =>
+                handleSelectCustomer(customerId, customerObj)
+              }
+              branchId={currentBranchId || undefined}
+            />
           </div>
         </div>
 
         {/* Source Navigation Tabs & Search */}
-        <div className="px-4 py-2 border-b border-border bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-1 overflow-x-auto py-1">
+        <div className="px-4 py-2 border-b border-border bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+          {/* Production-grade segmented tab navigation with no-scrollbar ribbon */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 min-w-0">
             <Button
               variant={activeTab === "appointments" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("appointments")}
-              className="h-8 text-xs gap-1.5 shrink-0"
+              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
             >
               <Calendar className="h-3.5 w-3.5" />
               Appointments
               {appointments.length > 0 && (
                 <Badge
                   variant="secondary"
-                  className="h-4 px-1 text-[10px] ml-1"
+                  className="h-4 px-1 text-[10px] ml-1 bg-background/80"
                 >
                   {appointments.length}
                 </Badge>
@@ -1061,7 +1102,7 @@ export function SalesWorkspaceView() {
               variant={activeTab === "products" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("products")}
-              className="h-8 text-xs gap-1.5 shrink-0"
+              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
             >
               <Package className="h-3.5 w-3.5" />
               Retail Products
@@ -1071,7 +1112,7 @@ export function SalesWorkspaceView() {
               variant={activeTab === "services" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("services")}
-              className="h-8 text-xs gap-1.5 shrink-0"
+              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
             >
               <Scissors className="h-3.5 w-3.5" />
               Walk-in Services
@@ -1081,7 +1122,7 @@ export function SalesWorkspaceView() {
               variant={activeTab === "subscriptions" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("subscriptions")}
-              className="h-8 text-xs gap-1.5 shrink-0"
+              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
             >
               <Sparkles className="h-3.5 w-3.5" />
               Subscriptions
@@ -1091,22 +1132,34 @@ export function SalesWorkspaceView() {
               variant={activeTab === "memberships" ? "default" : "ghost"}
               size="sm"
               onClick={() => setActiveTab("memberships")}
-              className="h-8 text-xs gap-1.5 shrink-0"
+              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
             >
               <Crown className="h-3.5 w-3.5" />
               Memberships
             </Button>
           </div>
 
-          <div className="relative w-full sm:w-64">
-            <Search className="h-3.5 w-3.5 absolute left-2.5 top-2.5 text-muted-foreground" />
+          {/* Contextual & Aligned Search Control */}
+          <div className="relative w-full md:w-64 shrink-0 flex items-center">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
               type="text"
               placeholder={`Search ${activeTab}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 pl-8 text-xs bg-background"
+              className="h-8 pl-8 pr-7 text-xs bg-background rounded-lg border-border focus-visible:ring-1 transition-all"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground rounded transition-colors cursor-pointer"
+                title="Clear filter"
+                aria-label="Clear filter"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1149,9 +1202,25 @@ export function SalesWorkspaceView() {
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono font-bold text-foreground">
-                            #{apt.appointmentCode}
-                          </span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="font-mono font-bold text-foreground">
+                              #{apt.appointmentCode}
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSelectedAppointmentForDetails(apt);
+                                setIsAppointmentDetailsOpen(true);
+                              }}
+                              className="h-6 w-6 rounded-md hover:bg-muted text-muted-foreground hover:text-primary transition-colors cursor-pointer shrink-0"
+                              title="View full appointment details"
+                              aria-label="View full appointment details"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                           <div className="flex items-center gap-1">
                             {hasDraft && (
                               <Badge
@@ -1306,7 +1375,7 @@ export function SalesWorkspaceView() {
           {activeTab === "services" && (
             <div className="space-y-3">
               {/* Category Pills & Subscribed Quick Filter */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
                 <button
                   type="button"
                   onClick={() => setSelectedServiceCategory("all")}
@@ -1513,7 +1582,9 @@ export function SalesWorkspaceView() {
                   size="sm"
                   onClick={() => {
                     if (!currentCustomerId) {
-                      toast.error("Please select a customer before selling a subscription.");
+                      toast.error(
+                        "Please select a customer before selling a subscription.",
+                      );
                       return;
                     }
                     setSelectedPlanForSellSubscription(null);
@@ -1734,7 +1805,9 @@ export function SalesWorkspaceView() {
                                     size="sm"
                                     onClick={() => {
                                       if (!currentCustomerId) {
-                                        toast.error("Please select a customer before selling a subscription.");
+                                        toast.error(
+                                          "Please select a customer before selling a subscription.",
+                                        );
                                         return;
                                       }
                                       setSelectedPlanForSellSubscription(plan);
@@ -1783,7 +1856,8 @@ export function SalesWorkspaceView() {
                   >
                     <Crown className="h-3.5 w-3.5" />
                     Sold Memberships (Pending Invoice)
-                    {Array.isArray(pendingMembershipsData?.data) &&
+                    {currentCustomerId &&
+                      Array.isArray(pendingMembershipsData?.data) &&
                       pendingMembershipsData.data.length > 0 && (
                         <Badge
                           variant="secondary"
@@ -1814,7 +1888,9 @@ export function SalesWorkspaceView() {
                   size="sm"
                   onClick={() => {
                     if (!currentCustomerId) {
-                      toast.error("Please select a customer before selling a membership.");
+                      toast.error(
+                        "Please select a customer before selling a membership.",
+                      );
                       return;
                     }
                     setSelectedPlanIdForSellMembership(null);
@@ -2040,7 +2116,9 @@ export function SalesWorkspaceView() {
                                   size="sm"
                                   onClick={() => {
                                     if (!currentCustomerId) {
-                                      toast.error("Please select a customer before selling a membership.");
+                                      toast.error(
+                                        "Please select a customer before selling a membership.",
+                                      );
                                       return;
                                     }
                                     setSelectedPlanIdForSellMembership(
@@ -2375,6 +2453,45 @@ export function SalesWorkspaceView() {
             }}
           />
         </Dialog>
+      )}
+
+      {/* Comprehensive Full Appointment Details Modal */}
+      {selectedAppointmentForDetails && (
+        <AppointmentDetailsDialog
+          appointment={selectedAppointmentForDetails}
+          isOpen={isAppointmentDetailsOpen}
+          onClose={() => {
+            setIsAppointmentDetailsOpen(false);
+            setSelectedAppointmentForDetails(null);
+          }}
+          onReschedule={() => {
+            setIsAppointmentDetailsOpen(false);
+            router.push("/appointments");
+          }}
+          onAssignStaff={() => {
+            setIsAppointmentDetailsOpen(false);
+            router.push("/appointments");
+          }}
+          onEditServices={() => {
+            setIsAppointmentDetailsOpen(false);
+            router.push("/appointments");
+          }}
+          onChangeStatus={() => {
+            setIsAppointmentDetailsOpen(false);
+            router.push("/appointments");
+          }}
+          onDelete={() => {
+            setIsAppointmentDetailsOpen(false);
+            router.push("/appointments");
+          }}
+          onCompleteAppointment={(appt) => {
+            setIsAppointmentDetailsOpen(false);
+            handleCompleteAppointment(appt);
+          }}
+          canEdit={canEditAppointments}
+          canStatus={canStatusAppointments}
+          canDelete={canDeleteAppointments}
+        />
       )}
     </div>
   );

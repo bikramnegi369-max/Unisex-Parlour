@@ -700,7 +700,11 @@ export function AppointmentCalendarView({
   }, [leavesData, selectedDateStr]);
 
   // Authoritative calendar staff availability lanes from server
-  const { data: calendarAvailabilityData } = useCalendarStaffAvailability({
+  const {
+    data: calendarAvailabilityData,
+    isLoading: isCalendarAvailabilityLoading,
+    isError: isCalendarAvailabilityError,
+  } = useCalendarStaffAvailability({
     branchId: isAllBranches ? "all" : currentBranchId || undefined,
     date: selectedDateStr,
   });
@@ -731,6 +735,15 @@ export function AppointmentCalendarView({
           status: string;
           isReconciled: boolean;
           conflictType: string;
+        } | null;
+        attendanceDetails?: {
+          status: "present" | "absent" | "review_required" | "not_started" | "on_leave" | "clocked_out";
+          attendanceDate: string;
+          scheduledShiftStart?: string | null;
+          scheduledShiftEnd?: string | null;
+          clockInTime?: string | null;
+          clockOutTime?: string | null;
+          reviewReason?: string | null;
         } | null;
       }
     >();
@@ -764,6 +777,7 @@ export function AppointmentCalendarView({
               }
             : undefined,
           attendanceInfo: lane.attendance,
+          attendanceDetails: lane.attendanceDetails,
         });
       }
     } else {
@@ -783,6 +797,7 @@ export function AppointmentCalendarView({
                 reason: leave.reason,
               }
             : undefined,
+          attendanceDetails: null,
         });
       }
       for (const lane of derivedStaffLanes) {
@@ -802,6 +817,7 @@ export function AppointmentCalendarView({
                   reason: leave.reason,
                 }
               : undefined,
+            attendanceDetails: null,
           });
         }
       }
@@ -830,6 +846,15 @@ export function AppointmentCalendarView({
         isReconciled: boolean;
         conflictType: string;
       } | null;
+      attendanceDetails?: {
+        status: "present" | "absent" | "review_required" | "not_started" | "on_leave" | "clocked_out";
+        attendanceDate: string;
+        scheduledShiftStart?: string | null;
+        scheduledShiftEnd?: string | null;
+        clockInTime?: string | null;
+        clockOutTime?: string | null;
+        reviewReason?: string | null;
+      } | null;
     };
 
     const unassignedLane: LaneItem = {
@@ -841,6 +866,7 @@ export function AppointmentCalendarView({
       isOnLeave: false,
       leaveInfo: undefined,
       attendanceInfo: null,
+      attendanceDetails: null,
     };
 
     return [unassignedLane, ...Array.from(merged.values())];
@@ -1133,7 +1159,7 @@ export function AppointmentCalendarView({
                     >
                       {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
                       <div
-                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between pointer-events-none select-none sticky top-0 z-20 shadow-xs ${
+                        className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between select-none sticky top-0 z-20 shadow-xs ${
                           lane.isOnLeave
                             ? "bg-amber-500/15 dark:bg-amber-950/40 border-b-amber-500/30"
                             : "bg-muted/95"
@@ -1144,39 +1170,160 @@ export function AppointmentCalendarView({
                             <span className="text-xs font-bold text-foreground block truncate max-w-30">
                               {lane.name}
                             </span>
-                            {lane.isOnLeave && (
+                            {/* Render explicit attendance status badge for staff lanes */}
+                            {lane.id !== null && (() => {
+                              if (isCalendarAvailabilityLoading) {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border shrink-0 animate-pulse"
+                                    title="Checking attendance..."
+                                    aria-label="Checking attendance"
+                                  >
+                                    <Clock className="h-2.5 w-2.5" />
+                                    Checking...
+                                  </span>
+                                );
+                              }
+
+                              if (isCalendarAvailabilityError) {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0"
+                                    title="Unable to verify attendance"
+                                    aria-label="Attendance status unknown"
+                                  >
+                                    <AlertTriangle className="h-2.5 w-2.5 text-muted-foreground" />
+                                    Status Unknown
+                                  </span>
+                                );
+                              }
+
+                              const details = lane.attendanceDetails;
+                              const status = details?.status;
+
+                              if (status === "present") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30 shrink-0"
+                                    title={details?.clockInTime ? `Present • Clocked in at ${new Date(details.clockInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Present • Clocked In"}
+                                    aria-label="Attendance Status: Present"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                                    Present
+                                  </span>
+                                );
+                              }
+
+                              if (status === "absent") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-rose-700 dark:text-rose-300 bg-rose-500/15 px-1.5 py-0.5 rounded border border-rose-500/30 shrink-0"
+                                    title={details?.scheduledShiftStart ? `Absent • Scheduled shift start was ${details.scheduledShiftStart}` : "Absent • No attendance recorded for scheduled shift"}
+                                    aria-label="Attendance Status: Absent"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block" />
+                                    Absent
+                                  </span>
+                                );
+                              }
+
+                              if (status === "clocked_out") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0"
+                                    title={details?.clockOutTime ? `Clocked Out • Clocked out at ${new Date(details.clockOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Clocked Out"}
+                                    aria-label="Attendance Status: Clocked Out"
+                                  >
+                                    Clocked Out
+                                  </span>
+                                );
+                              }
+
+                              if (status === "review_required") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/40 shrink-0"
+                                    title={details?.reviewReason || "Attendance Review Required"}
+                                    aria-label="Attendance Status: Review Required"
+                                  >
+                                    <AlertTriangle className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                                    Review Req
+                                  </span>
+                                );
+                              }
+
+                              if (status === "on_leave") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/40 shrink-0"
+                                    title={lane.leaveInfo?.reason || "On Approved Leave"}
+                                    aria-label="Attendance Status: On Leave"
+                                  >
+                                    <CalendarOff className="h-2.5 w-2.5" />
+                                    On Leave
+                                  </span>
+                                );
+                              }
+
+                              if (status === "not_started") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border/80 shrink-0"
+                                    title={details?.scheduledShiftStart ? `Not Started • Scheduled shift starts at ${details.scheduledShiftStart}` : "Not Started • Shift not yet started"}
+                                    aria-label="Attendance Status: Not Started"
+                                  >
+                                    <Clock className="h-2.5 w-2.5" />
+                                    Not Started
+                                  </span>
+                                );
+                              }
+
+                              // Fallback if attendanceDetails is not provided by backend
+                              if (lane.attendanceInfo?.status === "clocked_in") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded border border-emerald-500/30 shrink-0"
+                                    title="Clocked In"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                                    Present
+                                  </span>
+                                );
+                              }
+                              if (lane.attendanceInfo?.status === "clocked_out") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border shrink-0"
+                                    title="Clocked Out"
+                                  >
+                                    Clocked Out
+                                  </span>
+                                );
+                              }
+                              if (
+                                (lane.attendanceInfo?.conflictType &&
+                                  lane.attendanceInfo.conflictType !== "none") ||
+                                lane.attendanceInfo?.status === "incomplete"
+                              ) {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/40 shrink-0"
+                                    title="Attendance Review Required"
+                                  >
+                                    <AlertTriangle className="h-2.5 w-2.5" />
+                                    Review Req
+                                  </span>
+                                );
+                              }
+
+                              return null;
+                            })()}
+
+                            {/* Show Partial Leave badge when partial-day leave applies */}
+                            {lane.isOnLeave && lane.leaveInfo?.isPartialDay && (
                               <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/40 shrink-0">
                                 <CalendarOff className="h-2.5 w-2.5" />
-                                {lane.leaveInfo?.isPartialDay
-                                  ? "Partial Leave"
-                                  : "On Leave"}
-                              </span>
-                            )}
-                            {lane.attendanceInfo?.status === "clocked_in" && (
-                              <span
-                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-1 py-0.2 rounded border border-emerald-500/30 shrink-0"
-                                title="Clocked In"
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block mr-0.5" />
-                                In
-                              </span>
-                            )}
-                            {lane.attendanceInfo?.status === "clocked_out" && (
-                              <span
-                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-muted-foreground bg-muted px-1 py-0.2 rounded border border-border shrink-0"
-                                title="Clocked Out"
-                              >
-                                Out
-                              </span>
-                            )}
-                            {((lane.attendanceInfo?.conflictType &&
-                              lane.attendanceInfo.conflictType !== "none") ||
-                              lane.attendanceInfo?.status === "incomplete") && (
-                              <span
-                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/40 shrink-0"
-                                title="Attendance Review Required"
-                              >
-                                Review Req
+                                Partial Leave
                               </span>
                             )}
                             {lane.branches && lane.branches.length > 1 && (

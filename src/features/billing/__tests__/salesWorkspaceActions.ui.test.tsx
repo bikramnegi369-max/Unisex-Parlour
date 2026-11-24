@@ -67,6 +67,22 @@ vi.mock("@/features/subscriptions/components/CreateSubscriptionDialog", () => ({
   ),
 }));
 
+vi.mock("@/features/appointments/components/AppointmentDetailsDialog", () => ({
+  AppointmentDetailsDialog: ({ isOpen, onClose, appointment }: any) => (
+    isOpen ? (
+      <div data-testid="mock-appointment-details-dialog">
+        <span>AppointmentDetailsDialog Open</span>
+        <span data-testid="details-appointment-code">
+          {appointment?.appointmentCode || "NONE"}
+        </span>
+        <button type="button" onClick={onClose}>
+          Close Details Dialog
+        </button>
+      </div>
+    ) : null
+  ),
+}));
+
 // Mock Customers
 vi.mock("@/features/customers/hooks/useCustomers", () => ({
   useCustomers: () => ({
@@ -185,8 +201,23 @@ vi.mock("@/features/subscriptions/hooks/useCreateSubscription", () => ({
   useCreateSubscription: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
+const mockAppointments = [
+  {
+    id: "apt-101",
+    appointmentCode: "APT-2026-101",
+    status: "completed",
+    customerId: "cust-001",
+    customer: { id: "cust-001", name: "Eleanor Vance", phone: "+91 9111122222" },
+    services: [{ serviceId: "srv-1", name: "Classic Haircut", price: 500, duration: 30 }],
+    pricing: { subtotal: 500, total: 500 },
+  },
+];
+
 vi.mock("../hooks/useBillingQueries", () => ({
-  useCheckoutQueue: () => ({ data: { data: [] }, isLoading: false }),
+  useCheckoutQueue: () => ({
+    data: mockAppointments,
+    isLoading: false,
+  }),
   useMembershipPlans: () => ({
     data: {
       data: [
@@ -317,5 +348,36 @@ describe("SalesWorkspaceView - Sale CTAs & Dialog Opening Verification", () => {
     fireEvent.click(sellSubHeaderBtn);
     expect(screen.getByTestId("mock-create-subscription-dialog")).toBeInTheDocument();
     expect(screen.getByTestId("initial-customer")).toHaveTextContent("cust-001");
+  });
+
+  it("renders eye action button for appointments and opens AppointmentDetailsDialog with complete appointment details", async () => {
+    renderWorkspace();
+
+    // Ensure we are on appointments tab (default tab)
+    expect(screen.getByText("#APT-2026-101")).toBeInTheDocument();
+
+    // Eye button to inspect appointment details
+    const eyeButton = screen.getByRole("button", {
+      name: /view full appointment details/i,
+    });
+    expect(eyeButton).toBeInTheDocument();
+
+    // Click eye button
+    fireEvent.click(eyeButton);
+
+    // Verify detailed modal opened
+    expect(
+      screen.getByTestId("mock-appointment-details-dialog"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("details-appointment-code")).toHaveTextContent(
+      "APT-2026-101",
+    );
+
+    // Close details dialog
+    const closeBtn = screen.getByText("Close Details Dialog");
+    fireEvent.click(closeBtn);
+    expect(
+      screen.queryByTestId("mock-appointment-details-dialog"),
+    ).not.toBeInTheDocument();
   });
 });

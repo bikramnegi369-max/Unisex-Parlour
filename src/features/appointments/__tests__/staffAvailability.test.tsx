@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, renderHook, waitFor, cleanup, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  renderHook,
+  waitFor,
+  cleanup,
+  act,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/axios";
 import {
@@ -12,7 +19,6 @@ import {
 } from "../api/staffAvailability.api";
 import {
   useStaffAvailability,
-  useCalendarStaffAvailability,
   staffAvailabilityKeys,
 } from "../hooks/useStaffAvailability";
 import {
@@ -64,6 +70,11 @@ vi.mock("@/hooks/useBranchContext", () => ({
       { id: "branch_b", name: "Branch Uptown", isActive: true },
     ],
     isAllBranchesSelected: false,
+    getBranchQueryKey: (key: string, extra?: unknown[]) => [
+      key,
+      "branch_a",
+      ...(extra || []),
+    ],
   }),
 }));
 
@@ -100,9 +111,7 @@ function createTestQueryClient() {
 function createWrapper(queryClient: QueryClient) {
   return function QueryWrapper({ children }: { children: React.ReactNode }) {
     return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
   };
 }
@@ -200,17 +209,33 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
       { id: "emp_3", name: "Charlie Barber" },
     ];
 
-    const availabilityMap = new Map<string, { status: string; reasons: string[] }>([
+    const availabilityMap = new Map<
+      string,
+      { status: string; reasons: string[] }
+    >([
       ["emp_1", { status: "unavailable", reasons: ["APPOINTMENT_CONFLICT"] }],
       ["emp_2", { status: "available", reasons: [] }],
-      ["emp_3", { status: "requires_review", reasons: ["ATTENDANCE_REVIEW_REQUIRED"] }],
+      [
+        "emp_3",
+        { status: "requires_review", reasons: ["ATTENDANCE_REVIEW_REQUIRED"] },
+      ],
     ]);
 
     const sorted = [...employees].sort((a, b) => {
       const aAvail = availabilityMap.get(a.id);
       const bAvail = availabilityMap.get(b.id);
-      const aScore = aAvail?.status === "available" ? 0 : aAvail?.status === "requires_review" ? 1 : 2;
-      const bScore = bAvail?.status === "available" ? 0 : bAvail?.status === "requires_review" ? 1 : 2;
+      const aScore =
+        aAvail?.status === "available"
+          ? 0
+          : aAvail?.status === "requires_review"
+            ? 1
+            : 2;
+      const bScore =
+        bAvail?.status === "available"
+          ? 0
+          : bAvail?.status === "requires_review"
+            ? 1
+            : 2;
       return aScore - bScore;
     });
 
@@ -224,7 +249,9 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
   // -------------------------------------------------------------------------
   it("Scenario 4: Formats unavailable staff with proper reason tags and disabled flag", () => {
     expect(REASON_LABELS["BRANCH_NOT_ASSIGNED"]).toBe("Not assigned to branch");
-    expect(REASON_LABELS["STAFF_NOT_SCHEDULED"]).toBe("Not scheduled / off duty");
+    expect(REASON_LABELS["STAFF_NOT_SCHEDULED"]).toBe(
+      "Not scheduled / off duty",
+    );
     expect(REASON_LABELS["STAFF_INACTIVE"]).toBe("Staff inactive");
     expect(REASON_LABELS["BRANCH_CLOSED"]).toBe("Branch closed");
 
@@ -246,7 +273,9 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
   // -------------------------------------------------------------------------
   it("Scenario 5: Identifies full-day and partial-day leave reasons", () => {
     expect(REASON_LABELS["APPROVED_LEAVE"]).toBe("On approved leave");
-    expect(REASON_LABELS["PARTIAL_DAY_LEAVE_CONFLICT"]).toBe("Partial-day leave");
+    expect(REASON_LABELS["PARTIAL_DAY_LEAVE_CONFLICT"]).toBe(
+      "Partial-day leave",
+    );
 
     const fullDayEval = {
       staffId: "emp_1",
@@ -267,9 +296,15 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
   // Scenario 6: Staff with appointment conflict labeled with overlap reason
   // -------------------------------------------------------------------------
   it("Scenario 6: Maps direct and cross-branch booking conflicts to user-friendly tags", () => {
-    expect(REASON_LABELS["APPOINTMENT_CONFLICT"]).toBe("Booked during this time");
-    expect(REASON_LABELS["CROSS_BRANCH_CONFLICT"]).toBe("Booked at another branch");
-    expect(REASON_LABELS["TRAVEL_TIME_CONFLICT"]).toBe("Travel buffer conflict");
+    expect(REASON_LABELS["APPOINTMENT_CONFLICT"]).toBe(
+      "Booked during this time",
+    );
+    expect(REASON_LABELS["CROSS_BRANCH_CONFLICT"]).toBe(
+      "Booked at another branch",
+    );
+    expect(REASON_LABELS["TRAVEL_TIME_CONFLICT"]).toBe(
+      "Travel buffer conflict",
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -330,14 +365,18 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
       serviceIds: ["srv_1", "srv_2"],
     });
 
-    expect(JSON.stringify(keyServiceA)).not.toEqual(JSON.stringify(keyServiceAB));
+    expect(JSON.stringify(keyServiceA)).not.toEqual(
+      JSON.stringify(keyServiceAB),
+    );
   });
 
   // -------------------------------------------------------------------------
   // Scenario 9: Same-day appointment shows clocked-out indicator when staff has punched out
   // -------------------------------------------------------------------------
   it("Scenario 9: Flags clocked-out staff with ATTENDANCE_CLOCKED_OUT status tag", () => {
-    expect(REASON_LABELS["ATTENDANCE_CLOCKED_OUT"]).toBe("Clocked out for the day");
+    expect(REASON_LABELS["ATTENDANCE_CLOCKED_OUT"]).toBe(
+      "Clocked out for the day",
+    );
 
     const evaluation = {
       staffId: "emp_1",
@@ -346,15 +385,21 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
     };
 
     expect(evaluation.status).toBe("unavailable");
-    expect(REASON_LABELS[evaluation.reasons[0]]).toBe("Clocked out for the day");
+    expect(REASON_LABELS[evaluation.reasons[0]]).toBe(
+      "Clocked out for the day",
+    );
   });
 
   // -------------------------------------------------------------------------
   // Scenario 10: Attendance review required shown for unverified attendance state
   // -------------------------------------------------------------------------
   it("Scenario 10: Distinguishes review-required status for incomplete or disputed attendance", () => {
-    expect(REASON_LABELS["ATTENDANCE_REVIEW_REQUIRED"]).toBe("Attendance review required");
-    expect(REASON_LABELS["ATTENDANCE_INCOMPLETE"]).toBe("Attendance incomplete");
+    expect(REASON_LABELS["ATTENDANCE_REVIEW_REQUIRED"]).toBe(
+      "Attendance review required",
+    );
+    expect(REASON_LABELS["ATTENDANCE_INCOMPLETE"]).toBe(
+      "Attendance incomplete",
+    );
     expect(REASON_LABELS["ATTENDANCE_CONFLICT"]).toBe("Attendance conflict");
 
     const reviewEvaluation = {
@@ -364,7 +409,9 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
     };
 
     expect(reviewEvaluation.status).toBe("requires_review");
-    expect(REASON_LABELS[reviewEvaluation.reasons[0]]).toBe("Attendance review required");
+    expect(REASON_LABELS[reviewEvaluation.reasons[0]]).toBe(
+      "Attendance review required",
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -387,13 +434,19 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
           ],
           roster: null,
           leave: null,
-          attendance: { status: "clocked_in", isReconciled: true, conflictType: "none" },
+          attendance: {
+            status: "clocked_in",
+            isReconciled: true,
+            conflictType: "none",
+          },
         },
         {
           id: "emp_2",
           name: "Bob Colorist",
           status: "active",
-          branches: [{ branchId: "branch_b", branchName: "Uptown", isPrimary: true }],
+          branches: [
+            { branchId: "branch_b", branchName: "Uptown", isPrimary: true },
+          ],
           roster: null,
           leave: null,
           attendance: null,
@@ -440,7 +493,9 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
           name: "Idle Stylist",
           designation: "Stylist",
           status: "active",
-          branches: [{ branchId: "branch_a", branchName: "Downtown", isPrimary: true }],
+          branches: [
+            { branchId: "branch_a", branchName: "Downtown", isPrimary: true },
+          ],
           roster: null,
           leave: null,
           attendance: null,
@@ -493,7 +548,11 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
           ],
           roster: null,
           leave: null,
-          attendance: { status: "clocked_in", isReconciled: true, conflictType: "none" },
+          attendance: {
+            status: "clocked_in",
+            isReconciled: true,
+            conflictType: "none",
+          },
         },
       ],
     };
@@ -558,12 +617,20 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
     );
 
     // Verify predicate matches availability keys
-    const call = invalidateSpy.mock.calls.find((c) => c[0] && typeof c[0].predicate === "function");
+    const call = invalidateSpy.mock.calls.find(
+      (c) => c[0] && typeof c[0].predicate === "function",
+    );
     expect(call).toBeDefined();
-    const predicate = call![0]!.predicate as (query: { queryKey: readonly unknown[] }) => boolean;
+    const predicate = call![0]!.predicate as (query: {
+      queryKey: readonly unknown[];
+    }) => boolean;
 
-    expect(predicate({ queryKey: ["staff-availability", "slot", {}] })).toBe(true);
-    expect(predicate({ queryKey: ["calendar-staff-availability", {}] })).toBe(true);
+    expect(predicate({ queryKey: ["staff-availability", "slot", {}] })).toBe(
+      true,
+    );
+    expect(predicate({ queryKey: ["calendar-staff-availability", {}] })).toBe(
+      true,
+    );
     expect(predicate({ queryKey: ["other-key"] })).toBe(false);
   });
 
@@ -589,9 +656,13 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalled();
-    const call = invalidateSpy.mock.calls.find((c) => c[0] && typeof c[0].predicate === "function");
+    const call = invalidateSpy.mock.calls.find(
+      (c) => c[0] && typeof c[0].predicate === "function",
+    );
     expect(call).toBeDefined();
-    const predicate = call![0]!.predicate as (query: { queryKey: readonly unknown[] }) => boolean;
+    const predicate = call![0]!.predicate as (query: {
+      queryKey: readonly unknown[];
+    }) => boolean;
 
     expect(predicate({ queryKey: ["staff-availability"] })).toBe(true);
     expect(predicate({ queryKey: ["calendar-staff-availability"] })).toBe(true);
@@ -618,9 +689,13 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalled();
-    const call = invalidateSpy.mock.calls.find((c) => c[0] && typeof c[0].predicate === "function");
+    const call = invalidateSpy.mock.calls.find(
+      (c) => c[0] && typeof c[0].predicate === "function",
+    );
     expect(call).toBeDefined();
-    const predicate = call![0]!.predicate as (query: { queryKey: readonly unknown[] }) => boolean;
+    const predicate = call![0]!.predicate as (query: {
+      queryKey: readonly unknown[];
+    }) => boolean;
 
     expect(predicate({ queryKey: ["staff-availability"] })).toBe(true);
     expect(predicate({ queryKey: ["calendar-staff-availability"] })).toBe(true);
@@ -688,5 +763,291 @@ describe("Frontend Staff Availability Test Suite (Scenarios 1-18)", () => {
       expect(result.current.isError).toBe(true);
       expect(result.current.error?.message).toBe("Network Error");
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 19: Attendance mutation invalidates staff and calendar availability queries
+  // -------------------------------------------------------------------------
+  it("Scenario 19: Attendance mutations invalidate staff-availability cache queries", async () => {
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    // Call punch record mutation hook
+    const { useRecordStaffPunch } =
+      await import("@/features/attendance/hooks/useAttendance");
+
+    const { result: punchResult } = renderHook(() => useRecordStaffPunch(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { success: true },
+    });
+
+    await act(async () => {
+      await punchResult.current.mutateAsync({
+        staffId: "emp_1",
+        punchType: "in",
+      });
+    });
+
+    const punchInvalidateCall = invalidateSpy.mock.calls.find(
+      (c) => c[0] && typeof c[0].predicate === "function",
+    );
+    expect(punchInvalidateCall).toBeDefined();
+    const punchPredicate = punchInvalidateCall![0]!.predicate as (query: {
+      queryKey: readonly unknown[];
+    }) => boolean;
+    expect(
+      punchPredicate({ queryKey: ["staff-availability", "slot", {}] }),
+    ).toBe(true);
+    expect(
+      punchPredicate({ queryKey: ["calendar-staff-availability", {}] }),
+    ).toBe(true);
+    expect(punchPredicate({ queryKey: ["other-data"] })).toBe(false);
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 20: Calendar Resource Lanes Attendance Status Badges
+  // -------------------------------------------------------------------------
+  it("Scenario 20: Renders explicit attendance status badges in staff resource lanes", async () => {
+    const mockCalendarData: CalendarAvailabilityResponse = {
+      date: "2026-11-25",
+      isAllBranches: true,
+      branchCount: 1,
+      staffCount: 6,
+      lanes: [
+        {
+          id: "emp_present",
+          name: "Stylist Present",
+          designation: "Hair Stylist",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: null,
+          attendance: null,
+          attendanceDetails: {
+            status: "present",
+            attendanceDate: "2026-11-25",
+            clockInTime: "2026-11-25T09:00:00.000Z",
+          },
+        },
+        {
+          id: "emp_absent",
+          name: "Stylist Absent",
+          designation: "Colorist",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: null,
+          attendance: null,
+          attendanceDetails: {
+            status: "absent",
+            attendanceDate: "2026-11-25",
+            scheduledShiftStart: "09:00",
+          },
+        },
+        {
+          id: "emp_not_started",
+          name: "Stylist NotStarted",
+          designation: "Barber",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: null,
+          attendance: null,
+          attendanceDetails: {
+            status: "not_started",
+            attendanceDate: "2026-11-25",
+            scheduledShiftStart: "14:00",
+          },
+        },
+        {
+          id: "emp_clocked_out",
+          name: "Stylist ClockedOut",
+          designation: "Stylist",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: null,
+          attendance: null,
+          attendanceDetails: {
+            status: "clocked_out",
+            attendanceDate: "2026-11-25",
+            clockOutTime: "2026-11-25T13:00:00.000Z",
+          },
+        },
+        {
+          id: "emp_review",
+          name: "Stylist Review",
+          designation: "Stylist",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: null,
+          attendance: null,
+          attendanceDetails: {
+            status: "review_required",
+            attendanceDate: "2026-11-25",
+            reviewReason: "Attendance Conflict (leave)",
+          },
+        },
+        {
+          id: "emp_leave",
+          name: "Stylist Leave",
+          designation: "Stylist",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: {
+            id: "leave_1",
+            leaveType: "Vacation",
+            isPartialDay: false,
+          },
+          attendance: null,
+          attendanceDetails: {
+            status: "on_leave",
+            attendanceDate: "2026-11-25",
+          },
+        },
+      ],
+    };
+
+    vi.mocked(apiClient.get).mockResolvedValue({
+      data: { success: true, data: mockCalendarData },
+    });
+
+    queryClient.setQueryData(
+      staffAvailabilityKeys.calendar({ branchId: "all", date: "2026-11-25" }),
+      mockCalendarData,
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AppointmentCalendarView
+          appointments={[]}
+          isLoading={false}
+          selectedDate={new Date("2026-11-25T00:00:00")}
+          viewMode="day"
+          onViewModeChange={vi.fn()}
+          onSelectDate={vi.fn()}
+          onSelectAppointment={vi.fn()}
+          isAllBranches={true}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Stylist Present")).toBeDefined();
+    });
+
+    // Check that explicit badges and ARIA labels are rendered
+    expect(screen.getByLabelText("Attendance Status: Present")).toBeDefined();
+    expect(screen.getByLabelText("Attendance Status: Absent")).toBeDefined();
+    expect(screen.getByLabelText("Attendance Status: Not Started")).toBeDefined();
+    expect(screen.getByLabelText("Attendance Status: Clocked Out")).toBeDefined();
+    expect(screen.getByLabelText("Attendance Status: Review Required")).toBeDefined();
+    expect(screen.getByLabelText("Attendance Status: On Leave")).toBeDefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 21: Partial-Day Leave UI retains operational status & partial leave badge
+  // -------------------------------------------------------------------------
+  it("Scenario 21: Partial leave displays operational Present badge AND Partial Leave indicator", async () => {
+    const mockCalendarData: CalendarAvailabilityResponse = {
+      date: "2026-11-25",
+      isAllBranches: true,
+      branchCount: 1,
+      staffCount: 1,
+      lanes: [
+        {
+          id: "emp_partial_present",
+          name: "Stylist Maya",
+          designation: "Stylist",
+          status: "active",
+          branches: [{ branchId: "branch_a", branchName: "Main Branch", isPrimary: true }],
+          roster: null,
+          leave: {
+            id: "leave_partial_1",
+            leaveType: "Medical",
+            isPartialDay: true,
+            startTime: "10:00",
+            endTime: "12:00",
+          },
+          attendance: null,
+          attendanceDetails: {
+            status: "present",
+            attendanceDate: "2026-11-25",
+            clockInTime: "2026-11-25T13:00:00.000Z",
+          },
+        },
+      ],
+    };
+
+    queryClient.setQueryData(
+      staffAvailabilityKeys.calendar({ branchId: "all", date: "2026-11-25" }),
+      mockCalendarData,
+    );
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <AppointmentCalendarView
+          appointments={[]}
+          isLoading={false}
+          selectedDate={new Date("2026-11-25T00:00:00")}
+          viewMode="day"
+          onViewModeChange={vi.fn()}
+          onSelectDate={vi.fn()}
+          onSelectAppointment={vi.fn()}
+          isAllBranches={true}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Stylist Maya")).toBeDefined();
+    });
+
+    // Operational badge is Present
+    expect(screen.getByLabelText("Attendance Status: Present")).toBeDefined();
+    // Partial leave badge is displayed simultaneously
+    expect(screen.getByText("Partial Leave")).toBeDefined();
+    // Sub-text shows details
+    expect(screen.getByText(/Medical \(10:00-12:00\)/)).toBeDefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // Scenario 22: Manager attendance reconciliation invalidates calendar queries
+  // -------------------------------------------------------------------------
+  it("Scenario 22: Reconciliation mutation refreshes calendar availability queries", async () => {
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { useResolveBranchAttendanceConflict } = await import("@/features/attendance/hooks/useAttendance");
+
+    const { result: resolveMutation } = renderHook(() => useResolveBranchAttendanceConflict(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { success: true },
+    });
+
+    await act(async () => {
+      await resolveMutation.current.mutateAsync({
+        conflictId: "conflict_1",
+        reason: "Manager verified staff was at Branch A",
+      });
+    });
+
+    const invalidateCall = invalidateSpy.mock.calls.find(
+      (c) => c[0] && typeof c[0].predicate === "function",
+    );
+    expect(invalidateCall).toBeDefined();
+    const predicate = invalidateCall![0]!.predicate as (query: {
+      queryKey: readonly unknown[];
+    }) => boolean;
+
+    // Both slot and calendar availability queries are refreshed
+    expect(predicate({ queryKey: ["calendar-staff-availability", { date: "2026-11-25" }] })).toBe(true);
+    expect(predicate({ queryKey: ["staff-availability", "slot", {}] })).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -18,7 +18,10 @@ import type { Invoice } from "../types/billing.types";
 
 import { Award, Sparkles } from "lucide-react";
 import { useCustomer } from "@/features/customers/hooks/useCustomer";
-import { useRedemptionPreview } from "@/features/loyalty/hooks/useLoyaltyQueries";
+import {
+  useLoyaltyProgram,
+  useRedemptionPreview,
+} from "@/features/loyalty/hooks/useLoyaltyQueries";
 
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -37,6 +40,9 @@ export function EditDraftInvoiceDialog({
 
   const customerId = invoice?.customerId || invoice?.customer?.id;
   const { data: customer } = useCustomer(customerId || null);
+
+  const { data: loyaltyProgram } = useLoyaltyProgram();
+  const minThresholdPoints = loyaltyProgram?.minRedemptionPoints ?? 20;
 
   const {
     register,
@@ -75,18 +81,36 @@ export function EditDraftInvoiceDialog({
 
   // Debounce the requested points to prevent racing API queries on each keystroke
   const debouncedLoyaltyPoints = useDebounce(enteredLoyaltyPoints, 350);
+  const isPointsEligibleForQuery = debouncedLoyaltyPoints >= minThresholdPoints;
 
   // Read-only server-authoritative redemption preview
-  const { data: previewData, isLoading: isPreviewLoading } = useRedemptionPreview(
-    customerId && invoice?.id && debouncedLoyaltyPoints > 0
+  const {
+    data: previewData,
+    isLoading: isPreviewLoading,
+    error: previewError,
+  } = useRedemptionPreview(
+    customerId && invoice?.id && isPointsEligibleForQuery
       ? {
           customerId,
           invoiceId: invoice.id,
           pointsRequested: debouncedLoyaltyPoints,
         }
       : null,
-    { enabled: Boolean(isOpen && customerId && invoice?.id && debouncedLoyaltyPoints > 0) }
+    { enabled: Boolean(isOpen && customerId && invoice?.id && isPointsEligibleForQuery) }
   );
+
+  const previewErrorMessage = useMemo(() => {
+    if (!previewError) return null;
+    const axiosErr = previewError as {
+      response?: { data?: { message?: string } };
+      message?: string;
+    };
+    return (
+      axiosErr.response?.data?.message ||
+      axiosErr.message ||
+      "Unable to preview loyalty redemption discount"
+    );
+  }, [previewError]);
 
   const subtotal = invoice?.subtotal || 0;
   const subscriptionCovered = invoice?.subscriptionCoveredAmount || 0;
@@ -193,18 +217,32 @@ export function EditDraftInvoiceDialog({
             )}
 
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-foreground">
-                Points to Redeem
-              </label>
+              <div className="flex items-center justify-between text-[11px]">
+                <label className="font-medium text-foreground">
+                  Points to Redeem
+                </label>
+                <span className="text-[10px] text-muted-foreground">
+                  Min: <strong className="text-foreground">{minThresholdPoints} pts</strong>
+                </span>
+              </div>
               <Input
                 type="number"
-                min="0"
+                min={minThresholdPoints}
                 max={customer.loyaltyPoints ?? 0}
                 step="1"
-                placeholder="Enter points..."
+                placeholder={`Min ${minThresholdPoints} pts...`}
                 {...register("redeemLoyaltyPoints")}
-                className="text-xs h-8"
+                className={`text-xs h-8 ${
+                  enteredLoyaltyPoints > 0 && enteredLoyaltyPoints < minThresholdPoints
+                    ? "border-amber-500 focus-visible:ring-amber-500"
+                    : ""
+                }`}
               />
+              {enteredLoyaltyPoints > 0 && enteredLoyaltyPoints < minThresholdPoints && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                  Entered points ({enteredLoyaltyPoints}) is below the minimum threshold of {minThresholdPoints} points.
+                </p>
+              )}
               {errors.redeemLoyaltyPoints && (
                 <p className="text-[10px] text-destructive">
                   {errors.redeemLoyaltyPoints.message}
@@ -216,6 +254,11 @@ export function EditDraftInvoiceDialog({
             {isPreviewLoading && (
               <p className="text-[10px] text-muted-foreground italic">
                 Calculating server redemption preview...
+              </p>
+            )}
+            {previewErrorMessage && (
+              <p className="text-[10px] text-destructive">
+                {previewErrorMessage}
               </p>
             )}
             {previewData && !previewData.isEligible && (

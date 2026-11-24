@@ -18,7 +18,7 @@ import {
 import { useRescheduleAppointment } from "../hooks/useAppointments";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { toast } from "sonner";
-import { AlertTriangle, Clock, Play, Sparkles } from "lucide-react";
+import { AlertTriangle, Clock, Sparkles } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
 import type { Employee } from "@/features/employees/types/employee.types";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
@@ -107,7 +107,7 @@ export function AssignStaffDialog({
       endDate: appointmentDate || undefined,
       status: "approved",
     },
-    { enabled: isOpen && Boolean(appointmentDate) }
+    { enabled: isOpen && Boolean(appointmentDate) },
   );
 
   const staffLeaveMap = useMemo(() => {
@@ -148,6 +148,7 @@ export function AssignStaffDialog({
       {
         isAvailable: boolean;
         isOnLeave: boolean;
+        status?: AvailabilityStatus;
         statusLabel?: string;
         reasons?: AvailabilityReasonCode[];
       }
@@ -159,12 +160,16 @@ export function AssignStaffDialog({
         const isLeave =
           evalItem.reasons.includes("APPROVED_LEAVE") ||
           evalItem.reasons.includes("PARTIAL_DAY_LEAVE_CONFLICT");
-        const isClockedOut = evalItem.reasons.includes("ATTENDANCE_CLOCKED_OUT");
+        const isClockedOut = evalItem.reasons.includes(
+          "ATTENDANCE_CLOCKED_OUT",
+        );
         const isConflict =
           evalItem.reasons.includes("APPOINTMENT_CONFLICT") ||
           evalItem.reasons.includes("CROSS_BRANCH_CONFLICT") ||
           evalItem.reasons.includes("TRAVEL_TIME_CONFLICT");
-        const isServiceUnsupported = evalItem.reasons.includes("SERVICE_NOT_SUPPORTED");
+        const isServiceUnsupported = evalItem.reasons.includes(
+          "SERVICE_NOT_SUPPORTED",
+        );
 
         let label = "";
         if (isLeave) {
@@ -183,11 +188,15 @@ export function AssignStaffDialog({
           label = "Not Qualified for Services";
         } else if (evalItem.status === "requires_review") {
           label = "Attendance Review Required";
+        } else if (evalItem.reasons && evalItem.reasons.length > 0) {
+          const primaryReason = evalItem.reasons[0] as AvailabilityReasonCode;
+          label = primaryReason in REASON_LABELS ? REASON_LABELS[primaryReason] : String(primaryReason);
         }
 
         map.set(evalItem.staffId, {
           isAvailable: isAvail,
           isOnLeave: isLeave,
+          status: evalItem.status,
           statusLabel: label,
           reasons: evalItem.reasons,
         });
@@ -200,6 +209,7 @@ export function AssignStaffDialog({
       map.set(emp.id, {
         isAvailable: !leave,
         isOnLeave: Boolean(leave),
+        status: leave ? "unavailable" : "available",
         statusLabel: leave ? "On Leave" : undefined,
       });
     }
@@ -315,6 +325,12 @@ export function AssignStaffDialog({
     // Validate that assigned staff is available on appointment date/time
     if (data.staffId) {
       const avail = staffAvailabilityMap.get(data.staffId);
+      if (avail && avail.status === "requires_review") {
+        const msg = `Staff member availability requires manager review (${avail.statusLabel || "Attendance Review Required"}) on ${appointment.date}. Cannot assign to this appointment.`;
+        setConflictError(msg);
+        toast.error(msg);
+        return;
+      }
       if (avail && !avail.isAvailable) {
         const msg = `Staff member is unavailable (${avail.statusLabel || "Unavailable"}) on ${appointment.date}. Cannot assign to this appointment.`;
         setConflictError(msg);
@@ -380,7 +396,8 @@ export function AssignStaffDialog({
           branchId: appointment.branchId,
           date: appointment.date,
           startTime: currentTimeStr,
-          reason: "Staff assignment: start time aligned to current time to resolve conflict",
+          reason:
+            "Staff assignment: start time aligned to current time to resolve conflict",
         },
       });
       await onSubmit(appointment.id, {
@@ -395,7 +412,8 @@ export function AssignStaffDialog({
         response?: { data?: { message?: string } };
       };
       toast.error(
-        axiosError.response?.data?.message || "Failed to update start time and assign staff.",
+        axiosError.response?.data?.message ||
+          "Failed to update start time and assign staff.",
       );
     }
   };
@@ -419,7 +437,8 @@ export function AssignStaffDialog({
             {selectedStaffId && (
               <div className="pt-2 border-t border-destructive/20 flex items-center justify-between gap-2 text-[11px]">
                 <span className="text-foreground">
-                  Was staff busy earlier? Sync start time to current time instead:
+                  Was staff busy earlier? Sync start time to current time
+                  instead:
                 </span>
                 <Button
                   type="button"
@@ -537,7 +556,9 @@ export function AssignStaffDialog({
                     key={e.id}
                     value={e.id}
                     disabled={!isAvail}
-                    className={!isAvail ? "text-muted-foreground bg-muted/40 italic" : ""}
+                    className={
+                      !isAvail ? "text-muted-foreground bg-muted/40 italic" : ""
+                    }
                   >
                     {e.name} {e.designation ? `(${e.designation})` : ""}
                     {statusTag}
@@ -550,7 +571,10 @@ export function AssignStaffDialog({
               !staffAvailabilityMap.get(selectedStaffId)?.isAvailable && (
                 <p className="text-[11px] text-destructive flex items-center gap-1 font-medium mt-1">
                   <AlertTriangle className="h-3 w-3 shrink-0" />
-                  Staff member is unavailable for this slot ({staffAvailabilityMap.get(selectedStaffId)?.statusLabel || "Unavailable"}).
+                  Staff member is unavailable for this slot (
+                  {staffAvailabilityMap.get(selectedStaffId)?.statusLabel ||
+                    "Unavailable"}
+                  ).
                 </p>
               )}
             {appointmentServiceIds.length > 0 &&
@@ -573,11 +597,14 @@ export function AssignStaffDialog({
                   className="rounded border-input text-primary focus:ring-primary h-4 w-4"
                 />
                 <span className="font-semibold text-primary">
-                  Set appointment start time to now ({format(new Date(), "HH:mm")})
+                  Set appointment start time to now (
+                  {format(new Date(), "HH:mm")})
                 </span>
               </label>
               <p className="text-[10px] text-muted-foreground pl-6">
-                Adjusts scheduled time so the assigned staff member&apos;s calendar is blocked starting now. (Status can be set to &quot;In Progress&quot; via Start Service in details or status menu).
+                Adjusts scheduled time so the assigned staff member&apos;s
+                calendar is blocked starting now. (Status can be set to &quot;In
+                Progress&quot; via Start Service in details or status menu).
               </p>
             </div>
           )}

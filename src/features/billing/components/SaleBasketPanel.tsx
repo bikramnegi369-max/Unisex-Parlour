@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "@/store";
 import {
@@ -17,6 +17,7 @@ import {
   updateWalkinServiceQuantity,
   clearBasketAppointment,
   setBasketDiscount,
+  setBasketLoyaltyRedemption,
 } from "@/store/slices/saleBasketSlice";
 import { formatCurrency } from "@/lib/formatters";
 import {
@@ -33,6 +34,7 @@ import {
   User,
   ArrowRight,
   ShieldCheck,
+  Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +43,12 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { StaffAttributionSelect } from "@/features/employees/components/StaffAttributionSelect";
 import { useCustomerActiveBenefits } from "@/features/memberships/hooks/useMemberships";
 import { isServiceEligibleForMembershipBenefits } from "@/features/memberships/utils/membershipEligibility";
+import { useCustomer } from "@/features/customers/hooks/useCustomer";
+import {
+  useLoyaltyProgram,
+  useRedemptionPreview,
+} from "@/features/loyalty/hooks/useLoyaltyQueries";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface SaleBasketPanelProps {
   onCheckout: () => void;
@@ -55,11 +63,51 @@ export function SaleBasketPanel({
   const basket = useSelector((state: RootState) => state.saleBasket);
   const { currentBranchId } = useBranchContext();
 
+  // Load customer profile to get authoritative loyaltyPoints and debt status
+  const customerId = basket.customer?.id || null;
+  const { data: customer } = useCustomer(customerId);
+
+  // Authoritative organization loyalty program rules (minRedemptionPoints, maxRedemptionPercentage, etc.)
+  const { data: loyaltyProgram } = useLoyaltyProgram();
+  const minThresholdPoints = loyaltyProgram?.minRedemptionPoints ?? 20;
+
   // If customer has an existing persisted active/pending membership in backend, load their privileges
   const { data: customerBenefitsData } = useCustomerActiveBenefits(
     basket.customer?.id || "",
     currentBranchId || undefined,
   );
+
+  // User's temporary typing buffer. If null, displays authoritative Redux state.
+  const [typingValue, setTypingValue] = useState<string | null>(null);
+  const inputValue =
+    typingValue !== null
+      ? typingValue
+      : basket.redeemLoyaltyPoints > 0
+        ? String(basket.redeemLoyaltyPoints)
+        : "";
+
+  const debouncedTyping = useDebounce(typingValue, 350);
+
+  // Sync debounced typing to Redux (side-effect updating external state management)
+  useEffect(() => {
+    if (debouncedTyping === null) return;
+
+    if (debouncedTyping === "") {
+      if (basket.redeemLoyaltyPoints !== 0) {
+        dispatch(setBasketLoyaltyRedemption(0));
+      }
+      return;
+    }
+
+    const num = Math.floor(Number(debouncedTyping));
+    if (isNaN(num)) return;
+
+    const maxAvailable = customer?.loyaltyPoints ?? 0;
+    const clamped = Math.min(Math.max(0, num), maxAvailable);
+    if (clamped !== basket.redeemLoyaltyPoints) {
+      dispatch(setBasketLoyaltyRedemption(clamped));
+    }
+  }, [debouncedTyping, customer?.loyaltyPoints, basket.redeemLoyaltyPoints, dispatch]);
 
   // Financial calculations derived from basket
   const totals = useMemo(() => {
@@ -146,7 +194,8 @@ export function SaleBasketPanel({
           );
           if (isEligible) {
             membershipDiscount +=
-              (aptLine.unitPrice * aptLine.quantity * effectiveServicePct) / 100;
+              (aptLine.unitPrice * aptLine.quantity * effectiveServicePct) /
+              100;
           }
         }
       }
@@ -169,6 +218,7 @@ export function SaleBasketPanel({
       membershipDiscount,
       manualDiscount: basket.discountTotal,
       discountTotal,
+      grossPayable,
       payableAmount,
       itemCount:
         basket.appointmentLines.length +
@@ -176,8 +226,7 @@ export function SaleBasketPanel({
         basket.productLines.length +
         basket.subscriptionLines.length +
         basket.membershipLines.length,
-      hasMembershipBenefits:
-        effectiveServicePct > 0 || effectiveProductPct > 0,
+      hasMembershipBenefits: effectiveServicePct > 0 || effectiveProductPct > 0,
       activeMembershipTier:
         inCartMem?.tier ||
         (customerBenefitsData?.hasActiveMembership
@@ -185,6 +234,76 @@ export function SaleBasketPanel({
           : null),
     };
   }, [basket, customerBenefitsData]);
+
+  // Calculate the maximum redeemable points allowed for this cart and customer
+  const maxRedeemableForCart = useMemo(() => {
+    const available = customer?.loyaltyPoints ?? 0;
+    if (available < minThresholdPoints || totals.grossPayable <= 0) {
+      return 0;
+    }
+    const maxPct = loyaltyProgram?.maxRedemptionPercentage ?? 20;
+    const rate = loyaltyProgram?.redemptionRate ?? 1;
+    const maxDiscountAllowed = (totals.grossPayable * maxPct) / 100;
+    const maxPointsByBill = Math.floor(maxDiscountAllowed / rate);
+    return Math.min(available, maxPointsByBill);
+  }, [
+    customer?.loyaltyPoints,
+    minThresholdPoints,
+    totals.grossPayable,
+    loyaltyProgram?.maxRedemptionPercentage,
+    loyaltyProgram?.redemptionRate,
+  ]);
+
+  // Server-authoritative loyalty redemption preview query
+  // Gate execution so we never send sub-threshold requests that trigger HTTP 400
+  const isRedemptionPointsValid =
+    basket.redeemLoyaltyPoints >= minThresholdPoints;
+
+  const customerIdForPreview = basket.customer?.id;
+
+  const previewParams = useMemo(() => {
+    if (!customerIdForPreview || !isRedemptionPointsValid) {
+      return null;
+    }
+    return {
+      customerId: customerIdForPreview,
+      billAmount: totals.grossPayable,
+      pointsRequested: basket.redeemLoyaltyPoints,
+    };
+  }, [
+    customerIdForPreview,
+    totals.grossPayable,
+    basket.redeemLoyaltyPoints,
+    isRedemptionPointsValid,
+  ]);
+
+  const {
+    data: loyaltyPreview,
+    isLoading: isLoyaltyPreviewLoading,
+    error: loyaltyPreviewError,
+  } = useRedemptionPreview(previewParams, {
+    enabled: Boolean(basket.customer?.id && isRedemptionPointsValid),
+  });
+
+  // Extract friendly server error message if preview failed
+  const previewErrorMessage = useMemo(() => {
+    if (!loyaltyPreviewError) return null;
+    const axiosErr = loyaltyPreviewError as {
+      response?: { data?: { message?: string } };
+      message?: string;
+    };
+    return (
+      axiosErr.response?.data?.message ||
+      axiosErr.message ||
+      "Unable to calculate points discount preview"
+    );
+  }, [loyaltyPreviewError]);
+
+  // Effective net payable after membership, manual discount and authoritative loyalty discount
+  const finalPayable = useMemo(() => {
+    const loyaltyDiscount = loyaltyPreview?.appliedDiscount || 0;
+    return Math.max(0, totals.payableAmount - loyaltyDiscount);
+  }, [totals.payableAmount, loyaltyPreview?.appliedDiscount]);
 
   return (
     <div className="flex flex-col h-full bg-card border-l border-border select-none">
@@ -326,7 +445,10 @@ export function SaleBasketPanel({
                             </span>
                           ) : aptLine.appliedSubscriptionId ? (
                             <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                              Sub #{aptLine.appliedSubscriptionId.slice(-6).toUpperCase()}
+                              Sub #
+                              {aptLine.appliedSubscriptionId
+                                .slice(-6)
+                                .toUpperCase()}
                             </span>
                           ) : null}
                         </div>
@@ -394,7 +516,12 @@ export function SaleBasketPanel({
                           value={s.performedByStaffId}
                           compact
                           onChange={(staffId) =>
-                            dispatch(setWalkinServicePerformer({ serviceId: s.serviceId, staffId }))
+                            dispatch(
+                              setWalkinServicePerformer({
+                                serviceId: s.serviceId,
+                                staffId,
+                              }),
+                            )
                           }
                         />
                       </div>
@@ -406,7 +533,8 @@ export function SaleBasketPanel({
                             </span>
                           ) : s.appliedSubscriptionId ? (
                             <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                              Sub #{s.appliedSubscriptionId.slice(-6).toUpperCase()}
+                              Sub #
+                              {s.appliedSubscriptionId.slice(-6).toUpperCase()}
                             </span>
                           ) : null}
                         </div>
@@ -515,7 +643,12 @@ export function SaleBasketPanel({
                           value={p.soldByStaffId}
                           compact
                           onChange={(staffId) =>
-                            dispatch(setProductSeller({ productId: p.productId, staffId }))
+                            dispatch(
+                              setProductSeller({
+                                productId: p.productId,
+                                staffId,
+                              }),
+                            )
                           }
                         />
                       </div>
@@ -601,7 +734,12 @@ export function SaleBasketPanel({
                             value={sub.soldByStaffId}
                             compact
                             onChange={(staffId) =>
-                              dispatch(setSubscriptionSeller({ planId: sub.planId, staffId }))
+                              dispatch(
+                                setSubscriptionSeller({
+                                  planId: sub.planId,
+                                  staffId,
+                                }),
+                              )
                             }
                           />
                         </div>
@@ -638,7 +776,10 @@ export function SaleBasketPanel({
                   <Crown className="h-3 w-3" /> Membership
                 </div>
                 {basket.membershipLines.map((mem) => {
-                  const lineKey = mem.customerMembershipId || mem.membershipPurchaseId || mem.membershipPlanId;
+                  const lineKey =
+                    mem.customerMembershipId ||
+                    mem.membershipPurchaseId ||
+                    mem.membershipPlanId;
                   return (
                     <div
                       key={lineKey}
@@ -675,7 +816,8 @@ export function SaleBasketPanel({
                                 dispatch(
                                   setMembershipSeller({
                                     membershipPlanId: mem.membershipPlanId,
-                                    customerMembershipId: mem.customerMembershipId,
+                                    customerMembershipId:
+                                      mem.customerMembershipId,
                                     staffId,
                                   }),
                                 )
@@ -695,7 +837,8 @@ export function SaleBasketPanel({
                           onClick={() =>
                             dispatch(
                               removeMembershipFromBasket(
-                                mem.customerMembershipId || mem.membershipPlanId,
+                                mem.customerMembershipId ||
+                                  mem.membershipPlanId,
                               ),
                             )
                           }
@@ -732,7 +875,12 @@ export function SaleBasketPanel({
           <div className="flex items-center justify-between text-xs text-amber-600 font-medium">
             <span className="flex items-center gap-1">
               <Crown className="w-3 h-3" />
-              <span>Membership Tier Discount {totals.activeMembershipTier ? `(${totals.activeMembershipTier})` : ""}</span>
+              <span>
+                Membership Tier Discount{" "}
+                {totals.activeMembershipTier
+                  ? `(${totals.activeMembershipTier})`
+                  : ""}
+              </span>
             </span>
             <span className="font-mono">
               -{formatCurrency(totals.membershipDiscount)}
@@ -755,17 +903,157 @@ export function SaleBasketPanel({
           />
         </div>
 
+        {/* Loyalty Points Redemption Section */}
+        {customer && (customer.loyaltyPoints ?? 0) > 0 && (
+          <div className="pt-2 border-t border-border/60 space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground flex items-center gap-1 font-medium">
+                <Sparkles className="h-3 w-3 text-primary" />
+                <span>Redeem Loyalty Points</span>
+              </span>
+              <Badge
+                variant="outline"
+                className="text-[10px] text-primary border-primary/30"
+              >
+                Available: {customer.loyaltyPoints ?? 0} pts
+              </Badge>
+            </div>
+
+            {/* Threshold & Debt Indicator */}
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>
+                Min. redemption:{" "}
+                <strong className="text-foreground">
+                  {minThresholdPoints} pts
+                </strong>
+              </span>
+              {(customer.loyaltyPoints ?? 0) < minThresholdPoints ? (
+                <span className="text-amber-600 dark:text-amber-400 font-medium">
+                  Needs {minThresholdPoints - (customer.loyaltyPoints ?? 0)}{" "}
+                  more pts
+                </span>
+              ) : maxRedeemableForCart < minThresholdPoints ? (
+                <span
+                  className="text-amber-600 dark:text-amber-400 font-medium"
+                  title="Bill subtotal is too low for minimum redemption cap"
+                >
+                  Bill amount too low
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTypingValue(null);
+                    dispatch(setBasketLoyaltyRedemption(maxRedeemableForCart));
+                  }}
+                  className="text-primary hover:underline font-semibold cursor-pointer"
+                >
+                  Apply Max ({maxRedeemableForCart} pts)
+                </button>
+              )}
+            </div>
+
+            {(customer.loyaltyPointsDebt ?? 0) > 0 && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                Customer has {customer.loyaltyPointsDebt} pts debt.
+              </p>
+            )}
+
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={minThresholdPoints}
+                max={customer.loyaltyPoints ?? 0}
+                step="1"
+                placeholder={`Min ${minThresholdPoints} pts...`}
+                value={inputValue}
+                onChange={(e) => setTypingValue(e.target.value)}
+                className={`text-xs h-7 font-mono ${
+                  inputValue &&
+                  Number(inputValue) > 0 &&
+                  Number(inputValue) < minThresholdPoints
+                    ? "border-amber-500 focus-visible:ring-amber-500"
+                    : ""
+                }`}
+              />
+              {basket.redeemLoyaltyPoints > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setTypingValue(null);
+                    dispatch(setBasketLoyaltyRedemption(0));
+                  }}
+                  className="h-7 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+
+            {/* Validation warning if cashier entered points below threshold */}
+            {inputValue &&
+              Number(inputValue) > 0 &&
+              Number(inputValue) < minThresholdPoints && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                  Entered points ({inputValue}) must be at least{" "}
+                  {minThresholdPoints} points.
+                </p>
+              )}
+
+            {isLoyaltyPreviewLoading && (
+              <p className="text-[10px] text-muted-foreground italic">
+                Calculating server redemption preview...
+              </p>
+            )}
+
+            {previewErrorMessage && (
+              <p className="text-[10px] text-destructive">
+                {previewErrorMessage}
+              </p>
+            )}
+
+            {loyaltyPreview &&
+              !loyaltyPreview.isEligible &&
+              loyaltyPreview.reason && (
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                  {loyaltyPreview.reason}
+                </p>
+              )}
+
+            {loyaltyPreview?.isEligible &&
+              (loyaltyPreview.appliedDiscount ?? 0) > 0 && (
+                <div className="flex items-center justify-between text-xs text-primary font-medium bg-primary/5 px-2 py-1 rounded border border-primary/20">
+                  <span className="flex items-center gap-1">
+                    <Award className="h-3.5 w-3.5" />
+                    Points Discount ({loyaltyPreview.appliedPoints} pts)
+                  </span>
+                  <span className="font-mono font-bold">
+                    -{formatCurrency(loyaltyPreview.appliedDiscount)}
+                  </span>
+                </div>
+              )}
+          </div>
+        )}
+
         <div className="pt-2 border-t border-border flex items-center justify-between font-bold text-sm text-foreground">
           <span>Net Payable</span>
           <span className="text-base font-mono text-primary font-extrabold">
-            {formatCurrency(totals.payableAmount)}
+            {formatCurrency(finalPayable)}
           </span>
         </div>
 
         {/* Checkout Button */}
         <Button
           type="button"
-          disabled={totals.itemCount === 0 || !basket.customer || isSubmitting}
+          disabled={
+            totals.itemCount === 0 ||
+            !basket.customer ||
+            isSubmitting ||
+            (basket.redeemLoyaltyPoints > 0 &&
+              basket.redeemLoyaltyPoints < minThresholdPoints)
+          }
           onClick={onCheckout}
           className="w-full h-10 mt-2 gap-2 text-xs font-bold uppercase tracking-wider"
         >

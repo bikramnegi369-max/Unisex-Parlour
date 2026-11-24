@@ -1624,6 +1624,12 @@ export function CreateAppointmentDialog({
     // Validate that the selected staff is available
     if (data.staffId) {
       const avail = staffAvailabilityMap.get(data.staffId);
+      if (avail && avail.status === "requires_review") {
+        const msg = `Selected staff member availability requires manager review (${avail.statusLabel || "Attendance Review Required"}). Cannot confirm booking.`;
+        setConflictError(msg);
+        toast.error(msg);
+        return;
+      }
       if (avail && !avail.isAvailable) {
         const msg = `Selected staff member is unavailable (${avail.statusLabel || "Unavailable"}). Please reassign to an available staff member.`;
         setConflictError(msg);

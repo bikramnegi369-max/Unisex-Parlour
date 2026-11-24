@@ -592,7 +592,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 className="text-xs h-8 px-2.5 gap-1.5 text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
               >
                 <Edit className="h-3 w-3" />
-                <span>Edit Notes</span>
+                <span>Edit Draft</span>
               </Button>
             )}
 

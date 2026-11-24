@@ -12,7 +12,11 @@ import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
 import { useStaffAvailability } from "../hooks/useStaffAvailability";
-import { REASON_LABELS } from "../api/staffAvailability.api";
+import {
+  REASON_LABELS,
+  type AvailabilityReasonCode,
+  type StaffSlotEvaluation,
+} from "../api/staffAvailability.api";
 
 interface RescheduleAppointmentDialogProps {
   appointment: Appointment | null;
@@ -70,10 +74,11 @@ export function RescheduleAppointmentDialog({
     },
   );
 
-  const liveStaffEval = useMemo(() => {
-    if (!slotAvailabilityData?.staff || !appointment?.staffId) return null;
-    return slotAvailabilityData.staff.find((s) => s.staffId === appointment.staffId) || null;
-  }, [slotAvailabilityData, appointment?.staffId]);
+  const assignedStaffId = appointment?.staffId;
+  const liveStaffEval: StaffSlotEvaluation | null = useMemo(() => {
+    if (!slotAvailabilityData?.staff || !assignedStaffId) return null;
+    return slotAvailabilityData.staff.find((s: StaffSlotEvaluation) => s.staffId === assignedStaffId) || null;
+  }, [slotAvailabilityData, assignedStaffId]);
 
   const [prevKey, setPrevKey] = useState<string | null>(null);
   const currentKey = isOpen && appointment ? `${appointment.id}-${isOpen}` : null;
@@ -99,6 +104,23 @@ export function RescheduleAppointmentDialog({
   const handleFormSubmit = async (data: RescheduleAppointmentSchemaType) => {
     if (!appointment) return;
     setConflictError(null);
+
+    if (liveStaffEval?.status === "requires_review") {
+      const reasons = liveStaffEval.reasons?.map((r: AvailabilityReasonCode) => REASON_LABELS[r] || r).join(", ");
+      const msg = `Assigned stylist availability requires review (${reasons || "Attendance Review Required"}). Cannot reschedule without manager approval.`;
+      setConflictError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    if (liveStaffEval?.status === "unavailable") {
+      const reasons = liveStaffEval.reasons?.map((r: AvailabilityReasonCode) => REASON_LABELS[r] || r).join(", ");
+      const msg = `Assigned stylist is unavailable for the selected slot (${reasons || "Unavailable"}). Cannot reschedule to this slot.`;
+      setConflictError(msg);
+      toast.error(msg);
+      return;
+    }
+
     try {
       await onSubmit(appointment.id, data);
       toast.success("Appointment rescheduled successfully.");
@@ -152,13 +174,25 @@ export function RescheduleAppointmentDialog({
           </div>
           <input type="hidden" {...register("branchId")} />
 
-          {liveStaffEval && liveStaffEval.status === "unavailable" && (
+          {liveStaffEval && liveStaffEval.status === "requires_review" && (
             <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Staff Attendance Review Required: </span>
+                Assigned stylist {appointment.staff?.name || "staff"} requires review for this slot (
+                {liveStaffEval.reasons.map((r: AvailabilityReasonCode) => REASON_LABELS[r] || r).join(", ") || "Attendance Review Required"}
+                ). Cannot confirm reschedule without resolution.
+              </div>
+            </div>
+          )}
+
+          {liveStaffEval && liveStaffEval.status === "unavailable" && (
+            <div className="p-2.5 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-2 text-xs text-destructive">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>
                 <span className="font-semibold">Staff Conflict Warning: </span>
                 Assigned stylist {appointment.staff?.name || "staff"} is marked unavailable for this slot (
-                {liveStaffEval.reasons.map((r) => REASON_LABELS[r] || r).join(", ")}
+                {liveStaffEval.reasons.map((r: AvailabilityReasonCode) => REASON_LABELS[r] || r).join(", ")}
                 ).
               </div>
             </div>

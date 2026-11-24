@@ -89,6 +89,12 @@ function useAttendanceMutation<TVariables>(mutationFn: (variables: TVariables) =
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-branch-conflicts") }),
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-leave-conflicts") }),
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-provider-status") }),
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey[0];
+            return key === "staff-availability" || key === "calendar-staff-availability";
+          },
+        }),
       ]);
     },
   });
@@ -192,6 +198,12 @@ export function useRecordStaffPunch() {
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-register") }),
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("attendance-detail") }),
         queryClient.invalidateQueries({ queryKey: getBranchQueryKey("monthly-muster-roll") }),
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey[0];
+            return key === "staff-availability" || key === "calendar-staff-availability";
+          },
+        }),
       ]);
     },
   });

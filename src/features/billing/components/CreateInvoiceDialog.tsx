@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * @deprecated
+ * LEGACY INVOICE CREATION DIALOG (Deprecated in favor of Unified POS Sales Workspace)
+ *
+ * All POS / invoice checkouts should use the unified workspace route `/billing/sales/new`
+ * with `SalesWorkspaceView` and `SaleBasketPanel`.
+ *
+ * This component is retained strictly as a fallback and backward-compatibility harness
+ * for existing test suites. Do not introduce new consumers of this component.
+ */
+
 import React, { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch, type Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
