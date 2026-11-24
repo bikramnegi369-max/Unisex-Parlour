@@ -23,6 +23,12 @@ import type { Appointment } from "../types/appointment.types";
 import type { Employee } from "@/features/employees/types/employee.types";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
+import { useStaffAvailability } from "../hooks/useStaffAvailability";
+import {
+  REASON_LABELS,
+  type AvailabilityStatus,
+  type AvailabilityReasonCode,
+} from "../api/staffAvailability.api";
 
 interface AssignStaffDialogProps {
   appointment: Appointment | null;
@@ -118,6 +124,96 @@ export function AssignStaffDialog({
     }
     return map;
   }, [leavesData, appointmentDate]);
+
+  // Authoritative staff availability evaluation for the slot
+  const { data: slotAvailabilityData } = useStaffAvailability(
+    {
+      branchId: appointment?.branchId,
+      date: appointment?.date || "",
+      startTime: appointment?.startTime || "",
+      duration: appointment?.totalDuration || 30,
+      serviceIds: appointmentServiceIds,
+      excludeAppointmentId: appointment?.id,
+    },
+    {
+      enabled: Boolean(
+        isOpen && appointment && appointment.date && appointment.startTime,
+      ),
+    },
+  );
+
+  const staffAvailabilityMap = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        isAvailable: boolean;
+        isOnLeave: boolean;
+        statusLabel?: string;
+        reasons?: AvailabilityReasonCode[];
+      }
+    >();
+
+    if (slotAvailabilityData?.staff && slotAvailabilityData.staff.length > 0) {
+      for (const evalItem of slotAvailabilityData.staff) {
+        const isAvail = evalItem.status === "available";
+        const isLeave =
+          evalItem.reasons.includes("APPROVED_LEAVE") ||
+          evalItem.reasons.includes("PARTIAL_DAY_LEAVE_CONFLICT");
+        const isClockedOut = evalItem.reasons.includes("ATTENDANCE_CLOCKED_OUT");
+        const isConflict =
+          evalItem.reasons.includes("APPOINTMENT_CONFLICT") ||
+          evalItem.reasons.includes("CROSS_BRANCH_CONFLICT") ||
+          evalItem.reasons.includes("TRAVEL_TIME_CONFLICT");
+        const isServiceUnsupported = evalItem.reasons.includes("SERVICE_NOT_SUPPORTED");
+
+        let label = "";
+        if (isLeave) {
+          label = evalItem.reasons.includes("PARTIAL_DAY_LEAVE_CONFLICT")
+            ? "Partial-Day Leave"
+            : "On Approved Leave";
+        } else if (isClockedOut) {
+          label = "Clocked Out";
+        } else if (isConflict) {
+          label = evalItem.reasons.includes("CROSS_BRANCH_CONFLICT")
+            ? "Booked at Another Branch"
+            : evalItem.reasons.includes("TRAVEL_TIME_CONFLICT")
+              ? "Travel Buffer Conflict"
+              : "Booked";
+        } else if (isServiceUnsupported) {
+          label = "Not Qualified for Services";
+        } else if (evalItem.status === "requires_review") {
+          label = "Attendance Review Required";
+        }
+
+        map.set(evalItem.staffId, {
+          isAvailable: isAvail,
+          isOnLeave: isLeave,
+          statusLabel: label,
+          reasons: evalItem.reasons,
+        });
+      }
+      return map;
+    }
+
+    for (const emp of employees) {
+      const leave = staffLeaveMap.get(emp.id);
+      map.set(emp.id, {
+        isAvailable: !leave,
+        isOnLeave: Boolean(leave),
+        statusLabel: leave ? "On Leave" : undefined,
+      });
+    }
+    return map;
+  }, [slotAvailabilityData, employees, staffLeaveMap]);
+
+  const sortedQualifiedEmployees = useMemo(() => {
+    return [...qualifiedEmployees].sort((a, b) => {
+      const aAvail = staffAvailabilityMap.get(a.id)?.isAvailable ? 0 : 1;
+      const bAvail = staffAvailabilityMap.get(b.id)?.isAvailable ? 0 : 1;
+      if (aAvail !== bAvail) return aAvail - bAvail;
+      return a.name.localeCompare(b.name);
+    });
+  }, [qualifiedEmployees, staffAvailabilityMap]);
   const { register, handleSubmit, setValue, control, reset } =
     useForm<AssignStaffSchemaType>({
       resolver: zodResolver(assignStaffSchema),
@@ -216,11 +312,11 @@ export function AssignStaffDialog({
     if (!appointment) return;
     setConflictError(null);
 
-    // Validate that assigned staff is not on approved leave on appointment date
+    // Validate that assigned staff is available on appointment date/time
     if (data.staffId) {
-      const leave = staffLeaveMap.get(data.staffId);
-      if (leave) {
-        const msg = `Staff member is on approved leave (${leave.leaveType || leave.reason || "On Leave"}) on ${appointment.date}. Cannot assign to this appointment.`;
+      const avail = staffAvailabilityMap.get(data.staffId);
+      if (avail && !avail.isAvailable) {
+        const msg = `Staff member is unavailable (${avail.statusLabel || "Unavailable"}) on ${appointment.date}. Cannot assign to this appointment.`;
         setConflictError(msg);
         toast.error(msg);
         return;
@@ -424,19 +520,24 @@ export function AssignStaffDialog({
                     (Currently Assigned)
                   </option>
                 )}
-              {qualifiedEmployees.map((e: Employee) => {
-                const leave = staffLeaveMap.get(e.id);
-                const isOnLeave = Boolean(leave);
-                const statusTag = isOnLeave
-                  ? ` 🏖️ [On Leave: ${leave?.leaveType || leave?.reason || "Approved Leave"}]`
-                  : "";
+              {sortedQualifiedEmployees.map((e: Employee) => {
+                const avail = staffAvailabilityMap.get(e.id);
+                const isAvail = avail ? avail.isAvailable : true;
+                const statusLabel = avail?.statusLabel;
+
+                let statusTag = "";
+                if (statusLabel) {
+                  statusTag = ` [${statusLabel}]`;
+                } else if (!isAvail) {
+                  statusTag = ` [Unavailable]`;
+                }
 
                 return (
                   <option
                     key={e.id}
                     value={e.id}
-                    disabled={isOnLeave}
-                    className={isOnLeave ? "text-muted-foreground bg-muted/40 italic" : ""}
+                    disabled={!isAvail}
+                    className={!isAvail ? "text-muted-foreground bg-muted/40 italic" : ""}
                   >
                     {e.name} {e.designation ? `(${e.designation})` : ""}
                     {statusTag}
@@ -444,12 +545,14 @@ export function AssignStaffDialog({
                 );
               })}
             </Select>
-            {selectedStaffId && staffLeaveMap.get(selectedStaffId) && (
-              <p className="text-[11px] text-destructive flex items-center gap-1 font-medium mt-1">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                Staff member is on approved leave for this date ({staffLeaveMap.get(selectedStaffId)?.leaveType || "Leave"}).
-              </p>
-            )}
+            {selectedStaffId &&
+              staffAvailabilityMap.get(selectedStaffId) &&
+              !staffAvailabilityMap.get(selectedStaffId)?.isAvailable && (
+                <p className="text-[11px] text-destructive flex items-center gap-1 font-medium mt-1">
+                  <AlertTriangle className="h-3 w-3 shrink-0" />
+                  Staff member is unavailable for this slot ({staffAvailabilityMap.get(selectedStaffId)?.statusLabel || "Unavailable"}).
+                </p>
+              )}
             {appointmentServiceIds.length > 0 &&
               qualifiedEmployees.length === 0 && (
                 <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">

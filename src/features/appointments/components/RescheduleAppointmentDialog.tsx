@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import React, { useState, useEffect, useMemo } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { rescheduleAppointmentSchema, type RescheduleAppointmentSchemaType } fro
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import type { Appointment } from "../types/appointment.types";
+import { useStaffAvailability } from "../hooks/useStaffAvailability";
+import { REASON_LABELS } from "../api/staffAvailability.api";
 
 interface RescheduleAppointmentDialogProps {
   appointment: Appointment | null;
@@ -32,6 +34,7 @@ export function RescheduleAppointmentDialog({
   const {
     register,
     handleSubmit,
+    control,
     reset,
     formState: { errors },
   } = useForm<RescheduleAppointmentSchemaType>({
@@ -43,6 +46,34 @@ export function RescheduleAppointmentDialog({
       reason: "",
     },
   });
+
+  const watchedDate = useWatch({ control, name: "date" });
+  const watchedStartTime = useWatch({ control, name: "startTime" });
+
+  const { data: slotAvailabilityData } = useStaffAvailability(
+    {
+      branchId: appointment?.branchId,
+      staffId: appointment?.staffId || undefined,
+      date: watchedDate || "",
+      startTime: watchedStartTime || "",
+      duration: appointment?.totalDuration || 30,
+      excludeAppointmentId: appointment?.id,
+    },
+    {
+      enabled: Boolean(
+        isOpen &&
+        appointment &&
+        appointment.staffId &&
+        watchedDate &&
+        watchedStartTime,
+      ),
+    },
+  );
+
+  const liveStaffEval = useMemo(() => {
+    if (!slotAvailabilityData?.staff || !appointment?.staffId) return null;
+    return slotAvailabilityData.staff.find((s) => s.staffId === appointment.staffId) || null;
+  }, [slotAvailabilityData, appointment?.staffId]);
 
   const [prevKey, setPrevKey] = useState<string | null>(null);
   const currentKey = isOpen && appointment ? `${appointment.id}-${isOpen}` : null;
@@ -120,6 +151,18 @@ export function RescheduleAppointmentDialog({
             </div>
           </div>
           <input type="hidden" {...register("branchId")} />
+
+          {liveStaffEval && liveStaffEval.status === "unavailable" && (
+            <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold">Staff Conflict Warning: </span>
+                Assigned stylist {appointment.staff?.name || "staff"} is marked unavailable for this slot (
+                {liveStaffEval.reasons.map((r) => REASON_LABELS[r] || r).join(", ")}
+                ).
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground">

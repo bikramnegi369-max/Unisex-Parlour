@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
+import { toast } from "sonner";
 import {
   TrendingUp,
   Award,
@@ -18,6 +20,10 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  Receipt,
+  ExternalLink,
+  Copy,
+  Check,
 } from "lucide-react";
 import { incentivesApi } from "@/features/incentives/api/incentives.api";
 import { IncentiveLedgerEntry, IncentiveRecoveryObligation } from "@/features/incentives/types/incentives.types";
@@ -48,6 +54,37 @@ const loadAllPages = async <T,>(
   return [...firstPage.data, ...remainingPages.flatMap((page) => page.data)];
 };
 
+interface ResolvedInvoiceInfo {
+  targetId: string;
+  displayNumber: string;
+  isPopulated: boolean;
+  status?: string;
+}
+
+const resolveInvoiceInfo = (
+  invoiceId?: IncentiveLedgerEntry["invoiceId"],
+): ResolvedInvoiceInfo | null => {
+  if (!invoiceId) return null;
+  if (typeof invoiceId === "object" && invoiceId !== null) {
+    const targetId = invoiceId._id;
+    const displayNumber = invoiceId.invoiceNumber || targetId;
+    return {
+      targetId,
+      displayNumber,
+      isPopulated: true,
+      status: invoiceId.status,
+    };
+  }
+  const idStr = String(invoiceId).trim();
+  if (!idStr) return null;
+  return {
+    targetId: idStr,
+    displayNumber: idStr.length === 24 ? `Invoice #${idStr.slice(-8).toUpperCase()}` : idStr,
+    isPopulated: false,
+    status: undefined,
+  };
+};
+
 export function EmployeeIncentivesTab({
   employeeId,
   employeeName,
@@ -55,6 +92,19 @@ export function EmployeeIncentivesTab({
 }: EmployeeIncentivesTabProps) {
   const [page, setPage] = useState(1);
   const [expandedExplanation, setExpandedExplanation] = useState<string | null>(null);
+  const [copiedInvoiceId, setCopiedInvoiceId] = useState<string | null>(null);
+
+  const copyInvoiceNumber = async (text: string, entryId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedInvoiceId(entryId);
+      toast.success(`Copied to clipboard: ${text}`);
+      setTimeout(() => setCopiedInvoiceId(null), 2000);
+    } catch {
+      toast.error("Failed to copy invoice identifier");
+    }
+  };
+
   const { currentBranchId } = useBranchContext();
   const branchId =
     currentBranchId && currentBranchId !== "all" ? currentBranchId : undefined;
@@ -333,6 +383,7 @@ export function EmployeeIncentivesTab({
                   const isExpanded = expandedExplanation === entryId;
                   const schemeObj =
                     typeof entry.schemeId === "object" ? entry.schemeId : null;
+                  const invoiceInfo = resolveInvoiceInfo(entry.invoiceId);
 
                   return (
                     <React.Fragment key={entryId}>
@@ -401,9 +452,42 @@ export function EmployeeIncentivesTab({
                                   <span className="font-medium text-neutral-800">Commission Rate: </span>
                                   {entry.calculationSnapshot?.appliedRate ? `${entry.calculationSnapshot.appliedRate}%` : "Fixed Tier"}
                                 </div>
-                                <div>
-                                  <span className="font-medium text-neutral-800">Invoice ID: </span>
-                                  <span className="font-mono text-neutral-500">{entry.invoiceId?.slice(-8) || "N/A"}</span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-medium text-neutral-800">Invoice: </span>
+                                  {invoiceInfo ? (
+                                    <div className="inline-flex items-center gap-1.5 flex-wrap">
+                                      <Link
+                                        href={`/billing/${invoiceInfo.targetId}`}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 hover:text-blue-900 border border-blue-200/90 font-mono text-xs font-semibold transition-all group cursor-pointer shadow-2xs"
+                                        title={`Navigate to invoice ${invoiceInfo.displayNumber}`}
+                                      >
+                                        <Receipt className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+                                        <span className="underline-offset-2 group-hover:underline">{invoiceInfo.displayNumber}</span>
+                                        <ExternalLink className="w-3 h-3 text-blue-500 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                                      </Link>
+                                      {invoiceInfo.status && (
+                                        <Badge variant="outline" className="text-[10px] uppercase font-mono px-1.5 py-0 bg-white text-neutral-600 border-neutral-300">
+                                          {invoiceInfo.status}
+                                        </Badge>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => copyInvoiceNumber(invoiceInfo.displayNumber, entryId)}
+                                        className="p-1 rounded text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors cursor-pointer"
+                                        title="Copy Invoice Reference"
+                                      >
+                                        {copiedInvoiceId === entryId ? (
+                                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                        ) : (
+                                          <Copy className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className="font-mono text-neutral-400 italic text-[11px]">
+                                      Not applicable (Direct / Attendance bonus)
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                               <div className="text-[11px] text-neutral-500 pt-1 border-t border-neutral-100">

@@ -303,6 +303,71 @@ describe("Stocktake Frontend Lifecycle Components", () => {
         );
       });
     });
+
+    it("renders and saves counts when items use raw MongoDB _id and populated productId object", async () => {
+      const rawMongoStocktake = {
+        _id: "stk-mongo-1",
+        stocktakeNumber: "STK-202611-0099",
+        title: "Raw Mongo Session",
+        status: "in_progress",
+        items: [
+          {
+            _id: "mongo-item-1",
+            productId: {
+              _id: "prod-mongo-1",
+              name: "Herbal Shampoo",
+              sku: "HERBAL-101",
+              stockUnit: "bottle",
+            },
+            stockDomain: "retail_products",
+            stockUnit: "bottle",
+            snapshotQuantity: 10,
+            countedQuantity: null,
+            status: "uncounted",
+          },
+        ],
+      };
+
+      mocks.getStocktakeById.mockResolvedValueOnce(rawMongoStocktake);
+      mocks.recordStocktakeCounts.mockResolvedValueOnce({
+        stocktakeId: "stk-mongo-1",
+        updatedCount: 1,
+      });
+
+      renderWithClient(
+        <StocktakeCountModal
+          isOpen={true}
+          onClose={vi.fn()}
+          stocktakeId="stk-mongo-1"
+        />
+      );
+
+      // Product name and SKU should be resolved from populated productId object
+      await waitFor(() => {
+        expect(screen.getByText("Herbal Shampoo")).toBeInTheDocument();
+        expect(screen.getByText("HERBAL-101")).toBeInTheDocument();
+      });
+
+      const input = screen.getByPlaceholderText("Uncounted");
+      fireEvent.change(input, { target: { value: "8" } });
+
+      const saveButton = screen.getAllByRole("button", { name: /Save Progress/i })[0];
+      fireEvent.click(saveButton);
+
+      await waitFor(() => {
+        expect(mocks.recordStocktakeCounts).toHaveBeenCalledWith(
+          "stk-mongo-1",
+          expect.objectContaining({
+            items: [
+              expect.objectContaining({
+                productId: "prod-mongo-1",
+                countedQuantity: 8,
+              }),
+            ],
+          })
+        );
+      });
+    });
   });
 
   describe("4. StocktakeReviewModal", () => {

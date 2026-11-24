@@ -4,6 +4,7 @@ export {
   useStaffBranches,
   useStaffServices,
   useMultipleStaffServices,
+  useStaffRoster,
 } from "./useEmployeeQueries";
 
 export {
@@ -19,4 +20,5 @@ export {
   useRemoveStaffService,
   useLinkUserAccount,
   useUnlinkUserAccount,
+  useUpdateStaffRoster,
 } from "./useEmployeeMutations";

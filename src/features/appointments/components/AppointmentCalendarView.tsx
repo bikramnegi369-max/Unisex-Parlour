@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { CalendarOff } from "lucide-react";
 import { useLeaves } from "@/features/leaves/hooks/useLeaveQueries";
 import type { Leave } from "@/features/leaves/types/leaves.types";
+import { useCalendarStaffAvailability } from "../hooks/useStaffAvailability";
 import type { Appointment } from "../types/appointment.types";
 import {
   calculateLateDelayMins,
@@ -698,7 +699,13 @@ export function AppointmentCalendarView({
     return map;
   }, [leavesData, selectedDateStr]);
 
-  // Merge employee lanes with derived lanes (dedupe by id)
+  // Authoritative calendar staff availability lanes from server
+  const { data: calendarAvailabilityData } = useCalendarStaffAvailability({
+    branchId: isAllBranches ? "all" : currentBranchId || undefined,
+    date: selectedDateStr,
+  });
+
+  // Authoritative lanes from server calendar availability engine, with graceful fallback
   const resourceLanes = useMemo(() => {
     const merged = new Map<
       string,
@@ -707,44 +714,137 @@ export function AppointmentCalendarView({
         name: string;
         designation?: string;
         branchName?: string;
+        branches?: Array<{
+          branchId: string;
+          branchName?: string;
+          isPrimary?: boolean;
+        }>;
         isOnLeave?: boolean;
-        leaveInfo?: Leave;
+        leaveInfo?: {
+          isPartialDay?: boolean;
+          startTime?: string;
+          endTime?: string;
+          leaveType?: string;
+          reason?: string;
+        };
+        attendanceInfo?: {
+          status: string;
+          isReconciled: boolean;
+          conflictType: string;
+        } | null;
       }
     >();
-    for (const emp of employees) {
-      const leave = staffLeaveMap.get(emp.id);
-      merged.set(emp.id, {
-        id: emp.id,
-        name: emp.name,
-        designation: emp.designation,
-        isOnLeave: Boolean(leave),
-        leaveInfo: leave,
-      });
-    }
-    for (const lane of derivedStaffLanes) {
-      if (!merged.has(lane.id)) {
-        const leave = staffLeaveMap.get(lane.id);
+
+    if (
+      calendarAvailabilityData?.lanes &&
+      calendarAvailabilityData.lanes.length > 0
+    ) {
+      for (const lane of calendarAvailabilityData.lanes) {
+        const primaryBranch =
+          lane.branches?.find(
+            (b: { branchId: string; branchName?: string; isPrimary?: boolean }) =>
+              b.isPrimary,
+          ) || lane.branches?.[0];
         merged.set(lane.id, {
           id: lane.id,
           name: lane.name,
-          branchName: lane.branchName,
-          isOnLeave: Boolean(leave),
-          leaveInfo: leave,
+          designation: lane.designation,
+          branchName: primaryBranch?.branchName,
+          branches: lane.branches,
+          isOnLeave: Boolean(lane.leave),
+          leaveInfo: lane.leave
+            ? {
+                isPartialDay: lane.leave.isPartialDay,
+                startTime: lane.leave.startTime,
+                endTime: lane.leave.endTime,
+                leaveType: lane.leave.leaveType,
+                reason: lane.leave.isPartialDay
+                  ? "Partial leave"
+                  : "Approved leave",
+              }
+            : undefined,
+          attendanceInfo: lane.attendance,
         });
       }
+    } else {
+      for (const emp of employees) {
+        const leave = staffLeaveMap.get(emp.id);
+        merged.set(emp.id, {
+          id: emp.id,
+          name: emp.name,
+          designation: emp.designation,
+          isOnLeave: Boolean(leave),
+          leaveInfo: leave
+            ? {
+                isPartialDay: leave.isPartialDay,
+                startTime: leave.startTime || undefined,
+                endTime: leave.endTime || undefined,
+                leaveType: leave.leaveType,
+                reason: leave.reason,
+              }
+            : undefined,
+        });
+      }
+      for (const lane of derivedStaffLanes) {
+        if (!merged.has(lane.id)) {
+          const leave = staffLeaveMap.get(lane.id);
+          merged.set(lane.id, {
+            id: lane.id,
+            name: lane.name,
+            branchName: lane.branchName,
+            isOnLeave: Boolean(leave),
+            leaveInfo: leave
+              ? {
+                  isPartialDay: leave.isPartialDay,
+                  startTime: leave.startTime || undefined,
+                  endTime: leave.endTime || undefined,
+                  leaveType: leave.leaveType,
+                  reason: leave.reason,
+                }
+              : undefined,
+          });
+        }
+      }
     }
-    return [
-      {
-        id: null,
-        name: "Unassigned Staff",
-        designation: "General Queue",
-        branchName: undefined,
-        isOnLeave: false,
-        leaveInfo: undefined,
-      },
-      ...Array.from(merged.values()),
-    ];
-  }, [employees, derivedStaffLanes, staffLeaveMap]);
+
+    type LaneItem = {
+      id: string | null;
+      name: string;
+      designation?: string;
+      branchName?: string;
+      branches?: Array<{
+        branchId: string;
+        branchName?: string;
+        isPrimary?: boolean;
+      }>;
+      isOnLeave?: boolean;
+      leaveInfo?: {
+        isPartialDay?: boolean;
+        startTime?: string;
+        endTime?: string;
+        leaveType?: string;
+        reason?: string;
+      };
+      attendanceInfo?: {
+        status: string;
+        isReconciled: boolean;
+        conflictType: string;
+      } | null;
+    };
+
+    const unassignedLane: LaneItem = {
+      id: null,
+      name: "Unassigned Staff",
+      designation: "General Queue",
+      branchName: undefined,
+      branches: undefined,
+      isOnLeave: false,
+      leaveInfo: undefined,
+      attendanceInfo: null,
+    };
+
+    return [unassignedLane, ...Array.from(merged.values())];
+  }, [calendarAvailabilityData, employees, derivedStaffLanes, staffLeaveMap]);
 
   // Filter lanes by active staff filter
   const visibleLanes = useMemo(() => {
@@ -1039,21 +1139,64 @@ export function AppointmentCalendarView({
                             : "bg-muted/95"
                         }`}
                       >
-                        <div className="truncate">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-foreground block truncate">
+                        <div className="truncate flex-1 min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-bold text-foreground block truncate max-w-30">
                               {lane.name}
                             </span>
                             {lane.isOnLeave && (
                               <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/40 shrink-0">
                                 <CalendarOff className="h-2.5 w-2.5" />
-                                On Leave
+                                {lane.leaveInfo?.isPartialDay
+                                  ? "Partial Leave"
+                                  : "On Leave"}
+                              </span>
+                            )}
+                            {lane.attendanceInfo?.status === "clocked_in" && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-1 py-0.2 rounded border border-emerald-500/30 shrink-0"
+                                title="Clocked In"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block mr-0.5" />
+                                In
+                              </span>
+                            )}
+                            {lane.attendanceInfo?.status === "clocked_out" && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-muted-foreground bg-muted px-1 py-0.2 rounded border border-border shrink-0"
+                                title="Clocked Out"
+                              >
+                                Out
+                              </span>
+                            )}
+                            {((lane.attendanceInfo?.conflictType &&
+                              lane.attendanceInfo.conflictType !== "none") ||
+                              lane.attendanceInfo?.status === "incomplete") && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/40 shrink-0"
+                                title="Attendance Review Required"
+                              >
+                                Review Req
+                              </span>
+                            )}
+                            {lane.branches && lane.branches.length > 1 && (
+                              <span
+                                className="inline-flex items-center gap-0.5 text-[9px] font-medium text-blue-700 dark:text-blue-300 bg-blue-500/10 px-1 py-0.2 rounded border border-blue-500/30 shrink-0"
+                                title={`Assigned to ${lane.branches.length} branches: ${lane.branches
+                                  .map(
+                                    (b: { branchName?: string }) =>
+                                      b.branchName,
+                                  )
+                                  .filter(Boolean)
+                                  .join(", ")}`}
+                              >
+                                {lane.branches.length} Branches
                               </span>
                             )}
                           </div>
                           <span className="text-[9px] text-muted-foreground block truncate">
                             {lane.isOnLeave
-                              ? `${lane.leaveInfo?.leaveType || "Leave"} • ${lane.leaveInfo?.reason || "Approved leave"}`
+                              ? `${lane.leaveInfo?.leaveType || "Leave"}${lane.leaveInfo?.isPartialDay && lane.leaveInfo?.startTime ? ` (${lane.leaveInfo.startTime}-${lane.leaveInfo.endTime})` : ""} • ${lane.leaveInfo?.reason || "Approved leave"}`
                               : lane.branchName
                                 ? `Branch: ${lane.branchName}`
                                 : lane.designation ||
@@ -1061,7 +1204,7 @@ export function AppointmentCalendarView({
                           </span>
                         </div>
                         <span
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
                             lane.isOnLeave
                               ? "bg-amber-500/20 text-amber-800 dark:text-amber-200"
                               : "bg-primary/10 text-primary"

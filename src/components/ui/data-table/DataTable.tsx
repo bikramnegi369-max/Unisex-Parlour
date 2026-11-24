@@ -44,10 +44,10 @@ export function DataTable<TData>({
         <div className="hidden md:block overflow-x-auto border border-border/80 rounded-xl bg-card shadow-sm">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-border bg-muted/20">
+              <tr className="border-b border-border bg-muted/40">
                 {columns.map((_, i) => (
-                  <th key={i} className="px-6 py-4">
-                    <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                  <th key={i} className="px-6 py-3.5 whitespace-nowrap">
+                    <div className="h-4 w-24 bg-muted/80 rounded animate-pulse" />
                   </th>
                 ))}
               </tr>
@@ -57,7 +57,7 @@ export function DataTable<TData>({
                 <tr key={rowIndex}>
                   {columns.map((_, colIndex) => (
                     <td key={colIndex} className="px-6 py-4 align-middle">
-                      <div className="h-4 w-2/3 bg-muted rounded animate-pulse" />
+                      <div className="h-4 w-2/3 bg-muted/60 rounded animate-pulse" />
                     </td>
                   ))}
                 </tr>
@@ -112,10 +112,10 @@ export function DataTable<TData>({
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
                 key={headerGroup.id}
-                className="border-b border-border bg-muted/20 text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                className="border-b border-border bg-muted/30 text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none"
               >
                 {headerGroup.headers.map((header) => (
-                  <th key={header.id} className="px-6 py-4">
+                  <th key={header.id} className="px-6 py-3.5 whitespace-nowrap align-middle">
                     {header.isPlaceholder
                       ? null
                       : flexRender(header.column.columnDef.header, header.getContext())}

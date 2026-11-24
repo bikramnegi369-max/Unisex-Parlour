@@ -1,6 +1,7 @@
 import type { BranchAccess } from "@/types/branch";
 
 export type PermissionType =
+  | "dashboard.view"
   | "customers.view"
   | "customers.create"
   | "customers.edit"

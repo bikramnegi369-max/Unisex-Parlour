@@ -5,6 +5,7 @@ import {
   GetEmployeesParams,
   getStaffBranches,
   getStaffServices,
+  getStaffRoster,
 } from "../api/employees.api";
 import type { StaffBranch, StaffService } from "../types/employee.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -57,7 +58,11 @@ export function useEmployee(id: string | undefined) {
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "employees.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
+  const isEnabled =
+    isAuthenticated &&
+    hasViewPermission &&
+    !!id &&
+    (currentBranchId !== null || isOrgWide);
 
   const queryKey = getBranchQueryKey("employee", [id || ""]);
 
@@ -74,7 +79,11 @@ export function useStaffBranches(id: string | undefined) {
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "employees.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
+  const isEnabled =
+    isAuthenticated &&
+    hasViewPermission &&
+    !!id &&
+    (currentBranchId !== null || isOrgWide);
   const queryKey = getBranchQueryKey("staff-branches", [id || ""]);
 
   return useQuery<StaffBranch[]>({
@@ -90,7 +99,11 @@ export function useStaffServices(id: string | undefined) {
   const isOrgWide = user?.hasOrgWideAccess === true;
   const hasViewPermission = hasPermission(user, "employees.view");
 
-  const isEnabled = isAuthenticated && hasViewPermission && !!id && (currentBranchId !== null || isOrgWide);
+  const isEnabled =
+    isAuthenticated &&
+    hasViewPermission &&
+    !!id &&
+    (currentBranchId !== null || isOrgWide);
   const queryKey = getBranchQueryKey("staff-services", [id || ""]);
 
   return useQuery<StaffService[]>({
@@ -149,4 +162,31 @@ export function useMultipleStaffServices(staffIds: string[]) {
     staffServicesMap,
     isLoading,
   };
+}
+
+export function useStaffRoster(
+  staffId: string | undefined,
+  branchId: string | undefined,
+) {
+  const { currentBranchId, getBranchQueryKey } = useBranchContext();
+  const { isAuthenticated, user } = useAuth();
+  const hasViewPermission = hasPermission(user, "employees.view");
+
+  const effectiveBranchId = branchId || currentBranchId;
+  const isEnabled =
+    isAuthenticated &&
+    hasViewPermission &&
+    !!staffId &&
+    !!effectiveBranchId &&
+    effectiveBranchId !== "all";
+  const queryKey = getBranchQueryKey("staff-roster", [
+    staffId || "",
+    effectiveBranchId || "",
+  ]);
+
+  return useQuery({
+    queryKey,
+    queryFn: () => getStaffRoster(staffId!, effectiveBranchId!),
+    enabled: isEnabled,
+  });
 }

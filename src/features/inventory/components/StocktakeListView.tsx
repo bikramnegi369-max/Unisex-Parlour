@@ -210,14 +210,15 @@ export const StocktakeListView: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              stocktakes.map((st) => {
+              stocktakes.map((st, idx) => {
+                const stocktakeId = (st.id || (st as any)._id || `stk-${idx}`) as string;
                 const total = st.totalItems || 0;
                 const counted = st.countedItemsCount || 0;
                 const isCompleted = st.status === "completed";
                 const isCancelled = st.status === "cancelled";
 
                 return (
-                  <tr key={st.id} className="hover:bg-gray-50/60 dark:hover:bg-zinc-800/40">
+                  <tr key={stocktakeId} className="hover:bg-gray-50/60 dark:hover:bg-zinc-800/40">
                     <td className="py-3 px-4 font-mono font-bold text-gray-900 dark:text-gray-100">
                       {st.stocktakeNumber}
                     </td>
@@ -270,7 +271,7 @@ export const StocktakeListView: React.FC = () => {
                             variant="outline"
                             size="sm"
                             className="text-xs h-7"
-                            onClick={() => setActiveCountStocktakeId(st.id)}
+                            onClick={() => setActiveCountStocktakeId(stocktakeId)}
                           >
                             Enter Counts
                           </Button>
@@ -282,7 +283,7 @@ export const StocktakeListView: React.FC = () => {
                             className={`text-xs h-7 ${
                               !isCompleted ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
                             }`}
-                            onClick={() => setActiveReviewStocktakeId(st.id)}
+                            onClick={() => setActiveReviewStocktakeId(stocktakeId)}
                           >
                             {isCompleted ? "View Audit" : "Review & Post"}
                           </Button>

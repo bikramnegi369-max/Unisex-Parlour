@@ -34,6 +34,7 @@ import {
   MoreHorizontal,
   ChevronUp,
   ChevronDown,
+  Tag,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -234,7 +235,12 @@ export function AppointmentDetailsDialog({
       0,
     ) ?? 0;
 
-  const manualDiscount = appointment.pricing?.discount || 0;
+  const rawTotalDiscount = appointment.pricing?.discount || 0;
+  // Compute true manual / front-desk concession by stripping out line-level membership discount
+  const manualDiscount = Math.max(
+    0,
+    Number((rawTotalDiscount - membershipSavingsAmount).toFixed(2)),
+  );
 
   // The true net payable amount taking subscription waiver into account
   const netPayableTotal =
@@ -781,9 +787,14 @@ export function AppointmentDetailsDialog({
 
           {membershipSavingsAmount > 0 && (
             <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-medium">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5" />
-                Membership Privilege Discount
+                <span>
+                  Membership Privilege
+                  {activeMembershipBenefits?.planSnapshot?.name
+                    ? ` (${activeMembershipBenefits.planSnapshot.name})`
+                    : " Discount"}
+                </span>
               </span>
               <span className="font-semibold">
                 -{formatCurrency(membershipSavingsAmount)}
@@ -793,8 +804,16 @@ export function AppointmentDetailsDialog({
 
           {manualDiscount > 0 && (
             <div className="flex items-center justify-between text-muted-foreground">
-              <span>Additional Discount</span>
-              <span>-{formatCurrency(manualDiscount)}</span>
+              <span
+                className="flex items-center gap-1.5"
+                title="Direct price concession applied during appointment creation or service checkout"
+              >
+                <Tag className="h-3.5 w-3.5 text-blue-500/80" />
+                <span>Front-Desk / Special Concession</span>
+              </span>
+              <span className="font-semibold text-foreground/90">
+                -{formatCurrency(manualDiscount)}
+              </span>
             </div>
           )}
 
