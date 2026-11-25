@@ -11,6 +11,7 @@ import {
   useSuppliers,
   useCreateSupplier,
   useUpdateSupplier,
+  useDeleteSupplier,
 } from "../hooks/useProcurement";
 import { Supplier } from "../types/procurement.types";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -23,6 +24,8 @@ import {
   Mail,
   Building,
   Edit2,
+  Trash2,
+  RefreshCw,
   CheckCircle,
   XCircle,
   FileText,
@@ -31,6 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
+import { Pagination } from "@/components/ui/pagination";
 
 export default function SupplierDirectoryView() {
   const { user } = useAuth();
@@ -40,17 +44,23 @@ export default function SupplierDirectoryView() {
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | undefined>(
     undefined
   );
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
 
-  const { data, isLoading } = useSuppliers({
+  const { data, isLoading, isFetching, refetch } = useSuppliers({
+    page,
+    limit,
     search: search || undefined,
     status: statusFilter,
   });
 
   const createMutation = useCreateSupplier();
   const updateMutation = useUpdateSupplier(editingSupplier?.id || "");
+  const deleteMutation = useDeleteSupplier();
 
   const {
     register,
@@ -96,6 +106,20 @@ export default function SupplierDirectoryView() {
     setIsModalOpen(true);
   };
 
+  const handleDeleteClick = (sup: Supplier, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteTarget(sup);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteMutation.mutateAsync(deleteTarget.id);
+    if (selectedSupplier?.id === deleteTarget.id) {
+      setSelectedSupplier(null);
+    }
+    setDeleteTarget(null);
+  };
+
   const onSubmit = async (values: SupplierFormValues) => {
     if (editingSupplier) {
       await updateMutation.mutateAsync(values);
@@ -121,15 +145,27 @@ export default function SupplierDirectoryView() {
           </p>
         </div>
 
-        {canManage && (
+        <div className="flex items-center gap-2">
           <Button
-            onClick={handleOpenAdd}
-            className="flex items-center gap-2 font-semibold shadow-xs"
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-2 text-xs"
           >
-            <Plus className="h-4 w-4" />
-            Add Supplier
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
           </Button>
-        )}
+          {canManage && (
+            <Button
+              onClick={handleOpenAdd}
+              className="flex items-center gap-2 font-semibold shadow-xs"
+            >
+              <Plus className="h-4 w-4" />
+              Add Supplier
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -242,17 +278,45 @@ export default function SupplierDirectoryView() {
                 </div>
 
                 {canManage && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => handleOpenEdit(sup, e)}
-                    className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleOpenEdit(sup, e)}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      title="Edit supplier"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleDeleteClick(sup, e)}
+                      disabled={deleteMutation.isPending}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      title="Delete supplier"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             ))
+          )}
+
+          {data?.meta && (
+            <Pagination
+              currentPage={data.meta.page}
+              totalPages={data.meta.totalPages}
+              totalItems={data.meta.total}
+              onPageChange={setPage}
+              pageSize={limit}
+              onPageSizeChange={(newSize) => {
+                setLimit(newSize);
+                setPage(1);
+              }}
+              itemLabel="suppliers"
+            />
           )}
         </div>
 
@@ -427,6 +491,40 @@ export default function SupplierDirectoryView() {
             </Button>
           </div>
         </form>
+      </Dialog>
+
+      {/* Delete Supplier Confirmation Dialog */}
+      <Dialog
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Supplier"
+        maxWidth="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+            This action will archive the supplier from active directories.
+          </p>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleConfirmDelete}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete Supplier"}
+            </Button>
+          </div>
+        </div>
       </Dialog>
     </div>
   );

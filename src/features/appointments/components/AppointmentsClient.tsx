@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -246,9 +247,22 @@ export function AppointmentsClient() {
 
   const appointments = filteredAppointments;
 
+  const queryClient = useQueryClient();
+
   const handleSync = async () => {
     try {
-      await refetch();
+      await Promise.all([
+        refetch(),
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey[0];
+            return (
+              key === "staff-availability" ||
+              key === "calendar-staff-availability"
+            );
+          },
+        }),
+      ]);
       toast.success("Appointments synchronized successfully.");
     } catch {
       toast.error("Failed to synchronize appointments.");

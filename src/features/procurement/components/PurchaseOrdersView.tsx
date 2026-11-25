@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   purchaseOrderFormSchema,
@@ -14,6 +14,7 @@ import {
   useSuppliers,
 } from "../hooks/useProcurement";
 import { useProducts } from "@/features/inventory/hooks/useInventory";
+import { Product } from "@/features/inventory/types/inventory.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -22,16 +23,16 @@ import {
   FileText,
   Plus,
   Search,
-  Truck,
   Trash2,
-  XCircle,
   PackageCheck,
-  Clock,
-  AlertTriangle,
+  RefreshCw,
+  Truck,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
+import { Pagination } from "@/components/ui/pagination";
 
 interface PurchaseOrdersViewProps {
   onSelectPOForReceiving?: (po: PurchaseOrder) => void;
@@ -49,13 +50,23 @@ export default function PurchaseOrdersView({
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     undefined,
   );
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
-  const { data: ordersData, isLoading: ordersLoading } = usePurchaseOrders({
+  const {
+    data: ordersData,
+    isLoading: ordersLoading,
+    isFetching: ordersFetching,
+    refetch: refetchOrders,
+  } = usePurchaseOrders({
     branchId: currentBranchId,
     status: statusFilter,
     search: search || undefined,
+    page,
+    limit,
   });
 
   const { data: suppliersData } = useSuppliers({
@@ -63,7 +74,7 @@ export default function PurchaseOrdersView({
     limit: 100,
   });
   const { data: productsData } = useProducts({ limit: 100 });
-  const products = productsData?.data || [];
+  const products: Product[] = productsData?.data || [];
   const suppliers: Supplier[] = suppliersData?.data || [];
 
   const createMutation = useCreatePurchaseOrder();
@@ -75,7 +86,6 @@ export default function PurchaseOrdersView({
     register,
     control,
     handleSubmit,
-    watch,
     setValue,
     reset,
     formState: { errors },
@@ -99,7 +109,7 @@ export default function PurchaseOrdersView({
     name: "items",
   });
 
-  const watchedItems = watch("items") || [];
+  const watchedItems = useWatch({ control, name: "items" }) || [];
   const calculatedTotal = watchedItems.reduce((acc, it) => {
     const qty = Number(it.orderedQuantity) || 0;
     const cost = Number(it.unitCostPrice) || 0;
@@ -171,15 +181,29 @@ export default function PurchaseOrdersView({
           </p>
         </div>
 
-        {canCreate && (
+        <div className="flex items-center gap-2">
           <Button
-            onClick={handleOpenCreate}
-            className="flex items-center gap-2 font-semibold shadow-xs"
+            variant="outline"
+            size="sm"
+            onClick={() => refetchOrders()}
+            disabled={ordersFetching}
+            className="flex items-center gap-2 text-xs"
           >
-            <Plus className="h-4 w-4" />
-            Draft Purchase Order
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${ordersFetching ? "animate-spin" : ""}`}
+            />
+            Sync
           </Button>
-        )}
+          {canCreate && (
+            <Button
+              onClick={handleOpenCreate}
+              className="flex items-center gap-2 font-semibold shadow-xs"
+            >
+              <Plus className="h-4 w-4" />
+              Draft Purchase Order
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -306,6 +330,21 @@ export default function PurchaseOrdersView({
               </div>
             ))
           )}
+
+          {ordersData?.meta && (
+            <Pagination
+              currentPage={ordersData.meta.page}
+              totalPages={ordersData.meta.totalPages}
+              totalItems={ordersData.meta.total}
+              onPageChange={setPage}
+              pageSize={limit}
+              onPageSizeChange={(newSize) => {
+                setLimit(newSize);
+                setPage(1);
+              }}
+              itemLabel="purchase orders"
+            />
+          )}
         </div>
 
         {/* Selected PO Details Pane */}
@@ -328,13 +367,13 @@ export default function PurchaseOrdersView({
 
               {/* Lifecycle Actions */}
               {canUpdate && (
-                <div className="flex items-center gap-2 pt-1">
+                <div className="flex flex-wrap items-center gap-2 pt-1">
                   {selectedPO.status === "draft" && (
                     <Button
                       size="sm"
                       onClick={() => handleStatusChange("ordered")}
                       disabled={updateStatusMutation.isPending}
-                      className="w-full text-xs"
+                      className="flex-1 min-w-32.5 text-xs"
                     >
                       Issue / Mark as Ordered
                     </Button>
@@ -345,7 +384,7 @@ export default function PurchaseOrdersView({
                       size="sm"
                       onClick={() => handleStatusChange("cancelled")}
                       disabled={updateStatusMutation.isPending}
-                      className="w-full text-xs"
+                      className="flex-1 min-w-27.5 text-xs"
                     >
                       Cancel PO
                     </Button>
@@ -356,9 +395,9 @@ export default function PurchaseOrdersView({
                     <Button
                       size="sm"
                       onClick={() => onSelectPOForReceiving?.(selectedPO)}
-                      className="w-full text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="flex-1 min-w-35 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
-                      <PackageCheck className="h-3.5 w-3.5 mr-1" />
+                      <PackageCheck className="h-3.5 w-3.5 mr-1 shrink-0" />
                       Receive Goods (GRN)
                     </Button>
                   )}
@@ -367,42 +406,83 @@ export default function PurchaseOrdersView({
 
               {/* Items Breakdown */}
               <div className="space-y-2 pt-2">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                  Order Line Items
-                </span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Order Line Items ({selectedPO.items.length})
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsDetailsModalOpen(true)}
+                    className="h-6 px-2 text-[11px] text-primary hover:text-primary"
+                  >
+                    <Eye className="h-3.5 w-3.5 mr-1" />
+                    View Full Order
+                  </Button>
+                </div>
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {selectedPO.items.map((line, idx) => (
-                    <div
-                      key={idx}
-                      className="p-2.5 rounded-lg border border-border bg-muted/20 text-xs space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-foreground">
-                          {line.product?.name || "Product"}
-                        </span>
-                        <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                            line.targetDomain === "salon_consumables"
-                              ? "bg-purple-500/10 text-purple-600"
-                              : "bg-blue-500/10 text-blue-600"
-                          }`}
-                        >
-                          {line.targetDomain === "salon_consumables"
-                            ? "Salon Consumable"
-                            : "Retail Stock"}
-                        </span>
+                  {selectedPO.items.map((line, idx) => {
+                    const populatedProduct =
+                      typeof line.productId === "object" &&
+                      line.productId !== null
+                        ? (line.productId as {
+                            name?: string;
+                            sku?: string;
+                            stockUnit?: string;
+                          })
+                        : undefined;
+                    const productName =
+                      populatedProduct?.name || line.product?.name || "Product";
+                    const productSku =
+                      populatedProduct?.sku || line.product?.sku;
+                    const productUnit =
+                      populatedProduct?.stockUnit || line.product?.stockUnit;
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-lg border border-border bg-muted/20 text-xs space-y-1.5"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1 space-y-0.5">
+                            <span className="font-semibold text-foreground wrap-break-word block">
+                              {productName}
+                            </span>
+                            {(productSku || productUnit) && (
+                              <span className="text-[10px] text-muted-foreground block wrap-break-word">
+                                {productSku ? `SKU: ${productSku}` : ""}
+                                {productSku && productUnit ? " • " : ""}
+                                {productUnit ? `Unit: ${productUnit}` : ""}
+                              </span>
+                            )}
+                          </div>
+                          <span
+                            className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                              line.targetDomain === "salon_consumables"
+                                ? "bg-purple-500/10 text-purple-600"
+                                : "bg-blue-500/10 text-blue-600"
+                            }`}
+                          >
+                            {line.targetDomain === "salon_consumables"
+                              ? "Salon Consumable"
+                              : "Retail Stock"}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span>
+                            Ordered: {line.orderedQuantity} | Received:{" "}
+                            {line.receivedQuantity}
+                          </span>
+                          <span className="font-medium text-foreground">
+                            ₹{line.unitCostPrice.toLocaleString()} ×{" "}
+                            {line.orderedQuantity} = ₹
+                            {line.lineTotal.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span>
-                          Ordered: {line.orderedQuantity} | Received:{" "}
-                          {line.receivedQuantity}
-                        </span>
-                        <span className="font-medium text-foreground">
-                          ₹{line.lineTotal.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -496,7 +576,7 @@ export default function PurchaseOrdersView({
 
             <div className="space-y-2.5">
               {fields.map((field, index) => {
-                const currentProdId = watch(`items.${index}.productId`);
+                const currentProdId = watchedItems[index]?.productId || "";
                 const selectedProduct = products.find(
                   (p) => p.id === currentProdId,
                 );
@@ -630,6 +710,116 @@ export default function PurchaseOrdersView({
           </div>
         </form>
       </Dialog>
+
+      {/* Full Purchase Order Details Modal */}
+      {selectedPO && (
+        <Dialog
+          isOpen={isDetailsModalOpen}
+          onClose={() => setIsDetailsModalOpen(false)}
+          title={`Purchase Order — ${selectedPO.poNumber}`}
+          maxWidth="3xl"
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Vendor: {selectedPO.supplier?.name || "—"} • Status:{" "}
+              {selectedPO.status.replace("_", " ").toUpperCase()} •{" "}
+              {selectedPO.items.length} line item(s)
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-muted/40 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2.5 font-semibold">Product</th>
+                    <th className="px-3 py-2.5 font-semibold">Domain</th>
+                    <th className="px-3 py-2.5 font-semibold text-right">
+                      Ordered
+                    </th>
+                    <th className="px-3 py-2.5 font-semibold text-right">
+                      Received
+                    </th>
+                    <th className="px-3 py-2.5 font-semibold text-right">
+                      Unit Cost
+                    </th>
+                    <th className="px-3 py-2.5 font-semibold text-right">
+                      Line Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {selectedPO.items.map((line, idx) => {
+                    const populatedProduct =
+                      typeof line.productId === "object" &&
+                      line.productId !== null
+                        ? (line.productId as {
+                            name?: string;
+                            sku?: string;
+                            stockUnit?: string;
+                          })
+                        : undefined;
+                    const productName =
+                      populatedProduct?.name || line.product?.name || "Product";
+                    const productSku =
+                      populatedProduct?.sku || line.product?.sku;
+                    const productUnit =
+                      populatedProduct?.stockUnit || line.product?.stockUnit;
+
+                    return (
+                      <tr key={idx} className="hover:bg-muted/20">
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold text-foreground wrap-break-word">
+                            {productName}
+                          </div>
+                          {(productSku || productUnit) && (
+                            <div className="text-[10px] text-muted-foreground">
+                              {productSku ? `SKU: ${productSku}` : ""}
+                              {productSku && productUnit ? " • " : ""}
+                              {productUnit ? `Unit: ${productUnit}` : ""}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 whitespace-nowrap">
+                          <span
+                            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              line.targetDomain === "salon_consumables"
+                                ? "bg-purple-500/10 text-purple-600"
+                                : "bg-blue-500/10 text-blue-600"
+                            }`}
+                          >
+                            {line.targetDomain === "salon_consumables"
+                              ? "Salon Consumable"
+                              : "Retail Stock"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium">
+                          {line.orderedQuantity}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium">
+                          {line.receivedQuantity}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          ₹{line.unitCostPrice.toLocaleString()}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-semibold text-foreground">
+                          ₹{line.lineTotal.toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border text-xs">
+              <span className="text-muted-foreground">
+                {selectedPO.notes ? `Notes: ${selectedPO.notes}` : ""}
+              </span>
+              <div className="text-sm font-bold text-foreground">
+                Total: ₹{selectedPO.totalAmount.toLocaleString()}
+              </div>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

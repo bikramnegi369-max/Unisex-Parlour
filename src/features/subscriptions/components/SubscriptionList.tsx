@@ -660,7 +660,7 @@ export function SubscriptionList() {
                 getBranchName={getBranchName}
               />
 
-              {meta && meta.totalPages > 1 && (
+              {meta && (
                 <Pagination
                   currentPage={page}
                   totalPages={meta.totalPages}

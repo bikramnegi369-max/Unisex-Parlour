@@ -1138,6 +1138,7 @@ export function CreateAppointmentDialog({
         conflictSlot?: string;
         status?: AvailabilityStatus;
         reasons?: AvailabilityReasonCode[];
+        warnings?: AvailabilityReasonCode[];
         statusLabel?: string;
       }
     >();
@@ -1168,6 +1169,7 @@ export function CreateAppointmentDialog({
           leaveReason: isLeave ? label : undefined,
           status: evalItem.status,
           reasons: evalItem.reasons,
+          warnings: evalItem.warnings,
           statusLabel: label,
         });
       }
@@ -2945,6 +2947,8 @@ export function CreateAppointmentDialog({
                       statusTag = ` [${statusLabel}]`;
                     } else if (!isAvail) {
                       statusTag = ` [Unavailable]`;
+                    } else if (avail?.warnings && avail.warnings.length > 0) {
+                      statusTag = ` [${avail.warnings.map((w) => REASON_LABELS[w] || w).join(", ")}]`;
                     }
 
                     return (
@@ -2972,6 +2976,19 @@ export function CreateAppointmentDialog({
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     Selected staff member is unavailable ({staffAvailabilityMap.get(selectedStaffId)?.statusLabel || "Unavailable"}).
                     Please reassign to available staff.
+                  </p>
+                )}
+              {selectedStaffId &&
+                staffAvailabilityMap.get(selectedStaffId)?.isAvailable &&
+                (staffAvailabilityMap.get(selectedStaffId)?.warnings?.length ?? 0) > 0 && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium mt-1">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    Note:{" "}
+                    {staffAvailabilityMap
+                      .get(selectedStaffId)
+                      ?.warnings?.map((w) => REASON_LABELS[w] || w)
+                      .join(", ")}
+                    . Please verify staff availability.
                   </p>
                 )}
             </div>
@@ -3197,18 +3214,18 @@ export function CreateAppointmentDialog({
 
                 {/* Membership Discount Callout */}
                 {selectedServicesSummary.hasMembershipDiscount && (
-                  <div className="booking-summary-discount relative overflow-hidden p-3 rounded-xl bg-linear-to-r from-amber-500/15 via-amber-500/10 to-orange-500/10 border border-amber-500/30 shadow-xs shrink-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="booking-summary-discount p-3 rounded-xl bg-linear-to-r from-amber-500/15 via-amber-500/10 to-orange-500/10 border border-amber-500/30 shadow-xs shrink-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <div className="h-8 w-8 rounded-lg bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                           <CreditCard className="h-4.5 w-4.5" />
                         </div>
                         <div className="min-w-0 flex flex-col gap-0.5">
-                          <span className="font-bold text-xs text-foreground">
+                          <span className="font-bold text-xs text-foreground leading-snug">
                             Membership Discount Applied
                           </span>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300 whitespace-nowrap shrink-0">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-700 dark:text-amber-300">
                               {selectedServicesSummary.membershipTierName}{" "}
                               Benefits
                             </span>
@@ -3216,7 +3233,7 @@ export function CreateAppointmentDialog({
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0 pl-2">
+                      <div className="text-right shrink-0 ml-auto">
                         <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400 block">
                           Savings
                         </span>

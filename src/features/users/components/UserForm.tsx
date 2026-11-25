@@ -1,10 +1,12 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import { useEmployees } from "@/features/employees/hooks/useEmployees";
+import type { Employee } from "@/features/employees/types/employee.types";
 import { useRoles } from "../hooks/useRoles";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { createUserSchema, updateUserSchema } from "../schemas/users.schema";
@@ -30,6 +32,15 @@ export default function UserForm({
   const { data: roles = [], isLoading: isLoadingRoles } = useRoles();
   const { branches = [], isLoading: isLoadingBranches } = useBranches();
   const { user: currentUser } = useAuth();
+  const [selectedStaffId, setSelectedStaffId] = useState<string>("");
+  const { data: employeesData } = useEmployees(
+    { status: "active", limit: 100 },
+    { enabled: !isEditMode },
+  );
+  const unlinkedStaff = useMemo(
+    () => (employeesData?.data ?? []).filter((emp: Employee) => !emp.userId),
+    [employeesData?.data],
+  );
 
   // If editing self, block hasOrgWideAccess changes
   const isSelfEdit = currentUser?.id === initialUser?.id;
@@ -131,6 +142,7 @@ export default function UserForm({
       ...(values.roleId ? { roleId: values.roleId } : {}),
       branchAccess: formattedBranchAccess,
       hasOrgWideAccess: values.hasOrgWideAccess,
+      ...(!isEditMode && selectedStaffId ? { staffId: selectedStaffId } : {}),
     };
     onSubmit(submitPayload);
   };
@@ -149,6 +161,58 @@ export default function UserForm({
             General details and authorization parameters.
           </p>
         </div>
+
+        {!isEditMode && unlinkedStaff.length > 0 && (
+          <div className="space-y-1.5 rounded-lg border border-border bg-muted/30 p-3">
+            <label
+              htmlFor="link-staff-select"
+              className="block text-xs font-semibold text-foreground"
+            >
+              Link to Staff Member (Optional)
+            </label>
+            <select
+              id="link-staff-select"
+              value={selectedStaffId}
+              disabled={isSubmitting}
+              onChange={(e) => {
+                const staffId = e.target.value;
+                setSelectedStaffId(staffId);
+                const emp = unlinkedStaff.find(
+                  (s: Employee) => s.id === staffId,
+                );
+                if (emp) {
+                  if (emp.name)
+                    setValue("name", emp.name, { shouldValidate: true });
+                  if (emp.email)
+                    setValue("email", emp.email, { shouldValidate: true });
+                  if (emp.phone)
+                    setValue("phone", emp.phone, { shouldValidate: true });
+                  const branchId =
+                    typeof emp.branchId === "string"
+                      ? emp.branchId
+                      : emp.branchId?.id || emp.branchId?._id || "";
+                  if (branchId) {
+                    setValue("hasOrgWideAccess", false);
+                    setValue("branchAccess", [branchId]);
+                  }
+                }
+              }}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            >
+              <option value="">None (Create standalone user)</option>
+              {unlinkedStaff.map((emp: Employee) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name}
+                  {emp.phone ? ` (${emp.phone})` : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-muted-foreground">
+              Selecting a staff member auto-fills their details and links this
+              login account to their profile.
+            </p>
+          </div>
+        )}
         <hr className="border-border/60" />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

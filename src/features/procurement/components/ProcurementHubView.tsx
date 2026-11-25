@@ -215,7 +215,7 @@ export default function ProcurementHubView() {
                 ) : (
                   overview?.recentOrders.map((po) => (
                     <div
-                      key={po.id}
+                      key={po.id ?? (po as { _id?: string })._id ?? po.poNumber}
                       className="p-3 rounded-lg border border-border bg-muted/10 flex items-center justify-between text-xs"
                     >
                       <div>
@@ -253,7 +253,7 @@ export default function ProcurementHubView() {
                 ) : (
                   overview?.recentReceipts.map((grn) => (
                     <div
-                      key={grn.id}
+                      key={grn.id ?? (grn as { _id?: string })._id ?? grn.grnNumber}
                       className="p-3 rounded-lg border border-border bg-muted/10 flex items-center justify-between text-xs"
                     >
                       <div>

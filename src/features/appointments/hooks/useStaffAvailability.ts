@@ -39,6 +39,7 @@ export function useStaffAvailability(
     queryFn: () => staffAvailabilityApi.getStaffAvailability(params),
     enabled: isEnabled,
     staleTime: 30 * 1000, // 30s cache before refetching live slot availability
+    refetchInterval: 30 * 1000, // Auto-poll every 30s for biometric/manual punch updates
     gcTime: 5 * 60 * 1000,
   });
 }
@@ -57,6 +58,7 @@ export function useCalendarStaffAvailability(
     queryFn: () => staffAvailabilityApi.getCalendarAvailability(params),
     enabled: isEnabled,
     staleTime: 60 * 1000, // 1 minute
+    refetchInterval: 30 * 1000, // Auto-poll every 30s for biometric/manual punch updates
     gcTime: 10 * 60 * 1000,
   });
 }

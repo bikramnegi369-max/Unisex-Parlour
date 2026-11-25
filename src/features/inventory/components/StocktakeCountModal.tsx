@@ -406,7 +406,10 @@ export const StocktakeCountModal: React.FC<StocktakeCountModalProps> = ({
                       </td>
                       <td className="py-2 px-3 font-mono text-gray-500">{item.stockUnit}</td>
                       <td className="py-2 px-3 font-mono text-gray-600 dark:text-gray-300">
-                        {item.snapshotQuantity}
+                        {stocktake?.status === "draft" &&
+                        typeof (item as any).liveBalance === "number"
+                          ? (item as any).liveBalance
+                          : item.snapshotQuantity}
                       </td>
                       <td className="py-2 px-3">
                         <div>

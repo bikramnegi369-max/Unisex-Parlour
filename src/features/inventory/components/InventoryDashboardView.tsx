@@ -44,16 +44,29 @@ import { TransferModal } from "./TransferModal";
 import { DomainAllocationModal } from "./DomainAllocationModal";
 import { StocktakeListView } from "./StocktakeListView";
 import { useDispatch } from "react-redux";
+import { useQueryClient } from "@tanstack/react-query";
 import { addProductToBasket } from "@/store/slices/saleBasketSlice";
+
+type InventoryTabId = "stock" | "catalogue" | "movements" | "stocktake";
+
+const INVENTORY_TABS: ReadonlyArray<{
+  id: InventoryTabId;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { id: "stock", label: "Branch Stock", icon: Package },
+  { id: "catalogue", label: "Master Catalog", icon: Layers },
+  { id: "movements", label: "Movement Ledger", icon: ArrowRightLeft },
+  { id: "stocktake", label: "Physical Stocktake", icon: ClipboardList },
+];
 
 export const InventoryDashboardView: React.FC = () => {
   const dispatch = useDispatch();
+  const queryClient = useQueryClient();
   const { currentBranchId, availableBranches } = useBranchContext();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<
-    "stock" | "catalogue" | "movements" | "stocktake"
-  >("stock");
+  const [activeTab, setActiveTab] = useState<InventoryTabId>("stock");
 
   // Search & Filtering
   const [searchInput, setSearchInput] = useState("");
@@ -225,6 +238,14 @@ export const InventoryDashboardView: React.FC = () => {
       } else if (tab === "movements") {
         await refetchMovements();
         toast.success("Movement audit ledger synchronized");
+      } else if (tab === "stocktake") {
+        await queryClient.invalidateQueries({
+          predicate: (query) =>
+            typeof query.queryKey[0] === "string" &&
+            (query.queryKey[0].startsWith("inventory-stocktakes") ||
+              query.queryKey[0].startsWith("inventory-stocktake-detail")),
+        });
+        toast.success("Stocktake sessions synchronized");
       }
     } catch {
       toast.error("Failed to synchronize inventory data.");
@@ -286,45 +307,84 @@ export const InventoryDashboardView: React.FC = () => {
       />
 
       {/* 2. TAB CONTROLS & FILTER BAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
-        {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1 md:pb-0">
-          <Button
-            variant={activeTab === "stock" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("stock")}
-            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
-          >
-            <Package className="w-4 h-4" />
-            <span>Branch Stock</span>
-          </Button>
-          <Button
-            variant={activeTab === "catalogue" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("catalogue")}
-            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
-          >
-            <Layers className="w-4 h-4" />
-            <span>Master Catalog</span>
-          </Button>
-          <Button
-            variant={activeTab === "movements" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("movements")}
-            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
-          >
-            <ArrowRightLeft className="w-4 h-4" />
-            <span>Movement Ledger</span>
-          </Button>
-          <Button
-            variant={activeTab === "stocktake" ? "secondary" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("stocktake")}
-            className="gap-2 font-medium text-xs md:text-sm rounded-lg"
-          >
-            <ClipboardList className="w-4 h-4" />
-            <span>Physical Stocktake</span>
-          </Button>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/80 pb-4">
+        {/* Navigation Tabs (WAI-ARIA Tablist) */}
+        <div
+          role="tablist"
+          aria-label="Inventory management sections"
+          className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border/60 overflow-x-auto scrollbar-none max-w-full"
+          onKeyDown={(e) => {
+            const currentIndex = INVENTORY_TABS.findIndex(
+              (t) => t.id === activeTab,
+            );
+            let nextIndex = -1;
+            if (e.key === "ArrowRight") {
+              nextIndex = (currentIndex + 1) % INVENTORY_TABS.length;
+            } else if (e.key === "ArrowLeft") {
+              nextIndex =
+                (currentIndex - 1 + INVENTORY_TABS.length) %
+                INVENTORY_TABS.length;
+            } else if (e.key === "Home") {
+              nextIndex = 0;
+            } else if (e.key === "End") {
+              nextIndex = INVENTORY_TABS.length - 1;
+            }
+            if (nextIndex !== -1) {
+              e.preventDefault();
+              const nextTab = INVENTORY_TABS[nextIndex];
+              setActiveTab(nextTab.id);
+              document.getElementById(`inventory-tab-${nextTab.id}`)?.focus();
+            }
+          }}
+        >
+          {INVENTORY_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            const count =
+              tab.id === "stock"
+                ? stockData?.meta?.total
+                : tab.id === "catalogue"
+                  ? productsData?.meta?.total
+                  : tab.id === "movements"
+                    ? movementsData?.meta?.total
+                    : undefined;
+
+            return (
+              <button
+                key={tab.id}
+                id={`inventory-tab-${tab.id}`}
+                role="tab"
+                type="button"
+                aria-selected={isActive}
+                aria-controls={`inventory-tabpanel-${tab.id}`}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setActiveTab(tab.id)}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap shrink-0 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                  isActive
+                    ? "bg-background text-foreground shadow-sm border border-border/60"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/40 border border-transparent"
+                }`}
+              >
+                <Icon
+                  className={`w-4 h-4 shrink-0 ${
+                    isActive ? "text-primary" : "text-muted-foreground"
+                  }`}
+                />
+                <span>{tab.label}</span>
+                {typeof count === "number" && (
+                  <span
+                    className={`ml-0.5 px-1.5 py-0.5 text-[10px] leading-none font-semibold rounded-full tabular-nums ${
+                      isActive
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Global Search and Filter Options */}

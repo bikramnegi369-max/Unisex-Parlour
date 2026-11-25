@@ -1154,7 +1154,9 @@ export function AppointmentCalendarView({
                       className={`flex-1 border-r border-border/60 last:border-r-0 relative transition-colors ${
                         isCurrentLaneDragOver
                           ? "bg-primary/5 ring-2 ring-primary/40"
-                          : ""
+                          : lane.attendanceDetails?.status === "absent"
+                            ? "opacity-70 bg-muted/20"
+                            : ""
                       }`}
                     >
                       {/* Lane Header (Sticky Top so lane identity is always visible while scrolling vertically) */}
@@ -1162,7 +1164,9 @@ export function AppointmentCalendarView({
                         className={`h-11 border-b border-border backdrop-blur-xs px-3 py-1.5 flex items-center justify-between select-none sticky top-0 z-20 shadow-xs ${
                           lane.isOnLeave
                             ? "bg-amber-500/15 dark:bg-amber-950/40 border-b-amber-500/30"
-                            : "bg-muted/95"
+                            : lane.attendanceDetails?.status === "absent"
+                              ? "bg-rose-500/10 dark:bg-rose-950/30 border-b-rose-500/30"
+                              : "bg-muted/95"
                         }`}
                       >
                         <div className="truncate flex-1 min-w-0 pr-2">
@@ -1433,10 +1437,22 @@ export function AppointmentCalendarView({
 
                           if (!rawData || !onDropAppointment) return;
 
-                          // Prevent dropping onto a staff lane who is on approved leave
+                          // Prevent dropping onto a staff lane who is on approved leave, absent, or requires review
                           if (lane.isOnLeave) {
                             toast.error(
                               `Cannot assign appointment: ${lane.name} is on approved leave (${lane.leaveInfo?.leaveType || "Leave"}).`,
+                            );
+                            return;
+                          }
+                          if (lane.attendanceDetails?.status === "absent") {
+                            toast.error(
+                              `Cannot assign appointment: ${lane.name} is marked absent for this shift.`,
+                            );
+                            return;
+                          }
+                          if (lane.attendanceDetails?.status === "review_required") {
+                            toast.error(
+                              `Cannot assign appointment: ${lane.name} requires attendance/roster review.`,
                             );
                             return;
                           }

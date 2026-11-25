@@ -2,7 +2,7 @@ import React from "react";
 import { type ColumnDef } from "@tanstack/react-table";
 import type { StockMovement } from "../types/inventory.types";
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/formatters";
+import { formatDateTime } from "@/lib/formatters";
 
 export const buildStockMovementColumns = (): ColumnDef<StockMovement>[] => [
   {
@@ -10,7 +10,7 @@ export const buildStockMovementColumns = (): ColumnDef<StockMovement>[] => [
     header: "Timestamp",
     cell: ({ row }) => (
       <div className="font-mono text-xs text-muted-foreground whitespace-nowrap min-w-36">
-        {formatDate(row.original.createdAt, "short")}
+        {formatDateTime(row.original.createdAt)}
       </div>
     ),
   },

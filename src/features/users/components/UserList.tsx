@@ -9,6 +9,7 @@ import { useUsers } from "../hooks/useUsers";
 import { useCreateUser } from "../hooks/useCreateUser";
 import { useUpdateUser } from "../hooks/useUpdateUser";
 import { useUpdateUserStatus } from "../hooks/useUpdateUserStatus";
+import { useLinkUserAccount } from "@/features/employees/hooks/useEmployees";
 import { Dialog } from "@/components/ui/dialog";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -83,6 +84,7 @@ export default function UserList() {
   );
 
   const createMutation = useCreateUser();
+  const linkUserMutation = useLinkUserAccount();
   const updateMutation = useUpdateUser();
   const updateStatusMutation = useUpdateUserStatus();
 
@@ -171,11 +173,28 @@ export default function UserList() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const handleCreateSubmit = (values: CreateUserPayload) => {
-    createMutation.mutate(values, {
-      onSuccess: () => {
+  const handleCreateSubmit = (
+    values: CreateUserPayload & { staffId?: string },
+  ) => {
+    const { staffId, ...payload } = values;
+    createMutation.mutate(payload, {
+      onSuccess: async (createdUser) => {
+        if (staffId && createdUser?.id) {
+          try {
+            await linkUserMutation.mutateAsync({
+              id: staffId,
+              userId: createdUser.id,
+            });
+            toast.success("User account created and linked to staff member.");
+          } catch {
+            toast.warning(
+              "User account created, but linking to staff failed. You can link it from Staff details.",
+            );
+          }
+        } else {
+          toast.success("User account created successfully.");
+        }
         setIsCreateOpen(false);
-        toast.success("User account created successfully.");
       },
       onError: (err: Error) => {
         toast.error(err.message || "Failed to create user account.");

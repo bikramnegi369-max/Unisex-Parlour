@@ -3,7 +3,7 @@
 import React from "react";
 import type { StockMovement } from "../types/inventory.types";
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/formatters";
+import { formatDateTime } from "@/lib/formatters";
 
 interface StockMovementMobileCardProps {
   movement: StockMovement;
@@ -69,7 +69,7 @@ export function StockMovementMobileCard({
 
       <div className="pt-2 border-t border-border/60 space-y-1 text-[11px] text-muted-foreground">
         <div className="flex justify-between items-center">
-          <span>{formatDate(movement.createdAt, "short")}</span>
+          <span>{formatDateTime(movement.createdAt)}</span>
           <span className="truncate max-w-37.5">
             {movement.actor?.name || "System"}
           </span>

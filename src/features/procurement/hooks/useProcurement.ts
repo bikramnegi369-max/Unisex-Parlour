@@ -56,8 +56,8 @@ export function useCreateSupplier() {
   return useMutation({
     mutationFn: (data: SupplierFormValues) => procurementApi.createSupplier(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: procurementKeys.suppliers() });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "suppliers"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
       toast.success("Supplier registered successfully");
     },
     onError: (err: any) => {
@@ -72,12 +72,27 @@ export function useUpdateSupplier(id: string) {
     mutationFn: (data: Partial<SupplierFormValues>) =>
       procurementApi.updateSupplier(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: procurementKeys.suppliers() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "suppliers"] });
       queryClient.invalidateQueries({ queryKey: procurementKeys.supplierDetail(id) });
       toast.success("Supplier updated successfully");
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || "Failed to update supplier");
+    },
+  });
+}
+
+export function useDeleteSupplier() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => procurementApi.deleteSupplier(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "suppliers"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
+      toast.success("Supplier deleted successfully");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || "Failed to delete supplier");
     },
   });
 }
@@ -111,8 +126,8 @@ export function useCreatePurchaseOrder() {
     mutationFn: (data: PurchaseOrderFormValues) =>
       procurementApi.createPurchaseOrder(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: procurementKeys.orders() });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "orders"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
       toast.success("Purchase order drafted successfully");
     },
     onError: (err: any) => {
@@ -127,9 +142,9 @@ export function useUpdatePurchaseOrderStatus(id: string) {
     mutationFn: (data: { status: "ordered" | "cancelled"; cancelReason?: string }) =>
       procurementApi.updatePurchaseOrderStatus(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: procurementKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "orders"] });
       queryClient.invalidateQueries({ queryKey: procurementKeys.orderDetail(id) });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
       toast.success("Order status updated successfully");
     },
     onError: (err: any) => {
@@ -145,10 +160,10 @@ export function useReceiveGoods(poId: string) {
     mutationFn: (data: ReceiveGoodsFormValues) => procurementApi.receiveGoods(poId, data),
     onSuccess: () => {
       // Invalidate procurement queries
-      queryClient.invalidateQueries({ queryKey: procurementKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "orders"] });
       queryClient.invalidateQueries({ queryKey: procurementKeys.orderDetail(poId) });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.receipts() });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "receipts"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
 
       // Non-negotiable mandatory inventory cache invalidations
       queryClient.invalidateQueries({ queryKey: ["inventory"] });
@@ -204,8 +219,8 @@ export function useCreateSupplierInvoice() {
     mutationFn: (data: SupplierInvoiceFormValues) =>
       procurementApi.createInvoice(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: procurementKeys.invoices() });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "invoices"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
       toast.success("Supplier invoice recorded successfully");
     },
     onError: (err: any) => {
@@ -234,9 +249,9 @@ export function useRecordSupplierPayment() {
     mutationFn: (data: SupplierPaymentFormValues) =>
       procurementApi.recordPayment(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: procurementKeys.payments() });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.invoices() });
-      queryClient.invalidateQueries({ queryKey: procurementKeys.overview() });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "payments"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "invoices"] });
+      queryClient.invalidateQueries({ queryKey: [...procurementKeys.all, "overview"] });
       toast.success("Supplier payment recorded successfully");
     },
     onError: (err: any) => {

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { SyncButton } from "@/components/ui/sync-button";
 import { Search, ShieldAlert, CheckCircle, Clock, XCircle, ShoppingCart, Ban, ExternalLink, Users, Eye } from "lucide-react";
 import { format } from "date-fns";
@@ -23,12 +24,16 @@ interface CustomerMembershipsTabProps {
 export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembershipsTabProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [selectedManageMembershipId, setSelectedManageMembershipId] = useState<string | null>(null);
   const [selectedDetailsMembership, setSelectedDetailsMembership] = useState<CustomerMembership | null>(null);
 
   const { data, isLoading, isFetching, refetch } = useCustomerMemberships({
     search: search.trim() || undefined,
     status: (statusFilter || undefined) as CustomerMembershipStatus | undefined,
+    page,
+    limit,
   });
 
   const cancelMutation = useCancelBeneficiaryMembership();
@@ -73,7 +78,10 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
           <Input
             placeholder="Search membership code, customer or plan..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="pl-9"
           />
         </div>
@@ -85,7 +93,10 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
                 key={st}
                 size="sm"
                 variant={statusFilter === st ? "default" : "outline"}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => {
+                  setStatusFilter(st);
+                  setPage(1);
+                }}
                 className="capitalize text-xs h-8"
               >
                 {st === "" ? "All" : st.replace("_", " ")}
@@ -202,6 +213,21 @@ export function CustomerMembershipsTab({ onSell, canSell = true }: CustomerMembe
           </TableBody>
         </Table>
       </div>
+
+      {data && data.total > 0 && (
+        <Pagination
+          currentPage={page}
+          totalPages={data.totalPages || 1}
+          totalItems={data.total}
+          onPageChange={setPage}
+          pageSize={limit}
+          onPageSizeChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+          itemLabel="memberships"
+        />
+      )}
 
       {/* Complete Customer Membership Details Modal */}
       {selectedDetailsMembership && (

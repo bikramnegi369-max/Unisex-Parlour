@@ -79,6 +79,10 @@ export const procurementApi = {
     return normalizeId<Supplier>(res.data.data);
   },
 
+  async deleteSupplier(id: string): Promise<void> {
+    await apiClient.delete(`/procurement/suppliers/${id}`);
+  },
+
   // 3. Purchase Orders
   async listPurchaseOrders(params?: {
     branchId?: string | null;
@@ -263,5 +267,24 @@ export const procurementApi = {
       payment: normalizeId<SupplierPayment>(res.data.data.payment),
       invoice: normalizeId<SupplierInvoice>(res.data.data.invoice),
     };
+  },
+
+  async downloadSupplierInvoicePdf(
+    invoiceId: string,
+    invoiceNumber: string,
+  ): Promise<void> {
+    const response = await apiClient.get<Blob>(
+      `/procurement/invoices/${invoiceId}/pdf`,
+      { responseType: "blob" },
+    );
+    const blob = new Blob([response.data], { type: "application/pdf" });
+    const objectUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = `${invoiceNumber || "supplier-invoice"}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(objectUrl);
   },
 };
