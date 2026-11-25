@@ -7,7 +7,11 @@ import { toggleSidebarCollapse } from "@/store/slices/uiSlice";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useAuth } from "@/features/auth/hooks/useAuth";
-import { hasPermission, hasAnyPermission, PermissionType } from "@/lib/permissions";
+import {
+  hasPermission,
+  hasAnyPermission,
+  PermissionType,
+} from "@/lib/permissions";
 import {
   routePermissions,
   RoutePath,
@@ -41,6 +45,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import BranchSwitcher from "./BranchSwitcher";
+import { useOrganizationSettings } from "@/features/settings/hooks/useSettings";
 
 interface SidebarItem {
   name: string;
@@ -118,6 +123,9 @@ interface SidebarProps {
 export default function Sidebar({ onClose }: SidebarProps) {
   const pathname = usePathname();
   const { user } = useAuth();
+  const canViewSettings = hasPermission(user, "settings.view");
+  const { data: orgSettings } = useOrganizationSettings(canViewSettings);
+  const brandName = orgSettings?.organization?.name?.trim() || "Unisex Parlour";
   const dispatch = useAppDispatch();
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isCollapsedSelector = useAppSelector(
@@ -142,14 +150,17 @@ export default function Sidebar({ onClose }: SidebarProps) {
           </div>
         ) : (
           <div className="flex items-center justify-between w-full">
-            <Link href="/dashboard" className="flex items-center gap-3 group">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform group-hover:scale-105">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-3 group min-w-0"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md transition-transform group-hover:scale-105">
                 <Scissors className="h-5 w-5" />
               </div>
               <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold tracking-tight text-foreground leading-none flex items-center gap-1.5">
-                  Unisex Parlour
-                  <Sparkles className="h-3 w-3 text-amber-500 fill-amber-500" />
+                <span className="text-sm font-bold tracking-tight text-foreground leading-none flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">{brandName}</span>
+                  <Sparkles className="h-3 w-3 shrink-0 text-amber-500 fill-amber-500" />
                 </span>
                 <span className="text-[10px] text-muted-foreground font-medium tracking-wide uppercase mt-1">
                   ERP Platform
@@ -203,7 +214,10 @@ export default function Sidebar({ onClose }: SidebarProps) {
               return true;
             }
             if (Array.isArray(requiredPermission)) {
-              return hasAnyPermission(user, requiredPermission as PermissionType[]);
+              return hasAnyPermission(
+                user,
+                requiredPermission as PermissionType[],
+              );
             }
             return hasPermission(user, requiredPermission as PermissionType);
           });

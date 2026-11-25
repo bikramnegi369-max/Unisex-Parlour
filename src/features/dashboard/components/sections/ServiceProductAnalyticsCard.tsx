@@ -58,9 +58,9 @@ export function ServiceProductAnalyticsCard({
             <ShoppingBag size={15} />
           </div>
           <div>
-            <span className="text-xs font-bold text-foreground">Retail POS Revenue</span>
+            <span className="text-xs font-bold text-foreground">Retail Gross Line Value</span>
             <span className="text-[10px] text-muted-foreground block">
-              {retailProducts.totalQuantitySold} items sold to customers
+              {retailProducts.totalQuantitySold} items sold (pre-discount gross)
             </span>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function ServiceProductAnalyticsCard({
       {/* Top 5 Services List */}
       <div className="space-y-2">
         <div className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-          Top In-Demand Services
+          Top In-Demand Services (Gross Line Value)
         </div>
 
         {topServices.length === 0 ? (

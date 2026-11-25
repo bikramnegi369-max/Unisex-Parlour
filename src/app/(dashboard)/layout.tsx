@@ -9,6 +9,7 @@ import { useAppDispatch, useAppSelector } from "@/hooks/store";
 import { setSidebarOpen, setTheme } from "@/store/slices/uiSlice";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useBranches } from "@/features/branches/hooks/useBranches";
+import { useRegionalFormatters } from "@/features/settings/hooks/useRegionalFormatters";
 import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({
@@ -27,6 +28,8 @@ export default function DashboardLayout({
 
   // Initialize branch context — fetches user's branches and populates Redux
   useBranches();
+  // Sync regional formatting defaults (currency, locale) from EffectiveSettings
+  useRegionalFormatters();
 
   // Sync theme with DOM
   React.useEffect(() => {

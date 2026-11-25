@@ -583,7 +583,7 @@ describe("Billing UI Components & Financial Rules", () => {
       const firstKey = mockMutateAsync.mock.calls[0][0].payload.idempotencyKey;
 
       // Change amount from 1000 to 500 (material payload change)
-      const amountInput = screen.getByLabelText(/Amount Received/i);
+      const amountInput = screen.getByLabelText(/Cash Tendered|Amount Received/i);
       fireEvent.change(amountInput, { target: { value: "500" } });
 
       fireEvent.click(submitButton);
@@ -1136,7 +1136,9 @@ describe("Billing UI Components & Financial Rules", () => {
       expect(screen.getByText("Exact")).toBeDefined();
       expect(screen.getByText("+₹500")).toBeDefined();
       expect(screen.getByText("₹1,000")).toBeDefined();
-      expect(screen.getByText("Customer Tendered (₹):")).toBeDefined();
+      expect(screen.getByText("Cash Tendered (₹)")).toBeDefined();
+      expect(screen.getByText("Applied to Invoice:")).toBeDefined();
+      expect(screen.getByText("Change to Return:")).toBeDefined();
     });
 
     it("renders Quick Bill for completed tickets and Complete Booking for in_progress tickets in ReadyToBillQueue", () => {

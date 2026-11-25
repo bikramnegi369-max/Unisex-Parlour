@@ -1,7 +1,19 @@
 import { format, formatDistanceToNow, parseISO } from "date-fns";
 
-const DEFAULT_CURRENCY = "INR";
-const DEFAULT_LOCALE = "en-IN";
+let activeCurrency = "INR";
+let activeLocale = "en-IN";
+
+/**
+ * Updates the active regional defaults used by formatCurrency when no explicit
+ * options are passed. Called when effective settings load or change.
+ */
+export function setRegionalDefaults(defaults: {
+  currency?: string;
+  locale?: string;
+}) {
+  if (defaults.currency) activeCurrency = defaults.currency;
+  if (defaults.locale) activeLocale = defaults.locale;
+}
 
 /**
  * Formats a number as a currency string.
@@ -19,18 +31,27 @@ export function formatCurrency(
   }
 ): string {
   const {
-    currency = DEFAULT_CURRENCY,
-    locale = DEFAULT_LOCALE,
+    currency = activeCurrency,
+    locale = activeLocale,
     minimumFractionDigits = 2,
     maximumFractionDigits = 2,
   } = options || {};
 
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-    minimumFractionDigits,
-    maximumFractionDigits,
-  }).format(amount);
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      minimumFractionDigits,
+      maximumFractionDigits,
+    }).format(amount);
+  } catch {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits,
+      maximumFractionDigits,
+    }).format(amount);
+  }
 }
 
 /**

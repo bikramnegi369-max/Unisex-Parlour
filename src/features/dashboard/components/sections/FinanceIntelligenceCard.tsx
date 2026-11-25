@@ -9,7 +9,7 @@ interface FinanceIntelligenceCardProps {
   finance?: {
     status: "AVAILABLE" | "FAILED" | "EMPTY" | "UNAVAILABLE";
     totalExpenses: number;
-    operatingCashMargin: number;
+    operatingCashMargin?: number;
     expensesByCategory: Array<{ category: string; amount: number }>;
     error?: string;
   };
@@ -43,7 +43,8 @@ export function FinanceIntelligenceCard({ finance }: FinanceIntelligenceCardProp
   }
 
   const { totalExpenses, operatingCashMargin, expensesByCategory } = finance;
-  const isMarginPositive = operatingCashMargin >= 0;
+  const hasMargin = typeof operatingCashMargin === "number" && Number.isFinite(operatingCashMargin);
+  const isMarginPositive = hasMargin ? operatingCashMargin >= 0 : true;
 
   return (
     <div className="flex flex-col p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-2xs select-none space-y-4">
@@ -73,38 +74,49 @@ export function FinanceIntelligenceCard({ finance }: FinanceIntelligenceCardProp
 
       {/* Primary Financial Margin Callout */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div
-          className={cn(
-            "p-3.5 rounded-xl border flex flex-col justify-between",
-            isMarginPositive
-              ? "bg-emerald-500/5 border-emerald-500/20"
-              : "bg-rose-500/5 border-rose-500/20"
-          )}
-        >
-          <div className="flex items-center justify-between">
+        {hasMargin ? (
+          <div
+            className={cn(
+              "p-3.5 rounded-xl border flex flex-col justify-between",
+              isMarginPositive
+                ? "bg-emerald-500/5 border-emerald-500/20"
+                : "bg-rose-500/5 border-rose-500/20"
+            )}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                Operating Cash Margin
+              </span>
+              {isMarginPositive ? (
+                <TrendingUp size={14} className="text-emerald-500" />
+              ) : (
+                <TrendingDown size={14} className="text-rose-500" />
+              )}
+            </div>
+            <span
+              className={cn(
+                "text-lg sm:text-xl font-extrabold font-mono mt-1",
+                isMarginPositive
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-rose-600 dark:text-rose-400"
+              )}
+            >
+              {formatCurrency(operatingCashMargin)}
+            </span>
+            <span className="text-[10px] text-muted-foreground mt-0.5">
+              Liquid collections net of salon outlays
+            </span>
+          </div>
+        ) : (
+          <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 flex flex-col justify-center">
             <span className="text-[11px] font-semibold text-muted-foreground">
               Operating Cash Margin
             </span>
-            {isMarginPositive ? (
-              <TrendingUp size={14} className="text-emerald-500" />
-            ) : (
-              <TrendingDown size={14} className="text-rose-500" />
-            )}
+            <span className="text-xs text-muted-foreground mt-1">
+              Requires finance.view permission
+            </span>
           </div>
-          <span
-            className={cn(
-              "text-lg sm:text-xl font-extrabold font-mono mt-1",
-              isMarginPositive
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-rose-600 dark:text-rose-400"
-            )}
-          >
-            {formatCurrency(operatingCashMargin)}
-          </span>
-          <span className="text-[10px] text-muted-foreground mt-0.5">
-            Liquid collections net of salon outlays
-          </span>
-        </div>
+        )}
 
         <div className="p-3.5 rounded-xl bg-muted/30 border border-border/50 flex flex-col justify-between">
           <span className="text-[11px] font-semibold text-muted-foreground">

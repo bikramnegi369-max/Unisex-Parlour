@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useEmployees } from "@/features/employees/hooks/useEmployees";
 import type { Employee } from "@/features/employees/types/employee.types";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useBranchContext } from "@/hooks/useBranchContext";
+import { useLeavePolicies } from "@/features/settings/hooks/useSettings";
 import { hasPermission } from "@/lib/permissions";
 import { mapBackendValidationErrors } from "@/lib/api/errors";
 import { Loader2 } from "lucide-react";
@@ -41,7 +43,13 @@ export default function LeaveForm({
 }: LeaveFormProps) {
   const isEditMode = !!initialLeave;
   const { user } = useAuth();
+  const { currentBranchId } = useBranchContext();
   const canManage = hasPermission(user, "employees.leaves.manage");
+  const { data: leavePolicies } = useLeavePolicies(currentBranchId ?? null);
+  const activePolicies = useMemo(
+    () => (leavePolicies ?? []).filter((p) => p.isActive),
+    [leavePolicies],
+  );
 
   // Fetch active employees if the user has manage permission (for on-behalf creation)
   const { data: employeesData, isLoading: isLoadingEmployees } = useEmployees({
@@ -78,6 +86,7 @@ export default function LeaveForm({
     register,
     handleSubmit,
     setError,
+    watch,
     formState: { errors },
     reset,
   } = useForm<CreateLeaveFormValues>({
@@ -183,20 +192,54 @@ export default function LeaveForm({
             htmlFor="leaveType"
             className="block text-[10px] uppercase font-semibold tracking-wider text-muted-foreground mb-1.5"
           >
-            Leave Type (e.g. Sick, Casual, Earned){" "}
-            <span className="text-destructive">*</span>
+            Leave Type <span className="text-destructive">*</span>
           </label>
-          <Input
-            id="leaveType"
-            placeholder="e.g. Sick Leave"
-            className={
-              errors.leaveType
-                ? "border-destructive focus-visible:ring-destructive"
-                : ""
-            }
-            disabled={isSubmitting}
-            {...register("leaveType")}
-          />
+          {activePolicies.length > 0 ? (
+            <select
+              id="leaveType"
+              disabled={isSubmitting}
+              {...register("leaveType")}
+              className={`flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 ${
+                errors.leaveType ? "border-destructive" : "border-input"
+              }`}
+            >
+              <option value="">Select leave policy...</option>
+              {activePolicies.map((p) => (
+                <option key={p.id} value={p.code}>
+                  {p.name} ({p.code}) — {p.isPaid ? "Paid" : "Unpaid"}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <Input
+              id="leaveType"
+              placeholder="e.g. Sick Leave"
+              className={
+                errors.leaveType
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
+              disabled={isSubmitting}
+              {...register("leaveType")}
+            />
+          )}
+          {(() => {
+            const selectedCode = watch("leaveType");
+            const matched = activePolicies.find(
+              (p) =>
+                p.code.toUpperCase() === (selectedCode || "").toUpperCase() ||
+                p.name.toLowerCase() === (selectedCode || "").toLowerCase(),
+            );
+            if (!matched) return null;
+            return (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {matched.isPaid ? "Paid" : "Unpaid"} • {matched.annualEntitlement} days/yr •{" "}
+                {matched.allowHalfDay ? "Half-day allowed" : "Full-day only"}
+                {matched.excludeHolidays ? " • Holidays excluded" : ""}
+                {matched.excludeWeeklyOffs ? " • Weekly offs excluded" : ""}
+              </p>
+            );
+          })()}
           {errors.leaveType && (
             <p className="mt-1.5 text-xs font-medium text-destructive">
               {errors.leaveType.message}

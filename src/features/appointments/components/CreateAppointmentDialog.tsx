@@ -29,6 +29,7 @@ import type { Employee } from "@/features/employees/types/employee.types";
 import { useAppointments } from "../hooks/useAppointments";
 import type { Appointment } from "../types/appointment.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
+import { useEffectiveSettings } from "@/features/settings/hooks/useSettings";
 import { formatCurrency } from "@/lib/formatters";
 import { toast } from "sonner";
 import {
@@ -550,6 +551,13 @@ export function CreateAppointmentDialog({
     isAllBranchesSelected,
     availableBranches,
   } = useBranchContext();
+  const { data: effectiveSettings } = useEffectiveSettings(
+    currentBranchId ?? null,
+    Boolean(currentBranchId)
+  );
+  const allowWalkIns = effectiveSettings?.appointments?.allowWalkIns?.value ?? true;
+  const allowAdvanceBookings =
+    effectiveSettings?.appointments?.allowAdvanceBookings?.value ?? true;
   const queryClient = useQueryClient();
   const [conflictError, setConflictError] = useState<string | null>(null);
   const [serviceSearch, setServiceSearch] = useState("");
@@ -1933,11 +1941,21 @@ export function CreateAppointmentDialog({
           <div className="flex items-center gap-1.5 p-1 bg-muted rounded-lg border border-border">
             <button
               type="button"
+              disabled={!allowAdvanceBookings}
+              title={
+                allowAdvanceBookings
+                  ? "Schedule an advance appointment"
+                  : "Advance bookings are disabled in branch settings"
+              }
               onClick={() => {
                 setValue("bookingType", "advance", { shouldValidate: true });
                 setValue("reminder.enabled", true);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                !allowAdvanceBookings
+                  ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                  : "cursor-pointer"
+              } ${
                 bookingType === "advance"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"
@@ -1948,6 +1966,12 @@ export function CreateAppointmentDialog({
             </button>
             <button
               type="button"
+              disabled={!allowWalkIns}
+              title={
+                allowWalkIns
+                  ? "Create a walk-in booking"
+                  : "Walk-in bookings are disabled in branch settings"
+              }
               onClick={() => {
                 setValue("bookingType", "walk_in", { shouldValidate: true });
                 setValue("date", format(new Date(), "yyyy-MM-dd"), {
@@ -1958,7 +1982,11 @@ export function CreateAppointmentDialog({
                 });
                 setValue("reminder.enabled", false);
               }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                !allowWalkIns
+                  ? "opacity-50 cursor-not-allowed text-muted-foreground"
+                  : "cursor-pointer"
+              } ${
                 bookingType === "walk_in"
                   ? "bg-background text-foreground shadow-xs"
                   : "text-muted-foreground hover:text-foreground"

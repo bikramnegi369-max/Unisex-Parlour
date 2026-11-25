@@ -65,21 +65,21 @@ export interface BranchComparisonItem {
 export interface DashboardOverviewData {
   success: boolean;
   meta: DashboardOverviewMeta;
-  kpis: {
-    grossSales: MetricDelta;
-    discountsTotal: MetricDelta;
-    netSales: MetricDelta;
-    collections: MetricDelta;
-    refunds: MetricDelta;
-    netCollections: MetricDelta;
-    outstandingReceivables: MetricDelta;
-    averageBillValue: MetricDelta;
-    totalAppointments: MetricDelta;
-    newCustomers: MetricDelta;
-    repeatCustomerRate: RateDelta;
+  kpis?: {
+    grossSales?: MetricDelta;
+    discountsTotal?: MetricDelta;
+    netSales?: MetricDelta;
+    collections?: MetricDelta;
+    refunds?: MetricDelta;
+    netCollections?: MetricDelta;
+    outstandingReceivables?: MetricDelta;
+    averageBillValue?: MetricDelta;
+    totalAppointments?: MetricDelta;
+    newCustomers?: MetricDelta;
+    repeatCustomerRate?: RateDelta;
   };
-  revenueTrend: RevenueTrendPoint[];
-  appointments: {
+  revenueTrend?: RevenueTrendPoint[];
+  appointments?: {
     byStatus: {
       scheduled: number;
       in_progress: number;
@@ -93,14 +93,14 @@ export interface DashboardOverviewData {
     };
     completionRate: number;
   };
-  customers: {
+  customers?: {
     totalActiveCustomers: number;
     newCustomersInPeriod: number;
     repeatCustomerRate: number;
     acquisitionSources: Array<{ source: string; count: number }>;
     newVsReturning: { new: number; returning: number };
   };
-  services: {
+  services?: {
     topServices: TopServiceItem[];
     retailProducts: {
       totalQuantitySold: number;
@@ -111,7 +111,7 @@ export interface DashboardOverviewData {
   finance?: {
     status: "AVAILABLE" | "FAILED" | "EMPTY" | "UNAVAILABLE";
     totalExpenses: number;
-    operatingCashMargin: number;
+    operatingCashMargin?: number;
     expensesByCategory: Array<{ category: string; amount: number }>;
     error?: string;
   };
@@ -128,6 +128,7 @@ export interface DashboardOverviewData {
     activeCount: number;
     expiringCount: number;
     newSoldInPeriod: number;
+    salesAmountInPeriod?: number;
     error?: string;
   };
   subscriptions?: {
@@ -135,6 +136,8 @@ export interface DashboardOverviewData {
     activeCount: number;
     expiringCount: number;
     redemptionsInPeriod: number;
+    soldInPeriod?: number;
+    salesAmountInPeriod?: number;
     error?: string;
   };
   coupons?: {

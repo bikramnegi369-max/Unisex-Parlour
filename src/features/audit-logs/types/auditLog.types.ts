@@ -9,11 +9,15 @@ export interface AuditLog {
   organizationId: string;
   branchId?: string;
   actor: AuditLogActor | null;
+  actorType?: string;
   action: string;
   entityType: string;
   entityId?: string;
   description: string;
   metadata?: Record<string, unknown>;
+  source?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
 }
 
@@ -31,11 +35,15 @@ export interface RawAuditLogDTO {
       }
     | string
     | null;
+  actorType?: string;
   action?: string;
   entityType?: string;
   entityId?: string;
   description?: string;
   metadata?: Record<string, unknown>;
+  source?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt?: string;
 }
 
@@ -72,8 +80,25 @@ export const KNOWN_ENTITY_TYPES = [
   "Leave",
   "User",
   "Role",
+  "Permission",
   "Branch",
   "Appointment",
+  "Invoice",
+  "Payment",
+  "Expense",
+  "DayClosure",
+  "Payroll",
+  "Coupon",
+  "Inventory",
+  "Procurement",
+  "Subscription",
+  "Membership",
+  "Loyalty",
+  "Incentive",
+  "Auth",
+  "FinancialReport",
+  "StockReservation",
+  "Settings",
 ] as const;
 
 export type KnownEntityType = (typeof KNOWN_ENTITY_TYPES)[number];

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { format, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
+import { useEffectiveSettings } from "@/features/settings/hooks/useSettings";
 import { hasPermission } from "@/lib/permissions";
 import {
   useAppointments,
@@ -100,6 +101,13 @@ export function AppointmentsClient() {
     useState(false);
 
   const { currentBranchId } = useBranchContext();
+  const { data: effectiveSettings } = useEffectiveSettings(
+    currentBranchId ?? null,
+    Boolean(currentBranchId)
+  );
+  const allowWalkIns = effectiveSettings?.appointments?.allowWalkIns?.value ?? true;
+  const allowAdvanceBookings =
+    effectiveSettings?.appointments?.allowAdvanceBookings?.value ?? true;
 
   // Fetch employees for filter dropdown - strictly scoped to active branch unless All Branches is selected
   const employeeParams = useMemo(() => {
@@ -349,6 +357,12 @@ export function AppointmentsClient() {
                 <Button
                   variant="outline"
                   size="sm"
+                  disabled={!allowWalkIns}
+                  title={
+                    allowWalkIns
+                      ? "Create a walk-in booking"
+                      : "Walk-in bookings are disabled in branch settings"
+                  }
                   onClick={() => handleOpenCreate("walk_in")}
                   className="gap-1.5 text-xs bg-background/80"
                 >
@@ -357,6 +371,12 @@ export function AppointmentsClient() {
                 </Button>
                 <Button
                   size="sm"
+                  disabled={!allowAdvanceBookings}
+                  title={
+                    allowAdvanceBookings
+                      ? "Book an advance appointment"
+                      : "Advance bookings are disabled in branch settings"
+                  }
                   onClick={() => handleOpenCreate("advance")}
                   className="gap-1.5 text-xs"
                 >
@@ -661,10 +681,14 @@ export function AppointmentsClient() {
               toast.error(msg);
             }
           }}
-          onQuickWalkIn={(staffId, startTime) => {
-            setCreateBookingType("walk_in");
-            setIsCreateOpen(true);
-          }}
+          onQuickWalkIn={
+            allowWalkIns
+              ? (staffId, startTime) => {
+                  setCreateBookingType("walk_in");
+                  setIsCreateOpen(true);
+                }
+              : undefined
+          }
           onDropAppointment={async (apptId, newDate, newStartTime, newStaffId) => {
             const targetAppt = rawAppointments.find((a: Appointment) => a.id === apptId);
             if (!targetAppt) return;

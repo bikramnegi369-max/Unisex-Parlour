@@ -33,7 +33,7 @@ export const routePermissions = {
   "/inventory": "inventory.view",
   "/suppliers": "procurement.suppliers.view",
   "/procurement": "procurement.orders.view",
-  "/activity-logs": "activity-logs.view",
+  "/activity-logs": "logs.view",
   "/audit-logs": "logs.view",
   "/subscriptions": "subscriptions.view",
   "/payroll": "payroll.view",

@@ -105,7 +105,14 @@ export function RecordPaymentDialog({
 
   // Derive active tenderedCash: fallback to invoice.amountDue when user hasn't typed an override
   const tenderedCash = tenderedCashOverride ?? (invoice?.amountDue ?? 0);
-  const setTenderedCash = (val: number) => setTenderedCashOverride(val);
+  const setTenderedCash = (val: number) => {
+    const safeVal = Number.isFinite(val) && val >= 0 ? val : 0;
+    setTenderedCashOverride(safeVal);
+    if (invoice && selectedMethod === "cash") {
+      const applied = Math.round(Math.min(safeVal, invoice.amountDue) * 100) / 100;
+      setValue("amount", applied, { shouldValidate: true });
+    }
+  };
 
   const handleFormSubmit = async (values: RecordPaymentFormValues) => {
     if (!invoice) return;
@@ -264,39 +271,54 @@ export function RecordPaymentDialog({
           </div>
         </div>
 
-        {/* Amount Input */}
+        {/* Amount Input (Single-input POS pattern for Cash; standard Amount Received for non-cash) */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label htmlFor="amount-received-input" className="text-xs font-semibold text-foreground">
-              Amount Received (₹)
+              {selectedMethod === "cash" ? "Cash Tendered (₹)" : "Amount Received (₹)"}
             </label>
             <button
               type="button"
               onClick={() => {
-                setValue("amount", invoice.amountDue);
-                setTenderedCash(invoice.amountDue);
+                setValue("amount", invoice.amountDue, { shouldValidate: true });
+                setTenderedCashOverride(invoice.amountDue);
               }}
               className="text-[11px] text-primary hover:underline font-semibold"
             >
               Pay Full Due ({formatCurrency(invoice.amountDue)})
             </button>
           </div>
-          <Input
-            id="amount-received-input"
-            type="number"
-            step="any"
-            min="0.01"
-            max={invoice.amountDue}
-            {...register("amount")}
-            className="text-xs font-semibold"
-          />
+          {selectedMethod === "cash" ? (
+            <Input
+              key="cash-tendered-input"
+              id="amount-received-input"
+              type="number"
+              step="any"
+              min="0.01"
+              value={tenderedCash || ""}
+              onChange={(e) => setTenderedCash(parseFloat(e.target.value) || 0)}
+              placeholder="Enter cash given by customer"
+              className="text-xs font-semibold"
+            />
+          ) : (
+            <Input
+              key="amount-received-input"
+              id="amount-received-input"
+              type="number"
+              step="any"
+              min="0.01"
+              max={invoice.amountDue}
+              {...register("amount")}
+              className="text-xs font-semibold"
+            />
+          )}
           {errors.amount && (
             <p className="text-[10px] text-destructive">
               {errors.amount.message}
             </p>
           )}
 
-          {/* Quick-Cash Buttons (Especially useful for POS Cash / Counter Checkout) */}
+          {/* Quick-Cash Buttons */}
           <div className="space-y-1.5 pt-1">
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">
               Quick Cash / Preset Amounts
@@ -304,19 +326,41 @@ export function RecordPaymentDialog({
             <div className="flex flex-wrap gap-1.5">
               {[
                 { label: "Exact", val: invoice.amountDue },
-                { label: "+₹100", val: Math.min(invoice.amountDue, (watchAmount || 0) + 100) },
-                { label: "+₹500", val: Math.min(invoice.amountDue, (watchAmount || 0) + 500) },
-                { label: "₹500", val: Math.min(invoice.amountDue, 500) },
-                { label: "₹1,000", val: Math.min(invoice.amountDue, 1000) },
-                { label: "₹2,000", val: Math.min(invoice.amountDue, 2000) },
+                {
+                  label: "+₹100",
+                  val:
+                    selectedMethod === "cash"
+                      ? tenderedCash + 100
+                      : Math.min(invoice.amountDue, (watchAmount || 0) + 100),
+                },
+                {
+                  label: "+₹500",
+                  val:
+                    selectedMethod === "cash"
+                      ? tenderedCash + 500
+                      : Math.min(invoice.amountDue, (watchAmount || 0) + 500),
+                },
+                {
+                  label: "₹500",
+                  val: selectedMethod === "cash" ? 500 : Math.min(invoice.amountDue, 500),
+                },
+                {
+                  label: "₹1,000",
+                  val: selectedMethod === "cash" ? 1000 : Math.min(invoice.amountDue, 1000),
+                },
+                {
+                  label: "₹2,000",
+                  val: selectedMethod === "cash" ? 2000 : Math.min(invoice.amountDue, 2000),
+                },
               ].map((chip, idx) => (
                 <button
                   key={`${chip.label}-${idx}`}
                   type="button"
                   onClick={() => {
-                    setValue("amount", chip.val);
                     if (selectedMethod === "cash") {
                       setTenderedCash(chip.val);
+                    } else {
+                      setValue("amount", chip.val, { shouldValidate: true });
                     }
                   }}
                   className="px-2 py-1 text-[11px] font-semibold rounded-md border border-border bg-muted/40 hover:bg-muted text-foreground transition-colors active:scale-95"
@@ -327,34 +371,28 @@ export function RecordPaymentDialog({
             </div>
           </div>
 
-          {/* Cash Change Calculator (when paying via cash) */}
+          {/* Derived Cash Summary (when paying via cash) */}
           {selectedMethod === "cash" && (
-            <div className="p-2.5 bg-muted/30 border border-border/80 rounded-lg space-y-2 mt-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground font-medium">Customer Tendered (₹):</span>
-                <input
-                  type="number"
-                  step="any"
-                  min={watchAmount || 0}
-                  value={tenderedCash || ""}
-                  onChange={(e) => setTenderedCash(parseFloat(e.target.value) || 0)}
-                  placeholder="Enter cash given"
-                  className="w-28 text-right px-2 py-1 bg-background border border-border rounded text-xs font-semibold focus:outline-hidden focus:ring-1 focus:ring-primary"
-                />
+            <div className="p-2.5 bg-muted/30 border border-border/80 rounded-lg space-y-1.5 mt-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground font-medium">Applied to Invoice:</span>
+                <span className="font-semibold text-foreground">
+                  {formatCurrency(Math.min(tenderedCash, invoice.amountDue))}
+                </span>
               </div>
-              {tenderedCash > 0 && (
-                <div className="flex items-center justify-between pt-1 border-t border-border/60 text-xs">
-                  <span className="font-semibold text-muted-foreground">Change to Return:</span>
-                  <span
-                    className={`font-bold ${
-                      tenderedCash >= (watchAmount || 0)
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-destructive"
-                    }`}
-                  >
-                    {tenderedCash >= (watchAmount || 0)
-                      ? formatCurrency(tenderedCash - (watchAmount || 0))
-                      : `Short by ${formatCurrency((watchAmount || 0) - tenderedCash)}`}
+              <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                <span className="font-semibold text-muted-foreground">Change to Return:</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(Math.max(0, tenderedCash - invoice.amountDue))}
+                </span>
+              </div>
+              {tenderedCash > 0 && tenderedCash < invoice.amountDue && (
+                <div className="flex items-center justify-between pt-1 border-t border-border/60">
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">
+                    Remaining Balance (Partial Payment):
+                  </span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">
+                    {formatCurrency(invoice.amountDue - tenderedCash)}
                   </span>
                 </div>
               )}

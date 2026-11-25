@@ -125,72 +125,72 @@ export function BillingStatsCards({
       }`}
     >
       {/* Total Billed */}
-      <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span className="text-[11px] font-semibold uppercase tracking-wider">
+      <div className="min-w-0 p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+        <div className="min-w-0 flex items-center justify-between gap-2 text-muted-foreground">
+          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider break-words">
             Total Invoiced
           </span>
-          <Receipt className="h-4 w-4 text-primary" />
+          <Receipt className="h-4 w-4 shrink-0 text-primary" />
         </div>
-        <p className="text-lg font-black tracking-tight text-foreground">
+        <p className="min-w-0 text-[clamp(1rem,1.6vw,1.25rem)] leading-tight font-black tracking-tight text-foreground tabular-nums break-words">
           {formatCurrency(stats.totalBilled)}
         </p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="min-w-0 text-[10px] text-muted-foreground break-words">
           {stats.totalCount} total invoice{stats.totalCount === 1 ? "" : "s"}
         </p>
       </div>
 
       {/* Collected */}
-      <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span className="text-[11px] font-semibold uppercase tracking-wider">
+      <div className="min-w-0 p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+        <div className="min-w-0 flex items-center justify-between gap-2 text-muted-foreground">
+          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider break-words">
             Collected
           </span>
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <p className="text-lg font-black tracking-tight text-emerald-600 dark:text-emerald-400">
+        <p className="min-w-0 text-[clamp(1rem,1.6vw,1.25rem)] leading-tight font-black tracking-tight text-emerald-600 dark:text-emerald-400 tabular-nums break-words">
           {formatCurrency(stats.totalCollected)}
         </p>
-        <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-          <TrendingUp className="h-3 w-3 text-emerald-500" />
-          Cash, Card & UPI received
+        <p className="min-w-0 text-[10px] text-muted-foreground flex items-center gap-1 break-words">
+          <TrendingUp className="h-3 w-3 shrink-0 text-emerald-500" />
+          <span>Cash, Card & UPI received</span>
         </p>
       </div>
 
       {/* Outstanding Dues */}
-      <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span className="text-[11px] font-semibold uppercase tracking-wider">
+      <div className="min-w-0 p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+        <div className="min-w-0 flex items-center justify-between gap-2 text-muted-foreground">
+          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider break-words">
             Outstanding Due
           </span>
           <AlertCircle
-            className={`h-4 w-4 ${stats.totalOutstanding > 0 ? "text-primary" : "text-muted-foreground"}`}
+            className={`h-4 w-4 shrink-0 ${stats.totalOutstanding > 0 ? "text-primary" : "text-muted-foreground"}`}
           />
         </div>
         <p
-          className={`text-lg font-black tracking-tight ${
+          className={`min-w-0 text-[clamp(1rem,1.6vw,1.25rem)] leading-tight font-black tracking-tight tabular-nums break-words ${
             stats.totalOutstanding > 0 ? "text-primary" : "text-muted-foreground"
           }`}
         >
           {formatCurrency(stats.totalOutstanding)}
         </p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="min-w-0 text-[10px] text-muted-foreground break-words">
           {stats.unpaidCount} invoice{stats.unpaidCount === 1 ? "" : "s"} with dues
         </p>
       </div>
 
       {/* Subscription Waived & Drafts */}
-      <div className="p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span className="text-[11px] font-semibold uppercase tracking-wider">
+      <div className="min-w-0 p-3.5 bg-card border border-border/80 rounded-xl space-y-1.5 shadow-2xs">
+        <div className="min-w-0 flex items-center justify-between gap-2 text-muted-foreground">
+          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider break-words">
             Plan Waived Value
           </span>
-          <ShieldCheck className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          <ShieldCheck className="h-4 w-4 shrink-0 text-purple-600 dark:text-purple-400" />
         </div>
-        <p className="text-lg font-black tracking-tight text-purple-600 dark:text-purple-400">
+        <p className="min-w-0 text-[clamp(1rem,1.6vw,1.25rem)] leading-tight font-black tracking-tight text-purple-600 dark:text-purple-400 tabular-nums break-words">
           {formatCurrency(stats.planSavings)}
         </p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="min-w-0 text-[10px] text-muted-foreground break-words">
           {stats.draftCount} pending draft{stats.draftCount === 1 ? "" : "s"}
         </p>
       </div>

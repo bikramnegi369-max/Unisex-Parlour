@@ -27,11 +27,15 @@ export const normalizeAuditLog = (raw: RawAuditLogDTO): AuditLog => {
     organizationId: raw.organizationId || "",
     branchId: raw.branchId,
     actor,
+    actorType: raw.actorType,
     action: raw.action || "UNKNOWN_ACTION",
     entityType: raw.entityType || "Unknown",
     entityId: raw.entityId,
     description: raw.description || "",
     metadata: raw.metadata,
+    source: raw.source,
+    ipAddress: raw.ipAddress,
+    userAgent: raw.userAgent,
     createdAt: raw.createdAt || new Date().toISOString(),
   };
 };

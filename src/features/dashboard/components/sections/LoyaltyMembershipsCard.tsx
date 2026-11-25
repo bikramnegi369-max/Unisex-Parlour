@@ -11,6 +11,7 @@ interface LoyaltyMembershipsCardProps {
     activeCount: number;
     expiringCount: number;
     newSoldInPeriod: number;
+    salesAmountInPeriod?: number;
     error?: string;
   };
   subscriptions?: {
@@ -18,6 +19,8 @@ interface LoyaltyMembershipsCardProps {
     activeCount: number;
     expiringCount: number;
     redemptionsInPeriod: number;
+    soldInPeriod?: number;
+    salesAmountInPeriod?: number;
     error?: string;
   };
   coupons?: {
@@ -67,7 +70,7 @@ export function LoyaltyMembershipsCard({
           </div>
           <div>
             <h3 className="text-sm sm:text-base font-bold text-foreground">
-              Memberships & Loyalty
+              Memberships, Subscriptions & Loyalty
             </h3>
             <p className="text-[11px] text-muted-foreground">
               VIP tiers, prepaid service packages, discounts, and reward points
@@ -88,38 +91,69 @@ export function LoyaltyMembershipsCard({
         {/* Tier Memberships */}
         {hasMemberships && (
           <div className="p-3 rounded-xl bg-pink-500/5 border border-pink-500/20 flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400 flex items-center gap-1">
-                <Crown size={12} />
-                <span>Tier Memberships</span>
-              </span>
-              <span className="text-lg font-extrabold font-mono text-pink-600 dark:text-pink-400 mt-1 block">
-                {memberships.activeCount} Active
-              </span>
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-2 flex justify-between">
-              <span>+{memberships.newSoldInPeriod} new</span>
-              <span className="text-amber-600 font-semibold">{memberships.expiringCount} expiring</span>
-            </div>
+            {memberships.status === "FAILED" ? (
+              <div className="text-[11px] text-rose-500 font-medium">
+                Memberships unavailable: {memberships.error || "Failed to load"}
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400 flex items-center gap-1">
+                    <Crown size={12} />
+                    <span>Tier Memberships</span>
+                  </span>
+                  <span className="text-lg font-extrabold font-mono text-pink-600 dark:text-pink-400 mt-1 block">
+                    {memberships.activeCount} Active
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-2 flex justify-between">
+                  <span>
+                    +{memberships.newSoldInPeriod} sold
+                    {typeof memberships.salesAmountInPeriod === "number"
+                      ? ` (${formatCurrency(memberships.salesAmountInPeriod)})`
+                      : ""}
+                  </span>
+                  <span className="text-amber-600 font-semibold">{memberships.expiringCount} expiring</span>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {/* Service Subscriptions (Packages) */}
         {hasSubscriptions && (
           <div className="p-3 rounded-xl bg-indigo-500/5 border border-indigo-500/20 flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                <Sparkles size={12} />
-                <span>Service Packages</span>
-              </span>
-              <span className="text-lg font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
-                {subscriptions.activeCount} Active
-              </span>
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-2 flex justify-between">
-              <span>{subscriptions.redemptionsInPeriod} redeemed</span>
-              <span className="text-amber-600 font-semibold">{subscriptions.expiringCount} expiring</span>
-            </div>
+            {subscriptions.status === "FAILED" ? (
+              <div className="text-[11px] text-rose-500 font-medium">
+                Packages unavailable: {subscriptions.error || "Failed to load"}
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
+                    <Sparkles size={12} />
+                    <span>Subscriptions</span>
+                  </span>
+                  <span className="text-lg font-extrabold font-mono text-indigo-600 dark:text-indigo-400 mt-1 block">
+                    {subscriptions.activeCount} Active
+                  </span>
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-2 space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>{subscriptions.redemptionsInPeriod} redeemed</span>
+                    <span className="text-amber-600 font-semibold">{subscriptions.expiringCount} expiring</span>
+                  </div>
+                  {typeof subscriptions.soldInPeriod === "number" && (
+                    <div>
+                      +{subscriptions.soldInPeriod} sold
+                      {typeof subscriptions.salesAmountInPeriod === "number"
+                        ? ` (${formatCurrency(subscriptions.salesAmountInPeriod)})`
+                        : ""}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 

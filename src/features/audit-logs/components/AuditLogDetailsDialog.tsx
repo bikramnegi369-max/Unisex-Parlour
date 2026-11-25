@@ -108,6 +108,14 @@ export function AuditLogDetailsDialog({
               <p className="font-medium text-foreground">{branchName}</p>
             </div>
           )}
+
+          {(auditLog.source || auditLog.actorType || auditLog.ipAddress) && (
+            <div className="space-y-1 sm:col-span-2 pt-2 border-t border-border/50 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              {auditLog.actorType && <span>Actor Type: <strong className="text-foreground">{auditLog.actorType}</strong></span>}
+              {auditLog.source && <span>Source: <strong className="text-foreground">{auditLog.source}</strong></span>}
+              {auditLog.ipAddress && <span>IP: <strong className="font-mono text-foreground">{auditLog.ipAddress}</strong></span>}
+            </div>
+          )}
         </div>
 
         {/* Description */}
