@@ -7,12 +7,16 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import type { StaffDeviceMapping } from "../api/attendance.api";
 import { useUpdateStaffDeviceMapping } from "../hooks/useAttendance";
 
 const editMappingSchema = z.object({
+  provider: z.string().trim().min(1, "Provider is required").max(100),
+  deviceId: z.string().trim().min(1, "Device ID is required").max(100),
+  externalEmployeeCode: z.string().trim().min(1, "Biometric code is required").max(100),
   mappingStatus: z.enum(["mapped", "unmapped", "partial", "unknown"]),
   notes: z.string().trim().max(500, "Notes cannot exceed 500 characters").optional(),
 });
@@ -41,6 +45,9 @@ export default function EditStaffDeviceMappingDialog({
   } = useForm<EditMappingFormValues>({
     resolver: zodResolver(editMappingSchema),
     values: {
+      provider: mapping?.provider || "eTimeOffice",
+      deviceId: mapping?.deviceId || "default",
+      externalEmployeeCode: mapping?.externalEmployeeCode || "",
       mappingStatus: mapping?.mappingStatus || "mapped",
       notes: mapping?.notes || "",
     },
@@ -52,6 +59,9 @@ export default function EditStaffDeviceMappingDialog({
       await updateMutation.mutateAsync({
         id: mapping._id,
         payload: {
+          provider: values.provider,
+          deviceId: values.deviceId,
+          externalEmployeeCode: values.externalEmployeeCode,
           mappingStatus: values.mappingStatus,
           notes: values.notes || "",
         },
@@ -86,17 +96,39 @@ export default function EditStaffDeviceMappingDialog({
             <span className="text-muted-foreground">Staff Member:</span>
             <span className="font-medium text-foreground">{mapping.staffId?.name}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Biometric Code:</span>
-            <span className="font-mono font-medium text-foreground">{mapping.externalEmployeeCode}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Provider / Device:</span>
-            <span className="text-foreground">{mapping.provider} : {mapping.deviceId}</span>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Provider
+              </label>
+              <Input {...register("provider")} placeholder="eTimeOffice" />
+              {errors.provider && (
+                <p className="text-xs text-destructive">{errors.provider.message}</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Device ID
+              </label>
+              <Input {...register("deviceId")} placeholder="default" />
+              {errors.deviceId && (
+                <p className="text-xs text-destructive">{errors.deviceId.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Biometric Code
+            </label>
+            <Input {...register("externalEmployeeCode")} placeholder="e.g. 1007" />
+            {errors.externalEmployeeCode && (
+              <p className="text-xs text-destructive">{errors.externalEmployeeCode.message}</p>
+            )}
+          </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Mapping Status

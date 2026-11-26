@@ -33,6 +33,7 @@ import {
   useResolveBranchAttendanceConflict,
   useResolveLeaveAppointmentConflict,
   useToggleProviderConfigurationStatus,
+  useSyncProviderNow,
 } from "../hooks/useAttendance";
 import type {
   AttendanceConflict,
@@ -121,6 +122,7 @@ export default function AttendanceWorkspace() {
     (ProviderStatus["configurations"][number] & { endpointUrl?: string }) | null
   >(null);
   const toggleProviderMutation = useToggleProviderConfigurationStatus();
+  const syncProviderNow = useSyncProviderNow();
 
   const register = useAttendanceRegister(date, search, statusFilter);
   const detail = useAttendanceDetail(staffId, date);
@@ -224,50 +226,81 @@ export default function AttendanceWorkspace() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Attendance</h1>
-          <p className="text-sm text-muted-foreground">
-            {currentBranch?.name || "Selected branch"} ·{" "}
-            {register.data?.timezone ||
-              currentBranch?.timezone ||
-              "Branch timezone"}
-          </p>
-        </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <label className="text-xs font-medium text-muted-foreground">
-            Attendance date
-            <Input
-              type="date"
-              value={date}
-              onChange={(event) =>
-                setDateSelection({
-                  branchId: currentBranchId,
-                  date: event.target.value,
-                })
-              }
-            />
-          </label>
-          <div className="text-xs text-muted-foreground">
-            <span className="block font-medium">Branch operating hours</span>
-            <span>
-              {register.data?.operatingHours
-                ? "Available from branch settings; no employee shifts or grace rules are inferred."
-                : "Not configured"}
-            </span>
+      <div className="rounded-2xl bg-card border border-border/80 p-5 sm:p-6 shadow-2xs">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3.5">
+            <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
+              <CalendarClock className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Attendance</h1>
+              <p className="text-sm text-muted-foreground">
+                {currentBranch?.name || "Selected branch"} ·{" "}
+                {register.data?.timezone ||
+                  currentBranch?.timezone ||
+                  "Branch timezone"}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 md:items-end">
+            <label className="text-xs font-medium text-muted-foreground">
+              Attendance date
+              <Input
+                type="date"
+                value={date}
+                className="mt-1 h-9"
+                onChange={(event) =>
+                  setDateSelection({
+                    branchId: currentBranchId,
+                    date: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <div className="rounded-xl bg-muted/40 border border-border/60 px-3 py-2 text-xs text-muted-foreground">
+              <span className="block font-medium text-foreground">
+                Branch operating hours
+              </span>
+              <span>
+                {register.data?.operatingHours || currentBranch?.operatingHours
+                  ? "Configured in branch settings"
+                  : "Not configured"}
+              </span>
+            </div>
+            {canAdjust && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9 sm:col-span-2 md:col-span-1"
+                disabled={syncProviderNow.isPending}
+                onClick={() => {
+                  syncProviderNow.mutate("eTimeOffice", {
+                    onSuccess: (res) => {
+                      toast.success(
+                        res.message || "Attendance sync completed.",
+                      );
+                    },
+                    onError: (error) => {
+                      toast.error(error.message || "Manual sync failed.");
+                    },
+                  });
+                }}
+              >
+                {syncProviderNow.isPending ? "Syncing..." : "Sync Attendance"}
+              </Button>
+            )}
           </div>
         </div>
-      </div>
 
-      <Card>
-        <CardContent className="p-4 text-sm text-muted-foreground">
+        <p className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
           A chronological in-punch followed by an out-punch is required to
           record present. Incomplete or missing punches are not present; manual
           corrections require a reason and are audited. Branch opening hours do
           not determine individual late arrivals because employee shift
           schedules are not configured.
-        </CardContent>
-      </Card>
+        </p>
+      </div>
 
       <div
         className="flex flex-wrap gap-2 border-b pb-3"
@@ -841,15 +874,38 @@ export default function AttendanceWorkspace() {
                       returned to the frontend.
                     </p>
                     {canAdjust && (
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setEditingProviderConfig(null);
-                          setIsProviderDialogOpen(true);
-                        }}
-                      >
-                        Configure provider
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={syncProviderNow.isPending}
+                          onClick={() => {
+                            syncProviderNow.mutate("etimeoffice", {
+                              onSuccess: (res) => {
+                                toast.success(
+                                  res.message || "Attendance sync completed.",
+                                );
+                              },
+                              onError: (error) => {
+                                toast.error(
+                                  error.message || "Manual sync failed.",
+                                );
+                              },
+                            });
+                          }}
+                        >
+                          {syncProviderNow.isPending ? "Syncing..." : "Sync Now"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setEditingProviderConfig(null);
+                            setIsProviderDialogOpen(true);
+                          }}
+                        >
+                          Configure provider
+                        </Button>
+                      </div>
                     )}
                   </div>
                   {(providerStatus.data?.configurations || []).length === 0 ? (

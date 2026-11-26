@@ -22,6 +22,7 @@ import {
   getMonthlyMusterRoll,
   upsertProviderConfiguration,
   toggleProviderConfigurationStatus,
+  syncProviderNow,
   type UpsertProviderConfigurationPayload,
 } from "../api/attendance.api";
 
@@ -259,6 +260,28 @@ export function useToggleProviderConfigurationStatus() {
     }) => toggleProviderConfigurationStatus(providerName, isActive),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    },
+  });
+}
+
+export function useSyncProviderNow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (providerName: string) => syncProviderNow(providerName),
+    onSuccess: () => {
+      const keys = new Set([
+        "attendance-register",
+        "attendance-detail",
+        "attendance-branch-conflicts",
+        "attendance-leave-conflicts",
+        "attendance-provider-status",
+        "monthly-muster-roll",
+        "staff-device-mappings",
+      ]);
+      queryClient.invalidateQueries({
+        predicate: (query) =>
+          Array.isArray(query.queryKey) && keys.has(String(query.queryKey[0])),
+      });
     },
   });
 }

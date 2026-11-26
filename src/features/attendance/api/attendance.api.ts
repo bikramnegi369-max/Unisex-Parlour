@@ -392,3 +392,19 @@ export async function toggleProviderConfigurationStatus(
   );
   return data.data;
 }
+
+export async function syncProviderNow(providerName: string) {
+  const { data } = await apiClient.post<
+    ApiResponse<{
+      skipped: boolean;
+      reason?: string;
+      fetchedCount?: number;
+      source?: string;
+    }>
+  >(
+    `/attendance/providers/${encodeURIComponent(providerName)}/sync`,
+    {},
+    currentBranch,
+  );
+  return data;
+}

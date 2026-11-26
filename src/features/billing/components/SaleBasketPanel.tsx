@@ -88,27 +88,6 @@ export function SaleBasketPanel({
 
   const debouncedTyping = useDebounce(typingValue, 350);
 
-  // Sync debounced typing to Redux (side-effect updating external state management)
-  useEffect(() => {
-    if (debouncedTyping === null) return;
-
-    if (debouncedTyping === "") {
-      if (basket.redeemLoyaltyPoints !== 0) {
-        dispatch(setBasketLoyaltyRedemption(0));
-      }
-      return;
-    }
-
-    const num = Math.floor(Number(debouncedTyping));
-    if (isNaN(num)) return;
-
-    const maxAvailable = customer?.loyaltyPoints ?? 0;
-    const clamped = Math.min(Math.max(0, num), maxAvailable);
-    if (clamped !== basket.redeemLoyaltyPoints) {
-      dispatch(setBasketLoyaltyRedemption(clamped));
-    }
-  }, [debouncedTyping, customer?.loyaltyPoints, basket.redeemLoyaltyPoints, dispatch]);
-
   // Financial calculations derived from basket
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -235,23 +214,70 @@ export function SaleBasketPanel({
     };
   }, [basket, customerBenefitsData]);
 
+  const maxRedemptionPercentage = loyaltyProgram?.maxRedemptionPercentage ?? 20;
+  const redemptionRate = loyaltyProgram?.redemptionRate ?? 1;
+
   // Calculate the maximum redeemable points allowed for this cart and customer
   const maxRedeemableForCart = useMemo(() => {
     const available = customer?.loyaltyPoints ?? 0;
-    if (available < minThresholdPoints || totals.grossPayable <= 0) {
+    if (
+      available < minThresholdPoints ||
+      totals.grossPayable <= 0 ||
+      redemptionRate <= 0
+    ) {
       return 0;
     }
-    const maxPct = loyaltyProgram?.maxRedemptionPercentage ?? 20;
-    const rate = loyaltyProgram?.redemptionRate ?? 1;
-    const maxDiscountAllowed = (totals.grossPayable * maxPct) / 100;
-    const maxPointsByBill = Math.floor(maxDiscountAllowed / rate);
+    const maxDiscountAllowed =
+      (totals.grossPayable * maxRedemptionPercentage) / 100;
+    const maxPointsByBill = Math.floor(maxDiscountAllowed / redemptionRate);
     return Math.min(available, maxPointsByBill);
   }, [
     customer?.loyaltyPoints,
     minThresholdPoints,
     totals.grossPayable,
-    loyaltyProgram?.maxRedemptionPercentage,
-    loyaltyProgram?.redemptionRate,
+    maxRedemptionPercentage,
+    redemptionRate,
+  ]);
+
+  const maxRedeemableAmount = maxRedeemableForCart * redemptionRate;
+
+  // Sync debounced typing to Redux (side-effect updating external state management)
+  useEffect(() => {
+    if (debouncedTyping === null) return;
+
+    if (debouncedTyping === "") {
+      if (basket.redeemLoyaltyPoints !== 0) {
+        dispatch(setBasketLoyaltyRedemption(0));
+      }
+      return;
+    }
+
+    const num = Math.floor(Number(debouncedTyping));
+    if (isNaN(num)) return;
+
+    const clamped = Math.min(Math.max(0, num), maxRedeemableForCart);
+    if (clamped !== basket.redeemLoyaltyPoints) {
+      dispatch(setBasketLoyaltyRedemption(clamped));
+    }
+  }, [
+    debouncedTyping,
+    maxRedeemableForCart,
+    basket.redeemLoyaltyPoints,
+    dispatch,
+  ]);
+
+  // Auto-clamp applied points if cart total shrinks and existing redemption exceeds the new cap
+  useEffect(() => {
+    if (basket.redeemLoyaltyPoints > maxRedeemableForCart) {
+      const nextPoints =
+        maxRedeemableForCart >= minThresholdPoints ? maxRedeemableForCart : 0;
+      dispatch(setBasketLoyaltyRedemption(nextPoints));
+    }
+  }, [
+    basket.redeemLoyaltyPoints,
+    maxRedeemableForCart,
+    minThresholdPoints,
+    dispatch,
   ]);
 
   // Server-authoritative loyalty redemption preview query
@@ -919,12 +945,16 @@ export function SaleBasketPanel({
               </Badge>
             </div>
 
-            {/* Threshold & Debt Indicator */}
+            {/* Threshold & Cap Indicator */}
             <div className="flex items-center justify-between text-[10px] text-muted-foreground">
               <span>
-                Min. redemption:{" "}
+                Min:{" "}
                 <strong className="text-foreground">
                   {minThresholdPoints} pts
+                </strong>{" "}
+                · Max:{" "}
+                <strong className="text-foreground">
+                  {maxRedemptionPercentage}%
                 </strong>
               </span>
               {(customer.loyaltyPoints ?? 0) < minThresholdPoints ? (
@@ -948,7 +978,8 @@ export function SaleBasketPanel({
                   }}
                   className="text-primary hover:underline font-semibold cursor-pointer"
                 >
-                  Apply Max ({maxRedeemableForCart} pts)
+                  Apply Max ({maxRedeemableForCart} pts ·{" "}
+                  {formatCurrency(maxRedeemableAmount)})
                 </button>
               )}
             </div>
@@ -963,15 +994,17 @@ export function SaleBasketPanel({
               <Input
                 type="number"
                 min={minThresholdPoints}
-                max={customer.loyaltyPoints ?? 0}
+                max={maxRedeemableForCart}
                 step="1"
-                placeholder={`Min ${minThresholdPoints} pts...`}
+                placeholder={`Min ${minThresholdPoints} · Max ${maxRedeemableForCart} pts`}
                 value={inputValue}
                 onChange={(e) => setTypingValue(e.target.value)}
+                onBlur={() => setTypingValue(null)}
                 className={`text-xs h-7 font-mono ${
                   inputValue &&
                   Number(inputValue) > 0 &&
-                  Number(inputValue) < minThresholdPoints
+                  (Number(inputValue) < minThresholdPoints ||
+                    Number(inputValue) > maxRedeemableForCart)
                     ? "border-amber-500 focus-visible:ring-amber-500"
                     : ""
                 }`}
@@ -992,7 +1025,7 @@ export function SaleBasketPanel({
               )}
             </div>
 
-            {/* Validation warning if cashier entered points below threshold */}
+            {/* Validation warning if cashier entered points below threshold or above cap */}
             {inputValue &&
               Number(inputValue) > 0 &&
               Number(inputValue) < minThresholdPoints && (
@@ -1001,6 +1034,12 @@ export function SaleBasketPanel({
                   {minThresholdPoints} points.
                 </p>
               )}
+            {inputValue && Number(inputValue) > maxRedeemableForCart && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                Max allowed for this bill is {maxRedeemableForCart} pts (
+                {maxRedemptionPercentage}% cap).
+              </p>
+            )}
 
             {isLoyaltyPreviewLoading && (
               <p className="text-[10px] text-muted-foreground italic">
@@ -1052,7 +1091,8 @@ export function SaleBasketPanel({
             !basket.customer ||
             isSubmitting ||
             (basket.redeemLoyaltyPoints > 0 &&
-              basket.redeemLoyaltyPoints < minThresholdPoints)
+              basket.redeemLoyaltyPoints < minThresholdPoints) ||
+            basket.redeemLoyaltyPoints > maxRedeemableForCart
           }
           onClick={onCheckout}
           className="w-full h-10 mt-2 gap-2 text-xs font-bold uppercase tracking-wider"

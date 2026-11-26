@@ -3,24 +3,15 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  payrollApi,
-  PayrollRecord,
-} from "../api/payroll.api";
+import { payrollApi, PayrollRecord, PayrollPeriod } from "../api/payroll.api";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { SalaryStructureManager } from "./SalaryStructureManager";
 import { CalculationBreakdownDialog } from "./CalculationBreakdownDialog";
 import { PayrollPaymentDialog } from "./PayrollPaymentDialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table/DataTable";
+import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -44,6 +35,7 @@ import {
   ChevronRight,
   X,
   FilePenLine,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getErrorMessage } from "@/lib/api/errors";
@@ -52,6 +44,30 @@ export function PayrollDashboardView() {
   const queryClient = useQueryClient();
   const { currentBranch, currentBranchId } = useBranchContext();
   const { user } = useAuth();
+
+  const handleDownloadPayslip = async (recordId: string, filename: string) => {
+    const toastId = toast.loading("Generating PDF...");
+    try {
+      await payrollApi.downloadPayslipPdf(recordId, filename);
+      toast.success("Payslip PDF downloaded.", { id: toastId });
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to generate payslip PDF"), {
+        id: toastId,
+      });
+    }
+  };
+
+  const handlePrintPayslip = async (recordId: string) => {
+    const toastId = toast.loading("Generating PDF...");
+    try {
+      await payrollApi.printPayslipPdf(recordId);
+      toast.success("Opening print dialog...", { id: toastId });
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to generate payslip PDF"), {
+        id: toastId,
+      });
+    }
+  };
 
   // Granular Least-Privilege Permissions — strict 1:1 match with backend RBAC
   const canCalculate = hasPermission(user, "payroll.calculate");
@@ -246,7 +262,9 @@ export function PayrollDashboardView() {
       data: Parameters<typeof payrollApi.recordPayment>[1];
     }) => payrollApi.recordPayment(id, data),
     onSuccess: () => {
-      toast.success("Payment attempt recorded. Payroll remains unsettled until confirmation.");
+      toast.success(
+        "Payment attempt recorded. Payroll remains unsettled until confirmation.",
+      );
       queryClient.invalidateQueries({ queryKey: ["payroll", "records"] });
     },
     onError: (err: unknown) => {
@@ -255,8 +273,13 @@ export function PayrollDashboardView() {
   });
 
   const confirmPaymentMutation = useMutation({
-    mutationFn: ({ recordId, paymentId }: { recordId: string; paymentId: string }) =>
-      payrollApi.confirmPayment(recordId, paymentId),
+    mutationFn: ({
+      recordId,
+      paymentId,
+    }: {
+      recordId: string;
+      paymentId: string;
+    }) => payrollApi.confirmPayment(recordId, paymentId),
     onSuccess: () => {
       toast.success("Actual payment confirmed; payroll is settled.");
       setPayingRecord(null);
@@ -278,7 +301,9 @@ export function PayrollDashboardView() {
       failureReason: string;
     }) => payrollApi.failPayment(recordId, paymentId, failureReason),
     onSuccess: () => {
-      toast.success("Payment attempt marked failed. Payroll remains approved and may be retried.");
+      toast.success(
+        "Payment attempt marked failed. Payroll remains approved and may be retried.",
+      );
       queryClient.invalidateQueries({ queryKey: ["payroll", "records"] });
     },
     onError: (err: unknown) => {
@@ -304,6 +329,314 @@ export function PayrollDashboardView() {
       toast.error(getErrorMessage(err, "Failed to reverse payment"));
     },
   });
+
+  const payrollColumns = useMemo<ColumnDef<PayrollRecord>[]>(
+    () => [
+      {
+        id: "staff",
+        header: "Staff Member",
+        cell: ({ row }) => {
+          const r = row.original;
+          const staff = typeof r.staffId === "object" ? r.staffId : null;
+          return (
+            <div className="whitespace-normal wrap-break-word min-w-37.5">
+              <Link
+                href={`/employees/${staff?._id || ""}`}
+                className="font-semibold text-foreground text-xs hover:text-primary transition-colors underline-offset-2 hover:underline block"
+              >
+                {staff?.name}
+              </Link>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {staff?.designation} •{" "}
+                <span className="font-mono">{staff?.staffCode}</span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "period",
+        header: "Period",
+        cell: ({ row }) => (
+          <span className="font-mono text-xs whitespace-nowrap">
+            {row.original.monthYear}
+          </span>
+        ),
+      },
+      {
+        id: "attendance",
+        header: "Attendance & Leaves",
+        cell: ({ row }) => {
+          const att = row.original.attendanceSummarySnapshot;
+          return (
+            <div className="text-xs space-y-0.5 whitespace-normal wrap-break-word min-w-35">
+              <div className="font-mono text-[11px] tabular-nums">
+                <span className="font-semibold text-emerald-600">
+                  {att.payableDays != null
+                    ? att.payableDays
+                    : att.presentDays + att.paidLeaveDays}
+                </span>{" "}
+                payable days
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {att.presentDays} present · {att.paidLeaveDays} paid leave
+              </div>
+              {att.unpaidLeaveDays > 0 && (
+                <div className="text-red-500 font-semibold text-[10px]">
+                  {att.unpaidLeaveDays} unpaid leave day(s)
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "proratedBase",
+        header: () => <div className="text-right">Prorated Base</div>,
+        cell: ({ row }) => (
+          <div className="text-right font-mono text-xs tabular-nums whitespace-nowrap">
+            ₹{row.original.calculations.grossBaseSalary.toLocaleString()}
+          </div>
+        ),
+      },
+      {
+        id: "adjustments",
+        header: () => <div className="text-right">Adjustments</div>,
+        cell: ({ row }) => {
+          const r = row.original;
+          const netAdj =
+            (r.calculations.totalAdjustmentsEarning || 0) -
+            (r.calculations.totalAdjustmentsDeduction || 0);
+          return (
+            <div className="text-right font-mono text-xs tabular-nums whitespace-nowrap">
+              {netAdj !== 0 ? (
+                <span
+                  className={netAdj > 0 ? "text-emerald-600" : "text-red-500"}
+                >
+                  {netAdj > 0 ? "+" : ""}₹{netAdj.toLocaleString()}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "netPayable",
+        header: () => <div className="text-right">Net Payable</div>,
+        cell: ({ row }) => (
+          <div className="text-right font-mono text-sm font-bold tabular-nums text-foreground whitespace-nowrap">
+            ₹{row.original.calculations.netPayable.toLocaleString()}
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <div className="space-y-1 whitespace-normal wrap-break-word min-w-42.5">
+              <div>{getStatusBadge(r.status, r.approvalBlocked)}</div>
+              {(r.incentiveLedgerGrossInPaise || 0) > 0 && (
+                <div
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                    r.status === "paid"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : r.status === "cancelled"
+                        ? "border-neutral-200 bg-neutral-50 text-neutral-600"
+                        : r.status === "approved"
+                          ? "border-blue-200 bg-blue-50 text-blue-700"
+                          : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}
+                  aria-label={`Commission allocation ${r.status === "paid" ? "settled" : r.status === "cancelled" ? "reversed" : r.status === "approved" ? "approved and awaiting settlement" : "pending payroll approval"}`}
+                >
+                  Commission ·{" "}
+                  {r.status === "paid"
+                    ? "Settled"
+                    : r.status === "cancelled"
+                      ? "Reversed"
+                      : r.status === "approved"
+                        ? "Approved"
+                        : "Pending approval"}{" "}
+                  · ₹
+                  {((r.incentiveLedgerAmountInPaise || 0) / 100).toLocaleString(
+                    "en-IN",
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    },
+                  )}
+                </div>
+              )}
+              {r.approvalBlocked && (
+                <div className="text-[10px] text-destructive leading-tight">
+                  {r.approvalBlockReasons[0]}
+                </div>
+              )}
+              {r.status === "approved" && (
+                <div className="text-[10px] text-muted-foreground">
+                  {r.manualPaymentStatus === "recorded"
+                    ? "Payment recorded · confirmation pending"
+                    : r.manualPaymentStatus === "failed"
+                      ? "Payment failed · retry available"
+                      : "Not settled"}
+                </div>
+              )}
+              {r.status === "paid" && r.disbursedAt && (
+                <div className="text-[10px] text-emerald-700">
+                  Confirmed {new Date(r.disbursedAt).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => {
+          const r = row.original;
+          const recId = r._id || r.id || "";
+          const staff = typeof r.staffId === "object" ? r.staffId : null;
+          return (
+            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setInspectingRecord(r)}
+                title="View salary calculation breakdown"
+                className="h-7 text-xs px-2 shrink-0"
+              >
+                Breakdown
+              </Button>
+
+              {canAdjust && r.status === "draft" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setAdjustingRecord(r);
+                    setAdjAmount("");
+                    setAdjReason("");
+                    setAdjRef("");
+                  }}
+                  title="Add bonus or deduction adjustment"
+                  className="h-7 text-xs px-2 shrink-0"
+                >
+                  <FilePenLine className="w-3.5 h-3.5 mr-1" /> Adjust
+                </Button>
+              )}
+
+              {canApprove &&
+                (r.status === "draft" || r.status === "pending_approval") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={r.approvalBlocked || approveMutation.isPending}
+                    onClick={() => approveMutation.mutate(recId)}
+                    title={
+                      r.approvalBlocked
+                        ? r.approvalBlockReasons[0] || "Approval blocked"
+                        : "Approve payroll record for payment"
+                    }
+                    className="h-7 text-xs text-emerald-700 hover:text-emerald-800 shrink-0"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                    Approve
+                  </Button>
+                )}
+
+              {canDisburse && r.status === "approved" && (
+                <Button
+                  size="sm"
+                  variant={
+                    r.manualPaymentStatus === "recorded" ? "default" : "outline"
+                  }
+                  disabled={
+                    recordPaymentMutation.isPending ||
+                    confirmPaymentMutation.isPending
+                  }
+                  onClick={() => setPayingRecord(r)}
+                  title={
+                    r.manualPaymentStatus === "recorded"
+                      ? "Verify actual settlement and confirm"
+                      : "Record a payment attempt"
+                  }
+                  className="h-7 text-xs shrink-0"
+                >
+                  <CreditCard className="w-3.5 h-3.5 mr-1" />
+                  {r.manualPaymentStatus === "recorded"
+                    ? "Confirm payment"
+                    : r.manualPaymentStatus === "failed"
+                      ? "Retry payment"
+                      : "Record payment"}
+                </Button>
+              )}
+
+              {r.status === "paid" && (
+                <>
+                  {canExport && (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          handleDownloadPayslip(
+                            recId,
+                            `payslip-${r.monthYear}-${staff?.staffCode || "staff"}.pdf`,
+                          )
+                        }
+                        title="Download Payslip PDF"
+                        aria-label="Download Payslip PDF"
+                        className="h-7 w-7 p-0 shrink-0"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-emerald-600" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handlePrintPayslip(recId)}
+                        title="Print Payslip"
+                        aria-label="Print Payslip"
+                        className="h-7 w-7 p-0 shrink-0"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  )}
+
+                  {canReverse && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setReversingRecord(r)}
+                      title="Reverse paid payroll"
+                      aria-label="Reverse paid payroll"
+                      className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [
+      canAdjust,
+      canApprove,
+      canDisburse,
+      canExport,
+      canReverse,
+      approveMutation,
+      recordPaymentMutation.isPending,
+      confirmPaymentMutation.isPending,
+    ],
+  );
 
   const addAdjustmentMutation = useMutation({
     mutationFn: ({
@@ -398,7 +731,10 @@ export function PayrollDashboardView() {
         );
       case "cancelled":
         return (
-          <Badge variant="outline" className="text-muted-foreground line-through">
+          <Badge
+            variant="outline"
+            className="text-muted-foreground line-through"
+          >
             Reversed
           </Badge>
         );
@@ -461,7 +797,10 @@ export function PayrollDashboardView() {
               <span className="font-semibold text-foreground uppercase tracking-wider text-[11px]">
                 Active Scope:
               </span>
-              <Badge variant="outline" className="font-mono text-xs bg-muted/30">
+              <Badge
+                variant="outline"
+                className="font-mono text-xs bg-muted/30"
+              >
                 {periodFilterMode === "period"
                   ? `Payroll Period: ${selectedMonthYear || "None"}`
                   : periodFilterMode === "custom_range"
@@ -485,7 +824,10 @@ export function PayrollDashboardView() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-card border rounded-2xl p-4 shadow-sm space-y-1">
               <span className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-                <span>Total Gross Pay ({periodFilterMode === "all_periods" ? "All Time" : "Period"})</span>
+                <span>
+                  Total Gross Pay (
+                  {periodFilterMode === "all_periods" ? "All Time" : "Period"})
+                </span>
                 <DollarSign className="w-4 h-4 text-primary" />
               </span>
               <div className="text-2xl font-bold text-foreground font-mono">
@@ -620,7 +962,7 @@ export function PayrollDashboardView() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mr-1">
                   Select Period:
                 </span>
-                {periods.map((p) => {
+                {periods.map((p: PayrollPeriod) => {
                   const pId = p._id || p.id;
                   const isSelected = pId === selectedPeriodId;
                   return (
@@ -660,7 +1002,9 @@ export function PayrollDashboardView() {
             {periodFilterMode === "custom_range" && (
               <div className="flex flex-wrap items-center gap-3 text-xs pt-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground font-medium">From:</span>
+                  <span className="text-muted-foreground font-medium">
+                    From:
+                  </span>
                   <Input
                     type="date"
                     value={customStartDate}
@@ -684,7 +1028,8 @@ export function PayrollDashboardView() {
                   />
                 </div>
                 <span className="text-[11px] text-muted-foreground italic">
-                  Note: Custom date range is for reporting and inspection only. Payroll processing requires an explicit monthly period.
+                  Note: Custom date range is for reporting and inspection only.
+                  Payroll processing requires an explicit monthly period.
                 </span>
               </div>
             )}
@@ -696,7 +1041,12 @@ export function PayrollDashboardView() {
               role="alert"
               className="mb-4 flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
             >
-              <span>{getErrorMessage(periodsError, "Could not load payroll periods.")}</span>
+              <span>
+                {getErrorMessage(
+                  periodsError,
+                  "Could not load payroll periods.",
+                )}
+              </span>
               <Button
                 type="button"
                 variant="outline"
@@ -753,283 +1103,51 @@ export function PayrollDashboardView() {
               <ErrorState
                 className="my-4"
                 title="Failed to load payroll records"
-                description={getErrorMessage(recordsError, "Could not retrieve payroll records.")}
+                description={getErrorMessage(
+                  recordsError,
+                  "Could not retrieve payroll records.",
+                )}
                 retryAction={{
                   label: "Retry payroll records",
                   onClick: () => refetchRecords(),
                   isLoading: isRefetchingRecords,
                 }}
               />
-            ) : isLoadingRecords ? (
-              <div className="py-20 text-center text-xs text-muted-foreground">
-                Loading payroll records...
-              </div>
-            ) : records.length === 0 ? (
-              <div className="py-20 text-center text-xs text-muted-foreground space-y-2">
-                <div>No payroll records found for the selected criteria.</div>
-                {canCalculate && periodFilterMode === "period" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => calculateMutation.mutate()}
-                    className="h-8 text-xs mt-2"
-                  >
-                    <Play className="w-3.5 h-3.5 mr-1.5" /> Run Calculation Now
-                  </Button>
-                )}
-              </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Staff Member</TableHead>
-                    <TableHead>Period</TableHead>
-                    <TableHead>Attendance & Leaves</TableHead>
-                    <TableHead>Prorated Base</TableHead>
-                    <TableHead>Adjustments</TableHead>
-                    <TableHead>Net Payable</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {records.map((r) => {
-                    const recId = r._id || r.id || "";
-                    const staff =
-                      typeof r.staffId === "object" ? r.staffId : null;
-                    const att = r.attendanceSummarySnapshot;
-                    const netAdj =
-                      (r.calculations.totalAdjustmentsEarning || 0) -
-                      (r.calculations.totalAdjustmentsDeduction || 0);
-
-                    return (
-                      <TableRow key={recId} className="hover:bg-muted/30">
-                        <TableCell>
-                          <Link
-                            href={`/employees/${staff?._id || ""}`}
-                            className="font-semibold text-foreground text-xs hover:text-primary transition-colors underline-offset-2 hover:underline block"
-                          >
-                            {staff?.name}
-                          </Link>
-                          <div className="text-[11px] text-muted-foreground">
-                            {staff?.designation} •{" "}
-                            <span className="font-mono">
-                              {staff?.staffCode}
-                            </span>
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs">
-                          {r.monthYear}
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="text-xs space-y-0.5">
-                            <div className="font-mono text-[11px]">
-                              <span className="font-semibold text-emerald-600">
-                                {att.payableDays != null ? att.payableDays : (att.presentDays + att.paidLeaveDays)}
-                              </span>{" "}
-                              payable days
-                            </div>
-                            <div className="text-[10px] text-muted-foreground">
-                              {att.presentDays} present · {att.paidLeaveDays} paid leave
-                            </div>
-                            {att.unpaidLeaveDays > 0 && (
-                              <div className="text-red-500 font-semibold text-[10px]">
-                                {att.unpaidLeaveDays} unpaid leave day(s)
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs">
-                          ₹{r.calculations.grossBaseSalary.toLocaleString()}
-                        </TableCell>
-
-                        <TableCell className="font-mono text-xs">
-                          {netAdj !== 0 ? (
-                            <span
-                              className={
-                                netAdj > 0 ? "text-emerald-600" : "text-red-500"
-                              }
-                            >
-                              {netAdj > 0 ? "+" : ""}₹{netAdj.toLocaleString()}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-
-                        <TableCell className="font-mono text-sm font-bold text-foreground">
-                          ₹{r.calculations.netPayable.toLocaleString()}
-                        </TableCell>
-
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div>
-                              {getStatusBadge(r.status, r.approvalBlocked)}
-                            </div>
-                            {(r.incentiveLedgerGrossInPaise || 0) > 0 && (
-                              <div
-                                className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                                  r.status === "paid"
-                                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                    : r.status === "cancelled"
-                                      ? "border-neutral-200 bg-neutral-50 text-neutral-600"
-                                      : r.status === "approved"
-                                        ? "border-blue-200 bg-blue-50 text-blue-700"
-                                        : "border-amber-200 bg-amber-50 text-amber-800"
-                                }`}
-                                aria-label={`Commission allocation ${r.status === "paid" ? "settled" : r.status === "cancelled" ? "reversed" : r.status === "approved" ? "approved and awaiting settlement" : "pending payroll approval"}`}
-                              >
-                                Commission · {r.status === "paid"
-                                  ? "Settled"
-                                  : r.status === "cancelled"
-                                    ? "Reversed"
-                                    : r.status === "approved"
-                                      ? "Approved"
-                                      : "Pending approval"}{" "}
-                                · ₹{((r.incentiveLedgerAmountInPaise || 0) / 100).toLocaleString("en-IN", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}
-                              </div>
-                            )}
-                            {r.approvalBlocked && (
-                              <div className="text-[10px] text-destructive leading-tight max-w-xs">
-                                {r.approvalBlockReasons[0]}
-                              </div>
-                            )}
-                            {r.status === "approved" && (
-                              <div className="text-[10px] text-muted-foreground">
-                                {r.manualPaymentStatus === "recorded"
-                                  ? "Payment recorded · confirmation pending"
-                                  : r.manualPaymentStatus === "failed"
-                                    ? "Payment failed · retry available"
-                                    : "Not settled"}
-                              </div>
-                            )}
-                            {r.status === "paid" && r.disbursedAt && (
-                              <div className="text-[10px] text-emerald-700">
-                                Confirmed {new Date(r.disbursedAt).toLocaleDateString()}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        <TableCell className="text-right space-x-1.5">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setInspectingRecord(r)}
-                            className="h-7 text-xs px-2"
-                          >
-                            Breakdown
-                          </Button>
-
-                          {/* Adjustment on draft */}
-                          {canAdjust && r.status === "draft" && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setAdjustingRecord(r);
-                                setAdjAmount("");
-                                setAdjReason("");
-                                setAdjRef("");
-                              }}
-                              className="h-7 text-xs px-2"
-                            >
-                              <FilePenLine className="w-3.5 h-3.5 mr-1" /> Adjust
-                            </Button>
-                          )}
-
-                          {/* Approval button */}
-                          {canApprove &&
-                            (r.status === "draft" ||
-                              r.status === "pending_approval") && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  r.approvalBlocked || approveMutation.isPending
-                                }
-                                onClick={() => approveMutation.mutate(recId)}
-                                className="h-7 text-xs text-emerald-700 hover:text-emerald-800"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-                                Approve
-                              </Button>
-                            )}
-
-                          {/* Disburse payment */}
-                          {canDisburse && r.status === "approved" && (
-                            <Button
-                              size="sm"
-                              variant={r.manualPaymentStatus === "recorded" ? "default" : "outline"}
-                              disabled={recordPaymentMutation.isPending || confirmPaymentMutation.isPending}
-                              onClick={() => setPayingRecord(r)}
-                              title={
-                                r.manualPaymentStatus === "recorded"
-                                  ? "Verify actual settlement and confirm"
-                                  : "Record a payment attempt"
-                              }
-                              className="h-7 text-xs"
-                            >
-                              <CreditCard className="w-3.5 h-3.5 mr-1" />
-                              {r.manualPaymentStatus === "recorded"
-                                ? "Confirm payment"
-                                : r.manualPaymentStatus === "failed"
-                                  ? "Retry payment"
-                                  : "Record payment"}
-                            </Button>
-                          )}
-
-                          {/* Paid payslip & reversal */}
-                          {r.status === "paid" && (
-                            <>
-                              {canExport && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    payrollApi.downloadPayslipPdf(
-                                      recId,
-                                      `payslip-${r.monthYear}-${staff?.staffCode || "staff"}.pdf`,
-                                    )
-                                  }
-                                  className="h-7 text-xs px-2"
-                                >
-                                  <FileText className="w-3.5 h-3.5 mr-1" /> PDF
-                                </Button>
-                              )}
-
-                              {canReverse && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => setReversingRecord(r)}
-                                  className="h-7 text-xs px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <RotateCcw className="w-3.5 h-3.5" />
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+              <DataTable
+                columns={payrollColumns}
+                data={records}
+                isLoading={isLoadingRecords}
+                emptyState={
+                  <div className="py-12 text-center text-xs text-muted-foreground space-y-2">
+                    <div>
+                      No payroll records found for the selected criteria.
+                    </div>
+                    {canCalculate && periodFilterMode === "period" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => calculateMutation.mutate()}
+                        className="h-8 text-xs mt-2"
+                      >
+                        <Play className="w-3.5 h-3.5 mr-1.5" /> Run Calculation
+                        Now
+                      </Button>
+                    )}
+                  </div>
+                }
+              />
             )}
 
             {/* Server Pagination Footer */}
-            {pagination.totalPages > 1 && (
+            {records.length > 0 && (
               <div className="p-4 border-t flex items-center justify-between text-xs text-muted-foreground">
                 <div>
                   Page <strong>{pagination.page}</strong> of{" "}
-                  <strong>{pagination.totalPages}</strong>
+                  <strong>{Math.max(1, pagination.totalPages)}</strong>
+                  {typeof pagination.total === "number" && (
+                    <span className="ml-2">({pagination.total} total)</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -1085,7 +1203,10 @@ export function PayrollDashboardView() {
                 id: payingRecord?._id || payingRecord?.id || "",
                 data,
               });
-              if (!result.payment) throw new Error("Payment attempt was not returned by the server");
+              if (!result.payment)
+                throw new Error(
+                  "Payment attempt was not returned by the server",
+                );
               return result.payment;
             }}
             onConfirm={async (paymentId) => {
@@ -1100,7 +1221,10 @@ export function PayrollDashboardView() {
                 paymentId,
                 failureReason,
               });
-              if (!result.payment) throw new Error("Failed payment attempt was not returned by the server");
+              if (!result.payment)
+                throw new Error(
+                  "Failed payment attempt was not returned by the server",
+                );
               return result.payment;
             }}
           />
@@ -1121,12 +1245,15 @@ export function PayrollDashboardView() {
                       ? adjustingRecord.staffId.name
                       : "Staff"}
                   </strong>{" "}
-                  ({adjustingRecord.monthYear}). Totals will be recalculated automatically with a permanent audit trail.
+                  ({adjustingRecord.monthYear}). Totals will be recalculated
+                  automatically with a permanent audit trail.
                 </p>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="font-semibold block mb-1">Adjustment Type</label>
+                    <label className="font-semibold block mb-1">
+                      Adjustment Type
+                    </label>
                     <select
                       value={adjType}
                       onChange={(e) =>
@@ -1140,7 +1267,9 @@ export function PayrollDashboardView() {
                   </div>
 
                   <div>
-                    <label className="font-semibold block mb-1">Amount (₹)</label>
+                    <label className="font-semibold block mb-1">
+                      Amount (₹)
+                    </label>
                     <Input
                       type="number"
                       min="1"
@@ -1154,7 +1283,9 @@ export function PayrollDashboardView() {
                 </div>
 
                 <div>
-                  <label className="font-semibold block mb-1">Mandatory Reason / Justification</label>
+                  <label className="font-semibold block mb-1">
+                    Mandatory Reason / Justification
+                  </label>
                   <Input
                     type="text"
                     placeholder="e.g. Approved shift incentive / uniform charge"
@@ -1165,7 +1296,9 @@ export function PayrollDashboardView() {
                 </div>
 
                 <div>
-                  <label className="font-semibold block mb-1">Supporting Reference (Optional)</label>
+                  <label className="font-semibold block mb-1">
+                    Supporting Reference (Optional)
+                  </label>
                   <Input
                     type="text"
                     placeholder="e.g. Ticket #4820 or HR email ref"

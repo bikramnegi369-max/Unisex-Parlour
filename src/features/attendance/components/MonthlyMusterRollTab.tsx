@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertCircle, Calendar, CheckCircle2, Clock, Filter, Search, UserCheck } from "lucide-react";
+import { AlertCircle, Calendar, CheckCircle2, Clock, RotateCcw, Search, UserCheck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
@@ -36,48 +37,87 @@ export default function MonthlyMusterRollTab({
 
   const totals = data?.consolidatedTotals;
 
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    statusFilter !== "all" ||
+    monthYear !== currentMonthStr;
+
+  const resetFilters = () => {
+    setMonthYear(currentMonthStr);
+    setSearch("");
+    setStatusFilter("all");
+  };
+
   return (
     <div className="space-y-5">
-      {/* Filters and KPI Bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            Month:
-            <Input
-              type="month"
-              value={monthYear}
-              onChange={(e) => setMonthYear(e.target.value)}
-              className="h-9 w-40"
-            />
-          </label>
+      {/* Filters Toolbar */}
+      <Card>
+        <CardContent className="p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="grid flex-1 gap-3 sm:grid-cols-[170px_minmax(220px,1fr)_180px]">
+              <div className="relative">
+                <Calendar className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  aria-label="Select month"
+                  type="month"
+                  value={monthYear}
+                  onChange={(e) => setMonthYear(e.target.value)}
+                  className="h-9 pl-9"
+                />
+              </div>
 
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="h-9 pl-9 w-48 sm:w-60"
-              placeholder="Search staff code/name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  aria-label="Search staff"
+                  className="h-9 pl-9 pr-8"
+                  placeholder="Search staff name or code..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              <Select
+                aria-label="Filter status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-9 w-full"
+              >
+                <option value="all">All statuses</option>
+                <option value="present">Present</option>
+                <option value="late">Late</option>
+                <option value="early_departure">Early exit</option>
+                <option value="incomplete">Incomplete</option>
+                <option value="absent">Absent</option>
+                <option value="leave">On Leave</option>
+              </Select>
+            </div>
+
+            {hasActiveFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="h-9 shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset
+              </Button>
+            )}
           </div>
-
-          <Select
-            aria-label="Filter status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 w-36"
-          >
-            <option value="all">All statuses</option>
-            <option value="present">Present</option>
-            <option value="late">Late</option>
-            <option value="early_departure">Early exit</option>
-            <option value="incomplete">Incomplete</option>
-            <option value="absent">Absent</option>
-            <option value="leave">On Leave</option>
-          </Select>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* KPI Cards */}
       {totals && (

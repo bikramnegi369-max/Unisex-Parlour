@@ -3,6 +3,7 @@ import { Search, Plus, Check, User, AlertCircle, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useCustomers } from "../hooks/useCustomers";
+import { useCustomer } from "../hooks/useCustomer";
 import { useCustomerGlobalSearch } from "../hooks/useCustomerGlobalSearch";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -103,7 +104,7 @@ export function CustomerSelector({
   ]);
 
   // Derived selected customer to avoid setState in effect
-  const selectedCustomer = useMemo(() => {
+  const localMatchedCustomer = useMemo(() => {
     if (!value) return null;
     if (
       manuallySelectedCustomer &&
@@ -116,6 +117,13 @@ export function CustomerSelector({
       customers.find((c: Customer) => c.id === value || c._id === value) || null
     );
   }, [value, customers, manuallySelectedCustomer]);
+
+  // Fallback fetch when value is prefilled (e.g. from parent dialog) but not in the initial 20-item list
+  const { data: fetchedCustomer } = useCustomer(
+    value && !localMatchedCustomer ? value : null,
+  );
+
+  const selectedCustomer = localMatchedCustomer || fetchedCustomer || null;
 
   // Handle clicking outside to close dropdown
   useEffect(() => {

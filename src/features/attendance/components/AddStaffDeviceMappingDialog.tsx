@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
@@ -66,38 +66,50 @@ export default function AddStaffDeviceMappingDialog({
   const {
     register,
     handleSubmit,
+    control,
     setValue,
-    watch,
     reset,
     formState: { errors },
   } = useForm<AddMappingFormValues>({
     resolver: zodResolver(addMappingFormSchema),
     defaultValues: {
       staffId: defaultStaffId || "",
-      provider: "simulator",
-      deviceId: "",
+      provider: "eTimeOffice",
+      deviceId: "default",
       externalEmployeeCode: "",
       notes: "",
     },
   });
 
-  const selectedStaffId = watch("staffId");
-  const selectedProvider = watch("provider");
-  const selectedDeviceId = watch("deviceId");
-  const externalCode = watch("externalEmployeeCode");
+  const selectedStaffId = useWatch({ control, name: "staffId" });
+  const selectedProvider = useWatch({ control, name: "provider" });
+  const selectedDeviceId = useWatch({ control, name: "deviceId" });
+  const externalCode = useWatch({ control, name: "externalEmployeeCode" });
+
+  useEffect(() => {
+    if (selectedProvider === "eTimeOffice") {
+      setValue("deviceId", "default", { shouldValidate: true });
+    }
+  }, [selectedProvider, setValue]);
+
 
   // Derive configured device suggestions for the selected provider
   const configuredDevices = useMemo(() => {
     if (!providerStatus?.configurations) return [];
     const devicesFromSync = (providerStatus.syncStates || [])
-      .filter((s) => s.provider === selectedProvider && s.deviceId)
-      .map((s) => s.deviceId as string);
+      .filter((s: { provider?: string; deviceId?: string }) => s.provider === selectedProvider && s.deviceId)
+      .map((s: { deviceId?: string }) => s.deviceId as string);
 
     return Array.from(new Set(devicesFromSync));
   }, [providerStatus, selectedProvider]);
 
+  type StaffItem = { id?: string; _id?: string; name?: string; staffCode?: string; role?: string };
+
   const selectedStaff = useMemo(
-    () => staffList.find((s) => s.id === selectedStaffId || (s as any)._id === selectedStaffId),
+    () =>
+      (staffList as StaffItem[]).find(
+        (s) => s.id === selectedStaffId || s._id === selectedStaffId,
+      ),
     [staffList, selectedStaffId]
   );
 
@@ -120,11 +132,12 @@ export default function AddStaffDeviceMappingDialog({
       reset();
       onOpenChange(false);
       onSuccess?.();
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err: unknown) {
+      const apiErr = err as { response?: { status?: number; data?: { message?: string } }; message?: string };
+      const status = apiErr?.response?.status;
       const message =
-        err?.response?.data?.message ||
-        err?.message ||
+        apiErr?.response?.data?.message ||
+        apiErr?.message ||
         "Failed to create staff device mapping.";
 
       if (status === 409) {
@@ -189,7 +202,7 @@ export default function AddStaffDeviceMappingDialog({
                 <option value="">
                   {isLoadingStaff ? "Loading staff..." : "-- Select Staff Member --"}
                 </option>
-                {staffList.map((s: any) => {
+                {(staffList as StaffItem[]).map((s) => {
                   const sid = s.id || s._id;
                   return (
                     <option key={sid} value={sid}>
@@ -218,7 +231,7 @@ export default function AddStaffDeviceMappingDialog({
                 setConflictError(null);
               }}
             >
-              {supportedProviders.map((p) => (
+              {supportedProviders.map((p: string) => (
                 <option key={p} value={p}>
                   {p === "simulator" ? "Simulator Adapter (Local / Testing)" : p}
                 </option>
@@ -248,7 +261,13 @@ export default function AddStaffDeviceMappingDialog({
             </div>
             <Input
               {...register("deviceId")}
-              placeholder="e.g. device-01, main-gate, biometric-terminal-1"
+              readOnly={selectedProvider === "eTimeOffice"}
+              className={
+                selectedProvider === "eTimeOffice"
+                  ? "bg-muted/50 cursor-not-allowed text-muted-foreground"
+                  : ""
+              }
+              placeholder="e.g. default, device-01, main-gate"
               aria-label="Device Identifier"
               onChange={(e) => {
                 register("deviceId").onChange(e);

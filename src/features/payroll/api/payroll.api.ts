@@ -362,10 +362,7 @@ export const payrollApi = {
     return res.data.data;
   },
 
-  downloadPayslipPdf: async (
-    recordId: string,
-    filename = "payslip.pdf",
-  ): Promise<void> => {
+  fetchPayslipPdfBlob: async (recordId: string): Promise<Blob> => {
     const res = await apiClient.get(
       `/payroll/records/${recordId}/payslip-pdf`,
       {
@@ -373,7 +370,14 @@ export const payrollApi = {
         branchScope: "current",
       },
     );
-    const blob = new Blob([res.data], { type: "application/pdf" });
+    return new Blob([res.data], { type: "application/pdf" });
+  },
+
+  downloadPayslipPdf: async (
+    recordId: string,
+    filename = "payslip.pdf",
+  ): Promise<void> => {
+    const blob = await payrollApi.fetchPayslipPdfBlob(recordId);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -382,5 +386,22 @@ export const payrollApi = {
     link.click();
     link.remove();
     window.URL.revokeObjectURL(url);
+  },
+
+  printPayslipPdf: async (recordId: string): Promise<void> => {
+    const blob = await payrollApi.fetchPayslipPdfBlob(recordId);
+    const url = window.URL.createObjectURL(blob);
+    const iframe = document.createElement("iframe");
+    iframe.style.display = "none";
+    iframe.src = url;
+    iframe.onload = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        iframe.remove();
+        window.URL.revokeObjectURL(url);
+      }, 60_000);
+    };
+    document.body.appendChild(iframe);
   },
 };
