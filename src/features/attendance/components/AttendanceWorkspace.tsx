@@ -32,6 +32,7 @@ import {
   useRecordLeaveException,
   useResolveBranchAttendanceConflict,
   useResolveLeaveAppointmentConflict,
+  useToggleProviderConfigurationStatus,
 } from "../hooks/useAttendance";
 import type {
   AttendanceConflict,
@@ -44,6 +45,7 @@ import type {
 } from "../api/attendance.api";
 import StaffDeviceMappingTab from "./StaffDeviceMappingTab";
 import MonthlyMusterRollTab from "./MonthlyMusterRollTab";
+import ProviderConfigurationDialog from "./ProviderConfigurationDialog";
 
 type Panel = "register" | "muster" | "conflicts" | "providers" | "mappings";
 const attendanceStatuses: AttendanceStatus[] = [
@@ -114,6 +116,11 @@ export default function AttendanceWorkspace() {
   const [eventEmployeeCode, setEventEmployeeCode] = useState("");
   const [eventDeviceId, setEventDeviceId] = useState("");
   const [eventId, setEventId] = useState("");
+  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+  const [editingProviderConfig, setEditingProviderConfig] = useState<
+    (ProviderStatus["configurations"][number] & { endpointUrl?: string }) | null
+  >(null);
+  const toggleProviderMutation = useToggleProviderConfigurationStatus();
 
   const register = useAttendanceRegister(date, search, statusFilter);
   const detail = useAttendanceDetail(staffId, date);
@@ -828,10 +835,23 @@ export default function AttendanceWorkspace() {
                 />
               ) : (
                 <>
-                  <p className="text-xs text-muted-foreground">
-                    Secrets and credential values are intentionally never
-                    returned to the frontend.
-                  </p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Secrets and credential values are intentionally never
+                      returned to the frontend.
+                    </p>
+                    {canAdjust && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setEditingProviderConfig(null);
+                          setIsProviderDialogOpen(true);
+                        }}
+                      >
+                        Configure provider
+                      </Button>
+                    )}
+                  </div>
                   {(providerStatus.data?.configurations || []).length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       No provider configuration exists for this branch.
@@ -845,13 +865,61 @@ export default function AttendanceWorkspace() {
                           key={configuration.providerName}
                           className="rounded-lg border p-3"
                         >
-                          <div className="flex justify-between">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="font-medium">
                               {configuration.providerName}
                             </span>
-                            <Badge variant="outline">
-                              {configuration.isActive ? "Active" : "Disabled"}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">
+                                {configuration.isActive ? "Active" : "Disabled"}
+                              </Badge>
+                              {canAdjust && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingProviderConfig(configuration);
+                                      setIsProviderDialogOpen(true);
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={toggleProviderMutation.isPending}
+                                    onClick={async () => {
+                                      try {
+                                        await toggleProviderMutation.mutateAsync(
+                                          {
+                                            providerName:
+                                              configuration.providerName,
+                                            isActive: !configuration.isActive,
+                                          },
+                                        );
+                                        toast.success(
+                                          `${configuration.providerName} ${
+                                            configuration.isActive
+                                              ? "disabled"
+                                              : "activated"
+                                          }.`,
+                                        );
+                                      } catch (err: any) {
+                                        toast.error(
+                                          err?.response?.data?.message ||
+                                            "Failed to update provider status.",
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    {configuration.isActive
+                                      ? "Disable"
+                                      : "Enable"}
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </div>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {configuration.integrationMethod ||
@@ -968,7 +1036,16 @@ export default function AttendanceWorkspace() {
         </div>
       )}
 
-      {panel === "mappings" && <StaffDeviceMappingTab />}
+      {panel === "mappings" && (
+        <StaffDeviceMappingTab onOpenProviders={() => setPanel("providers")} />
+      )}
+
+      <ProviderConfigurationDialog
+        open={isProviderDialogOpen}
+        onOpenChange={setIsProviderDialogOpen}
+        supportedProviders={providerStatus.data?.supportedProviders || []}
+        initialConfig={editingProviderConfig}
+      />
 
       {!canAdjust && panel !== "providers" && (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">

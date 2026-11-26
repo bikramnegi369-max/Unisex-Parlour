@@ -32,13 +32,18 @@ import { hasPermission } from "@/lib/permissions";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import type { StaffDeviceMapping } from "../api/attendance.api";
 import {
+  useAttendanceProviderStatus,
   useDeactivateStaffDeviceMapping,
   useStaffDeviceMappings,
 } from "../hooks/useAttendance";
 import AddStaffDeviceMappingDialog from "./AddStaffDeviceMappingDialog";
 import EditStaffDeviceMappingDialog from "./EditStaffDeviceMappingDialog";
 
-export default function StaffDeviceMappingTab() {
+export default function StaffDeviceMappingTab({
+  onOpenProviders,
+}: {
+  onOpenProviders?: () => void;
+}) {
   const { user } = useAuth();
   const { isAllBranchesSelected } = useBranchContext();
   const canAdjust = hasPermission(user, "attendance.adjust");
@@ -47,8 +52,10 @@ export default function StaffDeviceMappingTab() {
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [editingMapping, setEditingMapping] = useState<StaffDeviceMapping | null>(null);
-  const [deactivatingMapping, setDeactivatingMapping] = useState<StaffDeviceMapping | null>(null);
+  const [editingMapping, setEditingMapping] =
+    useState<StaffDeviceMapping | null>(null);
+  const [deactivatingMapping, setDeactivatingMapping] =
+    useState<StaffDeviceMapping | null>(null);
 
   const {
     data: mappingData,
@@ -63,8 +70,17 @@ export default function StaffDeviceMappingTab() {
   });
 
   const deactivateMutation = useDeactivateStaffDeviceMapping();
+  const providerStatus = useAttendanceProviderStatus();
+  const hasActiveProvider = Boolean(
+    providerStatus.data?.configurations?.some(
+      (c: { isActive?: boolean }) => c.isActive,
+    ),
+  );
 
-  const mappings = useMemo(() => mappingData?.mappings || [], [mappingData?.mappings]);
+  const mappings = useMemo(
+    () => mappingData?.mappings || [],
+    [mappingData?.mappings],
+  );
 
   const handleDeactivateConfirm = async () => {
     if (!deactivatingMapping) return;
@@ -73,20 +89,50 @@ export default function StaffDeviceMappingTab() {
       toast.success(
         `Staff mapping for ${
           deactivatingMapping.staffId?.name || "employee"
-        } (${deactivatingMapping.externalEmployeeCode}) deactivated.`
+        } (${deactivatingMapping.externalEmployeeCode}) deactivated.`,
       );
       setDeactivatingMapping(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const apiErr = err as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
       toast.error(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Failed to deactivate staff mapping."
+        apiErr?.response?.data?.message ||
+          apiErr?.message ||
+          "Failed to deactivate staff mapping.",
       );
     }
   };
 
   return (
     <div className="space-y-4">
+      {!providerStatus.isLoading && !hasActiveProvider && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-700" />
+            <div>
+              <p className="font-medium">
+                No active attendance provider configured for this branch
+              </p>
+              <p className="text-xs text-amber-800">
+                Configure and activate a provider (such as eTimeOffice) before
+                creating staff device mappings.
+              </p>
+            </div>
+          </div>
+          {onOpenProviders && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onOpenProviders}
+              className="shrink-0"
+            >
+              Configure Provider
+            </Button>
+          )}
+        </div>
+      )}
       {/* Top Banner & Action */}
       <Card>
         <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 gap-3">
@@ -96,7 +142,8 @@ export default function StaffDeviceMappingTab() {
               Staff-to-Biometric Device ID Mapping
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Source of truth for resolving hardware biometric employee codes to internal salon staff members.
+              Source of truth for resolving hardware biometric employee codes to
+              internal salon staff members.
             </p>
           </div>
           {canAdjust && (
@@ -114,7 +161,8 @@ export default function StaffDeviceMappingTab() {
         {isAllBranchesSelected && (
           <div className="px-6 pb-3">
             <p className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-md border border-amber-200">
-              Please select a specific branch from the header to manage staff biometric device mappings.
+              Please select a specific branch from the header to manage staff
+              biometric device mappings.
             </p>
           </div>
         )}
@@ -136,7 +184,7 @@ export default function StaffDeviceMappingTab() {
               <Select
                 value={providerFilter}
                 onChange={(e) => setProviderFilter(e.target.value)}
-                className="w-full sm:w-[150px] text-xs h-9"
+                className="w-full sm:w-37.5 text-xs h-9"
               >
                 <option value="all">All Providers</option>
                 <option value="simulator">Simulator</option>
@@ -146,7 +194,7 @@ export default function StaffDeviceMappingTab() {
               <Select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full sm:w-[150px] text-xs h-9"
+                className="w-full sm:w-37.5 text-xs h-9"
               >
                 <option value="all">All Statuses</option>
                 <option value="mapped">Mapped</option>
@@ -170,7 +218,10 @@ export default function StaffDeviceMappingTab() {
       ) : isError ? (
         <ErrorState
           title="Failed to load mappings"
-          description={(error as Error)?.message || "An unexpected error occurred while loading mappings."}
+          description={
+            (error as Error)?.message ||
+            "An unexpected error occurred while loading mappings."
+          }
           retryAction={{
             label: "Retry",
             onClick: () => refetch(),
@@ -180,7 +231,11 @@ export default function StaffDeviceMappingTab() {
         <Card>
           <CardContent className="py-10">
             <EmptyState
-              title={search ? "No matching mappings found" : "No staff biometric mappings registered"}
+              title={
+                search
+                  ? "No matching mappings found"
+                  : "No staff biometric mappings registered"
+              }
               description={
                 search
                   ? `No biometric mappings matched your search "${search}". Try adjusting filters.`
@@ -214,12 +269,15 @@ export default function StaffDeviceMappingTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mappings.map((mapping) => {
+                {mappings.map((mapping: StaffDeviceMapping) => {
                   const staff = mapping.staffId;
                   const isActive = mapping.isActive;
 
                   return (
-                    <TableRow key={mapping._id} className={!isActive ? "opacity-60 bg-muted/20" : ""}>
+                    <TableRow
+                      key={mapping._id}
+                      className={!isActive ? "opacity-60 bg-muted/20" : ""}
+                    >
                       {/* Staff Member */}
                       <TableCell>
                         <div>
@@ -227,7 +285,10 @@ export default function StaffDeviceMappingTab() {
                             {staff?.name || "Unknown Staff"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Code: <span className="font-mono">{staff?.staffCode || "—"}</span>
+                            Code:{" "}
+                            <span className="font-mono">
+                              {staff?.staffCode || "—"}
+                            </span>
                             {staff?.role && ` • ${staff.role}`}
                           </p>
                         </div>
@@ -254,7 +315,10 @@ export default function StaffDeviceMappingTab() {
 
                       {/* Mapping Method */}
                       <TableCell>
-                        <Badge variant="outline" className="text-[11px] capitalize">
+                        <Badge
+                          variant="outline"
+                          className="text-[11px] capitalize"
+                        >
                           {mapping.mappingMethod?.replace("_", " ") || "admin"}
                         </Badge>
                       </TableCell>
@@ -267,7 +331,10 @@ export default function StaffDeviceMappingTab() {
                               Active ({mapping.mappingStatus})
                             </Badge>
                           ) : (
-                            <Badge variant="secondary" className="text-muted-foreground">
+                            <Badge
+                              variant="secondary"
+                              className="text-muted-foreground"
+                            >
                               Deactivated
                             </Badge>
                           )}
@@ -277,11 +344,17 @@ export default function StaffDeviceMappingTab() {
                       {/* Effective Period */}
                       <TableCell className="text-xs text-muted-foreground">
                         <div>
-                          From: {mapping.effectiveFrom ? new Date(mapping.effectiveFrom).toLocaleDateString() : "—"}
+                          From:{" "}
+                          {mapping.effectiveFrom
+                            ? new Date(
+                                mapping.effectiveFrom,
+                              ).toLocaleDateString()
+                            : "—"}
                         </div>
                         {mapping.effectiveTo && (
                           <div className="text-destructive">
-                            To: {new Date(mapping.effectiveTo).toLocaleDateString()}
+                            To:{" "}
+                            {new Date(mapping.effectiveTo).toLocaleDateString()}
                           </div>
                         )}
                       </TableCell>
@@ -347,16 +420,19 @@ export default function StaffDeviceMappingTab() {
         <div className="space-y-4">
           <p className="text-sm">
             Are you sure you want to deactivate the mapping for{" "}
-            <strong>{deactivatingMapping?.staffId?.name}</strong> with biometric code{" "}
-            <strong>{deactivatingMapping?.externalEmployeeCode}</strong>?
+            <strong>{deactivatingMapping?.staffId?.name}</strong> with biometric
+            code <strong>{deactivatingMapping?.externalEmployeeCode}</strong>?
           </p>
 
           <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
             <p className="font-semibold flex items-center gap-1.5">
-              <AlertTriangle className="h-4 w-4" /> Historical punches are preserved
+              <AlertTriangle className="h-4 w-4" /> Historical punches are
+              preserved
             </p>
             <p>
-              Deactivating will prevent this biometric ID from resolving to this staff member on new punches. Historical attendance and punch records remain intact.
+              Deactivating will prevent this biometric ID from resolving to this
+              staff member on new punches. Historical attendance and punch
+              records remain intact.
             </p>
           </div>
 
@@ -373,7 +449,9 @@ export default function StaffDeviceMappingTab() {
               onClick={handleDeactivateConfirm}
               disabled={deactivateMutation.isPending}
             >
-              {deactivateMutation.isPending ? "Deactivating..." : "Deactivate Mapping"}
+              {deactivateMutation.isPending
+                ? "Deactivating..."
+                : "Deactivate Mapping"}
             </Button>
           </div>
         </div>

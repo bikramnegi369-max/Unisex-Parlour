@@ -20,6 +20,9 @@ import {
   deactivateStaffDeviceMapping,
   recordStaffPunch,
   getMonthlyMusterRoll,
+  upsertProviderConfiguration,
+  toggleProviderConfigurationStatus,
+  type UpsertProviderConfigurationPayload,
 } from "../api/attendance.api";
 
 function useAttendanceAccess(permission: "attendance.view" | "attendance.adjust" | "attendance.punch" = "attendance.view") {
@@ -225,5 +228,37 @@ export function useMonthlyMusterRoll(params: {
     ]),
     queryFn: () => getMonthlyMusterRoll(params),
     enabled: enabled && Boolean(params.monthYear),
+  });
+}
+
+export function useUpsertProviderConfiguration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      providerName,
+      payload,
+    }: {
+      providerName: string;
+      payload: UpsertProviderConfigurationPayload;
+    }) => upsertProviderConfiguration(providerName, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    },
+  });
+}
+
+export function useToggleProviderConfigurationStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      providerName,
+      isActive,
+    }: {
+      providerName: string;
+      isActive: boolean;
+    }) => toggleProviderConfigurationStatus(providerName, isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+    },
   });
 }

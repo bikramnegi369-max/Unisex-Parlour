@@ -2,17 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import {
-  CalendarClock,
-  UserCheck,
-  UserX,
-  Clock,
-  Sparkles,
-  ArrowRight,
-  CheckCircle2,
-  AlertTriangle,
-  Flame,
-} from "lucide-react";
+import { CalendarClock, ArrowRight, AlertTriangle } from "lucide-react";
 import { DashboardOperationsData } from "../../types/dashboard.types";
 import { cn } from "@/lib/utils";
 
@@ -63,11 +53,16 @@ export function TodayOperationsView({
   const { summary, appointmentsTimeline, staffRoster } = data;
 
   const statusStyles: Record<string, string> = {
-    scheduled: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-    in_progress: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 animate-pulse",
-    completed: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-    cancelled: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
-    no_show: "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+    scheduled:
+      "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
+    in_progress:
+      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 animate-pulse",
+    completed:
+      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+    cancelled:
+      "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+    no_show:
+      "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
   };
 
   return (
@@ -80,7 +75,7 @@ export function TodayOperationsView({
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
-              Today's Operational Command
+              Today&apos;s Operational Command
             </h2>
             <p className="text-xs text-muted-foreground">
               Live schedule, floor staffing, and arrival execution
@@ -93,7 +88,10 @@ export function TodayOperationsView({
           className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline group"
         >
           <span>Appointments Register</span>
-          <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight
+            size={13}
+            className="transition-transform group-hover:translate-x-0.5"
+          />
         </Link>
       </div>
 
@@ -171,9 +169,9 @@ export function TodayOperationsView({
             </div>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-              {appointmentsTimeline.map((appt) => (
+              {appointmentsTimeline.map((appt, index) => (
                 <div
-                  key={appt.id}
+                  key={`${appt.id}-${index}`}
                   className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 rounded-xl bg-muted/20 hover:bg-muted/40 border border-border/60 transition-colors gap-2"
                 >
                   <div className="flex items-start gap-3">
@@ -189,7 +187,8 @@ export function TodayOperationsView({
                         <span
                           className={cn(
                             "px-1.5 py-0.5 rounded-md text-[10px] font-bold border",
-                            statusStyles[appt.status] || "bg-muted text-muted-foreground"
+                            statusStyles[appt.status] ||
+                              "bg-muted text-muted-foreground",
                           )}
                         >
                           {appt.status.replace("_", " ").toUpperCase()}
@@ -206,7 +205,10 @@ export function TodayOperationsView({
                       </div>
 
                       <div className="text-[10px] text-muted-foreground/80 mt-0.5">
-                        Assigned: <strong className="text-foreground">{appt.staffName}</strong>
+                        Assigned:{" "}
+                        <strong className="text-foreground">
+                          {appt.staffName}
+                        </strong>
                       </div>
                     </div>
                   </div>
@@ -216,7 +218,8 @@ export function TodayOperationsView({
                       ₹{appt.pricing?.total?.toLocaleString() ?? 0}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      {appt.services.reduce((acc, s) => acc + s.duration, 0)} mins
+                      {appt.services.reduce((acc, s) => acc + s.duration, 0)}{" "}
+                      mins
                     </div>
                   </div>
                 </div>
@@ -233,16 +236,19 @@ export function TodayOperationsView({
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-            {staffRoster.map((staff) => (
+            {staffRoster.map((staff, index) => (
               <div
-                key={staff.staffId}
+                key={`${staff.staffId}-${index}`}
                 className="flex items-center justify-between p-2.5 rounded-xl bg-muted/20 border border-border/60 text-xs"
               >
                 <div>
                   <div className="font-semibold text-foreground flex items-center gap-1.5">
                     <span>{staff.staffName}</span>
                     {staff.isClockedIn && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" title="Clocked in" />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                        title="Clocked in"
+                      />
                     )}
                   </div>
                   <div className="text-[10px] text-muted-foreground">

@@ -361,3 +361,34 @@ export async function getMonthlyMusterRoll(params: {
   });
   return data.data;
 }
+
+export interface UpsertProviderConfigurationPayload {
+  endpointUrl?: string;
+  integrationMethod?: "webhook" | "polling" | "file";
+  isActive?: boolean;
+  credentials?: Record<string, string>;
+}
+
+export async function upsertProviderConfiguration(
+  providerName: string,
+  payload: UpsertProviderConfigurationPayload,
+) {
+  const { data } = await apiClient.put<ApiResponse<ProviderStatus["configurations"][number]>>(
+    `/attendance/providers/${encodeURIComponent(providerName)}/configuration`,
+    payload,
+    currentBranch,
+  );
+  return data.data;
+}
+
+export async function toggleProviderConfigurationStatus(
+  providerName: string,
+  isActive: boolean,
+) {
+  const { data } = await apiClient.patch<ApiResponse<ProviderStatus["configurations"][number]>>(
+    `/attendance/providers/${encodeURIComponent(providerName)}/configuration/status`,
+    { isActive },
+    currentBranch,
+  );
+  return data.data;
+}
