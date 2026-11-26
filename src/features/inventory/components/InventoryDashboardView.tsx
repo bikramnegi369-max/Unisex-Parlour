@@ -361,13 +361,13 @@ export const InventoryDashboardView: React.FC = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap shrink-0 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                   isActive
-                    ? "bg-background text-foreground shadow-sm border border-border/60"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/40 border border-transparent"
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
                 }`}
               >
                 <Icon
                   className={`w-4 h-4 shrink-0 ${
-                    isActive ? "text-primary" : "text-muted-foreground"
+                    isActive ? "text-primary-foreground" : "text-muted-foreground"
                   }`}
                 />
                 <span>{tab.label}</span>
@@ -375,7 +375,7 @@ export const InventoryDashboardView: React.FC = () => {
                   <span
                     className={`ml-0.5 px-1.5 py-0.5 text-[10px] leading-none font-semibold rounded-full tabular-nums ${
                       isActive
-                        ? "bg-primary/10 text-primary"
+                        ? "bg-primary-foreground/20 text-primary-foreground"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
