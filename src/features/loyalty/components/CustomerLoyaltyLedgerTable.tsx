@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { formatDateTime } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -175,12 +176,12 @@ export function CustomerLoyaltyLedgerTable({
               {/* Reference Links & Reason */}
               <div className="hidden sm:block sm:col-span-2 text-right text-[11px]">
                 {tx.invoice ? (
-                  <a
-                    href={`/billing/invoices/${tx.invoice.id}`}
+                  <Link
+                    href={`/billing/${tx.invoice.id}`}
                     className="font-mono text-primary hover:underline font-semibold block"
                   >
                     {invoiceNum}
-                  </a>
+                  </Link>
                 ) : invoiceNum ? (
                   <span className="font-mono text-foreground/80 font-medium block">
                     {invoiceNum}

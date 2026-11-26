@@ -55,6 +55,7 @@ import { RecordPaymentDialog } from "./RecordPaymentDialog";
 import { InvoicePaymentHistory } from "./InvoicePaymentHistory";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
 import { InvoiceCouponSection } from "./InvoiceCouponSection";
+import { ReturnItemsDialog } from "./ReturnItemsDialog";
 import {
   downloadInvoicePdf,
   getWalkInFulfillmentStatus,
@@ -116,6 +117,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const [membershipRefundReason, setMembershipRefundReason] = useState("");
   const [membershipRefundMethod, setMembershipRefundMethod] =
     useState<PaymentMethod>("cash");
+  const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: invoice, isLoading, isError, refetch } = useInvoice(id);
@@ -229,6 +231,16 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
         (line) =>
           line.lineType === "membership" &&
           Boolean(line.customerMembershipId) &&
+          Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
+      ),
+    [invoice?.lines, invoice?.items],
+  );
+  const returnableItemLines = useMemo(
+    () =>
+      (invoice?.lines || invoice?.items || []).filter(
+        (line) =>
+          Boolean(line.id || line._id) &&
+          line.lineType !== "membership" &&
           Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
       ),
     [invoice?.lines, invoice?.items],
@@ -517,6 +529,21 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 </Button>
               </>
             )}
+            {isFinalized &&
+              (invoice.paymentStatus === "paid" ||
+                invoice.paymentStatus === "partially_paid") &&
+              canRefundPayments &&
+              returnableItemLines.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsReturnDialogOpen(true)}
+                  className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>Return / Refund Items</span>
+                </Button>
+              )}
             {isFinalized &&
               invoice.paymentStatus === "paid" &&
               canRefundPayments &&
@@ -2018,6 +2045,13 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
         invoiceId={invoice.id}
         invoiceNumber={invoice.invoiceNumber}
         branchId={invoice.branchId}
+      />
+
+      {/* Return & Refund Items Dialog */}
+      <ReturnItemsDialog
+        invoice={invoice}
+        open={isReturnDialogOpen}
+        onOpenChange={setIsReturnDialogOpen}
       />
     </div>
   );
