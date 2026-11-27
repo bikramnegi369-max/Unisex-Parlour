@@ -34,6 +34,7 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/formatters";
 import { useInvoice, useInvoicePayments } from "../hooks/useBillingQueries";
+import { getRefundContext } from "../api/billing.api";
 import {
   useFinalizeInvoice,
   useCancelInvoice,
@@ -128,6 +129,17 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const queryClient = useQueryClient();
   const { data: invoice, isLoading, isError, refetch } = useInvoice(id);
   const { data: payments = [] } = useInvoicePayments(id);
+  const { data: refundContext } = useQuery({
+    queryKey: ["invoice-refund-context", id],
+    queryFn: () => getRefundContext(id),
+    enabled: Boolean(id),
+  });
+  const hasRefundableBalance = refundContext
+    ? refundContext.summary.refundableBalancePaise > 0
+    : true;
+  const isFullyRefunded =
+    refundContext?.summary?.derivedRefundStatus === "fully_refunded" ||
+    refundContext?.summary?.refundableBalancePaise === 0;
 
   const finalizeMutation = useFinalizeInvoice();
   const cancelMutation = useCancelInvoice();
@@ -567,6 +579,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
               </>
             )}
             {isFinalized &&
+              hasRefundableBalance &&
               (invoice.paymentStatus === "paid" ||
                 invoice.paymentStatus === "partially_paid") &&
               canRefundPayments &&
@@ -582,26 +595,25 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 </Button>
               )}
             {isFinalized &&
+              hasRefundableBalance &&
               invoice.paymentStatus === "paid" &&
               canRefundPayments &&
-              refundableMembershipLines.map(
-                (line: InvoiceLineItem) => (
-                  <Button
-                    key={line.id || line._id || line.customerMembershipId}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setMembershipRefundLine(line);
-                      setMembershipRefundReason("");
-                      setIsMembershipRefundOpen(true);
-                    }}
-                    className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    <span>Refund Membership</span>
-                  </Button>
-                ),
-              )}
+              refundableMembershipLines.map((line: InvoiceLineItem) => (
+                <Button
+                  key={line.id || line._id || line.customerMembershipId}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setMembershipRefundLine(line);
+                    setMembershipRefundReason("");
+                    setIsMembershipRefundOpen(true);
+                  }}
+                  className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>Refund Membership</span>
+                </Button>
+              ))}
             {isFinalized &&
               !invoice.appointmentId &&
               walkInServiceLines.length > 0 &&
@@ -636,6 +648,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
             {isFinalized &&
               canRefundPayments &&
+              hasRefundableBalance &&
               invoice.paymentStatus === "paid" && (
                 <Button
                   size="sm"
@@ -646,6 +659,12 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                   <span>Refund</span>
                 </Button>
               )}
+            {isFinalized && isFullyRefunded && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>Fully Refunded</span>
+              </span>
+            )}
           </div>
         </div>
 

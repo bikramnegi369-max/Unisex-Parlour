@@ -378,7 +378,7 @@ export function RefundDialog({
                     );
                   return (
                     <div
-                      key={rc._id}
+                      key={rc._id || (rc as { id?: string }).id || rc.refundNumber}
                       className="rounded-lg border p-2.5 text-xs space-y-1.5"
                     >
                       <div className="flex items-center justify-between">
