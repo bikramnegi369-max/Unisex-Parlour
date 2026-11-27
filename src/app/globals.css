@@ -321,3 +321,12 @@
     size: auto;
   }
 }
+
+/* Hide horizontal scrollbars on table containers while keeping wheel scroll */
+div:has(> table)::-webkit-scrollbar {
+  display: none;
+}
+div:has(> table) {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

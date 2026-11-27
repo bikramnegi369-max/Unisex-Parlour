@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { useHorizontalHoverScroll } from "@/hooks/useHorizontalHoverScroll";
+
 import React, { useState } from "react";
 import { format, subDays } from "date-fns";
 import { BarChart3, DollarSign, Users, UserCheck, Scissors, Package } from "lucide-react";
@@ -57,6 +60,7 @@ const resetReportPagination = (current: PaginationState): PaginationState => ({
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>("overview");
+  const { containerProps: tabScrollProps } = useHorizontalHoverScroll<HTMLDivElement>();
   const [isExporting, setIsExporting] = useState(false);
   const { branchKey } = useBranchContext();
   const [pagination, setPagination] = useState<PaginationState>({
@@ -164,16 +168,11 @@ export default function ReportsPage() {
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Reports & Salon Intelligence
-          </h1>
-          <p className="text-xs text-muted-foreground">
-            Authoritative business performance, revenue integrity, staff productivity, and retention analytics.
-          </p>
-        </div>
-      </div>
+      <PageHeaderBanner
+        title="Reports & Salon Intelligence"
+        description="Authoritative business performance, revenue integrity, staff productivity, and retention analytics."
+        icon={BarChart3}
+      />
 
       {/* Global Filter Bar */}
       <ReportsFilterBar
@@ -186,94 +185,99 @@ export default function ReportsPage() {
       />
 
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-1.5 border-b border-border/40 pb-2 text-xs">
-        <button
-          type="button"
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-            activeTab === "overview"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
+      <div className="border-b border-border bg-card/60 backdrop-blur-xs rounded-2xl p-1.5 shadow-xs">
+        <div
+          {...tabScrollProps}
+          className="flex space-x-1 overflow-x-auto no-scrollbar scroll-smooth"
         >
-          <BarChart3 className="h-3.5 w-3.5" />
-          Overview
-        </button>
-
-        <PermissionGate permission="reports.revenue.view">
           <button
             type="button"
-            onClick={() => setActiveTab("revenue")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-              activeTab === "revenue"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+              activeTab === "overview"
+                ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
             }`}
           >
-            <DollarSign className="h-3.5 w-3.5" />
-            Revenue & Collections
+            <BarChart3 className="h-4 w-4" />
+            <span>Overview</span>
           </button>
-        </PermissionGate>
 
-        <PermissionGate permission="reports.performance.view">
-          <button
-            type="button"
-            onClick={() => setActiveTab("staff")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-              activeTab === "staff"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <Users className="h-3.5 w-3.5" />
-            Staff Performance
-          </button>
-        </PermissionGate>
+          <PermissionGate permission="reports.revenue.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("revenue")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "revenue"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <DollarSign className="h-4 w-4" />
+              <span>Revenue & Collections</span>
+            </button>
+          </PermissionGate>
 
-        <PermissionGate permission="reports.retention.view">
-          <button
-            type="button"
-            onClick={() => setActiveTab("retention")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-              activeTab === "retention"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <UserCheck className="h-3.5 w-3.5" />
-            Customer Retention
-          </button>
-        </PermissionGate>
+          <PermissionGate permission="reports.performance.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("staff")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "staff"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span>Staff Performance</span>
+            </button>
+          </PermissionGate>
 
-        <PermissionGate permission="reports.services.view">
-          <button
-            type="button"
-            onClick={() => setActiveTab("services")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-              activeTab === "services"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <Scissors className="h-3.5 w-3.5" />
-            Service Analytics
-          </button>
-        </PermissionGate>
+          <PermissionGate permission="reports.retention.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("retention")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "retention"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <UserCheck className="h-4 w-4" />
+              <span>Customer Retention</span>
+            </button>
+          </PermissionGate>
 
-        <PermissionGate permission="reports.inventory.view">
-          <button
-            type="button"
-            onClick={() => setActiveTab("inventory")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-2 font-medium transition ${
-              activeTab === "inventory"
-                ? "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            }`}
-          >
-            <Package className="h-3.5 w-3.5" />
-            Inventory & Stock
-          </button>
-        </PermissionGate>
+          <PermissionGate permission="reports.services.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("services")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "services"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Scissors className="h-4 w-4" />
+              <span>Service Analytics</span>
+            </button>
+          </PermissionGate>
+
+          <PermissionGate permission="reports.inventory.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("inventory")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "inventory"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Package className="h-4 w-4" />
+              <span>Inventory & Stock</span>
+            </button>
+          </PermissionGate>
+        </div>
       </div>
 
       {/* Tab Panels */}

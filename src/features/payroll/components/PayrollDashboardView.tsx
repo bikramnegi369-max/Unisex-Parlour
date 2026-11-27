@@ -14,12 +14,15 @@ import { PayrollPaymentDialog } from "./PayrollPaymentDialog";
 import { DataTable } from "@/components/ui/data-table/DataTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   AlertTriangle,
+  Wallet,
   CheckCircle2,
   Play,
   CreditCard,
@@ -748,46 +751,27 @@ export function PayrollDashboardView() {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Salary & Payroll Management
-            </h1>
+      <PageHeaderBanner
+        title="Salary & Payroll Management"
+        description="Authoritative compensation engine with calendar proration, biometric attendance verification, and audited ledger disbursals."
+        icon={Wallet}
+        actions={
+          <div className="flex flex-wrap items-center gap-3">
             <Badge variant="secondary" className="font-mono text-xs">
               {currentBranch?.name || "All Branches"}
             </Badge>
+            <SectionTabs
+              ariaLabel="Payroll sections"
+              activeTab={activeTab}
+              onSelectTab={setActiveTab}
+              items={[
+                { key: "processing", label: "Payroll Runs & History" },
+                { key: "structures", label: "Salary Structures" },
+              ]}
+            />
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Authoritative compensation engine with calendar proration, biometric
-            attendance verification, and audited ledger disbursals.
-          </p>
-        </div>
-
-        {/* Tab Navigator */}
-        <div className="flex items-center bg-muted/60 p-1 rounded-xl border self-start md:self-auto">
-          <button
-            onClick={() => setActiveTab("processing")}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === "processing"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Payroll Runs & History
-          </button>
-          <button
-            onClick={() => setActiveTab("structures")}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === "structures"
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Salary Structures
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {activeTab === "structures" ? (
         <SalaryStructureManager />
@@ -884,47 +868,19 @@ export function PayrollDashboardView() {
           <div className="bg-card border rounded-2xl p-4 shadow-sm space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
               {/* Filter Mode Selector */}
-              <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border text-xs">
-                <button
-                  onClick={() => {
-                    setPeriodFilterMode("period");
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1 font-semibold rounded-lg transition-all ${
-                    periodFilterMode === "period"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Specific Period
-                </button>
-                <button
-                  onClick={() => {
-                    setPeriodFilterMode("custom_range");
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1 font-semibold rounded-lg transition-all ${
-                    periodFilterMode === "custom_range"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Custom Date Range
-                </button>
-                <button
-                  onClick={() => {
-                    setPeriodFilterMode("all_periods");
-                    setPage(1);
-                  }}
-                  className={`px-3 py-1 font-semibold rounded-lg transition-all ${
-                    periodFilterMode === "all_periods"
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  All Historical Periods
-                </button>
-              </div>
+              <SectionTabs
+                ariaLabel="Period filter mode"
+                activeTab={periodFilterMode}
+                onSelectTab={(mode) => {
+                  setPeriodFilterMode(mode);
+                  setPage(1);
+                }}
+                items={[
+                  { key: "period", label: "Specific Period" },
+                  { key: "custom_range", label: "Custom Date Range" },
+                  { key: "all_periods", label: "All Historical Periods" },
+                ]}
+              />
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2">

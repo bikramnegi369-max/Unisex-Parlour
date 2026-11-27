@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionTabs } from "@/components/ui/section-tabs";
+
 import React, { useState } from "react";
 import { MembershipsOverviewTab } from "@/features/memberships/components/MembershipsOverviewTab";
 import { CustomerMembershipsTab } from "@/features/memberships/components/CustomerMembershipsTab";
@@ -221,46 +223,28 @@ export function MembershipsClient() {
       />
 
       {/* Tab Switcher */}
-      <div className="flex items-center gap-2 border-b border-border pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("overview")}
-          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === "overview"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <LayoutDashboard className="h-4 w-4" />
-          Overview & Metrics
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("memberships")}
-          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === "memberships"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <Users className="h-4 w-4" />
-          Enrolled Memberships
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("plans")}
-          className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === "plans"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          Catalogue Plans ({plans.length})
-        </button>
-      </div>
+      <SectionTabs
+        ariaLabel="Membership sections"
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        items={[
+          {
+            key: "overview",
+            label: "Overview & Metrics",
+            icon: <LayoutDashboard className="h-4 w-4" />,
+          },
+          {
+            key: "memberships",
+            label: "Enrolled Memberships",
+            icon: <Users className="h-4 w-4" />,
+          },
+          {
+            key: "plans",
+            label: `Catalogue Plans (${plans.length})`,
+            icon: <Layers className="h-4 w-4" />,
+          },
+        ]}
+      />
 
       <div>
         {activeTab === "overview" && (

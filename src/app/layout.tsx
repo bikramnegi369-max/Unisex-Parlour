@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import Providers from "@/store/Providers";
 import { Toaster } from "@/components/ui/toaster";
+import { TableHoverHorizontalScroll } from "@/components/TableHoverHorizontalScroll";
 import Script from "next/script";
 
 const poppins = Poppins({
@@ -48,6 +49,7 @@ export default function RootLayout({
       </head>
       <body className={`${poppins.className} h-full overflow-hidden flex flex-col`} suppressHydrationWarning>
         <Providers>
+          <TableHoverHorizontalScroll />
           {children}
         </Providers>
         <Toaster />

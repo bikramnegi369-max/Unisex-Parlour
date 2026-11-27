@@ -6,14 +6,13 @@ import { formatCurrency } from "@/lib/formatters";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import {
   Building2,
   Calendar,
-  TrendingUp,
-  Receipt,
   RotateCcw,
   AlertTriangle,
   CheckCircle2,
@@ -21,7 +20,8 @@ import {
 } from "lucide-react";
 
 export default function BranchPerformanceMatrix() {
-  const { selectBranch, isAllBranchesSelected, currentBranch } = useBranchContext();
+  const { selectBranch, isAllBranchesSelected, currentBranch } =
+    useBranchContext();
 
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
@@ -32,22 +32,32 @@ export default function BranchPerformanceMatrix() {
   const [startDate, setStartDate] = useState(firstDay);
   const [endDate, setEndDate] = useState(currentDay);
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const { data, isLoading, isError, refetch } = useBranchPerformance(
     startDate,
-    endDate
+    endDate,
+    page,
+    pageSize,
   );
 
   const branches = data?.branches || [];
   const consolidated = data?.consolidated;
+  const pagination = data?.pagination;
 
-  const handlePreset = (type: "today" | "yesterday" | "week" | "mtd" | "last_month" | "last_30") => {
+  const handlePreset = (
+    type: "today" | "yesterday" | "week" | "mtd" | "last_month" | "last_30",
+  ) => {
     const now = new Date();
     if (type === "today") {
       const d = now.toISOString().slice(0, 10);
       setStartDate(d);
       setEndDate(d);
     } else if (type === "yesterday") {
-      const y = new Date(now.setDate(now.getDate() - 1)).toISOString().slice(0, 10);
+      const y = new Date(now.setDate(now.getDate() - 1))
+        .toISOString()
+        .slice(0, 10);
       setStartDate(y);
       setEndDate(y);
     } else if (type === "week") {
@@ -56,15 +66,25 @@ export default function BranchPerformanceMatrix() {
       setStartDate(new Date(d.setDate(first)).toISOString().slice(0, 10));
       setEndDate(new Date().toISOString().slice(0, 10));
     } else if (type === "mtd") {
-      setStartDate(new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10));
+      setStartDate(
+        new Date(now.getFullYear(), now.getMonth(), 1)
+          .toISOString()
+          .slice(0, 10),
+      );
       setEndDate(new Date().toISOString().slice(0, 10));
     } else if (type === "last_month") {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10);
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        .toISOString()
+        .slice(0, 10);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0)
+        .toISOString()
+        .slice(0, 10);
       setStartDate(start);
       setEndDate(end);
     } else if (type === "last_30") {
-      const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 10);
       setStartDate(start);
       setEndDate(new Date().toISOString().slice(0, 10));
     }
@@ -150,10 +170,17 @@ export default function BranchPerformanceMatrix() {
           <span className="text-xs text-muted-foreground">
             Current Scope:{" "}
             <strong className="text-foreground">
-              {isAllBranchesSelected ? "All Salon Branches" : currentBranch?.name}
+              {isAllBranchesSelected
+                ? "All Salon Branches"
+                : currentBranch?.name}
             </strong>
           </span>
-          <Button variant="ghost" size="sm" onClick={() => refetch()} className="h-8 text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            className="h-8 text-xs"
+          >
             <RotateCcw className="h-3.5 w-3.5 mr-1" />
             Refresh
           </Button>
@@ -194,7 +221,9 @@ export default function BranchPerformanceMatrix() {
             <div className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400 mt-1">
               {formatCurrency(consolidated.operatingExpenses)}
             </div>
-            <span className="text-[10px] text-muted-foreground">Approved vouchers</span>
+            <span className="text-[10px] text-muted-foreground">
+              Approved vouchers
+            </span>
           </div>
 
           <div className="p-4 rounded-2xl bg-card border border-border shadow-xs">
@@ -239,7 +268,8 @@ export default function BranchPerformanceMatrix() {
             </h3>
           </div>
           <span className="text-xs text-muted-foreground">
-            {branches.length} {branches.length === 1 ? "Branch" : "Branches"} in Scope
+            {branches.length} {branches.length === 1 ? "Branch" : "Branches"} in
+            Scope
           </span>
         </div>
 
@@ -267,8 +297,11 @@ export default function BranchPerformanceMatrix() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">
-                {branches.map((b) => (
-                  <tr key={b.branchId} className="hover:bg-muted/30 transition-colors">
+                {branches.map((b: (typeof branches)[number]) => (
+                  <tr
+                    key={b.branchId}
+                    className="hover:bg-muted/30 transition-colors"
+                  >
                     <td className="py-3 px-4 font-semibold text-foreground">
                       <div>{b.branchName}</div>
                       <div className="text-[10px] text-muted-foreground font-mono">
@@ -306,11 +339,13 @@ export default function BranchPerformanceMatrix() {
                       {b.operatingMarginPercentage}%
                     </td>
                     <td className="py-3 px-3 text-center">
-                      {b.unreconciledClosuresCount > 0 || b.pendingExpenseApprovalsCount > 0 ? (
+                      {b.unreconciledClosuresCount > 0 ||
+                      b.pendingExpenseApprovalsCount > 0 ? (
                         <div className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-mono font-bold bg-amber-500/10 px-2 py-0.5 rounded-full">
                           <AlertTriangle className="h-3 w-3" />
                           <span>
-                            {b.unreconciledClosuresCount + b.pendingExpenseApprovalsCount}
+                            {b.unreconciledClosuresCount +
+                              b.pendingExpenseApprovalsCount}
                           </span>
                         </div>
                       ) : (
@@ -332,6 +367,23 @@ export default function BranchPerformanceMatrix() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {(pagination || branches.length > 0) && (
+          <div className="p-4 border-t border-border">
+            <Pagination
+              currentPage={pagination?.page ?? page}
+              totalPages={Math.max(1, pagination?.totalPages ?? 1)}
+              totalItems={pagination?.total ?? branches.length}
+              onPageChange={setPage}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 20, 50, 100]}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              itemLabel="branches"
+            />
           </div>
         )}
       </div>

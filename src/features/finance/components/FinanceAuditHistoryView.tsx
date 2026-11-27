@@ -6,22 +6,15 @@ import { FinanceAuditItem } from "../types/finance.types";
 import { formatCurrency } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
+import { ErrorState } from "@/components/ui/error-state";
 import {
   History,
-  Calendar,
-  Filter,
   CheckCircle2,
+  Eye,
   XCircle,
-  AlertCircle,
-  FileText,
-  User,
-  Building2,
-  Layers,
   Store,
   Receipt,
   Wallet,
-  Clock,
-  Search,
 } from "lucide-react";
 
 export default function FinanceAuditHistoryView() {
@@ -114,7 +107,8 @@ export default function FinanceAuditHistoryView() {
                 Financial Audit History & Sign-Off Trail
               </h2>
               <p className="text-xs text-muted-foreground">
-                Immutable chronological log of daily register sign-offs, expense approvals/rejections, and drawer replenishments.
+                Immutable chronological log of daily register sign-offs, expense
+                approvals/rejections, and drawer replenishments.
               </p>
             </div>
           </div>
@@ -214,27 +208,53 @@ export default function FinanceAuditHistoryView() {
             <tbody className="divide-y divide-border/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <td
+                    colSpan={8}
+                    className="py-12 text-center text-muted-foreground"
+                  >
                     Loading financial audit history...
+                  </td>
+                </tr>
+              ) : isError ? (
+                <tr>
+                  <td colSpan={8} className="p-6">
+                    <ErrorState
+                      title="Failed to load audit history"
+                      description="Could not fetch financial audit events. Please try again."
+                      retryAction={{
+                        label: "Retry",
+                        onClick: () => refetch(),
+                      }}
+                    />
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <td
+                    colSpan={8}
+                    className="py-12 text-center text-muted-foreground"
+                  >
                     No financial audit records found for the selected criteria.
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/40 transition-colors">
+                items.map((item: FinanceAuditItem) => (
+                  <tr
+                    key={item.id}
+                    className="hover:bg-muted/40 transition-colors"
+                  >
                     <td className="py-3 px-4 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
                       {new Date(item.timestamp).toLocaleString()}
                     </td>
-                    <td className="py-3 px-4">{getEntityBadge(item.entityType)}</td>
+                    <td className="py-3 px-4">
+                      {getEntityBadge(item.entityType)}
+                    </td>
                     <td className="py-3 px-4">{getActionBadge(item.action)}</td>
                     <td className="py-3 px-4">
                       <div className="flex flex-col">
-                        <span className="font-semibold text-foreground">{item.actorName}</span>
+                        <span className="font-semibold text-foreground">
+                          {item.actorName}
+                        </span>
                         {item.actorEmail && (
                           <span className="text-[10px] text-muted-foreground">
                             {item.actorEmail}
@@ -255,11 +275,12 @@ export default function FinanceAuditHistoryView() {
                     </td>
                     <td className="py-3 px-4 text-center">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => setInspectItem(item)}
-                        className="h-7 px-2 text-[11px]"
+                        className="h-7 px-2.5 text-[11px] font-semibold gap-1.5 rounded-lg border-border/80 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-colors"
                       >
+                        <Eye className="h-3.5 w-3.5" />
                         Inspect
                       </Button>
                     </td>
@@ -271,31 +292,21 @@ export default function FinanceAuditHistoryView() {
         </div>
 
         {/* Pagination Bar */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="p-4 border-t border-border flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              Showing page {pagination.page} of {pagination.totalPages} ({pagination.total} audit events)
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="text-xs h-8"
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                className="text-xs h-8"
-              >
-                Next
-              </Button>
-            </div>
+        {pagination && (
+          <div className="p-4 border-t border-border">
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={Math.max(1, pagination.totalPages)}
+              totalItems={pagination.total}
+              onPageChange={setPage}
+              pageSize={limit}
+              pageSizeOptions={[10, 20, 50, 100]}
+              onPageSizeChange={(newLimit) => {
+                setLimit(newLimit);
+                setPage(1);
+              }}
+              itemLabel="audit events"
+            />
           </div>
         )}
       </div>
@@ -324,31 +335,49 @@ export default function FinanceAuditHistoryView() {
             <div className="space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Entity Type</span>
-                  <span className="font-semibold">{inspectItem.entityType}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Entity Type
+                  </span>
+                  <span className="font-semibold">
+                    {inspectItem.entityType}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Action</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Action
+                  </span>
                   <span className="font-semibold">{inspectItem.action}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Actor</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Actor
+                  </span>
                   <span className="font-semibold">{inspectItem.actorName}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Timestamp</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Timestamp
+                  </span>
                   <span className="font-mono text-[11px]">
                     {new Date(inspectItem.timestamp).toLocaleString()}
                   </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Reference #</span>
-                  <span className="font-mono">{inspectItem.referenceNumber}</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Reference #
+                  </span>
+                  <span className="font-mono">
+                    {inspectItem.referenceNumber}
+                  </span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block text-[11px]">Amount</span>
+                  <span className="text-muted-foreground block text-[11px]">
+                    Amount
+                  </span>
                   <span className="font-mono font-bold">
-                    {inspectItem.amount !== undefined ? formatCurrency(inspectItem.amount) : "N/A"}
+                    {inspectItem.amount !== undefined
+                      ? formatCurrency(inspectItem.amount)
+                      : "N/A"}
                   </span>
                 </div>
               </div>
@@ -362,16 +391,17 @@ export default function FinanceAuditHistoryView() {
                 </div>
               )}
 
-              {inspectItem.details && Object.keys(inspectItem.details).length > 0 && (
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-muted-foreground block">
-                    Payload Metadata:
-                  </span>
-                  <pre className="p-3 bg-muted/60 rounded-xl font-mono text-[11px] overflow-x-auto text-foreground">
-                    {JSON.stringify(inspectItem.details, null, 2)}
-                  </pre>
-                </div>
-              )}
+              {inspectItem.details &&
+                Object.keys(inspectItem.details).length > 0 && (
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-muted-foreground block">
+                      Payload Metadata:
+                    </span>
+                    <pre className="p-3 bg-muted/60 rounded-xl font-mono text-[11px] overflow-x-auto text-foreground">
+                      {JSON.stringify(inspectItem.details, null, 2)}
+                    </pre>
+                  </div>
+                )}
             </div>
 
             <div className="pt-2">

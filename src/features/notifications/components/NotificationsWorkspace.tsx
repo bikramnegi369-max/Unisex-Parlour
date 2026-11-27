@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { useHorizontalHoverScroll } from "@/hooks/useHorizontalHoverScroll";
+
 import React, { useMemo, useState } from "react";
 import type {
   NotificationItem,
@@ -110,6 +113,7 @@ function StatusBadge({ status }: { status: string }) {
 
 export function NotificationsWorkspace() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("inbox");
+  const { containerProps: tabScrollProps } = useHorizontalHoverScroll<HTMLDivElement>();
 
   // Logs state
   const [page, setPage] = useState(1);
@@ -277,67 +281,83 @@ export function NotificationsWorkspace() {
 
   return (
     <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Bell className="w-6 h-6 text-primary" />
-            Notifications &amp; Automation
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage customer &amp; staff messages, customize email/SMS templates,
-            and schedule automated reminders.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-xs">
-            Email &amp; SMS Active
-          </Badge>
-          <Badge variant="secondary" className="text-xs">
-            WhatsApp: Pending / Not Configured
-          </Badge>
-        </div>
-      </div>
+      <PageHeaderBanner
+        title="Notifications & Automation"
+        description="Manage customer & staff messages, customize email/SMS templates, and schedule automated reminders."
+        icon={Bell}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-xs">
+              Email &amp; SMS Active
+            </Badge>
+            <Badge variant="secondary" className="text-xs">
+              WhatsApp: Pending / Not Configured
+            </Badge>
+          </div>
+        }
+      />
 
       {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 border-b pb-2">
-        <Button
-          variant={activeTab === "inbox" ? "default" : "ghost"}
-          onClick={() => setActiveTab("inbox")}
-          size="sm"
+      <div className="border-b border-border bg-card/60 backdrop-blur-xs rounded-2xl p-1.5 shadow-xs">
+        <div
+          {...tabScrollProps}
+          className="flex space-x-1 overflow-x-auto no-scrollbar scroll-smooth"
         >
-          <Bell className="w-4 h-4 mr-2" />
-          My Inbox
-        </Button>
-        <PermissionGate permission="logs.view">
-          <Button
-            variant={activeTab === "logs" ? "default" : "ghost"}
-            onClick={() => setActiveTab("logs")}
-            size="sm"
+          <button
+            type="button"
+            onClick={() => setActiveTab("inbox")}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+              activeTab === "inbox"
+                ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+            }`}
           >
-            <Bell className="w-4 h-4 mr-2" />
-            Notification Logs
-          </Button>
-        </PermissionGate>
-        <PermissionGate permission="notifications.templates.view">
-          <Button
-            variant={activeTab === "templates" ? "default" : "ghost"}
-            onClick={() => setActiveTab("templates")}
-            size="sm"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            Template Studio
-          </Button>
-        </PermissionGate>
-        <PermissionGate permission="notifications.automations.manage">
-          <Button
-            variant={activeTab === "automations" ? "default" : "ghost"}
-            onClick={() => setActiveTab("automations")}
-            size="sm"
-          >
-            <Clock className="w-4 h-4 mr-2" />
-            Automations
-          </Button>
-        </PermissionGate>
+            <Bell className="w-4 h-4" />
+            <span>My Inbox</span>
+          </button>
+          <PermissionGate permission="logs.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("logs")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "logs"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              <span>Notification Logs</span>
+            </button>
+          </PermissionGate>
+          <PermissionGate permission="notifications.templates.view">
+            <button
+              type="button"
+              onClick={() => setActiveTab("templates")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "templates"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Template Studio</span>
+            </button>
+          </PermissionGate>
+          <PermissionGate permission="notifications.automations.manage">
+            <button
+              type="button"
+              onClick={() => setActiveTab("automations")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 ${
+                activeTab === "automations"
+                  ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              }`}
+            >
+              <Clock className="w-4 h-4" />
+              <span>Automations</span>
+            </button>
+          </PermissionGate>
+        </div>
       </div>
 
       {/* TAB 0: MY INBOX */}

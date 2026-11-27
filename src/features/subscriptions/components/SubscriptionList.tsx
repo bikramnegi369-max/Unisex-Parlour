@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionTabs } from "@/components/ui/section-tabs";
+
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -508,55 +510,28 @@ export function SubscriptionList() {
       />
 
       {/* Primary Tab Switcher */}
-      <div className="flex items-center gap-2 border-b border-border pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("subscriptions")}
-          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === "subscriptions"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <Users className="h-3.5 w-3.5" />
-          Customer Subscriptions
-          {subscriptions.length > 0 && (
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === "subscriptions"
-                  ? "bg-primary-foreground/20 text-primary-foreground"
-                  : "bg-muted-foreground/10 text-muted-foreground"
-              }`}
-            >
-              {meta?.total ?? subscriptions.length}
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("plans")}
-          className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-            activeTab === "plans"
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          Plan Templates Catalog
-          {plans.length > 0 && (
-            <span
-              className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                activeTab === "plans"
-                  ? "bg-primary-foreground/20 text-primary-foreground"
-                  : "bg-muted-foreground/10 text-muted-foreground"
-              }`}
-            >
-              {plans.length}
-            </span>
-          )}
-        </button>
-      </div>
+      <SectionTabs
+        ariaLabel="Subscription sections"
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        items={[
+          {
+            key: "subscriptions",
+            label: "Customer Subscriptions",
+            icon: <Users className="h-4 w-4" />,
+            badge:
+              subscriptions.length > 0
+                ? meta?.total ?? subscriptions.length
+                : undefined,
+          },
+          {
+            key: "plans",
+            label: "Plan Templates Catalog",
+            icon: <Layers className="h-4 w-4" />,
+            badge: plans.length > 0 ? plans.length : undefined,
+          },
+        ]}
+      />
 
       {activeTab === "subscriptions" ? (
         <>

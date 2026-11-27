@@ -34,12 +34,14 @@ import ExpenseDetailsDialog from "./ExpenseDetailsDialog";
 import PettyCashDrawerModal from "./PettyCashDrawerModal";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
-import { useBranchContext } from "@/hooks/useBranchContext";
 import { useDebounce } from "@/hooks/useDebounce";
 
-export default function ExpenseList() {
+export default function ExpenseList({
+  hideHeader = false,
+}: {
+  hideHeader?: boolean;
+} = {}) {
   const { user } = useAuth();
-  const { currentBranch } = useBranchContext();
 
   const canCreate = hasPermission(user, EXPENSES_CONFIG.permissions.create);
   const canDelete = hasPermission(user, EXPENSES_CONFIG.permissions.delete);
@@ -111,42 +113,44 @@ export default function ExpenseList() {
   return (
     <div className="space-y-6">
       {/* Premium Page Header Banner */}
-      <PageHeaderBanner
-        title="Operational Expenses & Cash Drawer"
-        description="Record salon branch operational costs, track cash drawer funding, reconcile supplier invoices, and manage approvals."
-        icon={Receipt}
-        actions={
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Cash Drawer Balance Action Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsDrawerOpen(true)}
-              className="text-xs h-9 font-medium border-border/80 bg-background/60 hover:bg-muted"
-            >
-              <Wallet className="h-4 w-4 mr-1.5 text-primary" />
-              Cash Drawer:{" "}
-              <strong className="ml-1 font-mono text-foreground">
-                {pettyCashBalance
-                  ? formatCurrency(pettyCashBalance.currentBalance)
-                  : "—"}
-              </strong>
-            </Button>
-
-            {/* Record Expense Button */}
-            {canCreate && (
+      {!hideHeader && (
+        <PageHeaderBanner
+          title="Operational Expenses & Cash Drawer"
+          description="Record salon branch operational costs, track cash drawer funding, reconcile supplier invoices, and manage approvals."
+          icon={Receipt}
+          actions={
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Cash Drawer Balance Action Button */}
               <Button
+                variant="outline"
                 size="sm"
-                onClick={() => setIsFormOpen(true)}
-                className="text-xs h-9 font-semibold gap-1.5"
+                onClick={() => setIsDrawerOpen(true)}
+                className="text-xs h-9 font-medium border-border/80 bg-background/60 hover:bg-muted"
               >
-                <Plus className="h-4 w-4" />
-                Record Expense
+                <Wallet className="h-4 w-4 mr-1.5 text-primary" />
+                Cash Drawer:{" "}
+                <strong className="ml-1 font-mono text-foreground">
+                  {pettyCashBalance
+                    ? formatCurrency(pettyCashBalance.currentBalance)
+                    : "—"}
+                </strong>
               </Button>
-            )}
-          </div>
-        }
-      />
+
+              {/* Record Expense Button */}
+              {canCreate && (
+                <Button
+                  size="sm"
+                  onClick={() => setIsFormOpen(true)}
+                  className="text-xs h-9 font-semibold gap-1.5"
+                >
+                  <Plus className="h-4 w-4" />
+                  Record Expense
+                </Button>
+              )}
+            </div>
+          }
+        />
+      )}
 
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -198,7 +202,7 @@ export default function ExpenseList() {
           <div className="text-lg font-bold truncate text-foreground">
             {summary && Object.keys(summary.categories || {}).length > 0
               ? Object.entries(summary.categories)
-                  .sort((a, b) => b[1] - a[1])[0][0]
+                  .sort((a, b) => Number(b[1]) - Number(a[1]))[0][0]
                   .toUpperCase()
               : "No Outflows"}
           </div>
@@ -372,7 +376,7 @@ export default function ExpenseList() {
                     </td>
                   </tr>
                 ) : (
-                  expenses.map((expense) => {
+                  expenses.map((expense: (typeof expenses)[number]) => {
                     const isApproved = expense.approvalStatus === "approved";
                     const isRejected = expense.approvalStatus === "rejected";
                     const isPending =
@@ -493,7 +497,7 @@ export default function ExpenseList() {
         )}
 
         {/* Unified Shared Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (
           <div className="p-4 border-t border-border">
             <Pagination
               currentPage={pagination.page}

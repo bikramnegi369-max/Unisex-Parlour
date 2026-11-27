@@ -84,12 +84,27 @@ export const financeApi = {
     return res.data.data;
   },
 
-  getBranchPerformance: async (startDate?: string, endDate?: string) => {
-    const res = await apiClient.get<{ success: boolean; data: BranchPerformanceResponse }>(
+  getBranchPerformance: async (
+    startDate?: string,
+    endDate?: string,
+    page?: number,
+    limit?: number
+  ) => {
+    const res = await apiClient.get<{
+      success: boolean;
+      data: BranchPerformanceResponse & {
+        pagination?: {
+          page: number;
+          limit: number;
+          total: number;
+          totalPages: number;
+        };
+      };
+    }>(
       "/finance/branch-performance",
       {
         branchScope: "current",
-        params: { startDate, endDate },
+        params: { startDate, endDate, page, limit },
       }
     );
     return res.data.data;

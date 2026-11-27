@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionTabs } from "@/components/ui/section-tabs";
+
 import React, { useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useRouter } from "next/navigation";
@@ -1078,66 +1080,42 @@ export function SalesWorkspaceView() {
 
         {/* Source Navigation Tabs & Search */}
         <div className="px-4 py-2 border-b border-border bg-muted/20 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
-          {/* Production-grade segmented tab navigation with no-scrollbar ribbon */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5 min-w-0">
-            <Button
-              variant={activeTab === "appointments" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("appointments")}
-              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              Appointments
-              {appointments.length > 0 && (
-                <Badge
-                  variant="secondary"
-                  className="h-4 px-1 text-[10px] ml-1 bg-background/80"
-                >
-                  {appointments.length}
-                </Badge>
-              )}
-            </Button>
-
-            <Button
-              variant={activeTab === "products" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("products")}
-              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
-            >
-              <Package className="h-3.5 w-3.5" />
-              Retail Products
-            </Button>
-
-            <Button
-              variant={activeTab === "services" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("services")}
-              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
-            >
-              <Scissors className="h-3.5 w-3.5" />
-              Walk-in Services
-            </Button>
-
-            <Button
-              variant={activeTab === "subscriptions" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("subscriptions")}
-              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Subscriptions
-            </Button>
-
-            <Button
-              variant={activeTab === "memberships" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("memberships")}
-              className="h-8 text-xs gap-1.5 shrink-0 rounded-lg font-medium"
-            >
-              <Crown className="h-3.5 w-3.5" />
-              Memberships
-            </Button>
-          </div>
+          {/* Production-grade segmented tab navigation with Finance-style ribbon */}
+          <SectionTabs
+            ariaLabel="Sales workspace sources"
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            className="min-w-0"
+            items={[
+              {
+                key: "appointments",
+                label: "Appointments",
+                icon: <Calendar className="h-3.5 w-3.5" />,
+                badge:
+                  appointments.length > 0 ? appointments.length : undefined,
+              },
+              {
+                key: "products",
+                label: "Retail Products",
+                icon: <Package className="h-3.5 w-3.5" />,
+              },
+              {
+                key: "services",
+                label: "Walk-in Services",
+                icon: <Scissors className="h-3.5 w-3.5" />,
+              },
+              {
+                key: "subscriptions",
+                label: "Subscriptions",
+                icon: <Sparkles className="h-3.5 w-3.5" />,
+              },
+              {
+                key: "memberships",
+                label: "Memberships",
+                icon: <Crown className="h-3.5 w-3.5" />,
+              },
+            ]}
+          />
 
           {/* Contextual & Aligned Search Control */}
           <div className="relative w-full md:w-64 shrink-0 flex items-center">

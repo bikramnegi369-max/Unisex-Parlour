@@ -1,5 +1,7 @@
 "use client";
 
+import { useHorizontalHoverScroll } from "@/hooks/useHorizontalHoverScroll";
+
 import React, { useState } from "react";
 import {
   Package,
@@ -67,6 +69,7 @@ export const InventoryDashboardView: React.FC = () => {
   const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<InventoryTabId>("stock");
+  const { containerProps: tabScrollProps } = useHorizontalHoverScroll<HTMLDivElement>();
 
   // Search & Filtering
   const [searchInput, setSearchInput] = useState("");
@@ -308,11 +311,12 @@ export const InventoryDashboardView: React.FC = () => {
 
       {/* 2. TAB CONTROLS & FILTER BAR */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/80 pb-4">
-        {/* Navigation Tabs (WAI-ARIA Tablist) */}
+        {/* Navigation Tabs (WAI-ARIA Tablist, Finance-style) */}
         <div
+          {...tabScrollProps}
           role="tablist"
           aria-label="Inventory management sections"
-          className="inline-flex items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border/60 overflow-x-auto scrollbar-none max-w-full"
+          className="flex space-x-1 border-b border-border bg-card/60 backdrop-blur-xs rounded-2xl p-1.5 shadow-xs overflow-x-auto no-scrollbar scroll-smooth max-w-full"
           onKeyDown={(e) => {
             const currentIndex = INVENTORY_TABS.findIndex(
               (t) => t.id === activeTab,
@@ -359,10 +363,10 @@ export const InventoryDashboardView: React.FC = () => {
                 aria-controls={`inventory-tabpanel-${tab.id}`}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap shrink-0 transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
                   isActive
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+                    ? "bg-primary text-primary-foreground shadow-xs shadow-primary/25"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
                 }`}
               >
                 <Icon

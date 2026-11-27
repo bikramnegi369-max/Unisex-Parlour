@@ -23,6 +23,8 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SectionTabs } from "@/components/ui/section-tabs";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +112,57 @@ export const IncentivesDashboardView: React.FC = () => {
     | "lifecycle"
     | "attendance"
   >("team-earnings");
+
+  const tabs: Array<{
+    id:
+      | "team-earnings"
+      | "schemes"
+      | "assignments"
+      | "ledger"
+      | "obligations"
+      | "lifecycle"
+      | "attendance";
+    label: string;
+    icon: React.ReactNode;
+    visible?: boolean;
+  }> = [
+    {
+      id: "team-earnings",
+      label: "Employee Earnings",
+      icon: <Users className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "schemes",
+      label: "Incentive Plans",
+      icon: <Layers className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "assignments",
+      label: "Employee Plan Assignments",
+      icon: <TrendingUp className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "ledger",
+      label: "Earnings History",
+      icon: <FileText className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "obligations",
+      label: "Amounts to Recover",
+      icon: <RotateCcw className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "lifecycle",
+      label: "Payment & Completion Rules",
+      icon: <BookOpen className="w-3.5 h-3.5" />,
+    },
+    {
+      id: "attendance",
+      label: "Attendance Bonus",
+      icon: <CalendarCheck className="w-3.5 h-3.5" />,
+      visible: canApprove,
+    },
+  ];
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
@@ -161,7 +214,8 @@ export const IncentivesDashboardView: React.FC = () => {
         status: statusFilter !== "all" ? statusFilter : undefined,
         schemeType: typeFilter !== "all" ? typeFilter : undefined,
       }),
-    enabled: canView && activeTab === "schemes",
+    enabled:
+      canView && (activeTab === "schemes" || isPreviewOpen || isAssignmentOpen),
   });
 
   // 3. Fetch Assignments Query
@@ -317,50 +371,44 @@ export const IncentivesDashboardView: React.FC = () => {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary" /> Incentives &
-            Performance
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Deterministic revenue commission engine, fulfillment dual-gating,
-            ledger auditing, and clawback management.
-          </p>
-        </div>
+      <PageHeaderBanner
+        title="Incentives & Performance"
+        description="Deterministic revenue commission engine, fulfillment dual-gating, ledger auditing, and clawback management."
+        icon={TrendingUp}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPreviewOpen(true)}
+              className="gap-1.5 h-9"
+            >
+              <Calculator className="w-4 h-4 text-primary" /> Live Preview
+            </Button>
 
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPreviewOpen(true)}
-            className="gap-1.5 h-9"
-          >
-            <Calculator className="w-4 h-4 text-primary" /> Live Preview
-          </Button>
+            {canManage && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAssignmentOpen(true)}
+                  className="gap-1.5 h-9"
+                >
+                  <Users className="w-4 h-4" /> Assign Scheme
+                </Button>
 
-          {canManage && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsAssignmentOpen(true)}
-                className="gap-1.5 h-9"
-              >
-                <Users className="w-4 h-4" /> Assign Scheme
-              </Button>
-
-              <Button
-                size="sm"
-                onClick={() => setIsBuilderOpen(true)}
-                className="gap-1.5 h-9 bg-primary"
-              >
-                <Plus className="w-4 h-4" /> Create Scheme
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
+                <Button
+                  size="sm"
+                  onClick={() => setIsBuilderOpen(true)}
+                  className="gap-1.5 h-9 bg-primary"
+                >
+                  <Plus className="w-4 h-4" /> Create Scheme
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      />
 
       {/* Authoritative Metric Cards */}
       {isSummaryError && (
@@ -475,87 +523,18 @@ export const IncentivesDashboardView: React.FC = () => {
       </div>
 
       {/* Tab Switcher */}
-      <div className="flex border-b border-border gap-1 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab("team-earnings")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "team-earnings"
-              ? "border-primary text-primary font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" /> Employee Earnings
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("schemes")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "schemes"
-              ? "border-primary text-primary font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Layers className="w-3.5 h-3.5" /> Incentive Plans
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("assignments")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "assignments"
-              ? "border-primary text-primary font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <TrendingUp className="w-3.5 h-3.5" /> Employee Plan Assignments
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("ledger")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "ledger"
-              ? "border-primary text-primary font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <FileText className="w-3.5 h-3.5" /> Earnings History
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("obligations")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "obligations"
-              ? "border-primary text-primary font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Amounts to Recover
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("lifecycle")}
-          className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "lifecycle"
-              ? "border-primary text-primary font-semibold"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <BookOpen className="w-3.5 h-3.5" /> Payment & Completion Rules
-        </button>
-        {canApprove && (
-          <button
-            type="button"
-            onClick={() => setActiveTab("attendance")}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
-              activeTab === "attendance"
-                ? "border-primary text-primary font-semibold"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CalendarCheck className="w-3.5 h-3.5" /> Attendance Bonus
-          </button>
-        )}
-      </div>
+      <SectionTabs
+        ariaLabel="Incentives sections"
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        items={tabs
+          .filter((tab) => tab.visible !== false)
+          .map((tab) => ({
+            key: tab.id,
+            label: tab.label,
+            icon: tab.icon,
+          }))}
+      />
 
       {/* TAB 0: TEAM EARNINGS OVERVIEW */}
       {activeTab === "team-earnings" && (

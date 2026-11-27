@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SectionTabs } from "@/components/ui/section-tabs";
+
 import { useMemo, useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import {
@@ -228,23 +231,15 @@ export default function AttendanceWorkspace() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-card border border-border/80 p-5 sm:p-6 shadow-2xs">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-3.5">
-            <div className="rounded-xl bg-primary/10 p-2.5 text-primary shrink-0">
-              <CalendarClock className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Attendance</h1>
-              <p className="text-sm text-muted-foreground">
-                {currentBranch?.name || "Selected branch"} ·{" "}
-                {register.data?.timezone ||
-                  currentBranch?.timezone ||
-                  "Branch timezone"}
-              </p>
-            </div>
-          </div>
-
+      <PageHeaderBanner
+        title="Attendance"
+        description={`${currentBranch?.name || "Selected branch"} · ${
+          register.data?.timezone ||
+          currentBranch?.timezone ||
+          "Branch timezone"
+        }`}
+        icon={CalendarClock}
+        actions={
           <div className="grid gap-3 sm:grid-cols-2 md:items-end">
             <label className="text-xs font-medium text-muted-foreground">
               Attendance date
@@ -293,9 +288,11 @@ export default function AttendanceWorkspace() {
               </Button>
             )}
           </div>
-        </div>
+        }
+      />
 
-        <p className="mt-4 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+      <div className="rounded-2xl bg-card border border-border/80 px-5 py-3 shadow-2xs">
+        <p className="text-xs text-muted-foreground">
           A chronological in-punch followed by an out-punch is required to
           record present. Incomplete or missing punches are not present; manual
           corrections require a reason and are audited. Branch opening hours do
@@ -304,31 +301,18 @@ export default function AttendanceWorkspace() {
         </p>
       </div>
 
-      <div
-        className="flex flex-wrap gap-2 border-b pb-3"
-        role="tablist"
-        aria-label="Attendance sections"
-      >
-        {(
-          [
-            ["register", "Daily register"],
-            ["muster", "Monthly Muster Roll"],
-            ["conflicts", "Reconciliation"],
-            ["providers", "Provider sync"],
-            ["mappings", "Device ID Mappings"],
-          ] as const
-        ).map(([key, label]) => (
-          <Button
-            key={key}
-            variant={panel === key ? "default" : "outline"}
-            onClick={() => setPanel(key)}
-            role="tab"
-            aria-selected={panel === key}
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
+      <SectionTabs
+        ariaLabel="Attendance sections"
+        activeTab={panel}
+        onSelectTab={setPanel}
+        items={[
+          { key: "register", label: "Daily register" },
+          { key: "muster", label: "Monthly Muster Roll" },
+          { key: "conflicts", label: "Reconciliation" },
+          { key: "providers", label: "Provider sync" },
+          { key: "mappings", label: "Device ID Mappings" },
+        ]}
+      />
 
       {panel === "muster" && (
         <MonthlyMusterRollTab
@@ -1021,10 +1005,24 @@ export default function AttendanceWorkspace() {
                                               : "activated"
                                           }.`,
                                         );
-                                      } catch (err: any) {
+                                      } catch (err: unknown) {
+                                        const apiMessage =
+                                          typeof err === "object" &&
+                                          err !== null &&
+                                          "response" in err
+                                            ? (
+                                                err as {
+                                                  response?: {
+                                                    data?: { message?: string };
+                                                  };
+                                                }
+                                              ).response?.data?.message
+                                            : undefined;
                                         toast.error(
-                                          err?.response?.data?.message ||
-                                            "Failed to update provider status.",
+                                          apiMessage ||
+                                            (err instanceof Error
+                                              ? err.message
+                                              : "Failed to update provider status."),
                                         );
                                       }
                                     }}

@@ -1,5 +1,8 @@
 "use client";
 
+import { PageHeaderBanner } from "@/components/ui/page-header-banner";
+import { SectionTabs, SectionTabItem } from "@/components/ui/section-tabs";
+
 import React, { useState } from "react";
 import { useProcurementOverview } from "../hooks/useProcurement";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -11,12 +14,8 @@ import {
   PackageCheck,
   Receipt,
   CreditCard,
-  Building,
-  TrendingDown,
   Clock,
-  CheckCircle,
   AlertCircle,
-  ArrowUpRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SupplierDirectoryView from "./SupplierDirectoryView";
@@ -31,7 +30,8 @@ export default function ProcurementHubView() {
   const [activeTab, setActiveTab] = useState<
     "overview" | "suppliers" | "orders" | "receiving" | "invoices"
   >("overview");
-  const [selectedPOForReceiving, setSelectedPOForReceiving] = useState<PurchaseOrder | null>(null);
+  const [selectedPOForReceiving, setSelectedPOForReceiving] =
+    useState<PurchaseOrder | null>(null);
 
   const { data: overview, isLoading } = useProcurementOverview(currentBranchId);
 
@@ -43,65 +43,55 @@ export default function ProcurementHubView() {
     setActiveTab("receiving");
   };
 
+  const tabItems: SectionTabItem<
+    "overview" | "suppliers" | "orders" | "receiving" | "invoices"
+  >[] = [
+    { key: "overview", label: "Overview & Metrics" },
+    ...(canViewSuppliers
+      ? [
+          {
+            key: "suppliers" as const,
+            label: "Suppliers",
+            icon: <Truck className="h-4 w-4" />,
+          },
+        ]
+      : []),
+    ...(canViewOrders
+      ? [
+          {
+            key: "orders" as const,
+            label: "Purchase Orders",
+            icon: <FileText className="h-4 w-4" />,
+          },
+          {
+            key: "receiving" as const,
+            label: "Goods Receiving (GRN)",
+            icon: <PackageCheck className="h-4 w-4" />,
+          },
+          {
+            key: "invoices" as const,
+            label: "Invoices & Bills",
+            icon: <Receipt className="h-4 w-4" />,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="space-y-6">
+      <PageHeaderBanner
+        title="Suppliers & Procurement"
+        description="Manage supplier directory, purchase orders, goods receiving (GRN), and vendor invoice settlements."
+        icon={Truck}
+      />
+
       {/* Top Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
-        <Button
-          variant={activeTab === "overview" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setActiveTab("overview")}
-          className="text-xs font-semibold"
-        >
-          Overview & Metrics
-        </Button>
-
-        {canViewSuppliers && (
-          <Button
-            variant={activeTab === "suppliers" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab("suppliers")}
-            className="text-xs font-semibold"
-          >
-            <Truck className="h-3.5 w-3.5 mr-1" />
-            Suppliers
-          </Button>
-        )}
-
-        {canViewOrders && (
-          <>
-            <Button
-              variant={activeTab === "orders" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("orders")}
-              className="text-xs font-semibold"
-            >
-              <FileText className="h-3.5 w-3.5 mr-1" />
-              Purchase Orders
-            </Button>
-
-            <Button
-              variant={activeTab === "receiving" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("receiving")}
-              className="text-xs font-semibold"
-            >
-              <PackageCheck className="h-3.5 w-3.5 mr-1" />
-              Goods Receiving (GRN)
-            </Button>
-
-            <Button
-              variant={activeTab === "invoices" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setActiveTab("invoices")}
-              className="text-xs font-semibold"
-            >
-              <Receipt className="h-3.5 w-3.5 mr-1" />
-              Invoices & Bills
-            </Button>
-          </>
-        )}
-      </div>
+      <SectionTabs
+        ariaLabel="Suppliers and procurement sections"
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        items={tabItems}
+      />
 
       {/* Main Tab Views */}
       {activeTab === "overview" && (
@@ -134,7 +124,11 @@ export default function ProcurementHubView() {
                 <PackageCheck className="h-3.5 w-3.5 text-blue-500" />
               </span>
               <p className="text-xl font-bold text-foreground">
-                {overview?.awaitingDeliveryCount || 0}
+                {isLoading ? (
+                  <span className="inline-block h-6 w-12 rounded bg-muted animate-pulse" />
+                ) : (
+                  overview?.awaitingDeliveryCount || 0
+                )}
               </p>
             </div>
 
@@ -144,7 +138,11 @@ export default function ProcurementHubView() {
                 <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
               </span>
               <p className="text-xl font-bold text-foreground">
-                {overview?.partiallyReceivedCount || 0}
+                {isLoading ? (
+                  <span className="inline-block h-6 w-12 rounded bg-muted animate-pulse" />
+                ) : (
+                  overview?.partiallyReceivedCount || 0
+                )}
               </p>
             </div>
 
@@ -154,7 +152,11 @@ export default function ProcurementHubView() {
                 <Receipt className="h-3.5 w-3.5 text-rose-500" />
               </span>
               <p className="text-xl font-bold text-foreground">
-                {overview?.unpaidInvoicesCount || 0}
+                {isLoading ? (
+                  <span className="inline-block h-6 w-12 rounded bg-muted animate-pulse" />
+                ) : (
+                  overview?.unpaidInvoicesCount || 0
+                )}
               </p>
             </div>
 
@@ -164,7 +166,11 @@ export default function ProcurementHubView() {
                 <CreditCard className="h-3.5 w-3.5 text-primary" />
               </span>
               <p className="text-xl font-bold text-primary">
-                ₹{(overview?.outstandingSupplierBalance || 0).toLocaleString()}
+                {isLoading ? (
+                  <span className="inline-block h-6 w-20 rounded bg-muted animate-pulse" />
+                ) : (
+                  `₹${(overview?.outstandingSupplierBalance || 0).toLocaleString()}`
+                )}
               </p>
             </div>
           </div>
@@ -172,14 +178,25 @@ export default function ProcurementHubView() {
           {/* Quick Action Banner */}
           <div className="bg-primary/5 rounded-2xl border border-primary/20 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <h3 className="font-bold text-sm text-foreground">Stock Domain Separation Enforced</h3>
+              <h3 className="font-bold text-sm text-foreground">
+                Stock Domain Separation Enforced
+              </h3>
               <p className="text-xs text-muted-foreground max-w-xl">
-                When drafting purchase orders and confirming goods arrival, items are explicitly routed into <strong className="text-foreground">Salon Consumables</strong> (service station consumption) or <strong className="text-foreground">Retail Products</strong> (POS store shelves) to prevent inventory drift.
+                When drafting purchase orders and confirming goods arrival,
+                items are explicitly routed into{" "}
+                <strong className="text-foreground">Salon Consumables</strong>{" "}
+                (service station consumption) or{" "}
+                <strong className="text-foreground">Retail Products</strong>{" "}
+                (POS store shelves) to prevent inventory drift.
               </p>
             </div>
 
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => setActiveTab("orders")} className="text-xs">
+              <Button
+                size="sm"
+                onClick={() => setActiveTab("orders")}
+                className="text-xs"
+              >
                 New Purchase Order
               </Button>
               <Button
@@ -198,7 +215,9 @@ export default function ProcurementHubView() {
             {/* Recent Orders */}
             <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
               <div className="flex items-center justify-between border-b border-border pb-2.5">
-                <span className="font-bold text-xs text-foreground">Recent Purchase Orders</span>
+                <span className="font-bold text-xs text-foreground">
+                  Recent Purchase Orders
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -211,17 +230,22 @@ export default function ProcurementHubView() {
 
               <div className="space-y-2">
                 {(overview?.recentOrders || []).length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">No recent orders</p>
+                  <p className="text-xs text-muted-foreground py-4 text-center">
+                    No recent orders
+                  </p>
                 ) : (
-                  overview?.recentOrders.map((po) => (
+                  overview?.recentOrders.map((po: PurchaseOrder) => (
                     <div
                       key={po.id ?? (po as { _id?: string })._id ?? po.poNumber}
                       className="p-3 rounded-lg border border-border bg-muted/10 flex items-center justify-between text-xs"
                     >
                       <div>
-                        <div className="font-semibold text-foreground">{po.poNumber}</div>
+                        <div className="font-semibold text-foreground">
+                          {po.poNumber}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">
-                          {po.supplier?.name} • ₹{po.totalAmount.toLocaleString()}
+                          {po.supplier?.name} • ₹
+                          {po.totalAmount.toLocaleString()}
                         </div>
                       </div>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded capitalize bg-muted text-muted-foreground">
@@ -236,7 +260,9 @@ export default function ProcurementHubView() {
             {/* Recent Goods Receipts */}
             <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
               <div className="flex items-center justify-between border-b border-border pb-2.5">
-                <span className="font-bold text-xs text-foreground">Recent Inward Goods (GRN)</span>
+                <span className="font-bold text-xs text-foreground">
+                  Recent Inward Goods (GRN)
+                </span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -249,17 +275,31 @@ export default function ProcurementHubView() {
 
               <div className="space-y-2">
                 {(overview?.recentReceipts || []).length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-4 text-center">No recent inward receipts</p>
+                  <p className="text-xs text-muted-foreground py-4 text-center">
+                    No recent inward receipts
+                  </p>
                 ) : (
-                  overview?.recentReceipts.map((grn) => (
+                  overview?.recentReceipts.map(
+                    (grn: {
+                      id?: string;
+                      _id?: string;
+                      grnNumber: string;
+                      supplier?: { name?: string };
+                      totalAmount: number;
+                    }) => (
                     <div
-                      key={grn.id ?? (grn as { _id?: string })._id ?? grn.grnNumber}
+                      key={
+                        grn.id ?? (grn as { _id?: string })._id ?? grn.grnNumber
+                      }
                       className="p-3 rounded-lg border border-border bg-muted/10 flex items-center justify-between text-xs"
                     >
                       <div>
-                        <div className="font-semibold text-foreground">{grn.grnNumber}</div>
+                        <div className="font-semibold text-foreground">
+                          {grn.grnNumber}
+                        </div>
                         <div className="text-[11px] text-muted-foreground">
-                          {grn.supplier?.name} • ₹{grn.totalAmount.toLocaleString()}
+                          {grn.supplier?.name} • ₹
+                          {grn.totalAmount.toLocaleString()}
                         </div>
                       </div>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600">

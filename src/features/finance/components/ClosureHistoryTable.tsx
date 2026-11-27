@@ -330,7 +330,7 @@ export default function ClosureHistoryTable() {
         )}
 
         {/* Unified Pagination */}
-        {pagination && pagination.totalPages > 1 && (
+        {pagination && (
           <div className="p-4 border-t border-border">
             <Pagination
               currentPage={pagination.page}

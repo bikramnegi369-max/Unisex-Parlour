@@ -8,6 +8,7 @@ import { useBranchContext } from "@/hooks/useBranchContext";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
 import {
   Wallet,
   ArrowDownLeft,
@@ -27,11 +28,14 @@ export default function PettyCashLedgerView() {
 
   const canCreate = hasPermission(user, "expenses.create");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const { data: balance, isLoading: balanceLoading, refetch: refetchBalance } = usePettyCashBalance();
-  const { data: txData, isLoading: txLoading, refetch: refetchTx } = usePettyCashTransactions(1, 50);
+  const { data: txData, isLoading: txLoading, refetch: refetchTx } = usePettyCashTransactions(page, pageSize);
 
   const transactions = txData?.items || [];
+  const pagination = txData?.pagination;
   const currentBalance = balance?.currentBalance ?? 0;
 
   if (isAllBranchesSelected) {
@@ -185,6 +189,23 @@ export default function PettyCashLedgerView() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+        {pagination && (
+          <div className="p-4 border-t border-border">
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={Math.max(1, pagination.totalPages)}
+              totalItems={pagination.total}
+              onPageChange={setPage}
+              pageSize={pageSize}
+              pageSizeOptions={[10, 20, 50, 100]}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
+              itemLabel="transactions"
+            />
           </div>
         )}
       </div>
