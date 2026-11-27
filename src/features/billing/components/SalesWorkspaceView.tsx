@@ -2236,7 +2236,8 @@ export function SalesWorkspaceView() {
                 notes:
                   checkoutData.notes ||
                   "Membership sold from sales workspace catalogue",
-                billImmediately: true,
+                // Defer invoice generation to Unified Sales Workspace checkout
+                billImmediately: false,
               });
 
               setIsSellMembershipOpen(false);
@@ -2295,7 +2296,8 @@ export function SalesWorkspaceView() {
                 notes:
                   values.notes ||
                   "Membership sold from sales workspace catalogue",
-                billImmediately: true,
+                // Defer invoice generation to Unified Sales Workspace checkout
+                billImmediately: false,
               });
 
               setIsSellMembershipOpen(false);

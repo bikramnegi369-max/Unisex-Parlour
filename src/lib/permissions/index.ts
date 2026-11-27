@@ -115,7 +115,10 @@ export type PermissionType =
   | "incentives.approve"
   | "incentives.payout.sync"
   | "incentives.fulfillment.confirm"
-  | "incentives.fulfillment.correct";
+  | "incentives.fulfillment.correct"
+  | "notifications.templates.view"
+  | "notifications.templates.update"
+  | "notifications.automations.manage";
 
 export interface UserSession {
   id: string;

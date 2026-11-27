@@ -85,7 +85,8 @@ export function MembershipsClient() {
         branchId: currentBranchId,
         soldByStaffId: payload.soldByStaffId,
         notes: payload.notes,
-        billImmediately: true,
+        // Defer invoice generation to Unified Sales Workspace checkout
+        billImmediately: false,
       });
 
       const memberCount =
@@ -154,7 +155,8 @@ export function MembershipsClient() {
         branchId: currentBranchId,
         soldByStaffId: checkoutData.soldByStaffId,
         notes: checkoutData.notes,
-        billImmediately: true,
+        // Defer invoice generation to Unified Sales Workspace checkout
+        billImmediately: false,
       });
 
       const memberCount =

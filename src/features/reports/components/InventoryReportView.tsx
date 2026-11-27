@@ -2,13 +2,25 @@ import React from "react";
 import { InventoryReportResponse } from "../types/reports.types";
 import { MetricCard } from "./MetricCard";
 import { AlertTriangle, Package, History } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
 interface InventoryReportViewProps {
   data?: InventoryReportResponse;
   isLoading: boolean;
+  onLowStockPageChange: (page: number) => void;
+  onLowStockPageSizeChange: (pageSize: number) => void;
+  onMovementPageChange: (page: number) => void;
+  onMovementPageSizeChange: (pageSize: number) => void;
 }
 
-export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, isLoading }) => {
+export const InventoryReportView: React.FC<InventoryReportViewProps> = ({
+  data,
+  isLoading,
+  onLowStockPageChange,
+  onLowStockPageSizeChange,
+  onMovementPageChange,
+  onMovementPageSizeChange,
+}) => {
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -23,7 +35,7 @@ export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, 
 
   if (!data) return null;
 
-  const { summary, lowStockAlerts = [], movementLogs = [] } = data;
+  const { summary, lowStockAlerts = [], movementLogs = [], pagination } = data;
 
   return (
     <div className="space-y-6">
@@ -77,7 +89,7 @@ export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, 
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Critical Low Stock Warnings ({lowStockAlerts.length})
+              Critical Low Stock Warnings ({pagination.lowStockAlerts.total})
             </h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Separated by back-bar consumable stock vs. front-desk retail shelf inventory.
@@ -105,8 +117,8 @@ export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, 
                   </td>
                 </tr>
               ) : (
-                lowStockAlerts.map((alert, idx) => (
-                  <tr key={alert.productId + idx} className="transition hover:bg-muted/30">
+                lowStockAlerts.map((alert) => (
+                  <tr key={alert.stockBalanceId} className="transition hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-foreground">{alert.name}</div>
                       <div className="text-[10px] text-muted-foreground">{alert.sku}</div>
@@ -142,6 +154,17 @@ export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, 
             </tbody>
           </table>
         </div>
+        {pagination.lowStockAlerts.total > 0 && (
+          <Pagination
+            currentPage={pagination.lowStockAlerts.page}
+            totalPages={pagination.lowStockAlerts.totalPages}
+            totalItems={pagination.lowStockAlerts.total}
+            pageSize={pagination.lowStockAlerts.limit}
+            itemLabel="low-stock alerts"
+            onPageChange={onLowStockPageChange}
+            onPageSizeChange={onLowStockPageSizeChange}
+          />
+        )}
       </div>
 
       {/* 3. Movement Activity Log */}
@@ -150,7 +173,7 @@ export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, 
           <History className="h-4 w-4 text-primary" />
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Inventory Movement Audit Log ({movementLogs.length} entries)
+              Inventory Movement Audit Log ({pagination.movementLogs.total} entries)
             </h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Direct movements (receipts, consumptions, sales, corrections) within selected period.
@@ -214,6 +237,17 @@ export const InventoryReportView: React.FC<InventoryReportViewProps> = ({ data, 
             </tbody>
           </table>
         </div>
+        {pagination.movementLogs.total > 0 && (
+          <Pagination
+            currentPage={pagination.movementLogs.page}
+            totalPages={pagination.movementLogs.totalPages}
+            totalItems={pagination.movementLogs.total}
+            pageSize={pagination.movementLogs.limit}
+            itemLabel="movements"
+            onPageChange={onMovementPageChange}
+            onPageSizeChange={onMovementPageSizeChange}
+          />
+        )}
       </div>
     </div>
   );

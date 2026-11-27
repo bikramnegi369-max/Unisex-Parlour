@@ -297,7 +297,7 @@ export default function GoodsReceivingView({
             )}
             {eligibleOrdersData?.meta && (
               <Pagination
-                currentPage={eligibleOrdersData.meta.page}
+                currentPage={Number(eligibleOrdersData.meta.page)}
                 totalPages={eligibleOrdersData.meta.totalPages}
                 totalItems={eligibleOrdersData.meta.total}
                 onPageChange={setOrdersPage}
@@ -555,7 +555,7 @@ export default function GoodsReceivingView({
 
           {receiptsData?.meta && (
             <Pagination
-              currentPage={receiptsData.meta.page}
+              currentPage={Number(receiptsData.meta.page)}
               totalPages={receiptsData.meta.totalPages}
               totalItems={receiptsData.meta.total}
               onPageChange={setReceiptsPage}

@@ -90,6 +90,12 @@ export function AppointmentsClient() {
   const [createBookingType, setCreateBookingType] = useState<
     "advance" | "walk_in"
   >("advance");
+  const [createDefaultStaffId, setCreateDefaultStaffId] = useState<
+    string | null
+  >(null);
+  const [createDefaultStartTime, setCreateDefaultStartTime] = useState<
+    string | undefined
+  >(undefined);
   const [selectedAppointment, setSelectedAppointment] =
     useState<Appointment | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -699,6 +705,8 @@ export function AppointmentsClient() {
             allowWalkIns
               ? (staffId, startTime) => {
                   setCreateBookingType("walk_in");
+                  setCreateDefaultStaffId(staffId ?? null);
+                  setCreateDefaultStartTime(startTime);
                   setIsCreateOpen(true);
                 }
               : undefined
@@ -758,7 +766,7 @@ export function AppointmentsClient() {
             canDelete={canDelete}
           />
 
-          {meta && meta.totalPages > 1 && (
+          {meta && meta.total > 0 && (
             <Pagination
               currentPage={Number(meta.page) || page}
               totalPages={meta.totalPages}
@@ -778,12 +786,18 @@ export function AppointmentsClient() {
       {/* Dialog Modals */}
       <CreateAppointmentDialog
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setCreateDefaultStaffId(null);
+          setCreateDefaultStartTime(undefined);
+        }}
         onSubmit={async (payload) => {
           await createMutation.mutateAsync(payload);
         }}
         isLoading={createMutation.isPending}
         defaultBookingType={createBookingType}
+        defaultStaffId={createDefaultStaffId}
+        defaultStartTime={createDefaultStartTime}
       />
 
       <AppointmentDetailsDialog

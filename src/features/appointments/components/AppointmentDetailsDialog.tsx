@@ -1252,7 +1252,8 @@ export function AppointmentDetailsDialog({
                 notes:
                   checkoutData.notes ||
                   `Custom membership upsold during appointment #${appointmentCodeDisplay}`,
-                billImmediately: true,
+                // Defer invoice generation to Unified Sales Workspace checkout
+                billImmediately: false,
               },
             });
 
@@ -1302,7 +1303,8 @@ export function AppointmentDetailsDialog({
                 notes:
                   values.notes ||
                   `Membership upsold during appointment #${appointmentCodeDisplay}`,
-                billImmediately: true,
+                // Defer invoice generation to Unified Sales Workspace checkout
+                billImmediately: false,
               },
             });
 

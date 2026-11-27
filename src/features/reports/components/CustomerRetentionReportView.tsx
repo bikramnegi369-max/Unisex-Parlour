@@ -2,15 +2,20 @@ import React from "react";
 import { CustomerRetentionReportResponse } from "../types/reports.types";
 import { MetricCard } from "./MetricCard";
 import { Info, UserCheck, Clock, AlertTriangle, UserX } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
 interface CustomerRetentionReportViewProps {
   data?: CustomerRetentionReportResponse;
   isLoading: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }
 
 export const CustomerRetentionReportView: React.FC<CustomerRetentionReportViewProps> = ({
   data,
   isLoading,
+  onPageChange,
+  onPageSizeChange,
 }) => {
   if (isLoading) {
     return (
@@ -31,6 +36,7 @@ export const CustomerRetentionReportView: React.FC<CustomerRetentionReportViewPr
     recencyBuckets = { active: 0, dueForService: 0, atRisk: 0, lapsed: 0 },
     visitFrequencyDistribution = [],
     clientDirectory = [],
+    pagination,
   } = data;
 
   const getTierBadge = (tier: string) => {
@@ -218,6 +224,17 @@ export const CustomerRetentionReportView: React.FC<CustomerRetentionReportViewPr
             </tbody>
           </table>
         </div>
+        {pagination.clientDirectory.total > 0 && (
+          <Pagination
+            currentPage={pagination.clientDirectory.page}
+            totalPages={pagination.clientDirectory.totalPages}
+            totalItems={pagination.clientDirectory.total}
+            pageSize={pagination.clientDirectory.limit}
+            itemLabel="customers"
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
+        )}
       </div>
     </div>
   );

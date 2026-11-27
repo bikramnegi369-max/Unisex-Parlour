@@ -21,12 +21,52 @@ import { StaffPerformanceReportView } from "@/features/reports/components/StaffP
 import { CustomerRetentionReportView } from "@/features/reports/components/CustomerRetentionReportView";
 import { ServiceAnalyticsReportView } from "@/features/reports/components/ServiceAnalyticsReportView";
 import { InventoryReportView } from "@/features/reports/components/InventoryReportView";
+import { useBranchContext } from "@/hooks/useBranchContext";
 
 type ReportTab = "overview" | "revenue" | "staff" | "retention" | "services" | "inventory";
+
+const initialPagination = {
+  revenuePage: 1,
+  revenueLimit: 10,
+  staffPage: 1,
+  staffLimit: 10,
+  retentionPage: 1,
+  retentionLimit: 10,
+  servicesPage: 1,
+  servicesLimit: 10,
+  categoryPage: 1,
+  categoryLimit: 10,
+  lowStockPage: 1,
+  lowStockLimit: 10,
+  movementPage: 1,
+  movementLimit: 10,
+};
+
+type PaginationState = typeof initialPagination & { branchKey: string };
+
+const resetReportPagination = (current: PaginationState): PaginationState => ({
+  ...current,
+  revenuePage: 1,
+  staffPage: 1,
+  retentionPage: 1,
+  servicesPage: 1,
+  categoryPage: 1,
+  lowStockPage: 1,
+  movementPage: 1,
+});
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>("overview");
   const [isExporting, setIsExporting] = useState(false);
+  const { branchKey } = useBranchContext();
+  const [pagination, setPagination] = useState<PaginationState>({
+    ...initialPagination,
+    branchKey,
+  });
+  const activePagination =
+    pagination.branchKey === branchKey
+      ? pagination
+      : { ...initialPagination, branchKey };
 
   const [filters, setFilters] = useState<ReportsFilterParams>({
     startDate: format(subDays(new Date(), 29), "yyyy-MM-dd"),
@@ -34,13 +74,60 @@ export default function ReportsPage() {
     compareWith: "previous_period",
   });
 
+  const handleFilterChange = (nextFilters: ReportsFilterParams) => {
+    setFilters(nextFilters);
+    setPagination(resetReportPagination(activePagination));
+  };
+
+  const updatePage = (key: keyof typeof initialPagination, page: number) => {
+    setPagination({ ...activePagination, [key]: page });
+  };
+
+  const updatePageSize = (
+    pageKey: keyof typeof initialPagination,
+    limitKey: keyof typeof initialPagination,
+    limit: number,
+  ) => {
+    setPagination({ ...activePagination, [pageKey]: 1, [limitKey]: limit });
+  };
+
+  const revenueParams = {
+    ...filters,
+    page: activePagination.revenuePage,
+    limit: activePagination.revenueLimit,
+  };
+  const staffParams = {
+    ...filters,
+    page: activePagination.staffPage,
+    limit: activePagination.staffLimit,
+  };
+  const retentionParams = {
+    ...filters,
+    page: activePagination.retentionPage,
+    limit: activePagination.retentionLimit,
+  };
+  const servicesParams = {
+    ...filters,
+    page: activePagination.servicesPage,
+    limit: activePagination.servicesLimit,
+    categoryPage: activePagination.categoryPage,
+    categoryLimit: activePagination.categoryLimit,
+  };
+  const inventoryParams = {
+    ...filters,
+    lowStockPage: activePagination.lowStockPage,
+    lowStockLimit: activePagination.lowStockLimit,
+    movementPage: activePagination.movementPage,
+    movementLimit: activePagination.movementLimit,
+  };
+
   // Queries (only active tab query executes)
   const overviewQuery = useReportsOverview(filters, activeTab === "overview");
-  const revenueQuery = useRevenueReport(filters, activeTab === "revenue");
-  const staffQuery = useStaffPerformanceReport(filters, activeTab === "staff");
-  const retentionQuery = useCustomerRetentionReport(filters, activeTab === "retention");
-  const servicesQuery = useServiceAnalyticsReport(filters, activeTab === "services");
-  const inventoryQuery = useInventoryReport(filters, activeTab === "inventory");
+  const revenueQuery = useRevenueReport(revenueParams, activeTab === "revenue");
+  const staffQuery = useStaffPerformanceReport(staffParams, activeTab === "staff");
+  const retentionQuery = useCustomerRetentionReport(retentionParams, activeTab === "retention");
+  const servicesQuery = useServiceAnalyticsReport(servicesParams, activeTab === "services");
+  const inventoryQuery = useInventoryReport(inventoryParams, activeTab === "inventory");
 
   const handleRefresh = () => {
     if (activeTab === "overview") overviewQuery.refetch();
@@ -91,7 +178,7 @@ export default function ReportsPage() {
       {/* Global Filter Bar */}
       <ReportsFilterBar
         filters={filters}
-        onFilterChange={setFilters}
+        onFilterChange={handleFilterChange}
         onRefresh={handleRefresh}
         onExportCsv={handleExportCsv}
         exportable={activeTab === "revenue" || activeTab === "inventory"}
@@ -204,6 +291,10 @@ export default function ReportsPage() {
             <RevenueReportView
               data={revenueQuery.data}
               isLoading={revenueQuery.isLoading}
+              onPageChange={(page) => updatePage("revenuePage", page)}
+              onPageSizeChange={(limit) =>
+                updatePageSize("revenuePage", "revenueLimit", limit)
+              }
             />
           </PermissionGate>
         )}
@@ -213,6 +304,8 @@ export default function ReportsPage() {
             <StaffPerformanceReportView
               data={staffQuery.data}
               isLoading={staffQuery.isLoading}
+              onPageChange={(page) => updatePage("staffPage", page)}
+              onPageSizeChange={(limit) => updatePageSize("staffPage", "staffLimit", limit)}
             />
           </PermissionGate>
         )}
@@ -222,6 +315,10 @@ export default function ReportsPage() {
             <CustomerRetentionReportView
               data={retentionQuery.data}
               isLoading={retentionQuery.isLoading}
+              onPageChange={(page) => updatePage("retentionPage", page)}
+              onPageSizeChange={(limit) =>
+                updatePageSize("retentionPage", "retentionLimit", limit)
+              }
             />
           </PermissionGate>
         )}
@@ -231,6 +328,14 @@ export default function ReportsPage() {
             <ServiceAnalyticsReportView
               data={servicesQuery.data}
               isLoading={servicesQuery.isLoading}
+              onServicesPageChange={(page) => updatePage("servicesPage", page)}
+              onServicesPageSizeChange={(limit) =>
+                updatePageSize("servicesPage", "servicesLimit", limit)
+              }
+              onCategoriesPageChange={(page) => updatePage("categoryPage", page)}
+              onCategoriesPageSizeChange={(limit) =>
+                updatePageSize("categoryPage", "categoryLimit", limit)
+              }
             />
           </PermissionGate>
         )}
@@ -240,6 +345,14 @@ export default function ReportsPage() {
             <InventoryReportView
               data={inventoryQuery.data}
               isLoading={inventoryQuery.isLoading}
+              onLowStockPageChange={(page) => updatePage("lowStockPage", page)}
+              onLowStockPageSizeChange={(limit) =>
+                updatePageSize("lowStockPage", "lowStockLimit", limit)
+              }
+              onMovementPageChange={(page) => updatePage("movementPage", page)}
+              onMovementPageSizeChange={(limit) =>
+                updatePageSize("movementPage", "movementLimit", limit)
+              }
             />
           </PermissionGate>
         )}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { toast } from "sonner";
 import { ShieldCheck, ShieldAlert, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export default function RolesPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const [selectedModule, setSelectedModule] = useState("all");
 
   const {
@@ -46,7 +48,7 @@ export default function RolesPage() {
   } = usePermissions({
     page: currentPage,
     limit: pageSize,
-    search: searchQuery || undefined,
+    search: debouncedSearchQuery || undefined,
     module: selectedModule !== "all" ? selectedModule : undefined,
   });
 

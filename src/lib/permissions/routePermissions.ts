@@ -35,6 +35,7 @@ export const routePermissions = {
   "/procurement": "procurement.orders.view",
   "/activity-logs": "logs.view",
   "/audit-logs": "logs.view",
+  "/notifications": "logs.view",
   "/subscriptions": "subscriptions.view",
   "/payroll": "payroll.view",
   "/incentives": "incentives.view",

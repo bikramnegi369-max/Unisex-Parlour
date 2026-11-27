@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { payrollApi, PayrollRecord, PayrollPeriod } from "../api/payroll.api";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
@@ -95,6 +96,7 @@ export function PayrollDashboardView() {
 
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
   // Server Pagination & Sorting States
@@ -162,8 +164,8 @@ export function PayrollDashboardView() {
     if (statusFilter && statusFilter !== "all") {
       params.status = statusFilter;
     }
-    if (searchTerm.trim()) {
-      params.search = searchTerm.trim();
+    if (debouncedSearchTerm.trim()) {
+      params.search = debouncedSearchTerm.trim();
     }
 
     return params;
@@ -173,7 +175,7 @@ export function PayrollDashboardView() {
     customStartDate,
     customEndDate,
     statusFilter,
-    searchTerm,
+    debouncedSearchTerm,
     page,
     limit,
     sortBy,

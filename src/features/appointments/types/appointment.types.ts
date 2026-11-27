@@ -174,6 +174,7 @@ export interface CreateAppointmentPayload {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   bookingType: BookingType;
+  allowAfterHours?: boolean;
   discount?: number;
   notes?: string;
   reminder?: {

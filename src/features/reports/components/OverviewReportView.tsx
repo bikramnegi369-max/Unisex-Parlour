@@ -103,14 +103,14 @@ export const OverviewReportView: React.FC<OverviewReportViewProps> = ({
           <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card p-4 shadow-sm transition hover:shadow-md">
             <div className="flex items-start justify-between">
               <span className="text-xs font-medium text-muted-foreground">Low Stock SKUs</span>
-              {summary.lowStockItemCount > 0 && (
+              {summary.lowStockItemCount !== null && summary.lowStockItemCount > 0 && (
                 <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
                   Attention
                 </span>
               )}
             </div>
             <div className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-              {summary.lowStockItemCount}
+              {summary.lowStockItemCount ?? "—"}
             </div>
             <div className="mt-1 text-[11px] text-muted-foreground">
               Items at or below reorder level

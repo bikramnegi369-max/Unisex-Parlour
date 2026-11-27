@@ -2,13 +2,21 @@ import React from "react";
 import { RevenueReportResponse } from "../types/reports.types";
 import { MetricCard } from "./MetricCard";
 import { CreditCard, Banknote, Smartphone, Wallet, ArrowDownLeft } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
 interface RevenueReportViewProps {
   data?: RevenueReportResponse;
   isLoading: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }
 
-export const RevenueReportView: React.FC<RevenueReportViewProps> = ({ data, isLoading }) => {
+export const RevenueReportView: React.FC<RevenueReportViewProps> = ({
+  data,
+  isLoading,
+  onPageChange,
+  onPageSizeChange,
+}) => {
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -23,7 +31,7 @@ export const RevenueReportView: React.FC<RevenueReportViewProps> = ({ data, isLo
 
   if (!data) return null;
 
-  const { summary, tenderBreakdown = [], streams, recentTransactions = [] } = data;
+  const { summary, tenderBreakdown = [], streams, recentTransactions = [], pagination } = data;
 
   const getTenderIcon = (method: string) => {
     switch (method.toLowerCase()) {
@@ -178,53 +186,62 @@ export const RevenueReportView: React.FC<RevenueReportViewProps> = ({ data, isLo
       </div>
 
       {/* 3. Recent Transactions Ledger */}
-      {recentTransactions.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
-          <div className="border-b border-border/40 px-5 py-4">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Finalized Invoices Ledger in Period
-            </h4>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="border-b border-border/40 bg-muted/30 text-muted-foreground">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Invoice #</th>
-                  <th className="px-4 py-3 font-medium">Customer</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
-                  <th className="px-4 py-3 font-medium text-right">Billed</th>
-                  <th className="px-4 py-3 font-medium text-right">Paid</th>
-                  <th className="px-4 py-3 font-medium text-right">Due</th>
-                  <th className="px-4 py-3 font-medium text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/30">
-                {recentTransactions.map((tx) => (
-                  <tr key={tx.invoiceId} className="transition hover:bg-muted/30">
-                    <td className="px-4 py-3 font-semibold text-foreground">{tx.invoiceNumber}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{tx.clientName}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{tx.date}</td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">
-                      ₹{tx.billedAmount.toLocaleString("en-IN")}
-                    </td>
-                    <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
-                      ₹{tx.paidAmount.toLocaleString("en-IN")}
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-rose-600 dark:text-rose-400">
-                      ₹{tx.dueAmount.toLocaleString("en-IN")}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
-                        {tx.paymentStatus.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm">
+        <div className="border-b border-border/40 px-5 py-4">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Finalized Invoices Ledger in Period ({pagination.recentTransactions.total} invoices)
+          </h4>
         </div>
-      )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-border/40 bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">Invoice #</th>
+                <th className="px-4 py-3 font-medium">Customer</th>
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium text-right">Billed</th>
+                <th className="px-4 py-3 font-medium text-right">Paid</th>
+                <th className="px-4 py-3 font-medium text-right">Due</th>
+                <th className="px-4 py-3 font-medium text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {recentTransactions.map((tx) => (
+                <tr key={tx.invoiceId} className="transition hover:bg-muted/30">
+                  <td className="px-4 py-3 font-semibold text-foreground">{tx.invoiceNumber}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{tx.clientName}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{tx.date}</td>
+                  <td className="px-4 py-3 text-right font-medium text-foreground">
+                    ₹{tx.billedAmount.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                    ₹{tx.paidAmount.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-rose-600 dark:text-rose-400">
+                    ₹{tx.dueAmount.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                      {tx.paymentStatus.replace(/_/g, " ")}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pagination.recentTransactions.total > 0 && (
+          <Pagination
+            currentPage={pagination.recentTransactions.page}
+            totalPages={pagination.recentTransactions.totalPages}
+            totalItems={pagination.recentTransactions.total}
+            pageSize={pagination.recentTransactions.limit}
+            itemLabel="invoices"
+            onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
+          />
+        )}
+      </div>
     </div>
   );
 };

@@ -28,6 +28,7 @@ export interface Branch {
   createdAt?: string;
   updatedAt?: string;
   timezone?: string;
+  operatingHours?: Record<string, unknown> | null;
 }
 
 /**

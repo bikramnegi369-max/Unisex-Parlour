@@ -4,7 +4,7 @@ import { MetricWithComparison } from "../types/reports.types";
 
 interface MetricCardProps {
   title: string;
-  metric: MetricWithComparison;
+  metric: MetricWithComparison | null;
   isCurrency?: boolean;
   isPercentage?: boolean;
   subtitle?: string;
@@ -27,6 +27,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   };
 
   const getDeltaBadge = () => {
+    if (!metric) return null;
+
     if (metric.percentageChange !== undefined && metric.percentageChange !== null) {
       const isPositive = metric.percentageChange > 0;
       const isNegative = metric.percentageChange < 0;
@@ -85,13 +87,13 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
       <div className="mt-2 flex items-baseline gap-2">
         <span className="text-2xl font-bold tracking-tight text-foreground">
-          {formatVal(metric.current)}
+          {formatVal(metric?.current)}
         </span>
       </div>
 
       <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{subtitle || "Current period"}</span>
-        {metric.previous !== null && metric.previous !== undefined && (
+        {metric?.previous !== null && metric?.previous !== undefined && (
           <span>Prev: {formatVal(metric.previous)}</span>
         )}
       </div>

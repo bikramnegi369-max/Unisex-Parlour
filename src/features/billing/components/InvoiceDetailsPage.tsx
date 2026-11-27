@@ -52,6 +52,7 @@ import { ModifyDiscountDialog } from "./ModifyDiscountDialog";
 import { RemoveDiscountDialog } from "./RemoveDiscountDialog";
 import { DiscountHistoryDialog } from "./DiscountHistoryDialog";
 import { RecordPaymentDialog } from "./RecordPaymentDialog";
+import { RefundDialog } from "./RefundDialog";
 import { InvoicePaymentHistory } from "./InvoicePaymentHistory";
 import { PrintableInvoiceReceipt } from "./PrintableInvoiceReceipt";
 import { InvoiceCouponSection } from "./InvoiceCouponSection";
@@ -99,17 +100,22 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   >(null);
   const [isDiscountHistoryOpen, setIsDiscountHistoryOpen] = useState(false);
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false);
+  const [isRefundDialogOpen, setIsRefundDialogOpen] = useState(false);
   const [isFinalizeConfirmOpen, setIsFinalizeConfirmOpen] = useState(false);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [isAttributionDialogOpen, setIsAttributionDialogOpen] = useState(false);
-  const [attributionLine, setAttributionLine] = useState<InvoiceLineItem | null>(null);
+  const [attributionLine, setAttributionLine] =
+    useState<InvoiceLineItem | null>(null);
   const [attributionRole, setAttributionRole] = useState<
     "seller" | "renewal_handler"
   >("seller");
-  const [attributionStaffId, setAttributionStaffId] = useState<string | null>(null);
+  const [attributionStaffId, setAttributionStaffId] = useState<string | null>(
+    null,
+  );
   const [attributionReason, setAttributionReason] = useState("");
-  const [isWalkInFulfillmentDialogOpen, setIsWalkInFulfillmentDialogOpen] = useState(false);
+  const [isWalkInFulfillmentDialogOpen, setIsWalkInFulfillmentDialogOpen] =
+    useState(false);
   const [walkInFulfillmentReason, setWalkInFulfillmentReason] = useState("");
   const [isMembershipRefundOpen, setIsMembershipRefundOpen] = useState(false);
   const [membershipRefundLine, setMembershipRefundLine] =
@@ -134,8 +140,14 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const canManageCoupons = canCheckout && canApplyCoupons;
   const canVoid = hasPermission(user, "billing.void");
   const canReceivePayment = hasPermission(user, "payments.receive");
-  const canCorrectAttribution = hasPermission(user, "billing.attribution.correct");
-  const canConfirmFulfillment = hasPermission(user, "incentives.fulfillment.confirm");
+  const canCorrectAttribution = hasPermission(
+    user,
+    "billing.attribution.correct",
+  );
+  const canConfirmFulfillment = hasPermission(
+    user,
+    "incentives.fulfillment.confirm",
+  );
   const canRefundPayments = hasPermission(user, "payments.refund");
 
   // Optional customer subscription lookup to resolve human-readable subscription codes
@@ -147,14 +159,15 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   );
   const walkInFulfillmentQuery = useQuery({
     queryKey: ["incentives", "fulfillment", invoice?.id, invoice?.branchId],
-    queryFn: () =>
-      getWalkInFulfillmentStatus(invoice!.id, invoice!.branchId),
+    queryFn: () => getWalkInFulfillmentStatus(invoice!.id, invoice!.branchId),
     enabled: Boolean(
       invoice &&
-        canConfirmFulfillment &&
-        !invoice.appointmentId &&
-        invoice.branchId &&
-        (invoice.lines || invoice.items).some((line) => line.lineType === "service"),
+      canConfirmFulfillment &&
+      !invoice.appointmentId &&
+      invoice.branchId &&
+      (invoice.lines || invoice.items).some(
+        (line: { lineType?: string }) => line.lineType === "service",
+      ),
     ),
   });
 
@@ -221,14 +234,20 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const walkInServiceLines = useMemo(
     () =>
       (invoice?.lines || invoice?.items || []).filter(
-        (line) => line.lineType === "service" && Boolean(line.id || line._id),
+        (line: { lineType?: string; id?: string; _id?: string }) =>
+          line.lineType === "service" && Boolean(line.id || line._id),
       ),
     [invoice?.lines, invoice?.items],
   );
   const refundableMembershipLines = useMemo(
     () =>
       (invoice?.lines || invoice?.items || []).filter(
-        (line) =>
+        (line: {
+          lineType?: string;
+          customerMembershipId?: string | null;
+          returnedQuantity?: number;
+          quantity?: number;
+        }) =>
           line.lineType === "membership" &&
           Boolean(line.customerMembershipId) &&
           Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
@@ -238,7 +257,13 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const returnableItemLines = useMemo(
     () =>
       (invoice?.lines || invoice?.items || []).filter(
-        (line) =>
+        (line: {
+          id?: string;
+          _id?: string;
+          lineType?: string;
+          returnedQuantity?: number;
+          quantity?: number;
+        }) =>
           Boolean(line.id || line._id) &&
           line.lineType !== "membership" &&
           Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
@@ -249,13 +274,17 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
     walkInFulfillmentQuery.data?.confirmedLineIds || [],
   );
   const pendingWalkInLineIds = walkInServiceLines
-    .map((line) => line.id || line._id || "")
-    .filter((lineId) => lineId && !confirmedWalkInLineIds.has(lineId));
+    .map((line: { id?: string; _id?: string }) => line.id || line._id || "")
+    .filter((lineId: string) => lineId && !confirmedWalkInLineIds.has(lineId));
 
   const handleConfirmWalkInFulfillment = async () => {
     if (!invoice) return;
     const branchId = invoice.branchId || invoice.branch?.id;
-    if (!branchId || pendingWalkInLineIds.length === 0 || walkInFulfillmentReason.trim().length < 3) {
+    if (
+      !branchId ||
+      pendingWalkInLineIds.length === 0 ||
+      walkInFulfillmentReason.trim().length < 3
+    ) {
       toast.error("Choose service lines and provide a fulfillment reason.");
       return;
     }
@@ -339,7 +368,9 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   const canCancelInvoice = isDraft || (isFinalized && invoice.amountPaid === 0);
   const getAttributionRoles = (item: InvoiceLineItem) => {
     const roles: ("seller" | "renewal_handler")[] = [];
-    if (["product", "membership", "subscription"].includes(item.lineType || "")) {
+    if (
+      ["product", "membership", "subscription"].includes(item.lineType || "")
+    ) {
       roles.push("seller");
     }
     if (item.lineType === "subscription" && item.subscriptionId) {
@@ -366,8 +397,14 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
   };
   const handleCorrectAttribution = async () => {
     const branchId = invoice.branchId || invoice.branch?.id;
-    if (!branchId || !attributionLine?.id || attributionReason.trim().length < 3) {
-      toast.error("Choose a branch, invoice line, and provide a correction reason.");
+    if (
+      !branchId ||
+      !attributionLine?.id ||
+      attributionReason.trim().length < 3
+    ) {
+      toast.error(
+        "Choose a branch, invoice line, and provide a correction reason.",
+      );
       return;
     }
     try {
@@ -547,22 +584,24 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
             {isFinalized &&
               invoice.paymentStatus === "paid" &&
               canRefundPayments &&
-              refundableMembershipLines.map((line) => (
-                <Button
-                  key={line.id || line._id || line.customerMembershipId}
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setMembershipRefundLine(line);
-                    setMembershipRefundReason("");
-                    setIsMembershipRefundOpen(true);
-                  }}
-                  className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  <span>Refund Membership</span>
-                </Button>
-              ))}
+              refundableMembershipLines.map(
+                (line: InvoiceLineItem) => (
+                  <Button
+                    key={line.id || line._id || line.customerMembershipId}
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setMembershipRefundLine(line);
+                      setMembershipRefundReason("");
+                      setIsMembershipRefundOpen(true);
+                    }}
+                    className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl"
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    <span>Refund Membership</span>
+                  </Button>
+                ),
+              )}
             {isFinalized &&
               !invoice.appointmentId &&
               walkInServiceLines.length > 0 &&
@@ -594,6 +633,19 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 <span>Record Payment</span>
               </Button>
             )}
+
+            {isFinalized &&
+              canRefundPayments &&
+              invoice.paymentStatus === "paid" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsRefundDialogOpen(true)}
+                  className="text-xs h-9 px-4 gap-1.5 font-bold shadow-xs rounded-xl cursor-pointer"
+                >
+                  <span>Refund</span>
+                </Button>
+              )}
           </div>
         </div>
 
@@ -771,36 +823,64 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
             </div>
 
             {/* Granular Breakdown of Discounts & Coupons */}
-            {invoice.coupon && invoice.coupon.calculatedDiscountAmount > 0 && (
-              <div className="flex justify-between text-emerald-600 dark:text-emerald-400 pl-3 text-xs items-center py-0.5 bg-emerald-500/10 rounded-md font-medium">
-                <span className="flex items-center gap-1 font-mono">
-                  ↳ Coupon ({invoice.coupon.codeUpper || invoice.coupon.code})
-                </span>
-                <span className="font-semibold font-mono">
-                  -{formatCurrency(invoice.coupon.calculatedDiscountAmount)}
-                </span>
-              </div>
-            )}
+            {(() => {
+              const membershipDiscountTotal = (invoice.items || []).reduce(
+                (sum: number, item: { membershipDiscountAmount?: number }) =>
+                  sum + (item.membershipDiscountAmount || 0),
+                0,
+              );
+              return (
+                <>
+                  {membershipDiscountTotal > 0 && (
+                    <div className="flex justify-between text-indigo-600 dark:text-indigo-400 font-medium items-center py-1 px-2.5 bg-indigo-500/10 rounded-lg">
+                      <span className="flex items-center gap-1.5 font-semibold">
+                        <ShieldCheck className="h-4 w-4" />
+                        Membership Benefit Discount
+                      </span>
+                      <span className="font-bold font-mono">
+                        -{formatCurrency(membershipDiscountTotal)}
+                      </span>
+                    </div>
+                  )}
 
-            {invoice.lineDiscountsTotal !== undefined &&
-              invoice.lineDiscountsTotal > 0 && (
-                <div className="flex justify-between text-muted-foreground pl-3 text-xs items-center py-0.5 bg-muted/20 rounded-md">
-                  <span>↳ Line Item Discounts</span>
-                  <span className="font-medium text-foreground font-mono">
-                    -{formatCurrency(invoice.lineDiscountsTotal)}
-                  </span>
-                </div>
-              )}
+                  {invoice.coupon &&
+                    invoice.coupon.calculatedDiscountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-600 dark:text-emerald-400 pl-3 text-xs items-center py-0.5 bg-emerald-500/10 rounded-md font-medium">
+                        <span className="flex items-center gap-1 font-mono">
+                          ↳ Coupon (
+                          {invoice.coupon.codeUpper || invoice.coupon.code})
+                        </span>
+                        <span className="font-semibold font-mono">
+                          -
+                          {formatCurrency(
+                            invoice.coupon.calculatedDiscountAmount,
+                          )}
+                        </span>
+                      </div>
+                    )}
 
-            {invoice.invoiceDiscountsTotal !== undefined &&
-              invoice.invoiceDiscountsTotal > 0 && (
-                <div className="flex justify-between text-muted-foreground pl-3 text-xs items-center py-0.5 bg-muted/20 rounded-md">
-                  <span>↳ Invoice Level Discounts</span>
-                  <span className="font-medium text-foreground font-mono">
-                    -{formatCurrency(invoice.invoiceDiscountsTotal)}
-                  </span>
-                </div>
-              )}
+                  {invoice.lineDiscountsTotal !== undefined &&
+                    invoice.lineDiscountsTotal > 0 && (
+                      <div className="flex justify-between text-muted-foreground pl-3 text-xs items-center py-0.5 bg-muted/20 rounded-md">
+                        <span>↳ Manual Line Discounts</span>
+                        <span className="font-medium text-foreground font-mono">
+                          -{formatCurrency(invoice.lineDiscountsTotal)}
+                        </span>
+                      </div>
+                    )}
+
+                  {invoice.invoiceDiscountsTotal !== undefined &&
+                    invoice.invoiceDiscountsTotal > 0 && (
+                      <div className="flex justify-between text-muted-foreground pl-3 text-xs items-center py-0.5 bg-muted/20 rounded-md">
+                        <span>↳ Manual Invoice Discounts</span>
+                        <span className="font-medium text-foreground font-mono">
+                          -{formatCurrency(invoice.invoiceDiscountsTotal)}
+                        </span>
+                      </div>
+                    )}
+                </>
+              );
+            })()}
 
             {invoice.discountTotal > 0 && (
               <div className="flex justify-between text-muted-foreground items-center py-0.5">
@@ -1145,7 +1225,9 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
 
                     {/* Action Column (Dedicated spacing, isolated) */}
                     <td className="py-3.5 px-4 text-center align-middle whitespace-nowrap">
-                      {isDraft && (canCorrectAttribution || (canCheckout && !isRedeemed)) ? (
+                      {isDraft &&
+                      (canCorrectAttribution ||
+                        (canCheckout && !isRedeemed)) ? (
                         <div className="flex items-center justify-center gap-1">
                           {canCorrectAttribution &&
                             getAttributionRoles(item).length > 0 && (
@@ -1700,8 +1782,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                     setAttributionRole(role);
                     setAttributionStaffId(
                       role === "renewal_handler"
-                        ? attributionLine.attribution?.renewalHandler?.staffId ||
-                            null
+                        ? attributionLine.attribution?.renewalHandler
+                            ?.staffId || null
                         : attributionLine.attribution?.soldBy?.staffId || null,
                     );
                   }}
@@ -1791,7 +1873,9 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
               maxLength={1000}
               placeholder="Describe the completed service..."
               value={walkInFulfillmentReason}
-              onChange={(event) => setWalkInFulfillmentReason(event.target.value)}
+              onChange={(event) =>
+                setWalkInFulfillmentReason(event.target.value)
+              }
               className="text-xs"
             />
           </div>
@@ -1815,7 +1899,9 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
                 pendingWalkInLineIds.length === 0
               }
             >
-              {walkInFulfillmentMutation.isPending ? "Recording..." : "Confirm Service"}
+              {walkInFulfillmentMutation.isPending
+                ? "Recording..."
+                : "Confirm Service"}
             </Button>
           </div>
         </div>
@@ -1938,7 +2024,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
           <div className="rounded-lg border border-amber-300/70 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
             This records the refund and cancels the membership in this system.
             It does not send money or contact a payment processor. Only continue
-            after the refund has been issued through your approved payment method.
+            after the refund has been issued through your approved payment
+            method.
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-foreground">
@@ -1967,7 +2054,9 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
               maxLength={500}
               placeholder="Explain why this unused membership is being refunded..."
               value={membershipRefundReason}
-              onChange={(event) => setMembershipRefundReason(event.target.value)}
+              onChange={(event) =>
+                setMembershipRefundReason(event.target.value)
+              }
               className="text-xs resize-none"
               disabled={membershipRefundMutation.isPending}
             />
@@ -2052,6 +2141,15 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
         invoice={invoice}
         open={isReturnDialogOpen}
         onOpenChange={setIsReturnDialogOpen}
+      />
+
+      {/* Financial & Item-linked Refund Dialog */}
+      <RefundDialog
+        open={isRefundDialogOpen}
+        onOpenChange={setIsRefundDialogOpen}
+        invoiceId={invoice.id}
+        branchId={invoice.branchId}
+        onSuccess={() => refetch()}
       />
     </div>
   );

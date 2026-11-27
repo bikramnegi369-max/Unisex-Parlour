@@ -50,6 +50,7 @@ export const createAppointmentSchema = z
       .min(1, "Start time is required")
       .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Time format must be HH:mm (e.g. 10:30)"),
     bookingType: z.enum(["advance", "walk_in"]),
+    allowAfterHours: z.boolean().optional(),
     discount: z.coerce.number().min(0).optional(),
     notes: z.string().max(500, "Notes cannot exceed 500 characters").optional(),
     reminder: z

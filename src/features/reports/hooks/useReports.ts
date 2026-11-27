@@ -1,6 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { reportsApi } from "../api/reports.api";
-import { ReportsFilterParams } from "../types/reports.types";
+import {
+  ReportsFilterParams,
+  PaginatedReportParams,
+  ServiceAnalyticsReportParams,
+  InventoryReportParams,
+} from "../types/reports.types";
 import { useBranchContext } from "@/hooks/useBranchContext";
 
 export function useReportsOverview(params: ReportsFilterParams, enabled = true) {
@@ -13,7 +18,7 @@ export function useReportsOverview(params: ReportsFilterParams, enabled = true) 
   });
 }
 
-export function useRevenueReport(params: ReportsFilterParams, enabled = true) {
+export function useRevenueReport(params: PaginatedReportParams, enabled = true) {
   const { branchKey } = useBranchContext();
   return useQuery({
     queryKey: ["reports", branchKey, "revenue", params] as const,
@@ -23,7 +28,7 @@ export function useRevenueReport(params: ReportsFilterParams, enabled = true) {
   });
 }
 
-export function useStaffPerformanceReport(params: ReportsFilterParams, enabled = true) {
+export function useStaffPerformanceReport(params: PaginatedReportParams, enabled = true) {
   const { branchKey } = useBranchContext();
   return useQuery({
     queryKey: ["reports", branchKey, "staff", params] as const,
@@ -33,7 +38,7 @@ export function useStaffPerformanceReport(params: ReportsFilterParams, enabled =
   });
 }
 
-export function useCustomerRetentionReport(params: ReportsFilterParams, enabled = true) {
+export function useCustomerRetentionReport(params: PaginatedReportParams, enabled = true) {
   const { branchKey } = useBranchContext();
   return useQuery({
     queryKey: ["reports", branchKey, "retention", params] as const,
@@ -43,7 +48,7 @@ export function useCustomerRetentionReport(params: ReportsFilterParams, enabled 
   });
 }
 
-export function useServiceAnalyticsReport(params: ReportsFilterParams, enabled = true) {
+export function useServiceAnalyticsReport(params: ServiceAnalyticsReportParams, enabled = true) {
   const { branchKey } = useBranchContext();
   return useQuery({
     queryKey: ["reports", branchKey, "services", params] as const,
@@ -53,7 +58,7 @@ export function useServiceAnalyticsReport(params: ReportsFilterParams, enabled =
   });
 }
 
-export function useInventoryReport(params: ReportsFilterParams, enabled = true) {
+export function useInventoryReport(params: InventoryReportParams, enabled = true) {
   const { branchKey } = useBranchContext();
   return useQuery({
     queryKey: ["reports", branchKey, "inventory", params] as const,

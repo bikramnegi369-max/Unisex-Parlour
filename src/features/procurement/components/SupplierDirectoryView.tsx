@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -21,14 +22,10 @@ import {
   Plus,
   Truck,
   Phone,
-  Mail,
   Building,
   Edit2,
   Trash2,
   RefreshCw,
-  CheckCircle,
-  XCircle,
-  FileText,
   Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,20 +38,23 @@ export default function SupplierDirectoryView() {
   const canManage = hasPermission(user, "procurement.suppliers.manage");
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | undefined>(
-    undefined
-  );
+  const [statusFilter, setStatusFilter] = useState<
+    "active" | "inactive" | undefined
+  >(undefined);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(
+    null,
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
+  const debouncedSearch = useDebounce(search, 300);
 
   const { data, isLoading, isFetching, refetch } = useSuppliers({
     page,
     limit,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     status: statusFilter,
   });
 
@@ -141,7 +141,8 @@ export default function SupplierDirectoryView() {
             Supplier Directory
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Maintain authorized vendor profiles, payment credit terms, and purchasing contacts.
+            Maintain authorized vendor profiles, payment credit terms, and
+            purchasing contacts.
           </p>
         </div>
 
@@ -153,7 +154,9 @@ export default function SupplierDirectoryView() {
             disabled={isFetching}
             className="flex items-center gap-2 text-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
           {canManage && (
@@ -219,9 +222,12 @@ export default function SupplierDirectoryView() {
           ) : suppliers.length === 0 ? (
             <div className="p-12 text-center bg-card rounded-2xl border border-border space-y-3">
               <Truck className="h-10 w-10 text-muted-foreground/40 mx-auto" />
-              <h3 className="text-sm font-semibold text-foreground">No suppliers found</h3>
+              <h3 className="text-sm font-semibold text-foreground">
+                No suppliers found
+              </h3>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                No vendor records match your query. Add your first beauty distributor to start issuing POs.
+                No vendor records match your query. Add your first beauty
+                distributor to start issuing POs.
               </p>
               {canManage && (
                 <Button size="sm" onClick={handleOpenAdd} className="mt-2">
@@ -306,7 +312,7 @@ export default function SupplierDirectoryView() {
 
           {data?.meta && (
             <Pagination
-              currentPage={data.meta.page}
+              currentPage={Number(data.meta.page)}
               totalPages={data.meta.totalPages}
               totalItems={data.meta.total}
               onPageChange={setPage}
@@ -326,8 +332,12 @@ export default function SupplierDirectoryView() {
             <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-xs sticky top-6">
               <div className="flex items-center justify-between pb-3 border-b border-border">
                 <div>
-                  <h3 className="font-bold text-sm text-foreground">{selectedSupplier.name}</h3>
-                  <span className="text-[11px] text-muted-foreground">Vendor Profile</span>
+                  <h3 className="font-bold text-sm text-foreground">
+                    {selectedSupplier.name}
+                  </h3>
+                  <span className="text-[11px] text-muted-foreground">
+                    Vendor Profile
+                  </span>
                 </div>
                 {canManage && (
                   <Button
@@ -358,7 +368,9 @@ export default function SupplierDirectoryView() {
                   <p className="font-medium text-foreground mt-0.5">
                     {selectedSupplier.phone || "No phone"}
                   </p>
-                  <p className="text-muted-foreground">{selectedSupplier.email || "No email"}</p>
+                  <p className="text-muted-foreground">
+                    {selectedSupplier.email || "No email"}
+                  </p>
                 </div>
 
                 <div>
@@ -388,8 +400,8 @@ export default function SupplierDirectoryView() {
                       {selectedSupplier.bankDetails.bankName}
                     </p>
                     <p className="text-muted-foreground">
-                      A/C: {selectedSupplier.bankDetails.accountNo || "N/A"} | IFSC:{" "}
-                      {selectedSupplier.bankDetails.ifscCode || "N/A"}
+                      A/C: {selectedSupplier.bankDetails.accountNo || "N/A"} |
+                      IFSC: {selectedSupplier.bankDetails.ifscCode || "N/A"}
                     </p>
                   </div>
                 )}
@@ -397,7 +409,8 @@ export default function SupplierDirectoryView() {
             </div>
           ) : (
             <div className="bg-card/50 rounded-2xl border border-dashed border-border p-8 text-center text-xs text-muted-foreground">
-              Select a supplier on the left to inspect vendor profile, credit terms, and bank details.
+              Select a supplier on the left to inspect vendor profile, credit
+              terms, and bank details.
             </div>
           )}
         </div>
@@ -407,37 +420,70 @@ export default function SupplierDirectoryView() {
       <Dialog
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingSupplier ? "Edit Supplier Record" : "Register New Supplier"}
+        title={
+          editingSupplier ? "Edit Supplier Record" : "Register New Supplier"
+        }
         maxWidth="md"
       >
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 py-2 text-xs">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-3 py-2 text-xs"
+        >
           <div>
-            <label className="font-medium text-foreground">Supplier Name *</label>
-            <Input {...register("name")} className="mt-1" placeholder="e.g. L'Oreal Professional" />
-            {errors.name && <p className="text-red-500 text-[11px] mt-0.5">{errors.name.message}</p>}
+            <label className="font-medium text-foreground">
+              Supplier Name *
+            </label>
+            <Input
+              {...register("name")}
+              className="mt-1"
+              placeholder="e.g. L'Oreal Professional"
+            />
+            {errors.name && (
+              <p className="text-red-500 text-[11px] mt-0.5">
+                {errors.name.message}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="font-medium text-foreground">Contact Person</label>
-              <Input {...register("contactPerson")} className="mt-1" placeholder="Key contact" />
+              <label className="font-medium text-foreground">
+                Contact Person
+              </label>
+              <Input
+                {...register("contactPerson")}
+                className="mt-1"
+                placeholder="Key contact"
+              />
             </div>
             <div>
               <label className="font-medium text-foreground">Phone</label>
-              <Input {...register("phone")} className="mt-1" placeholder="Direct line" />
+              <Input
+                {...register("phone")}
+                className="mt-1"
+                placeholder="Direct line"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-medium text-foreground">Email</label>
-              <Input {...register("email")} className="mt-1" placeholder="orders@vendor.com" />
+              <Input
+                {...register("email")}
+                className="mt-1"
+                placeholder="orders@vendor.com"
+              />
               {errors.email && (
-                <p className="text-red-500 text-[11px] mt-0.5">{errors.email.message}</p>
+                <p className="text-red-500 text-[11px] mt-0.5">
+                  {errors.email.message}
+                </p>
               )}
             </div>
             <div>
-              <label className="font-medium text-foreground">Payment Terms (Days)</label>
+              <label className="font-medium text-foreground">
+                Payment Terms (Days)
+              </label>
               <Input
                 type="number"
                 {...register("paymentTermsDays", { valueAsNumber: true })}
@@ -449,11 +495,17 @@ export default function SupplierDirectoryView() {
 
           <div>
             <label className="font-medium text-foreground">Address</label>
-            <Input {...register("address")} className="mt-1" placeholder="Warehouse address" />
+            <Input
+              {...register("address")}
+              className="mt-1"
+              placeholder="Warehouse address"
+            />
           </div>
 
           <div className="pt-2 border-t border-border">
-            <span className="font-semibold text-muted-foreground text-[11px]">Bank Details</span>
+            <span className="font-semibold text-muted-foreground text-[11px]">
+              Bank Details
+            </span>
             <div className="grid grid-cols-2 gap-2 mt-1.5">
               <Input
                 {...register("bankDetails.bankName")}
@@ -503,8 +555,10 @@ export default function SupplierDirectoryView() {
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
-            This action will archive the supplier from active directories.
+            <span className="font-semibold text-foreground">
+              {deleteTarget?.name}
+            </span>
+            ? This action will archive the supplier from active directories.
           </p>
           <div className="flex items-center justify-end gap-3 pt-2">
             <Button

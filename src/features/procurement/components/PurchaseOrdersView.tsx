@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -47,6 +48,7 @@ export default function PurchaseOrdersView({
   const canUpdate = hasPermission(user, "procurement.orders.update");
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(
     undefined,
   );
@@ -64,7 +66,7 @@ export default function PurchaseOrdersView({
   } = usePurchaseOrders({
     branchId: currentBranchId,
     status: statusFilter,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     page,
     limit,
   });
@@ -333,7 +335,7 @@ export default function PurchaseOrdersView({
 
           {ordersData?.meta && (
             <Pagination
-              currentPage={ordersData.meta.page}
+              currentPage={Number(ordersData.meta.page)}
               totalPages={ordersData.meta.totalPages}
               totalItems={ordersData.meta.total}
               onPageChange={setPage}

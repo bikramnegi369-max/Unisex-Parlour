@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { AxiosError } from "axios";
 import { PageHeaderBanner } from "@/components/ui/page-header-banner";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ export const CouponsView: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(10);
   const [search, setSearch] = useState<string>("");
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState<CouponStatus | "all">("all");
 
   // Modal states
@@ -63,7 +65,7 @@ export const CouponsView: React.FC = () => {
   } = useCoupons({
     page,
     limit,
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
     status: statusFilter,
   });
 

@@ -82,8 +82,11 @@ describe("Reports & Analytics useReports Hooks Suite", () => {
 
     const { result } = renderHook(
       () => ({
-        activeQuery: useRevenueReport(sampleParams, true),
-        disabledQuery: useStaffPerformanceReport(sampleParams, false),
+        activeQuery: useRevenueReport({ ...sampleParams, page: 1, limit: 10 }, true),
+        disabledQuery: useStaffPerformanceReport(
+          { ...sampleParams, page: 1, limit: 10 },
+          false,
+        ),
       }),
       { wrapper }
     );
@@ -93,7 +96,11 @@ describe("Reports & Analytics useReports Hooks Suite", () => {
       expect(result.current.disabledQuery.fetchStatus).toBe("idle");
     });
 
-    expect(mocks.getRevenueReport).toHaveBeenCalledWith(sampleParams);
+    expect(mocks.getRevenueReport).toHaveBeenCalledWith({
+      ...sampleParams,
+      page: 1,
+      limit: 10,
+    });
     expect(mocks.getStaffPerformanceReport).not.toHaveBeenCalled();
   });
 
@@ -104,11 +111,18 @@ describe("Reports & Analytics useReports Hooks Suite", () => {
       endDate: "2026-01-31",
       compareWith: "none",
     };
+    const serviceParams = {
+      ...customParams,
+      page: 1,
+      limit: 10,
+      categoryPage: 1,
+      categoryLimit: 10,
+    };
 
-    renderHook(() => useServiceAnalyticsReport(customParams, true), { wrapper });
+    renderHook(() => useServiceAnalyticsReport(serviceParams, true), { wrapper });
 
     await waitFor(() => {
-      expect(mocks.getServiceAnalyticsReport).toHaveBeenCalledWith(customParams);
+      expect(mocks.getServiceAnalyticsReport).toHaveBeenCalledWith(serviceParams);
     });
   });
 
@@ -116,7 +130,17 @@ describe("Reports & Analytics useReports Hooks Suite", () => {
     const wrapper = createWrapper();
 
     const { rerender } = renderHook(
-      () => useInventoryReport(sampleParams, true),
+      () =>
+        useInventoryReport(
+          {
+            ...sampleParams,
+            lowStockPage: 1,
+            lowStockLimit: 10,
+            movementPage: 1,
+            movementLimit: 10,
+          },
+          true,
+        ),
       { wrapper }
     );
 
@@ -139,9 +163,11 @@ describe("Reports & Analytics useReports Hooks Suite", () => {
 
   it("disables execution if dates are empty", async () => {
     const wrapper = createWrapper();
-    const emptyParams: ReportsFilterParams = {
+    const emptyParams = {
       startDate: "",
       endDate: "",
+      page: 1,
+      limit: 10,
     };
 
     const { result } = renderHook(

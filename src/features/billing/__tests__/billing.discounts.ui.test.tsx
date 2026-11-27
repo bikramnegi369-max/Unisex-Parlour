@@ -643,8 +643,8 @@ describe("Billing Discounts — UI Components & Flow Verification", () => {
         </Provider>
       );
 
-      expect(screen.getByText("↳ Line Item Discounts")).toBeDefined();
-      expect(screen.getByText("↳ Invoice Level Discounts")).toBeDefined();
+      expect(screen.getByText("↳ Manual Line Discounts")).toBeDefined();
+      expect(screen.getByText("↳ Manual Invoice Discounts")).toBeDefined();
       expect(screen.getByText("Total Discounts")).toBeDefined();
       expect(screen.getByText("Applied Discounts (2)")).toBeDefined();
     });

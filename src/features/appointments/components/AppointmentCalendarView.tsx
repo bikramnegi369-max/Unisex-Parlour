@@ -149,8 +149,10 @@ function layoutAppointments(
   hourPx: number = 120,
   branchTimezone: string = "Asia/Kolkata",
   referenceNow: Date = new Date(),
+  viewportStartHour: number = VIEWPORT_START_HOUR,
+  viewportEndHour: number = VIEWPORT_END_HOUR,
 ): PositionedAppointment[] {
-  const viewportHeightPx = (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourPx;
+  const viewportHeightPx = (viewportEndHour - viewportStartHour) * hourPx;
   // Sort by startTime ascending, then by totalDuration descending
   const sorted = [...appointments].sort((a, b) => {
     const aStart = parseTimeToMinutes(a.startTime) ?? 0;
@@ -312,7 +314,7 @@ function layoutAppointments(
       totalColumnsInCluster,
     } = item;
 
-    const startFromViewport = effectiveStart - VIEWPORT_START_HOUR * 60;
+    const startFromViewport = effectiveStart - viewportStartHour * 60;
     const topPx = Math.max(0, (startFromViewport / 60) * hourPx);
     // Dynamic height based on actual duration: completed cards can scale compactly down to 48px
     const minCardHeight = isCompletedAppt ? 48 : 68;
@@ -320,7 +322,7 @@ function layoutAppointments(
 
     // Clamp height to viewport for rendering, but track clipping
     const isClippedTop = startFromViewport < 0;
-    const isClippedBottom = effectiveEnd > VIEWPORT_END_HOUR * 60;
+    const isClippedBottom = effectiveEnd > viewportEndHour * 60;
     const clampedHeightPx = Math.min(heightPx, viewportHeightPx - topPx);
 
     // Position each appointment into its dedicated side-by-side column.
@@ -334,7 +336,7 @@ function layoutAppointments(
     let positionedOverrun: PositionedOverrunSegment | null = null;
     if (overrunInfo && overrunInfo.hasOverrun) {
       const overrunStartFromViewport =
-        overrunInfo.overrunStartMin - VIEWPORT_START_HOUR * 60;
+        overrunInfo.overrunStartMin - viewportStartHour * 60;
       const overrunTopPx = Math.max(
         0,
         (overrunStartFromViewport / 60) * hourPx,
@@ -346,8 +348,8 @@ function layoutAppointments(
         Math.min(rawOverrunHeightPx, viewportHeightPx - overrunTopPx),
       );
       const isOverrunOutside =
-        overrunInfo.overrunStartMin >= VIEWPORT_END_HOUR * 60 ||
-        overrunInfo.overrunEndMin <= VIEWPORT_START_HOUR * 60;
+        overrunInfo.overrunStartMin >= viewportEndHour * 60 ||
+        overrunInfo.overrunEndMin <= viewportStartHour * 60;
 
       positionedOverrun = {
         topPx: overrunTopPx,
@@ -383,7 +385,7 @@ function layoutAppointments(
         actualCardHeightPx = Math.max(48, (actualDurationMins / 60) * hourPx);
 
         const releaseStartFromViewport =
-          actualEndMinutes - VIEWPORT_START_HOUR * 60;
+          actualEndMinutes - viewportStartHour * 60;
         const releaseTopPx = Math.max(
           0,
           (releaseStartFromViewport / 60) * hourPx,
@@ -414,8 +416,8 @@ function layoutAppointments(
       overrun: positionedOverrun,
       earlyRelease: positionedEarlyRelease,
       isOutsideViewport:
-        effectiveStart >= VIEWPORT_END_HOUR * 60 ||
-        effectiveEnd <= VIEWPORT_START_HOUR * 60,
+        effectiveStart >= viewportEndHour * 60 ||
+        effectiveEnd <= viewportStartHour * 60,
       isClippedTop,
       isClippedBottom,
     });
@@ -456,8 +458,55 @@ export function AppointmentCalendarView({
   const { currentBranch, currentBranchId } = useBranchContext();
   const [hoveredApptId, setHoveredApptId] = useState<string | null>(null);
   const [hourScale, setHourScale] = useState<number>(120); // 120px gives ideal full visibility for text, codes, and badges
-  const viewportHeightPx =
-    (VIEWPORT_END_HOUR - VIEWPORT_START_HOUR) * hourScale;
+
+  const { viewportStartHour, viewportEndHour, timeSlots } = useMemo(() => {
+    let startHour = VIEWPORT_START_HOUR;
+    let endHour = VIEWPORT_END_HOUR;
+
+    // 1. Derive base hours from branch operatingHours if available
+    const oh = (currentBranch as { operatingHours?: Record<string, { isOpen?: boolean; openTime?: string; closeTime?: string }> } | null)?.operatingHours;
+    if (oh) {
+      const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+      const dayKey = dayNames[selectedDate.getDay()];
+      const dayCfg = oh[dayKey];
+      if (viewMode === "day" && dayCfg?.isOpen !== false && dayCfg?.openTime && dayCfg?.closeTime) {
+        const openMin = parseTimeToMinutes(dayCfg.openTime);
+        const closeMin = parseTimeToMinutes(dayCfg.closeTime);
+        if (openMin !== null) startHour = Math.floor(openMin / 60);
+        if (closeMin !== null) endHour = Math.ceil(closeMin / 60);
+      } else {
+        const openHours = Object.values(oh).filter((d) => d && d.isOpen !== false && d.openTime && d.closeTime);
+        if (openHours.length > 0) {
+          const minsOpen = openHours.map((d) => parseTimeToMinutes(d.openTime!)).filter((m): m is number => m !== null);
+          const minsClose = openHours.map((d) => parseTimeToMinutes(d.closeTime!)).filter((m): m is number => m !== null);
+          if (minsOpen.length > 0) startHour = Math.floor(Math.min(...minsOpen) / 60);
+          if (minsClose.length > 0) endHour = Math.ceil(Math.max(...minsClose) / 60);
+        }
+      }
+    }
+
+    // 2. Extend hours if any visible appointment starts earlier or ends later (e.g., after-hours bookings)
+    for (const appt of appointments) {
+      const sMin = parseTimeToMinutes(appt.startTime);
+      if (sMin !== null) {
+        startHour = Math.min(startHour, Math.floor(sMin / 60));
+        const eMin = parseTimeToMinutes(appt.endTime) ?? sMin + (appt.totalDuration || 30);
+        endHour = Math.max(endHour, Math.ceil(eMin / 60));
+      }
+    }
+
+    startHour = Math.max(0, startHour);
+    endHour = Math.min(24, Math.max(startHour + 1, endHour));
+
+    const slots = Array.from({ length: endHour - startHour + 1 }, (_, i) => {
+      const hour = i + startHour;
+      return `${hour.toString().padStart(2, "0")}:00`;
+    });
+
+    return { viewportStartHour: startHour, viewportEndHour: endHour, timeSlots: slots };
+  }, [currentBranch, selectedDate, viewMode, appointments]);
+
+  const viewportHeightPx = (viewportEndHour - viewportStartHour) * hourScale;
 
   // ---------------------------------------------------------------------------
   // Grabbable Canvas (Mouse Drag / Pan-Scroll across both X & Y axes)
@@ -635,10 +684,10 @@ export function AppointmentCalendarView({
   const currentBranchMinutes = branchNowParts.hour * 60 + branchNowParts.minute;
   const showCurrentTimeLine =
     isTodaySelected &&
-    currentBranchMinutes >= VIEWPORT_START_HOUR * 60 &&
-    currentBranchMinutes <= VIEWPORT_END_HOUR * 60;
+    currentBranchMinutes >= viewportStartHour * 60 &&
+    currentBranchMinutes <= viewportEndHour * 60;
   const currentTimeTopPx =
-    ((currentBranchMinutes - VIEWPORT_START_HOUR * 60) / 60) * hourScale;
+    ((currentBranchMinutes - viewportStartHour * 60) / 60) * hourScale;
 
   // -------------------------------------------------------------------------
   // All Branches resource lanes
@@ -1092,7 +1141,7 @@ export function AppointmentCalendarView({
                   className="relative bg-card"
                   style={{ height: `${viewportHeightPx}px` }}
                 >
-                  {TIME_SLOTS.map((time, idx) => (
+                  {timeSlots.map((time, idx) => (
                     <div
                       key={time}
                       className="absolute left-0 right-0 border-b border-border/50 text-[10px] font-semibold text-muted-foreground pr-2 flex items-start justify-end pt-1 select-none"
@@ -1132,6 +1181,8 @@ export function AppointmentCalendarView({
                     hourScale,
                     branchTimezone,
                     now,
+                    viewportStartHour,
+                    viewportEndHour,
                   );
 
                   // Calculate max concurrency in this lane so lane dynamically expands so each concurrent column gets full length width (at least 270px per column)
@@ -1396,18 +1447,18 @@ export function AppointmentCalendarView({
                           const snappedMins =
                             Math.round(minsFromStart / 15) * 15;
                           const totalMinutes =
-                            VIEWPORT_START_HOUR * 60 + snappedMins;
+                            viewportStartHour * 60 + snappedMins;
                           // Clamp between 08:00 and 19:45
                           const clampedMins = Math.min(
-                            VIEWPORT_END_HOUR * 60 - 15,
-                            Math.max(VIEWPORT_START_HOUR * 60, totalMinutes),
+                            viewportEndHour * 60 - 15,
+                            Math.max(viewportStartHour * 60, totalMinutes),
                           );
 
                           const h = Math.floor(clampedMins / 60);
                           const m = clampedMins % 60;
                           const timeStr = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
                           const topPx =
-                            ((clampedMins - VIEWPORT_START_HOUR * 60) / 60) *
+                            ((clampedMins - viewportStartHour * 60) / 60) *
                             hourScale;
 
                           setDragOverLaneId(
@@ -1474,10 +1525,10 @@ export function AppointmentCalendarView({
                             const snappedMins =
                               Math.round(minsFromStart / 15) * 15;
                             const totalMinutes =
-                              VIEWPORT_START_HOUR * 60 + snappedMins;
+                              viewportStartHour * 60 + snappedMins;
                             const clampedMins = Math.min(
-                              VIEWPORT_END_HOUR * 60 - 15,
-                              Math.max(VIEWPORT_START_HOUR * 60, totalMinutes),
+                              viewportEndHour * 60 - 15,
+                              Math.max(viewportStartHour * 60, totalMinutes),
                             );
 
                             const h = Math.floor(clampedMins / 60);
@@ -1533,7 +1584,7 @@ export function AppointmentCalendarView({
                           </div>
                         )}
                         {/* Horizontal Grid lines with 15-min and 30-min sub-interval guides */}
-                        {TIME_SLOTS.map((_, idx) => (
+                        {timeSlots.map((_, idx) => (
                           <div
                             key={idx}
                             className="absolute left-0 right-0 border-b border-border/40 pointer-events-none"
@@ -1603,7 +1654,7 @@ export function AppointmentCalendarView({
                               const edgeTop =
                                 appt.startTime &&
                                 parseTimeToMinutes(appt.startTime)! <
-                                  VIEWPORT_START_HOUR * 60;
+                                  viewportStartHour * 60;
                               return (
                                 <div
                                   key={appt.id}

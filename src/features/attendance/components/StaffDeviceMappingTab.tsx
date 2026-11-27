@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { hasPermission } from "@/lib/permissions";
 import { useBranchContext } from "@/hooks/useBranchContext";
@@ -49,6 +50,7 @@ export default function StaffDeviceMappingTab({
   const canAdjust = hasPermission(user, "attendance.adjust");
 
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [providerFilter, setProviderFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -66,7 +68,7 @@ export default function StaffDeviceMappingTab({
   } = useStaffDeviceMappings({
     provider: providerFilter !== "all" ? providerFilter : undefined,
     mappingStatus: statusFilter !== "all" ? statusFilter : undefined,
-    search: search.trim() || undefined,
+    search: debouncedSearch.trim() || undefined,
   });
 
   const deactivateMutation = useDeactivateStaffDeviceMapping();

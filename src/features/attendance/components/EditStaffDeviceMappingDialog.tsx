@@ -16,9 +16,17 @@ import { useUpdateStaffDeviceMapping } from "../hooks/useAttendance";
 const editMappingSchema = z.object({
   provider: z.string().trim().min(1, "Provider is required").max(100),
   deviceId: z.string().trim().min(1, "Device ID is required").max(100),
-  externalEmployeeCode: z.string().trim().min(1, "Biometric code is required").max(100),
+  externalEmployeeCode: z
+    .string()
+    .trim()
+    .min(1, "Biometric code is required")
+    .max(100),
   mappingStatus: z.enum(["mapped", "unmapped", "partial", "unknown"]),
-  notes: z.string().trim().max(500, "Notes cannot exceed 500 characters").optional(),
+  notes: z
+    .string()
+    .trim()
+    .max(500, "Notes cannot exceed 500 characters")
+    .optional(),
 });
 
 type EditMappingFormValues = z.infer<typeof editMappingSchema>;
@@ -59,9 +67,6 @@ export default function EditStaffDeviceMappingDialog({
       await updateMutation.mutateAsync({
         id: mapping._id,
         payload: {
-          provider: values.provider,
-          deviceId: values.deviceId,
-          externalEmployeeCode: values.externalEmployeeCode,
           mappingStatus: values.mappingStatus,
           notes: values.notes || "",
         },
@@ -70,9 +75,15 @@ export default function EditStaffDeviceMappingDialog({
       toast.success("Mapping metadata updated successfully.");
       onOpenChange(false);
       onSuccess?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const apiErr = err as {
+        response?: { data?: { message?: string } };
+        message?: string;
+      };
       toast.error(
-        err?.response?.data?.message || err?.message || "Failed to update mapping metadata."
+        apiErr?.response?.data?.message ||
+          apiErr?.message ||
+          "Failed to update mapping metadata.",
       );
     }
   };
@@ -94,7 +105,9 @@ export default function EditStaffDeviceMappingDialog({
         <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Staff Member:</span>
-            <span className="font-medium text-foreground">{mapping.staffId?.name}</span>
+            <span className="font-medium text-foreground">
+              {mapping.staffId?.name}
+            </span>
           </div>
         </div>
 
@@ -106,7 +119,9 @@ export default function EditStaffDeviceMappingDialog({
               </label>
               <Input {...register("provider")} placeholder="eTimeOffice" />
               {errors.provider && (
-                <p className="text-xs text-destructive">{errors.provider.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.provider.message}
+                </p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -115,7 +130,9 @@ export default function EditStaffDeviceMappingDialog({
               </label>
               <Input {...register("deviceId")} placeholder="default" />
               {errors.deviceId && (
-                <p className="text-xs text-destructive">{errors.deviceId.message}</p>
+                <p className="text-xs text-destructive">
+                  {errors.deviceId.message}
+                </p>
               )}
             </div>
           </div>
@@ -124,9 +141,14 @@ export default function EditStaffDeviceMappingDialog({
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Biometric Code
             </label>
-            <Input {...register("externalEmployeeCode")} placeholder="e.g. 1007" />
+            <Input
+              {...register("externalEmployeeCode")}
+              placeholder="e.g. 1007"
+            />
             {errors.externalEmployeeCode && (
-              <p className="text-xs text-destructive">{errors.externalEmployeeCode.message}</p>
+              <p className="text-xs text-destructive">
+                {errors.externalEmployeeCode.message}
+              </p>
             )}
           </div>
           <div className="space-y-1.5">
@@ -140,7 +162,9 @@ export default function EditStaffDeviceMappingDialog({
               <option value="unknown">Unknown</option>
             </Select>
             {errors.mappingStatus && (
-              <p className="text-xs text-destructive">{errors.mappingStatus.message}</p>
+              <p className="text-xs text-destructive">
+                {errors.mappingStatus.message}
+              </p>
             )}
           </div>
 

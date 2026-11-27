@@ -167,12 +167,49 @@ export const PrintableInvoiceReceipt = React.forwardRef<
           <span>Gross Subtotal:</span>
           <span>{formatCurrency(invoice.subtotal)}</span>
         </div>
-        {invoice.discountTotal > 0 && (
-          <div className="flex justify-between text-gray-700">
-            <span>Discount Applied:</span>
-            <span>-{formatCurrency(invoice.discountTotal)}</span>
-          </div>
-        )}
+        {(() => {
+          const membershipDiscountTotal = (invoice.items || []).reduce(
+            (sum, item) => sum + (item.membershipDiscountAmount || 0),
+            0
+          );
+          const hasAnyDiscount =
+            invoice.discountTotal > 0 || membershipDiscountTotal > 0;
+          if (!hasAnyDiscount) return null;
+          return (
+            <>
+              {invoice.discountTotal > 0 && (
+                <div className="flex justify-between text-gray-800 font-semibold">
+                  <span>Total Discounts:</span>
+                  <span>-{formatCurrency(invoice.discountTotal)}</span>
+                </div>
+              )}
+              {membershipDiscountTotal > 0 && (
+                <div className="flex justify-between text-gray-600 pl-3 text-[10px]">
+                  <span>↳ Membership Benefit:</span>
+                  <span>-{formatCurrency(membershipDiscountTotal)}</span>
+                </div>
+              )}
+              {invoice.coupon && invoice.coupon.calculatedDiscountAmount > 0 && (
+                <div className="flex justify-between text-gray-600 pl-3 text-[10px]">
+                  <span>↳ Coupon ({invoice.coupon.codeUpper || invoice.coupon.code}):</span>
+                  <span>-{formatCurrency(invoice.coupon.calculatedDiscountAmount)}</span>
+                </div>
+              )}
+              {(invoice.lineDiscountsTotal ?? 0) > 0 && (
+                <div className="flex justify-between text-gray-600 pl-3 text-[10px]">
+                  <span>↳ Manual Line Discounts:</span>
+                  <span>-{formatCurrency(invoice.lineDiscountsTotal!)}</span>
+                </div>
+              )}
+              {(invoice.invoiceDiscountsTotal ?? 0) > 0 && (
+                <div className="flex justify-between text-gray-600 pl-3 text-[10px]">
+                  <span>↳ Manual Invoice Discounts:</span>
+                  <span>-{formatCurrency(invoice.invoiceDiscountsTotal!)}</span>
+                </div>
+              )}
+            </>
+          );
+        })()}
         {invoice.subscriptionCoveredAmount > 0 && (
           <div className="flex justify-between font-semibold">
             <span>Subscription Waived:</span>

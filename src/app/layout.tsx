@@ -30,7 +30,7 @@ export default function RootLayout({
       <head>
         <Script
           id="theme-initializer"
-          strategy="beforeInteractive"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {

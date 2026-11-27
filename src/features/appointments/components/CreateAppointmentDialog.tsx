@@ -121,6 +121,8 @@ interface CreateAppointmentDialogProps {
   onSubmit: (payload: CreateAppointmentSchemaType) => Promise<void>;
   isLoading: boolean;
   defaultBookingType?: "advance" | "walk_in";
+  defaultStaffId?: string | null;
+  defaultStartTime?: string;
 }
 
 interface CustomServiceBookingSummaryRowProps {
@@ -544,6 +546,8 @@ export function CreateAppointmentDialog({
   onSubmit,
   isLoading,
   defaultBookingType = "advance",
+  defaultStaffId = null,
+  defaultStartTime,
 }: CreateAppointmentDialogProps) {
   const {
     currentBranchId,
@@ -600,6 +604,7 @@ export function CreateAppointmentDialog({
       date: format(new Date(), "yyyy-MM-dd"),
       startTime: "10:00",
       bookingType: defaultBookingType,
+      allowAfterHours: false,
       notes: "",
       reminder: {
         enabled: true,
@@ -1469,9 +1474,9 @@ export function CreateAppointmentDialog({
         customerId: "",
         services: [],
         serviceIds: [],
-        staffId: null,
+        staffId: defaultStaffId ?? null,
         date: format(new Date(), "yyyy-MM-dd"),
-        startTime: format(new Date(), "HH:mm"),
+        startTime: defaultStartTime || format(new Date(), "HH:mm"),
         bookingType: defaultBookingType,
         notes: "",
         reminder: {
@@ -1482,7 +1487,7 @@ export function CreateAppointmentDialog({
       });
     }
     prevIsOpen.current = isOpen;
-  }, [isOpen, currentBranchId, defaultBookingType, reset]);
+  }, [isOpen, currentBranchId, defaultBookingType, defaultStaffId, defaultStartTime, reset]);
 
   // Synchronize branch changes while dialog is open:
   // If staff was assigned for branch A, but target branch changes to B, reset staffId to prevent cross-branch leaks.
@@ -2858,6 +2863,14 @@ export function CreateAppointmentDialog({
                     {errors.startTime.message}
                   </span>
                 )}
+                <label className="flex items-center gap-2 pt-1 text-xs text-muted-foreground cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-input accent-primary"
+                    {...register("allowAfterHours")}
+                  />
+                  Allow after-hours booking (outside branch hours)
+                </label>
               </div>
 
               {/* Quick Start Time Chips with Mouse-Wheel Horizontal Scroll & Container Lock */}
@@ -3580,7 +3593,8 @@ export function CreateAppointmentDialog({
                 notes:
                   checkoutData.notes ||
                   `Membership sold during booking setup for customer`,
-                billImmediately: true,
+                // Defer invoice generation to Unified Sales Workspace checkout
+                billImmediately: false,
               });
 
               setIsSellMembershipOpen(false);
@@ -3640,7 +3654,8 @@ export function CreateAppointmentDialog({
                 branchId: effectiveBranchId,
                 soldByStaffId: values.soldByStaffId || undefined,
                 notes: values.notes || `Membership sold during booking setup`,
-                billImmediately: true,
+                // Defer invoice generation to Unified Sales Workspace checkout
+                billImmediately: false,
               });
 
               setIsSellMembershipOpen(false);

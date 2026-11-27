@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mocks = vi.hoisted(() => ({
@@ -78,6 +78,7 @@ describe("IncentivesDashboardView", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.clearAllMocks();
     mocks.currentBranchId = "branch-1";
   });
@@ -145,6 +146,29 @@ describe("IncentivesDashboardView", () => {
     expect(screen.queryByText("No incentive schemes found")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry schemes" }));
     expect(await screen.findByText("No incentive schemes found")).toBeInTheDocument();
+  });
+
+  it("debounces incentive plan searches before requesting schemes", async () => {
+    renderDashboard();
+    fireEvent.click(screen.getByRole("button", { name: /Incentive Plans/i }));
+
+    await waitFor(() => expect(mocks.listSchemes).toHaveBeenCalledTimes(1));
+    vi.useFakeTimers();
+
+    fireEvent.change(screen.getByPlaceholderText("Search scheme by name or code..."), {
+      target: { value: "commission" },
+    });
+
+    expect(mocks.listSchemes).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300);
+    });
+
+    expect(mocks.listSchemes).toHaveBeenCalledTimes(2);
+    expect(mocks.listSchemes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "commission" }),
+    );
   });
 
   it("shows assignment loading errors and an actionable retry", async () => {

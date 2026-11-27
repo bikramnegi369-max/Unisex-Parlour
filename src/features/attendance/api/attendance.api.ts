@@ -72,6 +72,7 @@ export interface AttendancePunch {
   punchType: "in" | "out";
   punchAt: string;
   provider: string;
+  deviceId?: string;
   externalEventId?: string;
   mappingStatus: string;
 }
@@ -286,6 +287,29 @@ export async function ingestSimulatorEvents(payload: {
   events: Array<Record<string, unknown>>;
 }) {
   const { data } = await apiClient.post<ApiResponse<unknown>>("/attendance/providers/simulator/events", payload, currentBranch);
+  return data.data;
+}
+
+export async function adjustAttendancePunch(
+  punchId: string,
+  payload: { action: "toggle_type" | "mark_duplicate"; reason: string },
+) {
+  const { data } = await apiClient.patch<{
+    success: boolean;
+    data: { punch: AttendancePunch; attendanceDate: string };
+  }>(`/attendance/punches/${punchId}/adjust`, payload, currentBranch);
+  return data.data;
+}
+
+export async function bulkAdjustAttendanceRecords(payload: {
+  items: Array<{ staffId: string; date: string }>;
+  status: "present" | "absent";
+  reason: string;
+}) {
+  const { data } = await apiClient.post<{
+    success: boolean;
+    data: { updatedCount: number; failedItems: Array<{ staffId: string; date: string; error: string }> };
+  }>("/attendance/records/bulk-adjust", payload, currentBranch);
   return data.data;
 }
 

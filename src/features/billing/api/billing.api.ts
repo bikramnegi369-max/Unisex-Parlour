@@ -1127,3 +1127,111 @@ export async function removeCouponFromInvoice(
 
   return normalizeInvoice(data.data);
 }
+
+export interface RefundContextResponse {
+  invoiceId: string;
+  eligible: boolean;
+  reason?: string;
+  originalPayablePaise: number;
+  completedRefundsPaise: number;
+  pendingReservedPaise: number;
+  refundableBalancePaise: number;
+  netRetainedPaise: number;
+  derivedRefundStatus: string;
+  refundableLines: Array<{
+    lineId: string;
+    lineType: string;
+    name: string;
+    quantity: number;
+    returnedQuantity: number;
+    remainingQuantity: number;
+    unitNetPaise: number;
+    refundablePaise: number;
+  }>;
+  refundHistory: Array<{
+    _id: string;
+    refundNumber: string;
+    refundMode: "financial_only" | "item_linked";
+    requestedAmountPaise: number;
+    settledAmountPaise: number;
+    paymentSettlementStatus: "pending" | "settled" | "failed";
+    status: string;
+    reason: string;
+    refundMethod: string;
+    createdAt: string;
+    domainReversals?: Record<
+      string,
+      { status: string; referenceIds?: string[]; errorMessage?: string }
+    >;
+  }>;
+}
+
+export async function getRefundContext(
+  invoiceId: string,
+  branchId?: string
+): Promise<RefundContextResponse> {
+  const { data } = await apiClient.get<ApiResponse<RefundContextResponse>>(
+    `/billing/invoices/${invoiceId}/refund-context`,
+    { branchScope: branchId ? { type: "branch", branchId } : "current" }
+  );
+  return data.data;
+}
+
+export async function previewRefund(
+  invoiceId: string,
+  payload: Record<string, unknown>,
+  branchId?: string
+): Promise<Record<string, unknown>> {
+  const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
+    `/billing/invoices/${invoiceId}/refunds/preview`,
+    payload,
+    { branchScope: branchId ? { type: "branch", branchId } : "current" }
+  );
+  return data.data;
+}
+
+export async function createRefundCase(
+  invoiceId: string,
+  payload: Record<string, unknown>,
+  idempotencyKey: string,
+  branchId?: string
+): Promise<{ refundCase: Record<string, unknown>; idempotentReplay?: boolean }> {
+  const { data } = await apiClient.post<
+    ApiResponse<{ refundCase: Record<string, unknown>; idempotentReplay?: boolean }>
+  >(`/billing/invoices/${invoiceId}/refunds`, payload, {
+    headers: { "Idempotency-Key": idempotencyKey },
+    branchScope: branchId ? { type: "branch", branchId } : "current",
+  });
+  return data.data;
+}
+
+export async function settleRefundCase(
+  invoiceId: string,
+  refundCaseId: string,
+  payload: Record<string, unknown>,
+  idempotencyKey: string,
+  branchId?: string
+): Promise<{ refundCase: Record<string, unknown>; refundPayment: Record<string, unknown> }> {
+  const { data } = await apiClient.post<
+    ApiResponse<{ refundCase: Record<string, unknown>; refundPayment: Record<string, unknown> }>
+  >(`/billing/invoices/${invoiceId}/refunds/${refundCaseId}/settle`, payload, {
+    headers: { "Idempotency-Key": idempotencyKey },
+    branchScope: branchId ? { type: "branch", branchId } : "current",
+  });
+  return data.data;
+}
+
+export async function retryRefundReversals(
+  invoiceId: string,
+  refundCaseId: string,
+  branchId?: string
+): Promise<{ refundCase: Record<string, unknown>; status: string }> {
+  const { data } = await apiClient.post<
+    ApiResponse<{ refundCase: Record<string, unknown>; status: string }>
+  >(
+    `/billing/invoices/${invoiceId}/refunds/${refundCaseId}/retry-reversals`,
+    { branchId },
+    { branchScope: branchId ? { type: "branch", branchId } : "current" }
+  );
+  return data.data;
+}

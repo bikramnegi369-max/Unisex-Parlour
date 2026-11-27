@@ -563,7 +563,7 @@ export default function SupplierInvoicesView() {
 
           {invoicesData?.meta && (
             <Pagination
-              currentPage={invoicesData.meta.page}
+              currentPage={Number(invoicesData.meta.page)}
               totalPages={invoicesData.meta.totalPages}
               totalItems={invoicesData.meta.total}
               onPageChange={setInvoicesPage}
@@ -653,7 +653,7 @@ export default function SupplierInvoicesView() {
 
           {paymentsData?.meta && (
             <Pagination
-              currentPage={paymentsData.meta.page}
+              currentPage={Number(paymentsData.meta.page)}
               totalPages={paymentsData.meta.totalPages}
               totalItems={paymentsData.meta.total}
               onPageChange={setPaymentsPage}

@@ -2,15 +2,24 @@ import React from "react";
 import { ServiceAnalyticsReportResponse } from "../types/reports.types";
 import { MetricCard } from "./MetricCard";
 import { Scissors, Clock, TrendingUp } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
 interface ServiceAnalyticsReportViewProps {
   data?: ServiceAnalyticsReportResponse;
   isLoading: boolean;
+  onServicesPageChange: (page: number) => void;
+  onServicesPageSizeChange: (pageSize: number) => void;
+  onCategoriesPageChange: (page: number) => void;
+  onCategoriesPageSizeChange: (pageSize: number) => void;
 }
 
 export const ServiceAnalyticsReportView: React.FC<ServiceAnalyticsReportViewProps> = ({
   data,
   isLoading,
+  onServicesPageChange,
+  onServicesPageSizeChange,
+  onCategoriesPageChange,
+  onCategoriesPageSizeChange,
 }) => {
   if (isLoading) {
     return (
@@ -26,7 +35,7 @@ export const ServiceAnalyticsReportView: React.FC<ServiceAnalyticsReportViewProp
 
   if (!data) return null;
 
-  const { summary, topServices, categoryShare } = data;
+  const { summary, topServices, categoryShare, pagination } = data;
 
   return (
     <div className="space-y-6">
@@ -91,11 +100,13 @@ export const ServiceAnalyticsReportView: React.FC<ServiceAnalyticsReportViewProp
                 </tr>
               ) : (
                 topServices.map((svc, idx) => (
-                  <tr key={svc.serviceId + idx} className="transition hover:bg-muted/30">
+                  <tr key={svc.serviceId} className="transition hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground">
-                          {idx + 1}
+                          {(pagination.topServices.page - 1) * pagination.topServices.limit +
+                            idx +
+                            1}
                         </span>
                         <span className="font-semibold text-foreground">{svc.name}</span>
                       </div>
@@ -119,14 +130,29 @@ export const ServiceAnalyticsReportView: React.FC<ServiceAnalyticsReportViewProp
             </tbody>
           </table>
         </div>
+        {pagination.topServices.total > 0 && (
+          <Pagination
+            currentPage={pagination.topServices.page}
+            totalPages={pagination.topServices.totalPages}
+            totalItems={pagination.topServices.total}
+            pageSize={pagination.topServices.limit}
+            itemLabel="services"
+            onPageChange={onServicesPageChange}
+            onPageSizeChange={onServicesPageSizeChange}
+          />
+        )}
       </div>
 
       {/* 3. Category Share Breakdown */}
-      {categoryShare && categoryShare.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Category Demand Share
-          </h4>
+      <div className="rounded-xl border border-border/60 bg-card p-5 shadow-sm">
+        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Category Demand Share
+        </h4>
+        {categoryShare.length === 0 ? (
+          <p className="mt-4 py-4 text-center text-xs text-muted-foreground">
+            No service categories recorded in this period.
+          </p>
+        ) : (
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {categoryShare.map((cat) => (
               <div key={cat.category} className="rounded-lg bg-muted/40 p-4 text-xs">
@@ -149,8 +175,19 @@ export const ServiceAnalyticsReportView: React.FC<ServiceAnalyticsReportViewProp
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+        {pagination.categoryShare.total > 0 && (
+          <Pagination
+            currentPage={pagination.categoryShare.page}
+            totalPages={pagination.categoryShare.totalPages}
+            totalItems={pagination.categoryShare.total}
+            pageSize={pagination.categoryShare.limit}
+            itemLabel="categories"
+            onPageChange={onCategoriesPageChange}
+            onPageSizeChange={onCategoriesPageSizeChange}
+          />
+        )}
+      </div>
     </div>
   );
 };

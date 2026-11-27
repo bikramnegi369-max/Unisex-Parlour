@@ -7,6 +7,9 @@ import {
   ServiceAnalyticsReportResponse,
   InventoryReportResponse,
   ReportsFilterParams,
+  PaginatedReportParams,
+  ServiceAnalyticsReportParams,
+  InventoryReportParams,
 } from "../types/reports.types";
 
 export const reportsApi = {
@@ -21,7 +24,7 @@ export const reportsApi = {
     return res.data.data;
   },
 
-  getRevenueReport: async (params: ReportsFilterParams) => {
+  getRevenueReport: async (params: PaginatedReportParams) => {
     const res = await apiClient.get<{ success: boolean; data: RevenueReportResponse }>(
       "/reports/revenue",
       {
@@ -32,7 +35,7 @@ export const reportsApi = {
     return res.data.data;
   },
 
-  getStaffPerformanceReport: async (params: ReportsFilterParams) => {
+  getStaffPerformanceReport: async (params: PaginatedReportParams) => {
     const res = await apiClient.get<{ success: boolean; data: StaffPerformanceReportResponse }>(
       "/reports/staff-performance",
       {
@@ -43,7 +46,7 @@ export const reportsApi = {
     return res.data.data;
   },
 
-  getCustomerRetentionReport: async (params: ReportsFilterParams) => {
+  getCustomerRetentionReport: async (params: PaginatedReportParams) => {
     const res = await apiClient.get<{ success: boolean; data: CustomerRetentionReportResponse }>(
       "/reports/customer-retention",
       {
@@ -54,7 +57,7 @@ export const reportsApi = {
     return res.data.data;
   },
 
-  getServiceAnalyticsReport: async (params: ReportsFilterParams) => {
+  getServiceAnalyticsReport: async (params: ServiceAnalyticsReportParams) => {
     const res = await apiClient.get<{ success: boolean; data: ServiceAnalyticsReportResponse }>(
       "/reports/service-analytics",
       {
@@ -65,7 +68,7 @@ export const reportsApi = {
     return res.data.data;
   },
 
-  getInventoryReport: async (params: ReportsFilterParams) => {
+  getInventoryReport: async (params: InventoryReportParams) => {
     const res = await apiClient.get<{ success: boolean; data: InventoryReportResponse }>(
       "/reports/inventory",
       {

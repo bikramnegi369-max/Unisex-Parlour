@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   TrendingUp,
@@ -94,13 +95,24 @@ export const IncentivesDashboardView: React.FC = () => {
 
   const canManage = hasPermission(user, "incentives.rules.manage");
   const canApprove = hasPermission(user, "incentives.approve");
-  const canView = hasPermission(user, "incentives.view") || hasPermission(user, "incentives.view.all");
+  const canView =
+    hasPermission(user, "incentives.view") ||
+    hasPermission(user, "incentives.view.all");
   const summaryBranchId =
     currentBranchId && currentBranchId !== "all" ? currentBranchId : undefined;
 
-  const [activeTab, setActiveTab] = useState<"team-earnings" | "schemes" | "assignments" | "ledger" | "obligations" | "lifecycle" | "attendance">("team-earnings");
+  const [activeTab, setActiveTab] = useState<
+    | "team-earnings"
+    | "schemes"
+    | "assignments"
+    | "ledger"
+    | "obligations"
+    | "lifecycle"
+    | "attendance"
+  >("team-earnings");
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
@@ -108,7 +120,9 @@ export const IncentivesDashboardView: React.FC = () => {
   const [isBuilderOpen, setIsBuilderOpen] = useState(false);
   const [isAssignmentOpen, setIsAssignmentOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [selectedScheme, setSelectedScheme] = useState<IncentiveScheme | null>(null);
+  const [selectedScheme, setSelectedScheme] = useState<IncentiveScheme | null>(
+    null,
+  );
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   // 1. Fetch Summary Metrics from Authoritative Backend
@@ -134,12 +148,16 @@ export const IncentivesDashboardView: React.FC = () => {
     isFetching: isSchemesFetching,
     refetch: refetchSchemes,
   } = useQuery({
-    queryKey: ["incentives", "schemes", { page, search, statusFilter, typeFilter }],
+    queryKey: [
+      "incentives",
+      "schemes",
+      { page, search: debouncedSearch, statusFilter, typeFilter },
+    ],
     queryFn: () =>
       incentivesApi.listSchemes({
         page,
         limit: 10,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         status: statusFilter !== "all" ? statusFilter : undefined,
         schemeType: typeFilter !== "all" ? typeFilter : undefined,
       }),
@@ -165,13 +183,15 @@ export const IncentivesDashboardView: React.FC = () => {
     queryKey: ["staff", "dropdown", currentBranchId],
     queryFn: async () => {
       try {
-        const res = await apiClient.get<{ success: boolean; data: ApiDropdownRecord[] }>(
-          "/staff",
-          { params: { branchId: summaryBranchId } },
-        );
+        const res = await apiClient.get<{
+          success: boolean;
+          data: ApiDropdownRecord[];
+        }>("/staff", { params: { branchId: summaryBranchId } });
         return (res.data.data || []).map(normalizeDropdownRecord);
       } catch (error: unknown) {
-        toast.error(getIncentiveErrorMessage(error, "Could not load eligible staff."));
+        toast.error(
+          getIncentiveErrorMessage(error, "Could not load eligible staff."),
+        );
         throw error;
       }
     },
@@ -187,7 +207,9 @@ export const IncentivesDashboardView: React.FC = () => {
         const { branches: branchRecords } = await getBranches();
         return branchRecords.map(normalizeDropdownRecord);
       } catch (error: unknown) {
-        toast.error(getIncentiveErrorMessage(error, "Could not load available branches."));
+        toast.error(
+          getIncentiveErrorMessage(error, "Could not load available branches."),
+        );
         throw error;
       }
     },
@@ -197,7 +219,8 @@ export const IncentivesDashboardView: React.FC = () => {
 
   // Mutations
   const createSchemeMutation = useMutation({
-    mutationFn: (values: CreateIncentiveSchemeRequest) => incentivesApi.createScheme(values),
+    mutationFn: (values: CreateIncentiveSchemeRequest) =>
+      incentivesApi.createScheme(values),
     onSuccess: () => {
       toast.success("Incentive scheme created successfully in draft status");
       setIsBuilderOpen(false);
@@ -217,7 +240,8 @@ export const IncentivesDashboardView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["incentives", "schemes"] });
       queryClient.invalidateQueries({ queryKey: ["incentives", "summary"] });
     },
-    onError: (err: unknown) => toast.error(getIncentiveErrorMessage(err, "Failed to activate scheme")),
+    onError: (err: unknown) =>
+      toast.error(getIncentiveErrorMessage(err, "Failed to activate scheme")),
   });
 
   const pauseSchemeMutation = useMutation({
@@ -228,7 +252,8 @@ export const IncentivesDashboardView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["incentives", "schemes"] });
       queryClient.invalidateQueries({ queryKey: ["incentives", "summary"] });
     },
-    onError: (err: unknown) => toast.error(getIncentiveErrorMessage(err, "Failed to pause scheme")),
+    onError: (err: unknown) =>
+      toast.error(getIncentiveErrorMessage(err, "Failed to pause scheme")),
   });
 
   const archiveSchemeMutation = useMutation({
@@ -239,15 +264,21 @@ export const IncentivesDashboardView: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["incentives", "schemes"] });
       queryClient.invalidateQueries({ queryKey: ["incentives", "summary"] });
     },
-    onError: (err: unknown) => toast.error(getIncentiveErrorMessage(err, "Failed to archive scheme")),
+    onError: (err: unknown) =>
+      toast.error(getIncentiveErrorMessage(err, "Failed to archive scheme")),
   });
 
   const createAssignmentMutation = useMutation({
-    mutationFn: (values: SchemeAssignmentRequest) => incentivesApi.createAssignment(values),
+    mutationFn: (values: SchemeAssignmentRequest) =>
+      incentivesApi.createAssignment(values),
     onSuccess: () => {
-      toast.success("Scheme assigned successfully under ScopeLock serialization");
+      toast.success(
+        "Scheme assigned successfully under ScopeLock serialization",
+      );
       setIsAssignmentOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["incentives", "assignments"] });
+      queryClient.invalidateQueries({
+        queryKey: ["incentives", "assignments"],
+      });
     },
     onError: (err: unknown) => {
       toast.error(getIncentiveErrorMessage(err, "Failed to assign scheme"));
@@ -260,10 +291,13 @@ export const IncentivesDashboardView: React.FC = () => {
         <div className="p-4 rounded-full bg-destructive/10 text-destructive mb-4">
           <ShieldAlert className="w-10 h-10" />
         </div>
-        <h2 className="text-xl font-bold text-zinc-900 mb-2">Access Restricted</h2>
+        <h2 className="text-xl font-bold text-zinc-900 mb-2">
+          Access Restricted
+        </h2>
         <p className="text-sm text-muted-foreground max-w-md">
-          You do not have permission to view or manage Incentives and Performance configuration.
-          Contact your salon administrator to request access.
+          You do not have permission to view or manage Incentives and
+          Performance configuration. Contact your salon administrator to request
+          access.
         </p>
       </div>
     );
@@ -286,10 +320,12 @@ export const IncentivesDashboardView: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary" /> Incentives & Performance
+            <TrendingUp className="w-6 h-6 text-primary" /> Incentives &
+            Performance
           </h1>
           <p className="text-sm text-muted-foreground">
-            Deterministic revenue commission engine, fulfillment dual-gating, ledger auditing, and clawback management.
+            Deterministic revenue commission engine, fulfillment dual-gating,
+            ledger auditing, and clawback management.
           </p>
         </div>
 
@@ -333,7 +369,10 @@ export const IncentivesDashboardView: React.FC = () => {
           className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
         >
           <span>
-            {getIncentiveErrorMessage(summaryError, "Could not load Incentives summary.")}
+            {getIncentiveErrorMessage(
+              summaryError,
+              "Could not load Incentives summary.",
+            )}
           </span>
           <Button
             type="button"
@@ -357,7 +396,9 @@ export const IncentivesDashboardView: React.FC = () => {
           </CardHeader>
           <CardContent className="px-4 pb-3">
             <div className="text-2xl font-bold text-zinc-900">
-              {isSummaryLoading || isSummaryError ? "—" : formatRupees(summaryMetrics?.netAccruedPaise || 0)}
+              {isSummaryLoading || isSummaryError
+                ? "—"
+                : formatRupees(summaryMetrics?.netAccruedPaise || 0)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Accruals minus returns & clawbacks
@@ -375,7 +416,9 @@ export const IncentivesDashboardView: React.FC = () => {
           </CardHeader>
           <CardContent className="px-4 pb-3">
             <div className="text-2xl font-bold text-amber-600">
-              {isSummaryLoading || isSummaryError ? "—" : summaryMetrics?.pendingFulfillmentCount || 0}
+              {isSummaryLoading || isSummaryError
+                ? "—"
+                : summaryMetrics?.pendingFulfillmentCount || 0}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Settled invoices awaiting service completion
@@ -393,7 +436,9 @@ export const IncentivesDashboardView: React.FC = () => {
           </CardHeader>
           <CardContent className="px-4 pb-3">
             <div className="text-2xl font-bold text-red-600">
-              {isSummaryLoading || isSummaryError ? "—" : formatRupees(summaryMetrics?.outstandingRecoveryPaise || 0)}
+              {isSummaryLoading || isSummaryError
+                ? "—"
+                : formatRupees(summaryMetrics?.outstandingRecoveryPaise || 0)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Clawbacks pending recovery in future payouts
@@ -411,7 +456,9 @@ export const IncentivesDashboardView: React.FC = () => {
           </CardHeader>
           <CardContent className="px-4 pb-3">
             <div className="text-2xl font-bold text-zinc-900">
-              {isSummaryLoading || isSummaryError ? "—" : summaryMetrics?.schemes?.active || 0}{" "}
+              {isSummaryLoading || isSummaryError
+                ? "—"
+                : summaryMetrics?.schemes?.active || 0}{" "}
               <span className="text-xs font-normal text-muted-foreground">
                 {isSummaryLoading || isSummaryError
                   ? ""
@@ -587,8 +634,16 @@ export const IncentivesDashboardView: React.FC = () => {
                   {isSchemesError ? (
                     <tr>
                       <td colSpan={5} className="py-8 px-4">
-                        <div role="alert" className="flex flex-col items-center gap-3 text-center">
-                          <span>{getIncentiveErrorMessage(schemesError, "Could not load incentive schemes.")}</span>
+                        <div
+                          role="alert"
+                          className="flex flex-col items-center gap-3 text-center"
+                        >
+                          <span>
+                            {getIncentiveErrorMessage(
+                              schemesError,
+                              "Could not load incentive schemes.",
+                            )}
+                          </span>
                           <Button
                             type="button"
                             variant="outline"
@@ -596,32 +651,51 @@ export const IncentivesDashboardView: React.FC = () => {
                             disabled={isSchemesFetching}
                             onClick={() => refetchSchemes()}
                           >
-                            {isSchemesFetching ? "Retrying..." : "Retry schemes"}
+                            {isSchemesFetching
+                              ? "Retrying..."
+                              : "Retry schemes"}
                           </Button>
                         </div>
                       </td>
                     </tr>
                   ) : isSchemesLoading ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={5}
+                        className="py-8 text-center text-muted-foreground"
+                      >
                         Loading incentive schemes...
                       </td>
                     </tr>
                   ) : schemes.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-muted-foreground">
+                      <td
+                        colSpan={5}
+                        className="py-12 text-center text-muted-foreground"
+                      >
                         <div className="space-y-1">
-                          <p className="font-semibold text-zinc-900">No incentive schemes found</p>
-                          <p className="text-xs">Create your first commission plan to get started.</p>
+                          <p className="font-semibold text-zinc-900">
+                            No incentive schemes found
+                          </p>
+                          <p className="text-xs">
+                            Create your first commission plan to get started.
+                          </p>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    schemes.map((s) => (
-                      <tr key={s.id} className="hover:bg-zinc-50/70 transition-colors">
+                    schemes.map((s: IncentiveScheme) => (
+                      <tr
+                        key={s.id}
+                        className="hover:bg-zinc-50/70 transition-colors"
+                      >
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-zinc-900">{s.name}</div>
-                          <div className="text-[11px] font-mono text-muted-foreground">{s.code}</div>
+                          <div className="font-semibold text-zinc-900">
+                            {s.name}
+                          </div>
+                          <div className="text-[11px] font-mono text-muted-foreground">
+                            {s.code}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-medium text-zinc-900">
@@ -639,12 +713,18 @@ export const IncentivesDashboardView: React.FC = () => {
                         <td className="py-3 px-4">
                           {s.rules?.tiers && s.rules.tiers.length > 0 ? (
                             <span className="font-medium">
-                              {s.rules.tiers.length} Graduated Tier{s.rules.tiers.length > 1 ? "s" : ""}
+                              {s.rules.tiers.length} Graduated Tier
+                              {s.rules.tiers.length > 1 ? "s" : ""}
                             </span>
                           ) : s.rules?.fixedAmountPaise > 0 ? (
-                            <span>Fixed: ₹{(s.rules.fixedAmountPaise / 100).toFixed(2)}</span>
+                            <span>
+                              Fixed: ₹
+                              {(s.rules.fixedAmountPaise / 100).toFixed(2)}
+                            </span>
                           ) : (
-                            <span className="text-muted-foreground">Default Rate</span>
+                            <span className="text-muted-foreground">
+                              Default Rate
+                            </span>
                           )}
                         </td>
                         <td className="py-3 px-4">
@@ -710,12 +790,18 @@ export const IncentivesDashboardView: React.FC = () => {
         <div className="space-y-4">
           <div className="bg-zinc-50 border rounded-lg p-3 text-xs text-zinc-700 flex items-center justify-between">
             <div>
-              <strong>Authoritative Scope Precedence:</strong> When evaluating commission at settlement,
-              the engine matches <code>STAFF</code> scope first &rarr; falls back to <code>BRANCH</code> &rarr;
-              then <code>ORGANIZATION</code> default. Ambiguous overlapping assignments are strictly rejected.
+              <strong>Authoritative Scope Precedence:</strong> When evaluating
+              commission at settlement, the engine matches <code>STAFF</code>{" "}
+              scope first &rarr; falls back to <code>BRANCH</code> &rarr; then{" "}
+              <code>ORGANIZATION</code> default. Ambiguous overlapping
+              assignments are strictly rejected.
             </div>
             {canManage && (
-              <Button size="sm" onClick={() => setIsAssignmentOpen(true)} className="h-8 gap-1 text-xs shrink-0 ml-4">
+              <Button
+                size="sm"
+                onClick={() => setIsAssignmentOpen(true)}
+                className="h-8 gap-1 text-xs shrink-0 ml-4"
+              >
                 <Plus className="w-3.5 h-3.5" /> Assign Scheme
               </Button>
             )}
@@ -738,8 +824,16 @@ export const IncentivesDashboardView: React.FC = () => {
                   {isAssignmentsError ? (
                     <tr>
                       <td colSpan={6} className="py-8 px-4">
-                        <div role="alert" className="flex flex-col items-center gap-3 text-center">
-                          <span>{getIncentiveErrorMessage(assignmentsError, "Could not load scheme assignments.")}</span>
+                        <div
+                          role="alert"
+                          className="flex flex-col items-center gap-3 text-center"
+                        >
+                          <span>
+                            {getIncentiveErrorMessage(
+                              assignmentsError,
+                              "Could not load scheme assignments.",
+                            )}
+                          </span>
                           <Button
                             type="button"
                             variant="outline"
@@ -747,50 +841,82 @@ export const IncentivesDashboardView: React.FC = () => {
                             disabled={isAssignmentsFetching}
                             onClick={() => refetchAssignments()}
                           >
-                            {isAssignmentsFetching ? "Retrying..." : "Retry assignments"}
+                            {isAssignmentsFetching
+                              ? "Retrying..."
+                              : "Retry assignments"}
                           </Button>
                         </div>
                       </td>
                     </tr>
                   ) : isAssignmentsLoading ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                      <td
+                        colSpan={6}
+                        className="py-8 text-center text-muted-foreground"
+                      >
                         Loading scope assignments...
                       </td>
                     </tr>
                   ) : (assignmentsData?.data || []).length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <td
+                        colSpan={6}
+                        className="py-12 text-center text-muted-foreground"
+                      >
                         No active scheme assignments configured.
                       </td>
                     </tr>
                   ) : (
                     (assignmentsData?.data || []).map((a: SchemeAssignment) => {
-                      const schemeObj = typeof a.schemeId === "object" ? a.schemeId : null;
+                      const schemeObj =
+                        typeof a.schemeId === "object" ? a.schemeId : null;
                       const assignedStaff =
                         a.scopeType === "STAFF"
-                          ? staffList.find((staff) => String(staff._id || staff.id) === String(a.scopeId))
+                          ? staffList.find(
+                              (staff: {
+                                _id?: string;
+                                id?: string;
+                                name?: string;
+                              }) =>
+                                String(staff._id || staff.id) ===
+                                String(a.scopeId),
+                            )
                           : null;
                       const assignedBranch =
                         a.scopeType === "BRANCH"
-                          ? branches.find((branch) => String(branch._id || branch.id) === String(a.scopeId))
+                          ? branches.find(
+                              (branch: {
+                                _id?: string;
+                                id?: string;
+                                name?: string;
+                              }) =>
+                                String(branch._id || branch.id) ===
+                                String(a.scopeId),
+                            )
                           : null;
                       return (
                         <tr key={a.id} className="hover:bg-zinc-50/70">
                           <td className="py-3 px-4 font-semibold text-zinc-900">
                             {schemeObj?.name || "Assigned Scheme"}
                             {schemeObj?.code && (
-                              <div className="text-[11px] font-mono text-muted-foreground">{schemeObj.code}</div>
+                              <div className="text-[11px] font-mono text-muted-foreground">
+                                {schemeObj.code}
+                              </div>
                             )}
                           </td>
                           <td className="py-3 px-4">
-                            <Badge variant="outline" className="font-semibold text-[10px]">
+                            <Badge
+                              variant="outline"
+                              className="font-semibold text-[10px]"
+                            >
                               {a.scopeType}
                             </Badge>
                           </td>
                           <td className="py-3 px-4 font-mono text-[11px]">
                             {a.scopeType === "ORGANIZATION" ? (
-                              <span className="text-muted-foreground">Tenant-wide Default</span>
+                              <span className="text-muted-foreground">
+                                Tenant-wide Default
+                              </span>
                             ) : a.scopeType === "STAFF" ? (
                               assignedStaff ? (
                                 <span className="font-sans text-xs text-zinc-900">
@@ -802,13 +928,19 @@ export const IncentivesDashboardView: React.FC = () => {
                                   )}
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground">Staff record unavailable</span>
+                                <span className="text-muted-foreground">
+                                  Staff record unavailable
+                                </span>
                               )
                             ) : a.scopeType === "BRANCH" ? (
                               assignedBranch ? (
-                                <span className="font-sans text-xs text-zinc-900">{assignedBranch.name}</span>
+                                <span className="font-sans text-xs text-zinc-900">
+                                  {assignedBranch.name}
+                                </span>
                               ) : (
-                                <span className="text-muted-foreground">Branch record unavailable</span>
+                                <span className="text-muted-foreground">
+                                  Branch record unavailable
+                                </span>
                               )
                             ) : (
                               a.scopeId || "N/A"
@@ -816,9 +948,13 @@ export const IncentivesDashboardView: React.FC = () => {
                           </td>
                           <td className="py-3 px-4">
                             {new Date(a.startDate).toLocaleDateString()} &ndash;{" "}
-                            {a.endDate ? new Date(a.endDate).toLocaleDateString() : "Ongoing"}
+                            {a.endDate
+                              ? new Date(a.endDate).toLocaleDateString()
+                              : "Ongoing"}
                           </td>
-                          <td className="py-3 px-4 font-semibold">{a.priority}</td>
+                          <td className="py-3 px-4 font-semibold">
+                            {a.priority}
+                          </td>
                           <td className="py-3 px-4">
                             <Badge
                               variant="outline"
@@ -861,9 +997,12 @@ export const IncentivesDashboardView: React.FC = () => {
                 <Info className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-neutral-900">Incentive Settlement & Dual-Gate Architecture</h3>
+                <h3 className="text-base font-semibold text-neutral-900">
+                  Incentive Settlement & Dual-Gate Architecture
+                </h3>
                 <p className="text-xs text-neutral-500 mt-0.5">
-                  How revenue commissions are accrued, verified, and settled in Unisex Parlour ERP.
+                  How revenue commissions are accrued, verified, and settled in
+                  Unisex Parlour ERP.
                 </p>
               </div>
             </div>
@@ -871,42 +1010,64 @@ export const IncentivesDashboardView: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
               <div className="p-4 rounded-lg border border-neutral-200 bg-neutral-50/50 space-y-2">
                 <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">1</span>
+                  <span className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">
+                    1
+                  </span>
                   Financial Settlement Gate
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
-                  Incentives are created only when an invoice reaches full financial settlement. Unpaid, pending, or partial invoices never accrue commissions.
+                  Incentives are created only when an invoice reaches full
+                  financial settlement. Unpaid, pending, or partial invoices
+                  never accrue commissions.
                 </p>
               </div>
 
               <div className="p-4 rounded-lg border border-neutral-200 bg-neutral-50/50 space-y-2">
                 <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">2</span>
+                  <span className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">
+                    2
+                  </span>
                   Physical Fulfillment Gate
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
-                  For service line items, verified execution is required. Entries begin with <code className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded font-mono">pending</code> fulfillment status and only unlock for payroll upon confirmed completion.
+                  For service line items, verified execution is required.
+                  Entries begin with{" "}
+                  <code className="text-amber-700 bg-amber-50 px-1 py-0.5 rounded font-mono">
+                    pending
+                  </code>{" "}
+                  fulfillment status and only unlock for payroll upon confirmed
+                  completion.
                 </p>
               </div>
 
               <div className="p-4 rounded-lg border border-neutral-200 bg-neutral-50/50 space-y-2">
                 <div className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">3</span>
+                  <span className="w-5 h-5 rounded-full bg-neutral-900 text-white flex items-center justify-center text-[10px]">
+                    3
+                  </span>
                   Clawbacks & Recovery
                 </div>
                 <p className="text-xs text-neutral-600 leading-relaxed">
-                  Invoice voids or product returns produce immutable <code className="text-red-700 bg-red-50 px-1 py-0.5 rounded font-mono">CLAWBACK</code> entries. Outstanding amounts form recovery obligations that persist across payout cycles.
+                  Invoice voids or product returns produce immutable{" "}
+                  <code className="text-red-700 bg-red-50 px-1 py-0.5 rounded font-mono">
+                    CLAWBACK
+                  </code>{" "}
+                  entries. Outstanding amounts form recovery obligations that
+                  persist across payout cycles.
                 </p>
               </div>
             </div>
 
             <div className="p-4 rounded-lg bg-amber-50/80 border border-amber-200/80 text-xs text-amber-900 space-y-1">
               <p className="font-semibold flex items-center gap-1">
-                <ShieldAlert className="w-4 h-4 text-amber-700" /> Boundary Notice: Incentives vs. Payroll
+                <ShieldAlert className="w-4 h-4 text-amber-700" /> Boundary
+                Notice: Incentives vs. Payroll
               </p>
               <p className="text-amber-800 leading-relaxed">
-                The Incentives calculation engine is purely authoritative for commission accrual and recovery tracking.
-                Monthly payout batches, salary disbursements, and tax deductions are handled separately by the Payroll domain.
+                The Incentives calculation engine is purely authoritative for
+                commission accrual and recovery tracking. Monthly payout
+                batches, salary disbursements, and tax deductions are handled
+                separately by the Payroll domain.
               </p>
             </div>
           </Card>

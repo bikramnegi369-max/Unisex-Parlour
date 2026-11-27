@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   AlertTriangle,
   CalendarClock,
@@ -104,6 +105,7 @@ export default function AttendanceWorkspace() {
       ? dateSelection.date
       : branchToday(currentBranch?.timezone);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState("all");
   const [panel, setPanel] = useState<Panel>("register");
   const [staffId, setStaffId] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export default function AttendanceWorkspace() {
   const toggleProviderMutation = useToggleProviderConfigurationStatus();
   const syncProviderNow = useSyncProviderNow();
 
-  const register = useAttendanceRegister(date, search, statusFilter);
+  const register = useAttendanceRegister(date, debouncedSearch, statusFilter);
   const detail = useAttendanceDetail(staffId, date);
   const branchConflicts = useBranchAttendanceConflicts();
   const appointmentConflicts = useLeaveAppointmentConflicts(date);
@@ -477,6 +479,31 @@ export default function AttendanceWorkspace() {
                         {detail.data.staff.staffCode} ·{" "}
                         {displayStatus(detail.data.status)}
                       </p>
+                      {(detail.data.staff as unknown as {
+                        deviceMappings?: Array<{
+                          provider: string;
+                          deviceId: string;
+                          externalEmployeeCode: string;
+                        }>;
+                      }).deviceMappings?.length ? (
+                        <p className="text-xs text-muted-foreground">
+                          Device:{" "}
+                          {(
+                            detail.data.staff as unknown as {
+                              deviceMappings: Array<{
+                                provider: string;
+                                deviceId: string;
+                                externalEmployeeCode: string;
+                              }>;
+                            }
+                          ).deviceMappings
+                            .map(
+                              (m) =>
+                                `${m.deviceId} (${m.externalEmployeeCode})`,
+                            )
+                            .join(", ")}
+                        </p>
+                      ) : null}
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div>
@@ -494,21 +521,54 @@ export default function AttendanceWorkspace() {
                               (punch: AttendancePunch) => (
                                 <li
                                   key={punch._id}
-                                  className="flex justify-between gap-2 text-sm"
+                                  className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
                                 >
-                                  <span className="capitalize">
-                                    {punch.punchType} · {punch.provider}
-                                  </span>
-                                  <time className="text-muted-foreground">
-                                    {new Date(punch.punchAt).toLocaleTimeString(
-                                      [],
-                                      {
-                                        hour: "2-digit",
-                                        minute: "2-digit",
-                                        timeZone: detail.data?.timezone,
-                                      },
-                                    )}
-                                  </time>
+                                  <div className="flex flex-col">
+                                    <span className="font-medium capitalize">
+                                      {punch.punchType} · {punch.provider}
+                                    </span>
+                                    {punch.deviceId ? (
+                                      <span className="text-xs text-muted-foreground">
+                                        Device: {punch.deviceId}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <time className="text-muted-foreground">
+                                      {new Date(punch.punchAt).toLocaleTimeString(
+                                        [],
+                                        {
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                          timeZone: detail.data?.timezone,
+                                        },
+                                      )}
+                                    </time>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 px-2 text-xs"
+                                      onClick={async () => {
+                                        const reason = window.prompt(
+                                          `Reason for switching punch to ${punch.punchType === "in" ? "OUT" : "IN"}:`,
+                                          "Biometric device missed M_Flag",
+                                        );
+                                        if (!reason || reason.trim().length < 3) return;
+                                        const { adjustAttendancePunch } = await import(
+                                          "../api/attendance.api"
+                                        );
+                                        await adjustAttendancePunch(punch._id, {
+                                          action: "toggle_type",
+                                          reason: reason.trim(),
+                                        });
+                                        detail.refetch();
+                                      }}
+                                    >
+                                      Switch to{" "}
+                                      {punch.punchType === "in" ? "Out" : "In"}
+                                    </Button>
+                                  </div>
                                 </li>
                               ),
                             )}

@@ -1,5 +1,5 @@
 export interface MetricWithComparison {
-  current: number | null;
+  current: number;
   previous: number | null;
   percentageChange?: number | null;
   percentagePointsChange?: number | null;
@@ -8,26 +8,50 @@ export interface MetricWithComparison {
 
 export interface ReportMeta {
   organizationId: string;
-  branchId: string;
+  branchId: string | null;
   branchName: string;
   currency: string;
   startDate: string;
   endDate: string;
-  comparisonStartDate: string;
-  comparisonEndDate: string;
+  comparisonStartDate: string | null;
+  comparisonEndDate: string | null;
   timezone: string;
   generatedAt: string;
 }
 
+export interface ReportPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export type PaginatedReportParams = ReportsFilterParams & {
+  page: number;
+  limit: number;
+};
+
+export type ServiceAnalyticsReportParams = PaginatedReportParams & {
+  categoryPage: number;
+  categoryLimit: number;
+};
+
+export type InventoryReportParams = ReportsFilterParams & {
+  lowStockPage: number;
+  lowStockLimit: number;
+  movementPage: number;
+  movementLimit: number;
+};
+
 export interface ReportsOverviewResponse {
   meta: ReportMeta;
   summary: {
-    netSalesBilled: MetricWithComparison;
-    moneyCollected: MetricWithComparison;
-    completedServices: MetricWithComparison;
-    totalVisitingClients: MetricWithComparison;
-    repeatVisitRate: MetricWithComparison;
-    lowStockItemCount: number;
+    netSalesBilled: MetricWithComparison | null;
+    moneyCollected: MetricWithComparison | null;
+    completedServices: MetricWithComparison | null;
+    totalVisitingClients: MetricWithComparison | null;
+    repeatVisitRate: MetricWithComparison | null;
+    lowStockItemCount: number | null;
   };
   operationalSignals: Array<{
     id: string;
@@ -69,13 +93,13 @@ export interface RevenueReportResponse {
     transactionCount: number;
     percentageOfTotal: number;
   }>;
-  timeSeries?: Array<{
+  timeSeries: Array<{
     date: string;
     billedSales: number;
     moneyCollected: number;
     refunds: number;
   }>;
-  recentTransactions?: Array<{
+  recentTransactions: Array<{
     invoiceId: string;
     invoiceNumber: string;
     clientName: string;
@@ -85,6 +109,9 @@ export interface RevenueReportResponse {
     dueAmount: number;
     paymentStatus: string;
   }>;
+  pagination: {
+    recentTransactions: ReportPagination;
+  };
 }
 
 export interface StaffPerformanceRanking {
@@ -95,8 +122,9 @@ export interface StaffPerformanceRanking {
   serviceHours: number;
   serviceRevenueCredit: number;
   retailSalesCredit: number;
+  packageSalesCredit: number;
+  totalRevenueContribution: number;
   totalRevenueCredit: number;
-  averageTicket: number;
 }
 
 export interface StaffPerformanceReportResponse {
@@ -109,6 +137,9 @@ export interface StaffPerformanceReportResponse {
     topPerformingStaffName: string | null;
   };
   rankings: StaffPerformanceRanking[];
+  pagination: {
+    rankings: ReportPagination;
+  };
 }
 
 export interface CustomerDirectoryEntry {
@@ -144,6 +175,9 @@ export interface CustomerRetentionReportResponse {
     percentageOfTotal: number;
   }>;
   clientDirectory: CustomerDirectoryEntry[];
+  pagination: {
+    clientDirectory: ReportPagination;
+  };
 }
 
 export interface ServicePerformanceEntry {
@@ -168,19 +202,24 @@ export interface ServiceAnalyticsReportResponse {
   summary: {
     totalServicesCompleted: MetricWithComparison;
     averageServiceTicket: MetricWithComparison;
-    mostRequestedServiceName: string | null;
-    topRevenueCategoryName: string | null;
+    mostRequestedServiceName: string;
+    topRevenueCategoryName: string;
   };
   topServices: ServicePerformanceEntry[];
   categoryShare: ServiceCategoryShare[];
+  pagination: {
+    topServices: ReportPagination;
+    categoryShare: ReportPagination;
+  };
 }
 
 export interface InventoryLowStockAlert {
+  stockBalanceId: string;
   productId: string;
   name: string;
   sku: string;
   category: string;
-  usageType: "consumables" | "retail" | "both";
+  usageType: "salon_consumption" | "retail_sale" | "both";
   onHandConsumables: number;
   onHandRetail: number;
   totalOnHand: number;
@@ -195,7 +234,7 @@ export interface InventoryMovementLogEntry {
   sku: string;
   movementType: string;
   quantityDelta: number;
-  stockDomain: "consumables" | "retail";
+  stockDomain: "salon_consumables" | "retail_products" | "general";
   actorName: string;
   notes: string;
 }
@@ -212,10 +251,14 @@ export interface InventoryReportResponse {
   };
   lowStockAlerts: InventoryLowStockAlert[];
   movementLogs: InventoryMovementLogEntry[];
+  pagination: {
+    lowStockAlerts: ReportPagination;
+    movementLogs: ReportPagination;
+  };
 }
 
 export interface ReportsFilterParams {
   startDate: string;
   endDate: string;
-  compareWith?: "previous_period" | "none";
+  compareWith?: "previous_period" | "previous_year" | "none";
 }

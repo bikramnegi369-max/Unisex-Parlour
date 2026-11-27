@@ -1,13 +1,14 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { RevenueReportView } from "../components/RevenueReportView";
 import { StaffPerformanceReportView } from "../components/StaffPerformanceReportView";
 import { CustomerRetentionReportView } from "../components/CustomerRetentionReportView";
 import { ServiceAnalyticsReportView } from "../components/ServiceAnalyticsReportView";
 import { InventoryReportView } from "../components/InventoryReportView";
+import { OverviewReportView } from "../components/OverviewReportView";
 import ReportsPage from "@/app/(dashboard)/reports/page";
 
 import {
@@ -16,34 +17,217 @@ import {
   CustomerRetentionReportResponse,
   ServiceAnalyticsReportResponse,
   InventoryReportResponse,
+  ReportsOverviewResponse,
+  PaginatedReportParams,
 } from "../types/reports.types";
 
 // Mock auth hook to control user permissions
 const mockUseAuth = vi.fn();
+const reportHookMocks = vi.hoisted(() => ({
+  useReportsOverview: vi.fn(),
+  useRevenueReport: vi.fn(),
+  useStaffPerformanceReport: vi.fn(),
+  useCustomerRetentionReport: vi.fn(),
+  useServiceAnalyticsReport: vi.fn(),
+  useInventoryReport: vi.fn(),
+  useBranchContext: vi.fn(),
+}));
 vi.mock("@/features/auth/hooks/useAuth", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
 // Mock branch context hook
 vi.mock("@/hooks/useBranchContext", () => ({
-  useBranchContext: () => ({
-    branchKey: "branch-001",
-    currentBranchId: "branch-001",
-    availableBranches: [{ id: "branch-001", name: "Downtown Salon" }],
-  }),
+  useBranchContext: reportHookMocks.useBranchContext,
 }));
 
 // Mock reports hooks for page level test
 vi.mock("../hooks/useReports", () => ({
-  useReportsOverview: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
-  useRevenueReport: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
-  useStaffPerformanceReport: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
-  useCustomerRetentionReport: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
-  useServiceAnalyticsReport: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
-  useInventoryReport: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
+  useReportsOverview: reportHookMocks.useReportsOverview,
+  useRevenueReport: reportHookMocks.useRevenueReport,
+  useStaffPerformanceReport: reportHookMocks.useStaffPerformanceReport,
+  useCustomerRetentionReport: reportHookMocks.useCustomerRetentionReport,
+  useServiceAnalyticsReport: reportHookMocks.useServiceAnalyticsReport,
+  useInventoryReport: reportHookMocks.useInventoryReport,
 }));
 
+beforeEach(() => {
+  mockUseAuth.mockReturnValue({
+    user: {
+      id: "report-user",
+      permissions: [
+        "reports.revenue.view",
+        "reports.performance.view",
+        "reports.retention.view",
+        "reports.services.view",
+        "reports.inventory.view",
+      ],
+    },
+  });
+  reportHookMocks.useBranchContext.mockReturnValue({
+    branchKey: "branch-001",
+    currentBranchId: "branch-001",
+    availableBranches: [{ id: "branch-001", name: "Downtown Salon" }],
+  });
+  [
+    reportHookMocks.useReportsOverview,
+    reportHookMocks.useRevenueReport,
+    reportHookMocks.useStaffPerformanceReport,
+    reportHookMocks.useCustomerRetentionReport,
+    reportHookMocks.useServiceAnalyticsReport,
+    reportHookMocks.useInventoryReport,
+  ].forEach((hook) => {
+    hook.mockReturnValue({ data: null, isLoading: false, refetch: vi.fn() });
+  });
+});
+
+afterEach(() => {
+  cleanup();
+});
+
 describe("Reports & Analytics Views Component Test Suite", () => {
+  it("uses server pagination and resets report pages when filters or branch scope change", async () => {
+    const metric = { current: 0, previous: null, trend: "neutral" as const };
+    reportHookMocks.useRevenueReport.mockImplementation((params: PaginatedReportParams) => ({
+      isLoading: false,
+      refetch: vi.fn(),
+      data: {
+        meta: {
+          organizationId: "org-1",
+          branchId: "branch-1",
+          branchName: "Downtown",
+          currency: "INR",
+          startDate: params.startDate,
+          endDate: params.endDate,
+          comparisonStartDate: null,
+          comparisonEndDate: null,
+          timezone: "Asia/Kolkata",
+          generatedAt: "",
+        },
+        summary: {
+          grossBilled: metric,
+          totalDiscounts: metric,
+          subscriptionCoveredValue: metric,
+          netBilled: metric,
+          grossCollected: metric,
+          refundsIssued: metric,
+          netCollected: metric,
+          outstandingReceivables: metric,
+        },
+        streams: {
+          servicesBilled: 0,
+          retailBilled: 0,
+          membershipsBilled: 0,
+          subscriptionsBilled: 0,
+        },
+        tenderBreakdown: [],
+        timeSeries: [],
+        recentTransactions: [],
+        pagination: {
+          recentTransactions: {
+            page: params.page,
+            limit: params.limit,
+            total: 25,
+            totalPages: Math.ceil(25 / params.limit),
+          },
+        },
+      },
+    }));
+
+    const { container, rerender } = render(<ReportsPage />);
+    fireEvent.click(screen.getByRole("button", { name: /revenue & collections/i }));
+
+    await waitFor(() => {
+      expect(reportHookMocks.useRevenueReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, limit: 10 }),
+        true,
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to page 2" }));
+    await waitFor(() => {
+      expect(reportHookMocks.useRevenueReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 2, limit: 10 }),
+        true,
+      );
+    });
+
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(dateInputs[0], { target: { value: "2026-03-01" } });
+    await waitFor(() => {
+      expect(reportHookMocks.useRevenueReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, startDate: "2026-03-01" }),
+        true,
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to page 2" }));
+    fireEvent.change(screen.getByLabelText("Items per page"), {
+      target: { value: "25" },
+    });
+    await waitFor(() => {
+      expect(reportHookMocks.useRevenueReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1, limit: 25 }),
+        true,
+      );
+    });
+
+    fireEvent.change(screen.getByLabelText("Items per page"), {
+      target: { value: "10" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Go to page 2" }));
+    reportHookMocks.useBranchContext.mockReturnValue({
+      branchKey: "branch-002",
+      currentBranchId: "branch-002",
+      availableBranches: [{ id: "branch-002", name: "Uptown Salon" }],
+    });
+    rerender(<ReportsPage />);
+
+    await waitFor(() => {
+      expect(reportHookMocks.useRevenueReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ page: 1 }),
+        true,
+      );
+    });
+  });
+
+  it("renders unavailable overview metrics from permission-filtered API responses", () => {
+    const mockOverviewData: ReportsOverviewResponse = {
+      meta: {
+        organizationId: "org-1",
+        branchId: null,
+        branchName: "All Branches",
+        currency: "INR",
+        startDate: "2026-11-01",
+        endDate: "2026-11-20",
+        comparisonStartDate: null,
+        comparisonEndDate: null,
+        timezone: "Asia/Kolkata",
+        generatedAt: "",
+      },
+      summary: {
+        netSalesBilled: null,
+        moneyCollected: null,
+        completedServices: null,
+        totalVisitingClients: null,
+        repeatVisitRate: null,
+        lowStockItemCount: null,
+      },
+      operationalSignals: [],
+      quickInsights: [],
+    };
+
+    render(
+      <OverviewReportView
+        data={mockOverviewData}
+        isLoading={false}
+        onNavigateTab={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("—")).toHaveLength(6);
+  });
+
   it("renders RevenueReportView with accurate revenue streams and tender breakdown", () => {
     const mockRevenueData: RevenueReportResponse = {
       meta: {
@@ -78,9 +262,21 @@ describe("Reports & Analytics Views Component Test Suite", () => {
         { method: "Cash", amount: 60000, transactionCount: 40, percentageOfTotal: 46.15 },
         { method: "UPI", amount: 68000, transactionCount: 50, percentageOfTotal: 52.31 },
       ],
+      timeSeries: [],
+      recentTransactions: [],
+      pagination: {
+        recentTransactions: { page: 1, limit: 10, total: 0, totalPages: 0 },
+      },
     };
 
-    render(<RevenueReportView data={mockRevenueData} isLoading={false} />);
+    render(
+      <RevenueReportView
+        data={mockRevenueData}
+        isLoading={false}
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
 
     // Check revenue stream numbers format
     expect(screen.getByText(/₹95,000/)).toBeInTheDocument();
@@ -102,8 +298,8 @@ describe("Reports & Analytics Views Component Test Suite", () => {
         currency: "INR",
         startDate: "2026-11-01",
         endDate: "2026-11-20",
-        comparisonStartDate: "",
-        comparisonEndDate: "",
+        comparisonStartDate: null,
+        comparisonEndDate: null,
         timezone: "Asia/Kolkata",
         generatedAt: "",
       },
@@ -123,18 +319,30 @@ describe("Reports & Analytics Views Component Test Suite", () => {
           serviceHours: 32,
           serviceRevenueCredit: 38000,
           retailSalesCredit: 8000,
+          packageSalesCredit: 0,
+          totalRevenueContribution: 46000,
           totalRevenueCredit: 46000,
-          averageTicket: 844,
         },
       ],
+      pagination: {
+        rankings: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      },
     };
 
-    render(<StaffPerformanceReportView data={mockStaffData} isLoading={false} />);
+    render(
+      <StaffPerformanceReportView
+        data={mockStaffData}
+        isLoading={false}
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("Ananya Sharma")).toBeInTheDocument();
     expect(screen.getByText("STY-01")).toBeInTheDocument();
     expect(screen.getByText(/45/)).toBeInTheDocument(); // services count
     expect(screen.getByText(/₹46,000/)).toBeInTheDocument(); // total revenue credit
+    expect(screen.getByRole("navigation", { name: "Pagination Navigation" })).toBeInTheDocument();
   });
 
   it("renders CustomerRetentionReportView respecting phone masking and history completeness badge", () => {
@@ -146,8 +354,8 @@ describe("Reports & Analytics Views Component Test Suite", () => {
         currency: "INR",
         startDate: "2026-11-01",
         endDate: "2026-11-20",
-        comparisonStartDate: "",
-        comparisonEndDate: "",
+        comparisonStartDate: null,
+        comparisonEndDate: null,
         timezone: "Asia/Kolkata",
         generatedAt: "",
       },
@@ -178,9 +386,19 @@ describe("Reports & Analytics Views Component Test Suite", () => {
           statusTier: "active",
         },
       ],
+      pagination: {
+        clientDirectory: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      },
     };
 
-    render(<CustomerRetentionReportView data={mockRetentionData} isLoading={false} />);
+    render(
+      <CustomerRetentionReportView
+        data={mockRetentionData}
+        isLoading={false}
+        onPageChange={vi.fn()}
+        onPageSizeChange={vi.fn()}
+      />,
+    );
 
     // Phone masking preserved
     expect(screen.getByText("+91 ••••• •••89")).toBeInTheDocument();
@@ -191,6 +409,7 @@ describe("Reports & Analytics Views Component Test Suite", () => {
     expect(
       screen.getByText(/Client history truncated to recent migration horizon/i)
     ).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Pagination Navigation" })).toBeInTheDocument();
   });
 
   it("renders ServiceAnalyticsReportView with popular services leaderboard", () => {
@@ -202,8 +421,8 @@ describe("Reports & Analytics Views Component Test Suite", () => {
         currency: "INR",
         startDate: "2026-11-01",
         endDate: "2026-11-20",
-        comparisonStartDate: "",
-        comparisonEndDate: "",
+        comparisonStartDate: null,
+        comparisonEndDate: null,
         timezone: "Asia/Kolkata",
         generatedAt: "",
       },
@@ -232,14 +451,30 @@ describe("Reports & Analytics Views Component Test Suite", () => {
           percentageShare: 70,
         },
       ],
+      pagination: {
+        topServices: { page: 1, limit: 10, total: 1, totalPages: 1 },
+        categoryShare: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      },
     };
 
-    render(<ServiceAnalyticsReportView data={mockServicesData} isLoading={false} />);
+    render(
+      <ServiceAnalyticsReportView
+        data={mockServicesData}
+        isLoading={false}
+        onServicesPageChange={vi.fn()}
+        onServicesPageSizeChange={vi.fn()}
+        onCategoriesPageChange={vi.fn()}
+        onCategoriesPageSizeChange={vi.fn()}
+      />,
+    );
 
     expect(screen.getAllByText("Keratin Treatment").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Hair Care").length).toBeGreaterThan(0);
     expect(screen.getByText(/₹1,04,000/)).toBeInTheDocument();
     expect(screen.getByText("52")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("navigation", { name: "Pagination Navigation" }),
+    ).toHaveLength(2);
   });
 
   it("renders InventoryReportView with strict distinction between Consumables and Retail stock", () => {
@@ -251,8 +486,8 @@ describe("Reports & Analytics Views Component Test Suite", () => {
         currency: "INR",
         startDate: "2026-11-01",
         endDate: "2026-11-20",
-        comparisonStartDate: "",
-        comparisonEndDate: "",
+        comparisonStartDate: null,
+        comparisonEndDate: null,
         timezone: "Asia/Kolkata",
         generatedAt: "",
       },
@@ -266,11 +501,12 @@ describe("Reports & Analytics Views Component Test Suite", () => {
       },
       lowStockAlerts: [
         {
+          stockBalanceId: "balance-1",
           productId: "prod-1",
           name: "L'Oreal Bleach Powder",
           sku: "BLCH-500",
           category: "Hair Chemicals",
-          usageType: "consumables",
+          usageType: "salon_consumption",
           onHandConsumables: 2,
           onHandRetail: 0,
           totalOnHand: 2,
@@ -278,11 +514,12 @@ describe("Reports & Analytics Views Component Test Suite", () => {
           urgency: "critical",
         },
         {
+          stockBalanceId: "balance-2",
           productId: "prod-2",
           name: "Moroccanoil Treatment 100ml",
           sku: "MOR-OIL",
           category: "Retail Haircare",
-          usageType: "retail",
+          usageType: "retail_sale",
           onHandConsumables: 0,
           onHandRetail: 1,
           totalOnHand: 1,
@@ -298,23 +535,39 @@ describe("Reports & Analytics Views Component Test Suite", () => {
           sku: "BLCH-500",
           movementType: "service_consumption",
           quantityDelta: -1,
-          stockDomain: "consumables",
+          stockDomain: "salon_consumables",
           actorName: "Master Stylist",
           notes: "Balayage service",
         },
       ],
+      pagination: {
+        lowStockAlerts: { page: 1, limit: 10, total: 2, totalPages: 1 },
+        movementLogs: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      },
     };
 
-    render(<InventoryReportView data={mockInventoryData} isLoading={false} />);
+    render(
+      <InventoryReportView
+        data={mockInventoryData}
+        isLoading={false}
+        onLowStockPageChange={vi.fn()}
+        onLowStockPageSizeChange={vi.fn()}
+        onMovementPageChange={vi.fn()}
+        onMovementPageSizeChange={vi.fn()}
+      />,
+    );
 
     // Separate consumables and retail low stock entries
     expect(screen.getAllByText("L'Oreal Bleach Powder").length).toBeGreaterThan(0);
     expect(screen.getByText("Moroccanoil Treatment 100ml")).toBeInTheDocument();
-    expect(screen.getAllByText("consumables").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("retail").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("salon_consumption").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("retail_sale").length).toBeGreaterThan(0);
 
     // Movement log
     expect(screen.getByText(/service consumption/i)).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("navigation", { name: "Pagination Navigation" }),
+    ).toHaveLength(2);
   });
 
   it("hides unauthorized report tabs based on user permissions", () => {
