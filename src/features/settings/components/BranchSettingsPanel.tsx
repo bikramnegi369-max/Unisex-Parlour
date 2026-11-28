@@ -53,12 +53,15 @@ export function BranchSettingsPanel() {
   const [draftHours, setHours] = useState<Record<CanonicalWeekday, DayOperatingHours> | null>(null);
   const [draftInheritWeeklyOff, setInheritWeeklyOff] = useState<boolean | null>(null);
   const [draftWeeklyOffDays, setWeeklyOffDays] = useState<number[] | null>(null);
+  const [draftAutoMarkAbsent, setDraftAutoMarkAbsent] = useState<boolean | null>(null);
 
   const timezone = draftTimezone ?? data?.branch.timezone ?? "Asia/Kolkata";
   const bufferMinutes = draftBuffer ?? data?.branch.bufferMinutes ?? 0;
   const hours = draftHours ?? data?.branch.operatingHours ?? DEFAULT_HOURS;
   const inheritWeeklyOff = draftInheritWeeklyOff ?? (data ? data.weeklyOffDays === null : true);
   const weeklyOffDays = draftWeeklyOffDays ?? (data?.weeklyOffDays ?? []);
+  const autoMarkAbsentAfterCutoff =
+    draftAutoMarkAbsent ?? data?.attendanceOverrides?.autoMarkAbsentAfterCutoff ?? false;
 
   if (isAllBranchesSelected || !currentBranchId) {
     return (
@@ -106,6 +109,9 @@ export function BranchSettingsPanel() {
           operatingHours: hours,
         },
         weeklyOffDays: inheritWeeklyOff ? null : weeklyOffDays,
+        attendanceOverrides: {
+          autoMarkAbsentAfterCutoff,
+        },
       });
       toast.success(`Branch settings saved for ${currentBranch?.name || data.branch.name}`);
     } catch (err) {
@@ -277,6 +283,29 @@ export function BranchSettingsPanel() {
             })}
           </div>
         )}
+      </Card>
+
+      {/* Auto-Mark Absent After Cutoff */}
+      <Card className="p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Auto-Mark Absent After Cutoff</h3>
+            <p className="text-xs text-muted-foreground">
+              When enabled, staff without a punch on a scheduled working day are
+              automatically marked absent after the branch closing time plus the
+              attendance grace period.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Enable Auto-Mark Absent</span>
+            <Switch
+              checked={Boolean(autoMarkAbsentAfterCutoff)}
+              onCheckedChange={setDraftAutoMarkAbsent}
+              disabled={!canEdit || updateMutation.isPending}
+              aria-label="Auto-Mark Absent After Cutoff"
+            />
+          </div>
+        </div>
       </Card>
 
       {canEdit && (
