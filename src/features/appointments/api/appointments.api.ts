@@ -121,6 +121,24 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
       extractedSubCode = s.subscriptionCode;
     }
 
+    const rawMem = s.appliedCustomerMembershipId;
+    let extractedMemId: string | null = null;
+    let extractedMemCode: string | null = null;
+
+    if (rawMem && typeof rawMem === "object") {
+      const memObj = rawMem as Record<string, unknown>;
+      extractedMemId = toFlatId(memObj._id || memObj.id) || null;
+      if (typeof memObj.membershipCode === "string") {
+        extractedMemCode = memObj.membershipCode;
+      }
+    } else if (rawMem) {
+      extractedMemId = toFlatId(rawMem) || null;
+    }
+
+    if (!extractedMemCode && typeof s.membershipCode === "string") {
+      extractedMemCode = s.membershipCode;
+    }
+
     return {
       serviceId: flattenedServiceId || null,
       name: (s.name as string) || (s.serviceName as string) || (isCustom ? "Custom Service" : ""),
@@ -142,6 +160,16 @@ export const normalizeAppointment = (raw: Record<string, unknown>): Appointment 
         : (s.subscriptionUsageId as string) ||
           (toFlatId(s.subscriptionUsageId) ? toFlatId(s.subscriptionUsageId) : null) ||
           null,
+      appliedCustomerMembershipId: extractedMemId,
+      membershipCode: extractedMemCode,
+      membershipDiscountAmount:
+        typeof s.membershipDiscountAmount === "number"
+          ? s.membershipDiscountAmount
+          : 0,
+      membershipDiscountPercentage:
+        typeof s.membershipDiscountPercentage === "number"
+          ? s.membershipDiscountPercentage
+          : 0,
     };
   });
 

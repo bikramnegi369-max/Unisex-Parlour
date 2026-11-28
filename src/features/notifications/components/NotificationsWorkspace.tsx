@@ -34,12 +34,8 @@ import PermissionGate from "@/components/layout/PermissionGate";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import {
   useInfiniteNotificationInbox,
   useMarkInboxItemRead,
@@ -113,7 +109,8 @@ function StatusBadge({ status }: { status: string }) {
 
 export function NotificationsWorkspace() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("inbox");
-  const { containerProps: tabScrollProps } = useHorizontalHoverScroll<HTMLDivElement>();
+  const { containerProps: tabScrollProps } =
+    useHorizontalHoverScroll<HTMLDivElement>();
 
   // Logs state
   const [page, setPage] = useState(1);
@@ -277,7 +274,7 @@ export function NotificationsWorkspace() {
 
   const automations = Array.isArray(automationsQuery.data)
     ? automationsQuery.data
-    : automationsQuery.data?.data ?? [];
+    : (automationsQuery.data?.data ?? []);
 
   return (
     <div className="space-y-6 p-6">
@@ -361,124 +358,136 @@ export function NotificationsWorkspace() {
       </div>
 
       {/* TAB 0: MY INBOX */}
-      {activeTab === "inbox" && (() => {
-        const pages = inboxQuery.data?.pages ?? [];
-        const seen = new Set<string>();
-        const items: typeof pages[number]["data"] = [];
-        for (const p of pages) {
-          for (const item of p.data ?? []) {
-            if (!seen.has(item._id)) {
-              seen.add(item._id);
-              items.push(item);
+      {activeTab === "inbox" &&
+        (() => {
+          const pages = inboxQuery.data?.pages ?? [];
+          const seen = new Set<string>();
+          const items: (typeof pages)[number]["data"] = [];
+          for (const p of pages) {
+            for (const item of p.data ?? []) {
+              if (!seen.has(item._id)) {
+                seen.add(item._id);
+                items.push(item);
+              }
             }
           }
-        }
-        const unreadCount = pages[0]?.unreadCount ?? 0;
+          const unreadCount = pages[0]?.unreadCount ?? 0;
 
-        return (
-          <Card>
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  My Inbox
-                  {unreadCount > 0 && (
-                    <Badge variant="default" className="text-xs">
-                      {unreadCount} Unread
-                    </Badge>
-                  )}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Your personal notifications, newest first.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={unreadCount === 0 || markAllRead.isPending}
-                onClick={() => markAllRead.mutate()}
-              >
-                Mark all read
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {inboxQuery.isLoading ? (
-                <div className="flex items-center justify-center py-12 text-muted-foreground">
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Loading your inbox...
+          return (
+            <Card>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    My Inbox
+                    {unreadCount > 0 && (
+                      <Badge variant="default" className="text-xs">
+                        {unreadCount} Unread
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Your personal notifications, newest first.
+                  </p>
                 </div>
-              ) : inboxQuery.isError ? (
-                <div className="text-center py-10 space-y-2 border rounded-lg">
-                  <p className="text-sm text-destructive">Failed to load your inbox.</p>
-                  <Button variant="outline" size="sm" onClick={() => inboxQuery.refetch()}>
-                    Retry
-                  </Button>
-                </div>
-              ) : items.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground border rounded-lg">
-                  You&apos;re all caught up! No notifications yet.
-                </div>
-              ) : (
-                <div className="divide-y border rounded-lg">
-                  {items.map((item) => {
-                    const meta = EVENT_META_BY_TYPE[item.eventType];
-                    return (
-                      <div
-                        key={item._id}
-                        className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                          item.isRead ? "opacity-75" : "bg-primary/5"
-                        }`}
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            {!item.isRead && (
-                              <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
-                            )}
-                            <span className="font-semibold text-sm">
-                              {getEventLabel(item.eventType)}
-                            </span>
-                            <Badge variant="outline" className="text-[10px] uppercase">
-                              {item.channel}
-                            </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={unreadCount === 0 || markAllRead.isPending}
+                  onClick={() => markAllRead.mutate()}
+                >
+                  Mark all read
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {inboxQuery.isLoading ? (
+                  <div className="flex items-center justify-center py-12 text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Loading your inbox...
+                  </div>
+                ) : inboxQuery.isError ? (
+                  <div className="text-center py-10 space-y-2 border rounded-lg">
+                    <p className="text-sm text-destructive">
+                      Failed to load your inbox.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => inboxQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  </div>
+                ) : items.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground border rounded-lg">
+                    You&apos;re all caught up! No notifications yet.
+                  </div>
+                ) : (
+                  <div className="divide-y border rounded-lg">
+                    {items.map((item) => {
+                      const meta = EVENT_META_BY_TYPE[item.eventType];
+                      return (
+                        <div
+                          key={item._id}
+                          className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                            item.isRead ? "opacity-75" : "bg-primary/5"
+                          }`}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              {!item.isRead && (
+                                <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                              )}
+                              <span className="font-semibold text-sm">
+                                {getEventLabel(item.eventType)}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] uppercase"
+                              >
+                                {item.channel}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {meta?.description || "Notification update"}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {new Date(item.createdAt).toLocaleString()}
+                            </p>
                           </div>
-                          <p className="text-xs text-muted-foreground">
-                            {meta?.description || "Notification update"}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {new Date(item.createdAt).toLocaleString()}
-                          </p>
+                          {!item.isRead && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={markOneRead.isPending}
+                              onClick={() => markOneRead.mutate(item._id)}
+                            >
+                              Mark as read
+                            </Button>
+                          )}
                         </div>
-                        {!item.isRead && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={markOneRead.isPending}
-                            onClick={() => markOneRead.mutate(item._id)}
-                          >
-                            Mark as read
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
 
-              {inboxQuery.hasNextPage && (
-                <div className="pt-2 text-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={inboxQuery.isFetchingNextPage}
-                    onClick={() => inboxQuery.fetchNextPage()}
-                  >
-                    {inboxQuery.isFetchingNextPage ? "Loading..." : "Load more"}
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
+                {inboxQuery.hasNextPage && (
+                  <div className="pt-2 text-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={inboxQuery.isFetchingNextPage}
+                      onClick={() => inboxQuery.fetchNextPage()}
+                    >
+                      {inboxQuery.isFetchingNextPage
+                        ? "Loading..."
+                        : "Load more"}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
       {/* TAB 1: NOTIFICATION LOGS */}
       {activeTab === "logs" && (
@@ -589,15 +598,12 @@ export function NotificationsWorkspace() {
                     </thead>
                     <tbody className="divide-y">
                       {logs.map((log: NotificationItem) => (
-                        <tr
-                          key={log._id}
-                          className="hover:bg-muted/30"
-                        >
+                        <tr key={log._id} className="hover:bg-muted/30">
                           <td className="p-3 font-medium">
                             {getEventLabel(log.eventType)}
                           </td>
                           <td className="p-3 text-muted-foreground">
-                            {log.recipientId || "—"}
+                            {log.recipientName || log.recipientId || "—"}
                           </td>
                           <td className="p-3 uppercase text-xs font-semibold">
                             {log.channel}
@@ -614,9 +620,7 @@ export function NotificationsWorkspace() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() =>
-                                setSelectedNotificationId(log._id)
-                              }
+                              onClick={() => setSelectedNotificationId(log._id)}
                             >
                               <Eye className="w-4 h-4 mr-1" />
                               View
@@ -657,64 +661,213 @@ export function NotificationsWorkspace() {
           </Card>
 
           {/* Detail Drawer */}
-          {selectedNotificationId && (
-            <Card className="mt-4 border-primary/30">
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">
-                    {getEventLabel(detailQuery.data?.data?.eventType || "")}
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Notification Delivery Details
-                  </p>
+          <Dialog
+            isOpen={Boolean(selectedNotificationId)}
+            onClose={() => setSelectedNotificationId(null)}
+            maxWidth="2xl"
+            title={
+              getEventLabel(detailQuery.data?.data?.eventType || "") ||
+              "Notification Details"
+            }
+          >
+            <div className="max-h-[75vh] overflow-y-auto pr-1">
+              {detailQuery.isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedNotificationId(null)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {detailQuery.isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  (() => {
-                    const d: Partial<NotificationItem> & {
-                      subject?: string;
-                      errorMessage?: string;
-                    } = detailQuery.data?.data ?? {};
-                    return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <span className="font-medium">Recipient:</span>{" "}
-                          {d.recipientId || "—"}
-                        </div>
-                        <div>
-                          <span className="font-medium">Channel:</span>{" "}
-                          {String(d.channel || "").toUpperCase()}
-                        </div>
-                        <div>
-                          <span className="font-medium">Status:</span>{" "}
-                          <StatusBadge status={d.status || "pending"} />
-                        </div>
-                        <div>
-                          <span className="font-medium">Subject:</span>{" "}
-                          {d.subject || "—"}
-                        </div>
+              ) : (
+                (() => {
+                  const d: Partial<NotificationItem> & {
+                    subject?: string;
+                    errorMessage?: string;
+                    notificationId?: string;
+                    sourceEventId?: string;
+                    idempotencyKey?: string;
+                    sentAt?: string | null;
+                    deliveredAt?: string | null;
+                    readAt?: string | null;
+                  } = detailQuery.data?.data ?? {};
+                  const metadataEntries = Object.entries(d.metadata || {});
+
+                  return (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2 pb-3 border-b border-border/60">
+                        <StatusBadge status={d.status || "pending"} />
+                        {d.channel && (
+                          <Badge
+                            variant="outline"
+                            className="uppercase text-[10px] font-semibold"
+                          >
+                            {d.channel}
+                          </Badge>
+                        )}
+                        {d.purpose && (
+                          <Badge
+                            variant="secondary"
+                            className="capitalize text-[10px]"
+                          >
+                            {d.purpose}
+                          </Badge>
+                        )}
+                        <span className="font-mono text-xs text-muted-foreground ml-auto">
+                          {d.eventType || "—"}
+                        </span>
+                      </div>
+
+                      <div className="space-y-4 text-sm pt-2">
                         {d.errorMessage && (
-                          <div className="sm:col-span-2 text-red-600 bg-red-50 p-2 rounded">
-                            Error: {d.errorMessage}
+                          <div className="flex items-start gap-2 text-destructive bg-destructive/10 border border-destructive/30 p-3 rounded-lg text-xs">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-semibold">Delivery Error</p>
+                              <p className="mt-0.5">{d.errorMessage}</p>
+                            </div>
                           </div>
                         )}
+
+                        {/* Recipient */}
+                        <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Recipient
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-foreground">
+                                {d.recipientName || d.recipientId || "—"}
+                              </span>
+                              {d.recipientType && (
+                                <Badge
+                                  variant="outline"
+                                  className="capitalize text-[10px]"
+                                >
+                                  {d.recipientType}
+                                </Badge>
+                              )}
+                            </div>
+                            {d.recipientId && (
+                              <span className="font-mono text-[11px] text-muted-foreground">
+                                ID: {d.recipientId}
+                              </span>
+                            )}
+                          </div>
+                          {d.subject && (
+                            <div className="text-xs text-muted-foreground pt-1 border-t border-border/50">
+                              <span className="font-medium text-foreground">
+                                Subject:
+                              </span>{" "}
+                              {d.subject}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Delivery Timeline */}
+                        <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Delivery Timeline
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                            {[
+                              { label: "Queued", value: d.createdAt },
+                              { label: "Sent", value: d.sentAt },
+                              { label: "Delivered", value: d.deliveredAt },
+                              { label: "Read", value: d.readAt },
+                            ].map((step) => (
+                              <div key={step.label} className="space-y-0.5">
+                                <span className="text-[10px] text-muted-foreground block">
+                                  {step.label}
+                                </span>
+                                <span className="font-medium text-foreground">
+                                  {step.value
+                                    ? new Date(step.value).toLocaleString()
+                                    : "—"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Metadata */}
+                        {metadataEntries.length > 0 && (
+                          <div className="rounded-lg border bg-muted/20 p-3 space-y-2">
+                            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Event Metadata
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              {metadataEntries.map(([key, val]) => {
+                                const isIsoDate =
+                                  typeof val === "string" &&
+                                  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(
+                                    val,
+                                  ) &&
+                                  !Number.isNaN(Date.parse(val));
+                                const formattedValue = isIsoDate
+                                  ? new Date(val).toLocaleString(undefined, {
+                                      dateStyle: "medium",
+                                      timeStyle: "short",
+                                    })
+                                  : typeof val === "object" && val !== null
+                                    ? JSON.stringify(val)
+                                    : String(val ?? "—");
+                                const formattedKey = key
+                                  .replace(/([A-Z])/g, " $1")
+                                  .replace(/^./, (c) => c.toUpperCase())
+                                  .trim();
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className="flex flex-col bg-background border rounded px-2.5 py-1.5"
+                                  >
+                                    <span className="text-[10px] font-medium text-muted-foreground">
+                                      {formattedKey}
+                                    </span>
+                                    <span className="font-medium text-foreground break-all">
+                                      {formattedValue}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Traceability */}
+                        <div className="rounded-lg border bg-muted/10 p-3 space-y-1.5">
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Traceability
+                          </div>
+                          <div className="space-y-1 text-[11px] font-mono text-muted-foreground">
+                            <div className="break-all">
+                              <span className="text-foreground font-semibold">
+                                Notification ID:
+                              </span>{" "}
+                              {d.notificationId || d._id || "—"}
+                            </div>
+                            {d.sourceEventId && (
+                              <div className="break-all">
+                                <span className="text-foreground font-semibold">
+                                  Source Event ID:
+                                </span>{" "}
+                                {d.sourceEventId}
+                              </div>
+                            )}
+                            {d.idempotencyKey && (
+                              <div className="break-all">
+                                <span className="text-foreground font-semibold">
+                                  Idempotency Key:
+                                </span>{" "}
+                                {d.idempotencyKey}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    );
-                  })()
-                )}
-              </CardContent>
-            </Card>
-          )}
+                    </>
+                  );
+                })()
+              )}
+            </div>
+          </Dialog>
         </PermissionGate>
       )}
 

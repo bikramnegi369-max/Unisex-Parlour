@@ -452,6 +452,17 @@ export function SalesWorkspaceView() {
         isCoveredBySubscription: isCovered,
         appliedSubscriptionId: appliedSubId,
         subscriptionCode: subCode,
+        appliedCustomerMembershipId:
+          typeof s.appliedCustomerMembershipId === "string"
+            ? s.appliedCustomerMembershipId
+            : (s.appliedCustomerMembershipId as { _id?: string; id?: string } | null)
+                ?._id ||
+              (s.appliedCustomerMembershipId as { _id?: string; id?: string } | null)
+                ?.id ||
+              null,
+        membershipCode: s.membershipCode || null,
+        membershipDiscountAmount: s.membershipDiscountAmount || 0,
+        membershipDiscountPercentage: s.membershipDiscountPercentage || 0,
       };
     });
 

@@ -206,6 +206,12 @@ export function SaleBasketPanel({
         basket.subscriptionLines.length +
         basket.membershipLines.length,
       hasMembershipBenefits: effectiveServicePct > 0 || effectiveProductPct > 0,
+      effectiveServicePct,
+      effectiveBenefits,
+      activeMembershipCode:
+        inCartMem?.membershipCode ||
+        customerBenefitsData?.membershipCode ||
+        null,
       activeMembershipTier:
         inCartMem?.tier ||
         (customerBenefitsData?.hasActiveMembership
@@ -462,6 +468,21 @@ export function SaleBasketPanel({
                             Plan Quota
                           </Badge>
                         )}
+                        {!aptLine.isCoveredBySubscription &&
+                          (aptLine.membershipDiscountAmount || 0) > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 px-1 py-0 font-bold whitespace-nowrap"
+                            >
+                              Member
+                              {aptLine.membershipDiscountPercentage
+                                ? ` (-${aptLine.membershipDiscountPercentage}%)`
+                                : ""}
+                              {aptLine.membershipCode
+                                ? ` · ${aptLine.membershipCode}`
+                                : ""}
+                            </Badge>
+                          )}
                       </div>
                       {aptLine.isCoveredBySubscription ? (
                         <div className="flex items-center gap-2 mt-0.5 text-[10px]">
@@ -494,6 +515,23 @@ export function SaleBasketPanel({
                           </span>
                           <span className="text-emerald-600 font-bold">₹0</span>
                         </div>
+                      ) : (aptLine.membershipDiscountAmount || 0) > 0 ? (
+                        <div className="flex flex-col items-end">
+                          <span className="text-muted-foreground line-through text-[10px]">
+                            {formatCurrency(
+                              aptLine.unitPrice * aptLine.quantity,
+                            )}
+                          </span>
+                          <span className="text-amber-600 dark:text-amber-400 font-bold">
+                            {formatCurrency(
+                              Math.max(
+                                0,
+                                aptLine.unitPrice * aptLine.quantity -
+                                  (aptLine.membershipDiscountAmount || 0),
+                              ),
+                            )}
+                          </span>
+                        </div>
                       ) : (
                         <span className="font-semibold text-foreground">
                           {formatCurrency(aptLine.unitPrice * aptLine.quantity)}
@@ -514,28 +552,146 @@ export function SaleBasketPanel({
                 {basket.walkinServiceLines.map((s) => (
                   <div
                     key={s.serviceId}
-                    className={`flex flex-col sm:flex-row sm:items-center justify-between text-xs py-1.5 px-2 rounded-lg border transition-all gap-2 ${
+                    className={`flex flex-col gap-2 text-xs p-2.5 rounded-lg border transition-all ${
                       s.isCoveredBySubscription
                         ? "bg-emerald-500/5 border-emerald-500/25 ring-1 ring-emerald-500/10"
                         : "bg-muted/15 border-border/70"
                     }`}
                   >
-                    <div className="truncate mr-2 min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-foreground truncate">
-                          {s.name}
-                        </span>
-                        {s.isCoveredBySubscription && (
-                          <Badge
-                            variant="outline"
-                            className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 px-1 py-0 font-bold whitespace-nowrap"
-                          >
-                            <ShieldCheck className="h-2.5 w-2.5 mr-0.5 inline" />
-                            Plan Quota
-                          </Badge>
+                    {/* Top row: Name + Badges (left) | Price + Remove (right) */}
+                    <div className="flex items-start justify-between gap-2 min-w-0">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-foreground leading-snug wrap-break-word">
+                            {s.name}
+                          </span>
+                          {s.isCoveredBySubscription && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 px-1.5 py-0 font-bold whitespace-nowrap"
+                            >
+                              <ShieldCheck className="h-2.5 w-2.5 mr-0.5 inline" />
+                              Plan Quota
+                            </Badge>
+                          )}
+                          {!s.isCoveredBySubscription &&
+                            totals.effectiveServicePct > 0 &&
+                            isServiceEligibleForMembershipBenefits(
+                              {
+                                serviceId: s.serviceId,
+                                categoryId: s.categoryId,
+                              },
+                              totals.effectiveBenefits,
+                            ) && (
+                              <Badge
+                                variant="outline"
+                                className="text-[9px] bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 px-1.5 py-0 font-bold whitespace-nowrap"
+                              >
+                                Member (-{totals.effectiveServicePct}%)
+                              </Badge>
+                            )}
+                        </div>
+                        {s.isCoveredBySubscription ? (
+                          <div className="flex items-center gap-2 text-[10px]">
+                            {s.subscriptionCode ? (
+                              <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                                Sub #{s.subscriptionCode}
+                              </span>
+                            ) : s.appliedSubscriptionId ? (
+                              <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
+                                Sub #
+                                {s.appliedSubscriptionId
+                                  .slice(-6)
+                                  .toUpperCase()}
+                              </span>
+                            ) : null}
+                            <span className="text-muted-foreground">
+                              · {formatCurrency(s.unitPrice)} each
+                            </span>
+                          </div>
+                        ) : totals.effectiveServicePct > 0 &&
+                          isServiceEligibleForMembershipBenefits(
+                            {
+                              serviceId: s.serviceId,
+                              categoryId: s.categoryId,
+                            },
+                            totals.effectiveBenefits,
+                          ) ? (
+                          <div className="flex items-center gap-2 text-[10px]">
+                            <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
+                              {totals.activeMembershipCode
+                                ? `Mem #${totals.activeMembershipCode}`
+                                : totals.activeMembershipTier || "Membership"}
+                            </span>
+                            <span className="text-muted-foreground">
+                              · {formatCurrency(s.unitPrice)} each
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-muted-foreground">
+                            {formatCurrency(s.unitPrice)} each
+                          </div>
                         )}
                       </div>
-                      <div className="mt-1">
+
+                      <div className="flex items-start gap-1.5 shrink-0">
+                        <div className="text-right font-mono text-xs tabular-nums">
+                          {s.isCoveredBySubscription ? (
+                            <div className="flex flex-col items-end">
+                              <span className="text-muted-foreground line-through text-[10px]">
+                                {formatCurrency(s.unitPrice * s.quantity)}
+                              </span>
+                              <span className="text-emerald-600 font-bold">
+                                ₹0
+                              </span>
+                            </div>
+                          ) : totals.effectiveServicePct > 0 &&
+                            isServiceEligibleForMembershipBenefits(
+                              {
+                                serviceId: s.serviceId,
+                                categoryId: s.categoryId,
+                              },
+                              totals.effectiveBenefits,
+                            ) ? (
+                            <div className="flex flex-col items-end">
+                              <span className="text-muted-foreground line-through text-[10px]">
+                                {formatCurrency(s.unitPrice * s.quantity)}
+                              </span>
+                              <span className="text-amber-600 dark:text-amber-400 font-bold">
+                                {formatCurrency(
+                                  Math.max(
+                                    0,
+                                    s.unitPrice *
+                                      s.quantity *
+                                      (1 - totals.effectiveServicePct / 100),
+                                  ),
+                                )}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="font-semibold text-foreground">
+                              {formatCurrency(s.unitPrice * s.quantity)}
+                            </span>
+                          )}
+                        </div>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 -mt-0.5 text-muted-foreground hover:text-destructive cursor-pointer shrink-0"
+                          onClick={() =>
+                            dispatch(removeWalkinServiceFromBasket(s.serviceId))
+                          }
+                          aria-label="Remove service"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Bottom row: Staff attribution (left) | Quantity stepper (right) */}
+                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-border/50">
+                      <div className="min-w-0 flex-1">
                         <StaffAttributionSelect
                           branchId={currentBranchId}
                           label="Performed by"
@@ -551,29 +707,8 @@ export function SaleBasketPanel({
                           }
                         />
                       </div>
-                      {s.isCoveredBySubscription ? (
-                        <div className="flex items-center gap-2 mt-0.5 text-[10px]">
-                          {s.subscriptionCode ? (
-                            <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                              Sub #{s.subscriptionCode}
-                            </span>
-                          ) : s.appliedSubscriptionId ? (
-                            <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                              Sub #
-                              {s.appliedSubscriptionId.slice(-6).toUpperCase()}
-                            </span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
-                          <span>{formatCurrency(s.unitPrice)} each</span>
-                        </div>
-                      )}
-                    </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      {/* Quantity stepper controls */}
-                      <div className="flex items-center border border-border rounded bg-background">
+                      <div className="flex items-center border border-border rounded bg-background shrink-0">
                         <button
                           type="button"
                           className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
@@ -608,35 +743,6 @@ export function SaleBasketPanel({
                           <Plus className="h-2.5 w-2.5" />
                         </button>
                       </div>
-
-                      {/* Line pricing: show strike-through when covered */}
-                      <div className="w-16 text-right font-mono text-xs">
-                        {s.isCoveredBySubscription ? (
-                          <div className="flex flex-col items-end">
-                            <span className="text-muted-foreground line-through text-[10px]">
-                              {formatCurrency(s.unitPrice * s.quantity)}
-                            </span>
-                            <span className="text-emerald-600 font-bold">
-                              ₹0
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="font-semibold text-foreground">
-                            {formatCurrency(s.unitPrice * s.quantity)}
-                          </span>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive cursor-pointer"
-                        onClick={() =>
-                          dispatch(removeWalkinServiceFromBasket(s.serviceId))
-                        }
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
                     </div>
                   </div>
                 ))}

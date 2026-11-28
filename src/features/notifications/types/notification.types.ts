@@ -23,6 +23,7 @@ export interface NotificationItem {
   purpose: NotificationPurpose;
   recipientType: string;
   recipientId: string;
+  recipientName?: string | null;
   channel: NotificationChannel;
   status: NotificationStatus;
   isRead?: boolean;

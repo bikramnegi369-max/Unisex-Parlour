@@ -19,6 +19,10 @@ export interface BasketAppointmentLine {
   isCoveredBySubscription?: boolean;
   appliedSubscriptionId?: string | null;
   subscriptionCode?: string | null;
+  appliedCustomerMembershipId?: string | null;
+  membershipCode?: string | null;
+  membershipDiscountAmount?: number;
+  membershipDiscountPercentage?: number;
 }
 
 export interface BasketProductLine {
