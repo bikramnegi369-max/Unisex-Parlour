@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
-import { format, startOfMonth } from "date-fns";
+import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
@@ -28,14 +28,13 @@ export function DashboardView() {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
 
-  // Date filters state: default to "this_month"
+  // Date filters state: default to "today"
   const today = new Date();
-  const [startDate, setStartDate] = useState<string>(
-    format(startOfMonth(today), "yyyy-MM-dd"),
-  );
-  const [endDate, setEndDate] = useState<string>(format(today, "yyyy-MM-dd"));
+  const formattedToday = format(today, "yyyy-MM-dd");
+  const [startDate, setStartDate] = useState<string>(formattedToday);
+  const [endDate, setEndDate] = useState<string>(formattedToday);
   const [activePreset, setActivePreset] =
-    useState<DateFilterPreset>("this_month");
+    useState<DateFilterPreset>("today");
   const [compareWith, setCompareWith] =
     useState<ComparisonPeriod>("previous_period");
 
