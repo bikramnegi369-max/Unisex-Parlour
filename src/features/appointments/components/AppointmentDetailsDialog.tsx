@@ -427,18 +427,25 @@ export function AppointmentDetailsDialog({
                 <span>Change Status</span>
               </Button>
             )}
-            {!isTerminal && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSendConfirmation(true)}
-                className="h-8 text-xs gap-1.5 cursor-pointer border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
-              >
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleTriggerReminder}
+              disabled={triggerReminderMutation.isPending}
+              className="h-8 text-xs gap-1.5 cursor-pointer border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+            >
+              {triggerReminderMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
                 <Send className="h-3.5 w-3.5" />
-                <span>Send Reminder</span>
-              </Button>
-            )}
+              )}
+              <span>
+                {triggerReminderMutation.isPending
+                  ? "Sending..."
+                  : "Send Reminder"}
+              </span>
+            </Button>
           </div>
         </div>
 
@@ -1297,7 +1304,7 @@ export function AppointmentDetailsDialog({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => setShowSendConfirmation(true)}
+                      onClick={handleTriggerReminder}
                       disabled={triggerReminderMutation.isPending}
                       className="text-xs h-7 gap-1 border-primary/40 text-primary hover:bg-primary/10"
                     >
