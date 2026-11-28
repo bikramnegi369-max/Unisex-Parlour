@@ -1139,11 +1139,12 @@ export function PayrollDashboardView() {
             isOpen={!!inspectingRecord}
             onClose={() => setInspectingRecord(null)}
             onDownloadPdf={() =>
-              inspectingRecord &&
-              payrollApi.downloadPayslipPdf(
-                inspectingRecord._id || inspectingRecord.id || "",
-                `payslip-${inspectingRecord.monthYear}.pdf`,
-              )
+              inspectingRecord
+                ? handleDownloadPayslip(
+                    inspectingRecord._id || inspectingRecord.id || "",
+                    `payslip-${inspectingRecord.monthYear}.pdf`,
+                  )
+                : undefined
             }
           />
 

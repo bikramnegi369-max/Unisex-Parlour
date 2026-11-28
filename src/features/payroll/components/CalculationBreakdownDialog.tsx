@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import {
   AlertTriangle,
   FileText,
+  Loader2,
 } from "lucide-react";
 
 interface CalculationBreakdownDialogProps {
   record: PayrollRecord | null;
   isOpen: boolean;
   onClose: () => void;
-  onDownloadPdf?: () => void;
+  onDownloadPdf?: () => void | Promise<void> | null;
 }
 
 export function CalculationBreakdownDialog({
@@ -22,7 +23,19 @@ export function CalculationBreakdownDialog({
   onClose,
   onDownloadPdf,
 }: CalculationBreakdownDialogProps) {
+  const [isDownloadingPdf, setIsDownloadingPdf] = React.useState(false);
+
   if (!record) return null;
+
+  const handleDownloadClick = async () => {
+    if (!onDownloadPdf || isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    try {
+      await onDownloadPdf();
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   const staff = typeof record.staffId === "object" ? record.staffId : null;
   const branch = typeof record.branchId === "object" ? record.branchId : null;
@@ -69,8 +82,23 @@ export function CalculationBreakdownDialog({
               </div>
             </div>
             {onDownloadPdf && record.status === "paid" && (
-              <Button size="sm" variant="outline" onClick={onDownloadPdf} className="h-8 text-xs ml-2">
-                <FileText className="w-3.5 h-3.5 mr-1" /> Download PDF
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadClick}
+                disabled={isDownloadingPdf}
+                aria-busy={isDownloadingPdf}
+                className="h-8 text-xs ml-2"
+              >
+                {isDownloadingPdf ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Downloading...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-3.5 h-3.5 mr-1" /> Download PDF
+                  </>
+                )}
               </Button>
             )}
           </div>
