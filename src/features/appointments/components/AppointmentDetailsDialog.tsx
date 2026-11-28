@@ -1775,6 +1775,7 @@ export function AppointmentDetailsDialog({
                   startDate: canonicalPayload.startDate,
                   endDate: canonicalPayload.endDate,
                   notes: canonicalPayload.notes,
+                  billImmediately: false,
                 },
               });
 

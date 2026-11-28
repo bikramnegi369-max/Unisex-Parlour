@@ -427,6 +427,7 @@ export interface UpsellSubscriptionPayload {
   startDate: string;
   endDate: string;
   notes?: string;
+  billImmediately?: boolean;
 }
 
 export interface UpsellSubscriptionResponseData {
