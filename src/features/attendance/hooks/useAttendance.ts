@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useBranchContext } from "@/hooks/useBranchContext";
 import { hasPermission } from "@/lib/permissions";
@@ -220,6 +220,10 @@ export function useMonthlyMusterRoll(params: {
   status?: string;
 }) {
   const { enabled, getBranchQueryKey } = useAttendanceAccess();
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const isHistoricalMonth = Boolean(params.monthYear && params.monthYear < currentMonthStr);
+
   return useQuery({
     queryKey: getBranchQueryKey("monthly-muster-roll", [
       params.monthYear,
@@ -229,6 +233,8 @@ export function useMonthlyMusterRoll(params: {
     ]),
     queryFn: () => getMonthlyMusterRoll(params),
     enabled: enabled && Boolean(params.monthYear),
+    placeholderData: keepPreviousData,
+    staleTime: isHistoricalMonth ? 5 * 60 * 1000 : 30 * 1000,
   });
 }
 

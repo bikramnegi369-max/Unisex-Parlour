@@ -1,9 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useDebounce } from "@/hooks/useDebounce";
 import { Dialog } from "@/components/ui/dialog";
-import { AlertCircle, Calendar, RotateCcw, Search, X } from "lucide-react";
+import {
+  AlertCircle,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,11 +33,42 @@ export default function MonthlyMusterRollTab({
   currentBranchId,
   isAllBranchesSelected,
 }: MonthlyMusterRollTabProps) {
-  const currentMonthStr = useMemo(
-    () => new Date().toISOString().slice(0, 7),
-    [],
-  );
-  const [monthYear, setMonthYear] = useState<string>(currentMonthStr);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const currentMonthStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  const urlMonth = searchParams.get("month");
+  const isValidMonth =
+    Boolean(urlMonth) &&
+    /^\d{4}-(0[1-9]|1[0-2])$/.test(urlMonth!) &&
+    urlMonth! <= currentMonthStr;
+
+  const monthYear = isValidMonth ? urlMonth! : currentMonthStr;
+
+  const setMonthYear = (nextMonth: string) => {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) return;
+    const clamped = nextMonth > currentMonthStr ? currentMonthStr : nextMonth;
+    const params = new URLSearchParams(searchParams.toString());
+    if (clamped === currentMonthStr) {
+      params.delete("month");
+    } else {
+      params.set("month", clamped);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  const shiftMonth = (delta: number) => {
+    const [y, m] = monthYear.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    setMonthYear(next);
+  };
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -127,40 +167,64 @@ export default function MonthlyMusterRollTab({
       {/* Filters Toolbar */}
       <Card>
         <CardContent className="p-3 sm:p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="grid flex-1 gap-3 sm:grid-cols-[170px_minmax(220px,1fr)_180px]">
-              <div className="relative">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex w-full items-center gap-1 sm:w-auto shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Previous month"
+                className="h-9 w-9 shrink-0"
+                onClick={() => shiftMonth(-1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="relative flex-1 sm:w-40 sm:flex-none">
                 <Calendar className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   aria-label="Select month"
                   type="month"
+                  max={currentMonthStr}
                   value={monthYear}
                   onChange={(e) => setMonthYear(e.target.value)}
                   className="h-9 pl-9"
                 />
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Next month"
+                className="h-9 w-9 shrink-0"
+                disabled={monthYear >= currentMonthStr}
+                onClick={() => shiftMonth(1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
 
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  aria-label="Search staff"
-                  className="h-9 pl-9 pr-8"
-                  placeholder="Search staff name or code..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {search && (
-                  <button
-                    type="button"
-                    aria-label="Clear search"
-                    onClick={() => setSearch("")}
-                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+            <div className="relative min-w-50 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                aria-label="Search staff"
+                className="h-9 pl-9 pr-8"
+                placeholder="Search staff name or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
 
+            <div className="w-full sm:w-42.5 shrink-0">
               <Select
                 aria-label="Filter status"
                 value={statusFilter}
@@ -288,8 +352,15 @@ export default function MonthlyMusterRollTab({
                       }> = [];
                       (
                         (data?.musterRoll || []) as Array<{
-                          staff: { _id: string; name: string; staffCode: string };
-                          dailyBreakdown?: Record<string, { status: string; date: string }>;
+                          staff: {
+                            _id: string;
+                            name: string;
+                            staffCode: string;
+                          };
+                          dailyBreakdown?: Record<
+                            string,
+                            { status: string; date: string }
+                          >;
                         }>
                       ).forEach((row) => {
                         (
@@ -298,16 +369,15 @@ export default function MonthlyMusterRollTab({
                             date: string;
                           }>
                         ).forEach((day) => {
-                            if (day.status === "incomplete") {
-                              allIncomplete.push({
-                                staffId: row.staff._id,
-                                staffName: row.staff.name,
-                                staffCode: row.staff.staffCode,
-                                date: day.date,
-                              });
-                            }
-                          },
-                        );
+                          if (day.status === "incomplete") {
+                            allIncomplete.push({
+                              staffId: row.staff._id,
+                              staffName: row.staff.name,
+                              staffCode: row.staff.staffCode,
+                              date: day.date,
+                            });
+                          }
+                        });
                       });
                       openReconcileDialog(allIncomplete);
                     }}
@@ -391,120 +461,126 @@ export default function MonthlyMusterRollTab({
                   </thead>
                   <tbody className="divide-y">
                     {data.musterRoll.map(
-                    (row: {
-                      staff: {
-                        _id: string;
-                        name: string;
-                        staffCode: string;
-                        designation?: string;
-                      };
-                      metrics: {
-                        eligibleDays: number;
-                        presentDays: number;
-                        lateDays: number;
-                        earlyDepartureDays: number;
-                        approvedPaidLeaveDays: number;
-                        approvedUnpaidLeaveDays: number;
-                        absentDays: number;
-                        incompleteDays: number;
-                      };
-                      dailyBreakdown?: Record<
-                        string,
-                        { status: string; date: string }
-                      >;
-                    }) => (
-                      <tr
-                        key={row.staff._id}
-                        className="hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="p-3">
-                          <div className="font-medium text-foreground">
-                            {row.staff.name}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {row.staff.staffCode} • {row.staff.designation}
-                          </div>
-                        </td>
-                        <td className="p-3 text-center font-medium">
-                          {row.metrics.eligibleDays}
-                        </td>
-                        <td className="p-3 text-center font-semibold text-emerald-700">
-                          {row.metrics.presentDays}
-                        </td>
-                        <td className="p-3 text-center text-orange-700">
-                          {row.metrics.lateDays > 0 ? (
-                            <Badge
-                              variant="outline"
-                              className="border-orange-200 bg-orange-50 text-orange-800"
-                            >
-                              {row.metrics.lateDays}
-                            </Badge>
-                          ) : (
-                            "0"
-                          )}
-                        </td>
-                        <td className="p-3 text-center text-amber-700">
-                          {row.metrics.earlyDepartureDays > 0 ? (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-200 bg-amber-50 text-amber-800"
-                            >
-                              {row.metrics.earlyDepartureDays}
-                            </Badge>
-                          ) : (
-                            "0"
-                          )}
-                        </td>
-                        <td className="p-3 text-center text-purple-700 font-medium">
-                          {row.metrics.approvedPaidLeaveDays}
-                        </td>
-                        <td className="p-3 text-center text-rose-700">
-                          {row.metrics.approvedUnpaidLeaveDays}
-                        </td>
-                        <td className="p-3 text-center text-red-700 font-semibold">
-                          {row.metrics.absentDays}
-                        </td>
-                        <td className="p-3 text-center">
-                          <div className="inline-flex items-center justify-center gap-2">
-                            <span
-                              className={
-                                row.metrics.incompleteDays > 0
-                                  ? "font-semibold text-amber-700"
-                                  : "text-muted-foreground"
-                              }
-                            >
-                              {row.metrics.incompleteDays}
-                            </span>
-                            {!isAllBranchesSelected &&
-                              row.metrics.incompleteDays > 0 && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 px-2 text-xs border-amber-300 text-amber-800 hover:bg-amber-50"
-                                  onClick={() => {
-                                    const staffIncomplete = (
-                                      Object.values(
-                                        row.dailyBreakdown || {},
-                                      ) as Array<{ status: string; date: string }>
-                                    )
-                                      .filter((d) => d.status === "incomplete")
-                                      .map((d) => ({
-                                        staffId: row.staff._id,
-                                        staffName: row.staff.name,
-                                        staffCode: row.staff.staffCode,
-                                        date: d.date,
-                                      }));
-                                    openReconcileDialog(staffIncomplete);
-                                  }}
-                                >
-                                  Reconcile
-                                </Button>
-                              )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                      (row: {
+                        staff: {
+                          _id: string;
+                          name: string;
+                          staffCode: string;
+                          designation?: string;
+                        };
+                        metrics: {
+                          eligibleDays: number;
+                          presentDays: number;
+                          lateDays: number;
+                          earlyDepartureDays: number;
+                          approvedPaidLeaveDays: number;
+                          approvedUnpaidLeaveDays: number;
+                          absentDays: number;
+                          incompleteDays: number;
+                        };
+                        dailyBreakdown?: Record<
+                          string,
+                          { status: string; date: string }
+                        >;
+                      }) => (
+                        <tr
+                          key={row.staff._id}
+                          className="hover:bg-muted/30 transition-colors"
+                        >
+                          <td className="p-3">
+                            <div className="font-medium text-foreground">
+                              {row.staff.name}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {row.staff.staffCode} • {row.staff.designation}
+                            </div>
+                          </td>
+                          <td className="p-3 text-center font-medium">
+                            {row.metrics.eligibleDays}
+                          </td>
+                          <td className="p-3 text-center font-semibold text-emerald-700">
+                            {row.metrics.presentDays}
+                          </td>
+                          <td className="p-3 text-center text-orange-700">
+                            {row.metrics.lateDays > 0 ? (
+                              <Badge
+                                variant="outline"
+                                className="border-orange-200 bg-orange-50 text-orange-800"
+                              >
+                                {row.metrics.lateDays}
+                              </Badge>
+                            ) : (
+                              "0"
+                            )}
+                          </td>
+                          <td className="p-3 text-center text-amber-700">
+                            {row.metrics.earlyDepartureDays > 0 ? (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-200 bg-amber-50 text-amber-800"
+                              >
+                                {row.metrics.earlyDepartureDays}
+                              </Badge>
+                            ) : (
+                              "0"
+                            )}
+                          </td>
+                          <td className="p-3 text-center text-purple-700 font-medium">
+                            {row.metrics.approvedPaidLeaveDays}
+                          </td>
+                          <td className="p-3 text-center text-rose-700">
+                            {row.metrics.approvedUnpaidLeaveDays}
+                          </td>
+                          <td className="p-3 text-center text-red-700 font-semibold">
+                            {row.metrics.absentDays}
+                          </td>
+                          <td className="p-3 text-center">
+                            <div className="inline-flex items-center justify-center gap-2">
+                              <span
+                                className={
+                                  row.metrics.incompleteDays > 0
+                                    ? "font-semibold text-amber-700"
+                                    : "text-muted-foreground"
+                                }
+                              >
+                                {row.metrics.incompleteDays}
+                              </span>
+                              {!isAllBranchesSelected &&
+                                row.metrics.incompleteDays > 0 && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs border-amber-300 text-amber-800 hover:bg-amber-50"
+                                    onClick={() => {
+                                      const staffIncomplete = (
+                                        Object.values(
+                                          row.dailyBreakdown || {},
+                                        ) as Array<{
+                                          status: string;
+                                          date: string;
+                                        }>
+                                      )
+                                        .filter(
+                                          (d) => d.status === "incomplete",
+                                        )
+                                        .map((d) => ({
+                                          staffId: row.staff._id,
+                                          staffName: row.staff.name,
+                                          staffCode: row.staff.staffCode,
+                                          date: d.date,
+                                        }));
+                                      openReconcileDialog(staffIncomplete);
+                                    }}
+                                  >
+                                    Reconcile
+                                  </Button>
+                                )}
+                            </div>
+                          </td>
+                        </tr>
+                      ),
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -523,86 +599,86 @@ export default function MonthlyMusterRollTab({
             Select the incomplete days to reconcile before running payroll.
           </p>
 
-            <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
-              {reconcileItems.map((item) => {
-                const key = `${item.staffId}:${item.date}`;
-                return (
-                  <label
-                    key={key}
-                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(selectedKeys[key])}
-                        onChange={(e) =>
-                          setSelectedKeys((prev) => ({
-                            ...prev,
-                            [key]: e.target.checked,
-                          }))
-                        }
-                      />
-                      <span className="font-medium">{item.staffName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {item.staffCode}
-                      </span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {item.date}
-                    </Badge>
-                  </label>
-                );
-              })}
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className="mb-1 block text-xs font-medium">
-                  Target Status
-                </label>
-                <Select
-                  value={targetStatus}
-                  onChange={(e) =>
-                    setTargetStatus(e.target.value as "present" | "absent")
-                  }
+          <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+            {reconcileItems.map((item) => {
+              const key = `${item.staffId}:${item.date}`;
+              return (
+                <label
+                  key={key}
+                  className="flex items-center justify-between gap-3 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40"
                 >
-                  <option value="present">Present</option>
-                  <option value="absent">Absent</option>
-                </Select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium">
-                  Reason (required)
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedKeys[key])}
+                      onChange={(e) =>
+                        setSelectedKeys((prev) => ({
+                          ...prev,
+                          [key]: e.target.checked,
+                        }))
+                      }
+                    />
+                    <span className="font-medium">{item.staffName}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.staffCode}
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-xs">
+                    {item.date}
+                  </Badge>
                 </label>
-                <Input
-                  value={reconcileReason}
-                  onChange={(e) => setReconcileReason(e.target.value)}
-                  placeholder="e.g. Biometric device missed out-punch"
-                />
-              </div>
-            </div>
+              );
+            })}
+          </div>
 
-            {reconcileError && (
-              <p className="text-xs text-destructive">{reconcileError}</p>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setReconcileItems([])}
-                disabled={isReconciling}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium">
+                Target Status
+              </label>
+              <Select
+                value={targetStatus}
+                onChange={(e) =>
+                  setTargetStatus(e.target.value as "present" | "absent")
+                }
               >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleBulkReconcile}
-                disabled={isReconciling}
-              >
-                {isReconciling ? "Reconciling..." : "Confirm Reconcile"}
-              </Button>
+                <option value="present">Present</option>
+                <option value="absent">Absent</option>
+              </Select>
             </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-xs font-medium">
+                Reason (required)
+              </label>
+              <Input
+                value={reconcileReason}
+                onChange={(e) => setReconcileReason(e.target.value)}
+                placeholder="e.g. Biometric device missed out-punch"
+              />
+            </div>
+          </div>
+
+          {reconcileError && (
+            <p className="text-xs text-destructive">{reconcileError}</p>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReconcileItems([])}
+              disabled={isReconciling}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleBulkReconcile}
+              disabled={isReconciling}
+            >
+              {isReconciling ? "Reconciling..." : "Confirm Reconcile"}
+            </Button>
+          </div>
         </div>
       </Dialog>
     </div>
