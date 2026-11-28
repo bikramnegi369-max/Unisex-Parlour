@@ -76,8 +76,17 @@ export function RescheduleAppointmentDialog({
 
   const assignedStaffId = appointment?.staffId;
   const liveStaffEval: StaffSlotEvaluation | null = useMemo(() => {
-    if (!slotAvailabilityData?.staff || !assignedStaffId) return null;
-    return slotAvailabilityData.staff.find((s: StaffSlotEvaluation) => s.staffId === assignedStaffId) || null;
+    const staffData = slotAvailabilityData?.staff;
+    if (!staffData || !assignedStaffId) return null;
+    if (Array.isArray(staffData)) {
+      return (
+        staffData.find(
+          (s: StaffSlotEvaluation) => s.staffId === assignedStaffId,
+        ) || null
+      );
+    }
+    const singleStaff = staffData as unknown as StaffSlotEvaluation;
+    return singleStaff.staffId === assignedStaffId ? singleStaff : null;
   }, [slotAvailabilityData, assignedStaffId]);
 
   const [prevKey, setPrevKey] = useState<string | null>(null);

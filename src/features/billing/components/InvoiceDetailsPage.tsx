@@ -138,8 +138,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
     ? refundContext.summary.refundableBalancePaise > 0
     : true;
   const isFullyRefunded =
-    refundContext?.summary?.derivedRefundStatus === "fully_refunded" ||
-    refundContext?.summary?.refundableBalancePaise === 0;
+    invoice?.paymentStatus === "refunded" ||
+    refundContext?.summary?.derivedRefundStatus === "fully_refunded";
 
   const finalizeMutation = useFinalizeInvoice();
   const cancelMutation = useCancelInvoice();
@@ -262,22 +262,6 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
         }) =>
           line.lineType === "membership" &&
           Boolean(line.customerMembershipId) &&
-          Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
-      ),
-    [invoice?.lines, invoice?.items],
-  );
-  const returnableItemLines = useMemo(
-    () =>
-      (invoice?.lines || invoice?.items || []).filter(
-        (line: {
-          id?: string;
-          _id?: string;
-          lineType?: string;
-          returnedQuantity?: number;
-          quantity?: number;
-        }) =>
-          Boolean(line.id || line._id) &&
-          line.lineType !== "membership" &&
           Number(line.returnedQuantity || 0) < Number(line.quantity || 1),
       ),
     [invoice?.lines, invoice?.items],
@@ -580,22 +564,6 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
             )}
             {isFinalized &&
               hasRefundableBalance &&
-              (invoice.paymentStatus === "paid" ||
-                invoice.paymentStatus === "partially_paid") &&
-              canRefundPayments &&
-              returnableItemLines.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsReturnDialogOpen(true)}
-                  className="text-xs h-9 px-3.5 gap-1.5 font-semibold rounded-xl border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  <span>Return / Refund Items</span>
-                </Button>
-              )}
-            {isFinalized &&
-              hasRefundableBalance &&
               invoice.paymentStatus === "paid" &&
               canRefundPayments &&
               refundableMembershipLines.map((line: InvoiceLineItem) => (
@@ -649,7 +617,8 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
             {isFinalized &&
               canRefundPayments &&
               hasRefundableBalance &&
-              invoice.paymentStatus === "paid" && (
+              (invoice.paymentStatus === "paid" ||
+                invoice.paymentStatus === "partially_refunded") && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -1759,6 +1728,7 @@ export function InvoiceDetailsPage({ id }: InvoiceDetailsPageProps) {
           payments={payments}
           invoiceId={invoice.id}
           isInvoiceCancelled={isCancelled}
+          isFullyRefunded={isFullyRefunded}
         />
       </div>
 

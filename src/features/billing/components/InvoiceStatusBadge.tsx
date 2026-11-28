@@ -70,6 +70,24 @@ export function PaymentStatusBadge({ status, className }: PaymentStatusBadgeProp
           Partially Paid
         </Badge>
       );
+    case "partially_refunded":
+      return (
+        <Badge
+          variant="outline"
+          className={`border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 font-semibold ${className || ""}`}
+        >
+          Partially Refunded
+        </Badge>
+      );
+    case "refunded":
+      return (
+        <Badge
+          variant="outline"
+          className={`border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold ${className || ""}`}
+        >
+          Refunded
+        </Badge>
+      );
     case "unpaid":
       return (
         <Badge

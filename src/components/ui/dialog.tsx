@@ -50,7 +50,15 @@ export function Dialog({
     });
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCloseRef.current();
+      if (e.key !== "Escape") return;
+      const openDialogs = document.querySelectorAll('[role="dialog"]');
+      if (
+        openDialogs.length > 0 &&
+        openDialogs[openDialogs.length - 1] !== dialogRef.current
+      ) {
+        return;
+      }
+      onCloseRef.current();
     };
 
     const handleTab = (e: KeyboardEvent) => {

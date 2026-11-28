@@ -63,6 +63,11 @@ import type {
   AppointmentServiceSnapshot,
 } from "../types/appointment.types";
 import { calculateLateDelayMins } from "../utils/appointmentTime";
+import {
+  computeAppointmentFinancialBreakdown,
+  resolveServiceMembershipCode,
+  resolveServiceSubscriptionCode,
+} from "../utils/appointmentPricing";
 
 interface AppointmentDetailsDialogProps {
   appointment: Appointment | null;
@@ -102,6 +107,9 @@ export function AppointmentDetailsDialog({
   const [isSellSubscriptionOpen, setIsSellSubscriptionOpen] = useState(false);
   const [isSellMembershipOpen, setIsSellMembershipOpen] = useState(false);
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "services" | "benefits" | "activity"
+  >("overview");
   const actionsMenuRef = React.useRef<HTMLDivElement>(null);
 
   // Close "More Actions" popover menu when clicking outside or pressing Escape
@@ -209,47 +217,13 @@ export function AppointmentDetailsDialog({
     appointment.status,
   );
 
-  // Pricing & Subscription Calculations
-  const grossSubtotal =
-    appointment.pricing?.subtotal ??
-    appointment.services?.reduce(
-      (sum: number, s: AppointmentServiceSnapshot) => sum + (s.price || 0),
-      0,
-    ) ??
-    0;
-
-  const subscriptionWaivedAmount =
-    appointment.services?.reduce(
-      (sum: number, s: AppointmentServiceSnapshot) => {
-        return sum + (s.appliedSubscriptionId ? s.price || 0 : 0);
-      },
-      0,
-    ) ?? 0;
-
-  const membershipSavingsAmount =
-    appointment.services?.reduce(
-      (sum: number, s: AppointmentServiceSnapshot) => {
-        if (s.appliedSubscriptionId) return sum;
-        return sum + (s.membershipDiscountAmount || 0);
-      },
-      0,
-    ) ?? 0;
-
-  const rawTotalDiscount = appointment.pricing?.discount || 0;
-  // Compute true manual / front-desk concession by stripping out line-level membership discount
-  const manualDiscount = Math.max(
-    0,
-    Number((rawTotalDiscount - membershipSavingsAmount).toFixed(2)),
-  );
-
-  // The true net payable amount taking subscription waiver into account
-  const netPayableTotal =
-    appointment.pricing?.total !== undefined
-      ? subscriptionWaivedAmount > 0 &&
-        appointment.pricing.total === grossSubtotal
-        ? Math.max(0, grossSubtotal - subscriptionWaivedAmount - manualDiscount)
-        : appointment.pricing.total
-      : Math.max(0, grossSubtotal - subscriptionWaivedAmount - manualDiscount);
+  // Authoritative Financial Breakdown
+  const financialBreakdown = computeAppointmentFinancialBreakdown(appointment);
+  const grossSubtotal = financialBreakdown.grossSubtotal;
+  const subscriptionWaivedAmount = financialBreakdown.subscriptionWaivedAmount;
+  const membershipSavingsAmount = financialBreakdown.membershipDiscountAmount;
+  const manualDiscount = financialBreakdown.manualDiscountAmount;
+  const netPayableTotal = financialBreakdown.netPayable;
 
   const branchTimezone = appointment.branch?.timezone || "Asia/Kolkata";
   const appointmentCodeDisplay =
@@ -295,588 +269,1210 @@ export function AppointmentDetailsDialog({
   };
 
   return (
-    <Dialog isOpen={isOpen} onClose={onClose} title={dialogTitle}>
-      <div className="space-y-4 text-left">
-        <div className="flex items-center justify-between border-b border-border pb-2">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1.5">
-              {appointmentCodeDisplay}
-              {isFetchingDetails && (
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-              )}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <BookingTypeBadge bookingType={appointment.bookingType} />
-            <AppointmentStatusBadge
-              status={appointment.status}
-              isUnassignedQueue={!appointment.staffId}
-            />
-          </div>
-        </div>
-
-        {/* Customer & Branch */}
-        <div className="grid grid-cols-2 gap-3 p-3 bg-muted/30 rounded-lg border border-border">
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-              Customer
-            </span>
-            <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-              <User className="h-3.5 w-3.5 text-primary" />
-              {appointment.customer?.name ||
-                (appointment.customerId
-                  ? "Customer #" + appointment.customerId.slice(-6)
-                  : "Guest Customer")}
-            </div>
-            {appointment.customer?.phone && (
-              <div className="text-[11px] text-muted-foreground pl-5">
-                {appointment.customer.phone}
-              </div>
-            )}
-            {activeMembershipBenefits?.hasActiveMembership && (
-              <div className="pl-5 pt-1">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                  <CreditCard className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                  {activeMembershipBenefits.planSnapshot?.name ||
-                    "Active Member"}{" "}
-                  (
-                  {activeMembershipBenefits.planSnapshot?.benefits
-                    ?.serviceDiscountPercentage ?? 0}
-                  % Service Off)
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-              Branch & Timezone
-            </span>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <MapPin className="h-3.5 w-3.5 text-primary" />
-              {appointment.branch?.name || appointment.branchId}
-            </div>
-            <div className="text-[11px] text-muted-foreground pl-5">
-              {branchTimezone}
-            </div>
-          </div>
-        </div>
-
-        {/* Schedule & Staff */}
-        <div className="grid grid-cols-2 gap-3 p-3 bg-card rounded-lg border border-border">
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-              Date & Time
-            </span>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-              <Calendar className="h-3.5 w-3.5 text-primary" />
-              {formatDate(appointment.date)}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-5">
-              <Clock className="h-3 w-3" />
-              <span>
-                {appointment.startTime}{" "}
-                {appointment.endTime ? `- ${appointment.endTime}` : ""}
-              </span>
-            </div>
-            {appointment.status === "completed" &&
-              appointment.completedAt &&
-              (() => {
-                const { lateDelayMins, actualCompletedTimeStr } =
-                  calculateLateDelayMins({
-                    date: appointment.date,
-                    endTime: appointment.endTime,
-                    completedAt: appointment.completedAt,
-                    branchTimezone,
-                  });
-
-                return (
-                  <div className="text-[11px] text-muted-foreground pl-5 flex items-center gap-1.5 pt-0.5 flex-wrap">
-                    <span className="font-medium text-emerald-700 dark:text-emerald-400">
-                      Actual Completion:{" "}
-                      {actualCompletedTimeStr
-                        ? `${actualCompletedTimeStr} (${branchTimezone})`
-                        : formatDate(appointment.completedAt, "hh:mm a")}
-                    </span>
-                    {lateDelayMins !== null && lateDelayMins > 0 && (
-                      <span className="text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded-full">
-                        +{lateDelayMins}m late
-                      </span>
-                    )}
-                  </div>
-                );
-              })()}
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-              Assigned Staff
-            </span>
-            <div className="text-xs font-semibold text-foreground">
-              {appointment.staff?.name || (
-                <span className="text-muted-foreground italic">Unassigned</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Services List */}
-        <div className="space-y-1.5">
-          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-            Services ({appointment.services?.length || 0})
-          </span>
-          <div className="divide-y divide-border border border-border rounded-md bg-card">
-            {appointment.services?.map(
-              (srv: AppointmentServiceSnapshot, idx: number) => {
-                const isCoveredBySub = Boolean(srv.appliedSubscriptionId);
-                const isRedeemed = srv.isRedeemedViaSubscription;
-
-                return (
-                  <div
-                    key={srv.serviceId || srv._id || srv.id || `srv-idx-${idx}`}
-                    className="p-2.5 flex items-center justify-between text-xs"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Scissors className="h-3.5 w-3.5 text-primary" />
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold text-foreground">
-                            {srv.name}
-                          </span>
-                          {(srv.isCustom ||
-                            srv.serviceType === "custom" ||
-                            !srv.serviceId) && (
-                            <span className="text-[9px] bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-semibold whitespace-nowrap">
-                              Custom Service
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-0.5">
-                          <span>{srv.duration} mins</span>
-                          {isCoveredBySub &&
-                            (() => {
-                              const subInfo = srv.appliedSubscriptionId
-                                ? subscriptionMap.get(srv.appliedSubscriptionId)
-                                : undefined;
-                              const displayCode =
-                                srv.subscriptionCode ||
-                                subInfo?.code ||
-                                (srv.appliedSubscriptionId !== "auto" &&
-                                srv.appliedSubscriptionId
-                                  ? `#${srv.appliedSubscriptionId.slice(-6)}`
-                                  : null);
-                              const subTargetId =
-                                subInfo?.id ||
-                                (srv.appliedSubscriptionId !== "auto"
-                                  ? srv.appliedSubscriptionId
-                                  : null);
-
-                              return (
-                                <div className="whitespace-nowrap text-[11px] font-medium flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                                  <ShieldCheck className="h-3 w-3 shrink-0" />
-                                  <span>
-                                    {isRedeemed ? "Redeemed:" : "Covered:"}
-                                  </span>
-                                  {displayCode && subTargetId ? (
-                                    <Link
-                                      href={`/subscriptions/${subTargetId}`}
-                                      className="font-bold underline hover:opacity-85"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      [{displayCode}]
-                                    </Link>
-                                  ) : (
-                                    <span className="font-bold">
-                                      [{displayCode || "Subscription"}]
-                                    </span>
-                                  )}
-                                  {subInfo?.paymentStatus === "unpaid" ||
-                                  subInfo?.paymentStatus ===
-                                    "pending_payment" ? (
-                                    <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
-                                      Payment Pending
-                                      {subInfo?.amountDue != null &&
-                                      subInfo.amountDue > 0
-                                        ? ` (₹${subInfo.amountDue})`
-                                        : ""}
-                                    </span>
-                                  ) : subInfo?.paymentStatus ===
-                                    "partially_paid" ? (
-                                    <span className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
-                                      Partially Paid
-                                      {subInfo?.amountDue != null &&
-                                      subInfo.amountDue > 0
-                                        ? ` (Due: ₹${subInfo.amountDue})`
-                                        : ""}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              );
-                            })()}
-                          {!isCoveredBySub &&
-                            (srv.membershipDiscountAmount || 0) > 0 && (
-                              <div className="whitespace-nowrap text-[11px] font-medium flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                                <Sparkles className="h-3 w-3 shrink-0" />
-                                <span>Member Privilege:</span>
-                                <span className="font-bold">
-                                  [
-                                  {srv.membershipDiscountPercentage
-                                    ? `-${srv.membershipDiscountPercentage}%`
-                                    : "Discount"}
-                                  ]
-                                </span>
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {isCoveredBySub ? (
-                        <div className="flex flex-col items-end">
-                          <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
-                            {formatCurrency(srv.price)}
-                          </span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs leading-tight">
-                            ₹0.00
-                          </span>
-                        </div>
-                      ) : (srv.membershipDiscountAmount || 0) > 0 ? (
-                        <div className="flex flex-col items-end">
-                          <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
-                            {formatCurrency(srv.price)}
-                          </span>
-                          <span className="text-amber-600 dark:text-amber-400 font-extrabold text-xs leading-tight">
-                            {formatCurrency(
-                              Math.max(
-                                0,
-                                srv.price - (srv.membershipDiscountAmount || 0),
-                              ),
-                            )}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="font-bold text-foreground">
-                          {formatCurrency(srv.price)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              },
-            )}
-          </div>
-        </div>
-
-        {/* Section: Prominent Membership & Subscription Upsell Banner */}
-        {(canSellMemberships || canSellSubscriptions) &&
-          customerId &&
-          !isTerminal && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Membership Card */}
-              {canSellMemberships && (
-                <div className="p-3 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
-                  <div className="flex items-start gap-2">
-                    <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-foreground block">
-                        {activeMembershipBenefits?.hasActiveMembership
-                          ? `Membership: ${activeMembershipBenefits.planSnapshot?.name || "Active"}`
-                          : "Membership Privileges"}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground block line-clamp-2">
-                        {activeMembershipBenefits?.hasActiveMembership
-                          ? `Customer receives ${activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services.`
-                          : "Sell catalogue or customized tier. Applies discounts to this appointment."}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-1 flex justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setIsSellMembershipOpen(true)}
-                      className="text-xs h-7 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {activeMembershipBenefits?.hasActiveMembership
-                        ? "Upgrade / Add Plan"
-                        : "Upsell Membership"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Subscription Upsell Card */}
-              {canSellSubscriptions && (
-                <div className="p-3 bg-linear-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
-                  <div className="flex items-start gap-2">
-                    <div className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
-                      <CreditCard className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="font-bold text-foreground block">
-                        Subscription Packages
-                      </span>
-                      <span className="text-[11px] text-muted-foreground block line-clamp-2">
-                        {customerSubsData &&
-                        customerSubsData.data &&
-                        customerSubsData.data.length > 0
-                          ? `${customerSubsData.data.length} package(s) on file. Upsell a new package or session quota.`
-                          : "Sell pre-bundled session packages with automated service coverage."}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-1 flex justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => setIsSellSubscriptionOpen(true)}
-                      className="text-xs h-7 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs font-semibold cursor-pointer"
-                    >
-                      <CreditCard className="w-3.5 h-3.5" />
-                      Sell Subscription
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-        {/* Section A: Automated Scheduled Reminder */}
-        <div className="space-y-2 border-t border-border pt-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-              Automated Scheduled Reminder
-            </span>
-            <span className="text-[10px] text-muted-foreground font-medium">
-              Backend Automatic Workflow
-            </span>
-          </div>
-
-          <AppointmentReminderStatus
-            reminder={appointment.reminder}
-            timeZone={branchTimezone}
-          />
-
-          {/* Render sendAt in branch timezone if scheduled */}
-          {appointment.reminder?.enabled && appointment.reminder.sendAt && (
-            <div className="text-[11px] bg-muted/30 p-2 rounded border border-border text-muted-foreground flex items-center justify-between">
-              <span>Scheduled Delivery Time ({branchTimezone}):</span>
-              <span className="font-semibold text-foreground">
-                {formatInBranchTimezone(
-                  appointment.reminder.sendAt,
-                  branchTimezone,
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title={dialogTitle}
+      maxWidth="5xl"
+      className="w-[95vw] max-w-6xl"
+    >
+      <div className="space-y-5 text-left">
+        {/* Appointment Identity Header */}
+        <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-md border border-primary/20 flex items-center gap-1.5 break-all">
+                {appointmentCodeDisplay}
+                {isFetchingDetails && (
+                  <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />
                 )}
               </span>
+              <BookingTypeBadge bookingType={appointment.bookingType} />
+              <AppointmentStatusBadge
+                status={appointment.status}
+                isUnassignedQueue={!appointment.staffId}
+              />
             </div>
-          )}
+            <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>{appointment.branch?.name || "Branch"}</span>
+            </div>
+          </div>
 
-          {isTerminal && (
-            <div className="text-[11px] text-muted-foreground italic flex items-center gap-1 pt-1">
-              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              Reminders are unavailable for completed, cancelled, or no-show
-              appointments.
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-border/60 text-xs">
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Customer
+              </span>
+              <p className="font-bold text-foreground wrap-break-word">
+                {appointment.customer?.name || "Walk-in Guest"}
+              </p>
+              {appointment.customer?.phone && (
+                <p className="text-muted-foreground font-mono text-[11px]">
+                  {appointment.customer.phone}
+                </p>
+              )}
             </div>
-          )}
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Schedule
+              </span>
+              <p className="font-semibold text-foreground">
+                {formatDate(appointment.date, "dd MMM yyyy")}
+              </p>
+              <p className="text-muted-foreground text-[11px]">
+                {appointment.startTime ||
+                  formatDate(appointment.date, "hh:mm a")}{" "}
+                · {appointment.totalDuration || 0} mins
+              </p>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Assigned Staff
+              </span>
+              <p className="font-semibold text-foreground wrap-break-word">
+                {appointment.staff?.name || "Unassigned"}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Section B: Manual "Send Reminder Now" Action */}
-        {canSendReminder &&
-          !isTerminal &&
-          appointment.branchId &&
-          appointment.branchId !== "all" && (
-            <div className="p-3 bg-muted/20 border border-border rounded-lg space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-foreground block">
-                    Manual Action
-                  </span>
-                  <span className="text-[10px] text-muted-foreground block">
-                    Explicit immediate notification override
-                  </span>
-                </div>
-                {!showSendConfirmation && (
+        {/* Dedicated Workflow & Management Action Toolbar */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border bg-card p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {appointment.status === "scheduled" && onStartAppointment && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => onStartAppointment(appointment)}
+                className="h-9 px-4 text-xs font-semibold gap-1.5 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Start Appointment</span>
+              </Button>
+            )}
+            {appointment.status === "in_progress" && onCompleteAppointment && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => onCompleteAppointment(appointment)}
+                className="h-9 px-4 text-xs font-semibold gap-1.5 cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                <span>Complete Appointment</span>
+              </Button>
+            )}
+            {appointment.status === "completed" && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  router.push(`/billing?appointmentId=${appointment.id}`);
+                }}
+                className="h-9 px-4 text-xs font-semibold gap-1.5 cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+              >
+                <CreditCard className="h-4 w-4" />
+                <span>POS Checkout</span>
+              </Button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {canEdit && !isTerminal && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onReschedule}
+                  className="h-8 text-xs gap-1.5 cursor-pointer border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                >
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  <span>Reschedule</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onAssignStaff}
+                  className="h-8 text-xs gap-1.5 cursor-pointer border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300 hover:bg-teal-500/20"
+                >
+                  <UserCheck className="h-3.5 w-3.5" />
+                  <span>Assign Staff</span>
+                </Button>
+                {onEditServices && (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowSendConfirmation(true)}
-                    disabled={triggerReminderMutation.isPending}
-                    className="text-xs h-7 gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                    onClick={onEditServices}
+                    className="h-8 text-xs gap-1.5 cursor-pointer border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300 hover:bg-slate-500/20"
                   >
-                    {triggerReminderMutation.isPending ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Send className="h-3 w-3" />
-                    )}
-                    Send Reminder Now
+                    <Scissors className="h-3.5 w-3.5" />
+                    <span>Edit Services</span>
                   </Button>
                 )}
-              </div>
+              </>
+            )}
+            {canStatus && !isTerminal && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onChangeStatus}
+                className="h-8 text-xs gap-1.5 cursor-pointer border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>Change Status</span>
+              </Button>
+            )}
+            {!isTerminal && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSendConfirmation(true)}
+                className="h-8 text-xs gap-1.5 cursor-pointer border-cyan-500/40 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20"
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Send Reminder</span>
+              </Button>
+            )}
+          </div>
+        </div>
 
-              {/* Send Reminder Confirmation Alert Banner */}
-              {showSendConfirmation && (
-                <div className="p-2.5 bg-primary/10 border border-primary/30 rounded-md space-y-2 text-xs">
-                  <div className="font-bold text-foreground flex items-center gap-1.5">
-                    <Send className="h-3.5 w-3.5 text-primary" />
-                    Send reminder now to this customer?
+        {/* 70/30 Workspace Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Main Information Area (~70%) */}
+          <div className="lg:col-span-8 min-w-0 flex flex-col space-y-4">
+            {/* Navigation Tabs */}
+            <div
+              role="tablist"
+              aria-label="Appointment details sections"
+              className="flex items-center gap-1 border-b border-border overflow-x-auto"
+            >
+              {(
+                [
+                  { id: "overview", label: "Overview" },
+                  {
+                    id: "services",
+                    label: `Services (${appointment.services?.length || 0})`,
+                  },
+                  { id: "benefits", label: "Benefits" },
+                  { id: "activity", label: "Payments & Activity" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Scrollable Tab Content */}
+            <div className="max-h-[55vh] overflow-y-auto pr-1 space-y-4">
+              {activeTab === "overview" && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-xl border border-border bg-card">
+                    <div className="space-y-1 min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                        Customer Details
+                      </span>
+                      <p className="text-sm font-bold text-foreground wrap-break-word">
+                        {appointment.customer?.name || "Walk-in Guest"}
+                      </p>
+                      {appointment.customer?.phone && (
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {appointment.customer.phone}
+                        </p>
+                      )}
+                      {appointment.customer?.email && (
+                        <p className="text-xs text-muted-foreground break-all">
+                          {appointment.customer.email}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                        Appointment Timing
+                      </span>
+                      <p className="text-xs font-semibold text-foreground">
+                        {formatDate(appointment.date, "EEEE, dd MMM yyyy")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Scheduled: {appointment.startTime || "—"} –{" "}
+                        {appointment.endTime || "—"} (
+                        {appointment.totalDuration || 0} mins)
+                      </p>
+                      {appointment.completedAt && (
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                          Completed:{" "}
+                          {formatDate(appointment.completedAt, "hh:mm a")}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-muted-foreground text-[11px]">
-                    This will trigger an immediate notification dispatch through{" "}
-                    {appointment.reminder?.channel === "both"
-                      ? "SMS and Email"
-                      : (
-                          appointment.reminder?.channel || "configured channel"
-                        ).toUpperCase()}{" "}
-                    for branch{" "}
-                    <span className="font-semibold text-foreground">
-                      {appointment.branch?.name || appointment.branchId}
+
+                  {appointment.notes && (
+                    <div className="p-4 rounded-xl border border-border bg-card space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                        Notes & Instructions
+                      </span>
+                      <p className="text-xs text-foreground whitespace-pre-wrap wrap-break-word leading-relaxed">
+                        {appointment.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === "services" && (
+                <div className="space-y-3">
+                  <div className="divide-y divide-border border border-border rounded-xl bg-card">
+                    {(appointment.services || []).length === 0 ? (
+                      <div className="p-6 text-center text-xs text-muted-foreground">
+                        No services recorded for this appointment.
+                      </div>
+                    ) : (
+                      (appointment.services || []).map(
+                        (srv: AppointmentServiceSnapshot, idx: number) => {
+                          const isCovered = Boolean(
+                            srv.isRedeemedViaSubscription ||
+                            srv.subscriptionUsageId ||
+                            srv.appliedSubscriptionId,
+                          );
+                          const subCode = resolveServiceSubscriptionCode(srv);
+                          const memCode = resolveServiceMembershipCode(srv);
+                          const memDiscount = isCovered
+                            ? 0
+                            : srv.membershipDiscountAmount || 0;
+                          const finalPrice = isCovered
+                            ? 0
+                            : Math.max(0, (srv.price || 0) - memDiscount);
+
+                          return (
+                            <div
+                              key={
+                                srv.serviceId ||
+                                srv._id ||
+                                srv.id ||
+                                `srv-${idx}`
+                              }
+                              className="p-3.5 flex items-start justify-between gap-3 text-xs min-w-0"
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                <Scissors className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                                <div className="min-w-0 flex-1 space-y-1">
+                                  <p className="font-semibold text-foreground wrap-break-word">
+                                    {srv.name}
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground">
+                                    {srv.duration} mins
+                                  </p>
+                                  {isCovered && (
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-purple-600 dark:text-purple-400 break-all">
+                                      <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                                      <span>
+                                        Subscription Redeemed
+                                        {subCode ? ` (${subCode})` : ""}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {!isCovered && memDiscount > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-amber-600 dark:text-amber-400 break-all">
+                                      <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                                      <span>
+                                        Membership Discount
+                                        {srv.membershipDiscountPercentage
+                                          ? ` (${srv.membershipDiscountPercentage}%)`
+                                          : ""}
+                                        {memCode ? ` · ${memCode}` : ""}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0 tabular-nums">
+                                {(isCovered || memDiscount > 0) && (
+                                  <span className="block text-[10px] text-muted-foreground line-through">
+                                    {formatCurrency(srv.price || 0)}
+                                  </span>
+                                )}
+                                <span className="font-bold text-foreground">
+                                  {formatCurrency(finalPrice)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        },
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "benefits" && (
+                <div className="space-y-3">
+                  {canSellSubscriptions && customerId && (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsSellSubscriptionOpen(true)}
+                        className="h-8 text-xs gap-1.5 cursor-pointer border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                        <span>Upsell Subscription</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsSellMembershipOpen(true)}
+                        className="h-8 text-xs gap-1.5 cursor-pointer border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>Upsell Membership</span>
+                      </Button>
+                    </div>
+                  )}
+                  {financialBreakdown.membershipCodes.length > 0 ||
+                  membershipSavingsAmount > 0 ? (
+                    <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-300">
+                        <Sparkles className="h-4 w-4" />
+                        <span>Applied Membership</span>
+                      </div>
+                      {financialBreakdown.membershipCodes.length > 0 && (
+                        <p className="font-mono text-foreground break-all">
+                          Membership Number:{" "}
+                          {financialBreakdown.membershipCodes.join(", ")}
+                        </p>
+                      )}
+                      <p className="text-muted-foreground tabular-nums">
+                        Total Membership Savings:{" "}
+                        <span className="font-semibold text-foreground">
+                          {formatCurrency(membershipSavingsAmount)}
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {subscriptionWaivedAmount > 0 ? (
+                    <div className="p-4 rounded-xl border border-purple-500/30 bg-purple-500/5 space-y-1.5 text-xs">
+                      <div className="flex items-center gap-1.5 font-bold text-purple-700 dark:text-purple-300">
+                        <ShieldCheck className="h-4 w-4" />
+                        <span>Applied Subscription</span>
+                      </div>
+                      <p className="text-muted-foreground tabular-nums">
+                        Total Subscription Covered:{" "}
+                        <span className="font-semibold text-foreground">
+                          {formatCurrency(subscriptionWaivedAmount)}
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {subscriptionWaivedAmount === 0 &&
+                    membershipSavingsAmount === 0 && (
+                      <div className="p-6 rounded-xl border border-border bg-card text-center text-xs text-muted-foreground">
+                        No membership or subscription benefits applied to this
+                        appointment.
+                      </div>
+                    )}
+                </div>
+              )}
+
+              {activeTab === "activity" && (
+                <div className="p-4 rounded-xl border border-border bg-card space-y-3 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Created</span>
+                    <span className="font-medium text-foreground">
+                      {appointment.createdAt
+                        ? formatDate(
+                            appointment.createdAt,
+                            "dd MMM yyyy, hh:mm a",
+                          )
+                        : "—"}
                     </span>
-                    .
-                  </p>
-                  <div className="flex items-center justify-end gap-2 pt-1">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowSendConfirmation(false)}
-                      disabled={triggerReminderMutation.isPending}
-                      className="text-xs h-7"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={handleTriggerReminder}
-                      disabled={triggerReminderMutation.isPending}
-                      className="text-xs h-7 bg-primary text-primary-foreground"
-                    >
-                      {triggerReminderMutation.isPending
-                        ? "Sending..."
-                        : "Confirm & Send"}
-                    </Button>
+                  </div>
+                  {appointment.updatedAt && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">
+                        Last Updated
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {formatDate(
+                          appointment.updatedAt,
+                          "dd MMM yyyy, hh:mm a",
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {appointment.completedAt && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Completed</span>
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                        {formatDate(
+                          appointment.completedAt,
+                          "dd MMM yyyy, hh:mm a",
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t border-border">
+                    <AppointmentReminderStatus
+                      reminder={appointment.reminder}
+                    />
                   </div>
                 </div>
               )}
             </div>
-          )}
-
-        {/* Pricing Breakdown */}
-        <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1.5 text-xs">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span>Gross Subtotal</span>
-            <span>{formatCurrency(grossSubtotal)}</span>
           </div>
 
-          {subscriptionWaivedAmount > 0 && (
-            <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-medium">
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Subscription Plan Waived
-              </span>
-              <span className="font-semibold">
-                -{formatCurrency(subscriptionWaivedAmount)}
-              </span>
-            </div>
-          )}
+          {/* Dedicated Financial Sidebar (~30%) */}
+          <aside className="lg:col-span-4 min-w-0 lg:sticky lg:top-0">
+            <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3 tabular-nums">
+              <div className="flex items-center justify-between border-b border-border pb-2.5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Financial Summary
+                </h3>
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+              </div>
 
-          {membershipSavingsAmount > 0 && (
-            <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-medium">
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>
-                  Membership Privilege
-                  {activeMembershipBenefits?.planSnapshot?.name
-                    ? ` (${activeMembershipBenefits.planSnapshot.name})`
-                    : " Discount"}
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span>Gross Service Subtotal</span>
+                  <span className="font-medium text-foreground">
+                    {formatCurrency(grossSubtotal)}
+                  </span>
+                </div>
+
+                {subscriptionWaivedAmount > 0 && (
+                  <div className="flex items-center justify-between text-purple-600 dark:text-purple-400">
+                    <span>Subscription Waiver</span>
+                    <span className="font-semibold">
+                      -{formatCurrency(subscriptionWaivedAmount)}
+                    </span>
+                  </div>
+                )}
+
+                {membershipSavingsAmount > 0 && (
+                  <div className="flex items-center justify-between text-amber-600 dark:text-amber-400">
+                    <span>Membership Discount</span>
+                    <span className="font-semibold">
+                      -{formatCurrency(membershipSavingsAmount)}
+                    </span>
+                  </div>
+                )}
+
+                {manualDiscount > 0 && (
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>Front-Desk Concession</span>
+                    <span className="font-semibold text-foreground">
+                      -{formatCurrency(manualDiscount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-3 border-t border-border flex items-baseline justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-foreground">
+                  Net Payable
                 </span>
+                <span className="text-lg font-black text-foreground">
+                  {formatCurrency(netPayableTotal)}
+                </span>
+              </div>
+
+              {financialBreakdown.membershipCodes.length > 0 && (
+                <div className="pt-2 border-t border-border/60 text-[11px] text-muted-foreground break-all">
+                  Membership:{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    {financialBreakdown.membershipCodes.join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+
+        {canDelete && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="text-xs">
+              <span className="font-bold text-destructive block">
+                Danger Zone
               </span>
-              <span className="font-semibold">
-                -{formatCurrency(membershipSavingsAmount)}
+              <span className="text-muted-foreground">
+                Permanently remove this appointment record.
               </span>
             </div>
-          )}
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={onDelete}
+              className="h-8 text-xs font-semibold gap-1.5 cursor-pointer shrink-0"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete Appointment</span>
+            </Button>
+          </div>
+        )}
 
-          {manualDiscount > 0 && (
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span
-                className="flex items-center gap-1.5"
-                title="Direct price concession applied during appointment creation or service checkout"
-              >
-                <Tag className="h-3.5 w-3.5 text-blue-500/80" />
-                <span>Front-Desk / Special Concession</span>
-              </span>
-              <span className="font-semibold text-foreground/90">
-                -{formatCurrency(manualDiscount)}
+        {/* Legacy Details Anchor (hidden; preserves existing sub-dialogs & footer below) */}
+        <div className="hidden">
+          <div className="flex items-center justify-between border-b border-border pb-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20 flex items-center gap-1.5">
+                {appointmentCodeDisplay}
+                {isFetchingDetails && (
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                )}
               </span>
             </div>
-          )}
+            <div className="flex items-center gap-1.5">
+              <BookingTypeBadge bookingType={appointment.bookingType} />
+              <AppointmentStatusBadge
+                status={appointment.status}
+                isUnassignedQueue={!appointment.staffId}
+              />
+            </div>
+          </div>
 
-          <div className="flex items-center justify-between font-bold text-foreground pt-1.5 border-t border-border/60">
-            <span>Net Payable Total</span>
-            <span className="text-sm font-extrabold text-primary">
-              {formatCurrency(netPayableTotal)}
+          {/* Customer & Branch */}
+          <div className="grid grid-cols-2 gap-3 p-3 bg-muted/30 rounded-lg border border-border">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Customer
+              </span>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                <User className="h-3.5 w-3.5 text-primary" />
+                {appointment.customer?.name ||
+                  (appointment.customerId
+                    ? "Customer #" + appointment.customerId.slice(-6)
+                    : "Guest Customer")}
+              </div>
+              {appointment.customer?.phone && (
+                <div className="text-[11px] text-muted-foreground pl-5">
+                  {appointment.customer.phone}
+                </div>
+              )}
+              {activeMembershipBenefits?.hasActiveMembership && (
+                <div className="pl-5 pt-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    <CreditCard className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    {activeMembershipBenefits.planSnapshot?.name ||
+                      "Active Member"}{" "}
+                    (
+                    {activeMembershipBenefits.planSnapshot?.benefits
+                      ?.serviceDiscountPercentage ?? 0}
+                    % Service Off)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Branch & Timezone
+              </span>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <MapPin className="h-3.5 w-3.5 text-primary" />
+                {appointment.branch?.name || appointment.branchId}
+              </div>
+              <div className="text-[11px] text-muted-foreground pl-5">
+                {branchTimezone}
+              </div>
+            </div>
+          </div>
+
+          {/* Schedule & Staff */}
+          <div className="grid grid-cols-2 gap-3 p-3 bg-card rounded-lg border border-border">
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Date & Time
+              </span>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                <Calendar className="h-3.5 w-3.5 text-primary" />
+                {formatDate(appointment.date)}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground pl-5">
+                <Clock className="h-3 w-3" />
+                <span>
+                  {appointment.startTime}{" "}
+                  {appointment.endTime ? `- ${appointment.endTime}` : ""}
+                </span>
+              </div>
+              {appointment.status === "completed" &&
+                appointment.completedAt &&
+                (() => {
+                  const { lateDelayMins, actualCompletedTimeStr } =
+                    calculateLateDelayMins({
+                      date: appointment.date,
+                      endTime: appointment.endTime,
+                      completedAt: appointment.completedAt,
+                      branchTimezone,
+                    });
+
+                  return (
+                    <div className="text-[11px] text-muted-foreground pl-5 flex items-center gap-1.5 pt-0.5 flex-wrap">
+                      <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                        Actual Completion:{" "}
+                        {actualCompletedTimeStr
+                          ? `${actualCompletedTimeStr} (${branchTimezone})`
+                          : formatDate(appointment.completedAt, "hh:mm a")}
+                      </span>
+                      {lateDelayMins !== null && lateDelayMins > 0 && (
+                        <span className="text-[9px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.2 rounded-full">
+                          +{lateDelayMins}m late
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                Assigned Staff
+              </span>
+              <div className="text-xs font-semibold text-foreground">
+                {appointment.staff?.name || (
+                  <span className="text-muted-foreground italic">
+                    Unassigned
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Appointment Overview Summary Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 p-3 rounded-lg border border-border bg-muted/25 tabular-nums">
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Services
+              </span>
+              <span className="text-xs font-bold text-foreground">
+                {appointment.services?.length || 0} ·{" "}
+                {appointment.totalDuration || 0}m
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Gross Subtotal
+              </span>
+              <span className="text-xs font-bold text-foreground">
+                {formatCurrency(grossSubtotal)}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Subscription
+              </span>
+              <span className="text-xs font-bold text-purple-600 dark:text-purple-400">
+                {subscriptionWaivedAmount > 0
+                  ? `-${formatCurrency(subscriptionWaivedAmount)}`
+                  : formatCurrency(0)}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Membership
+              </span>
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                {membershipSavingsAmount > 0
+                  ? `-${formatCurrency(membershipSavingsAmount)}`
+                  : formatCurrency(0)}
+              </span>
+            </div>
+            <div className="min-w-0 col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+                Net Payable
+              </span>
+              <span className="text-sm font-black text-foreground">
+                {formatCurrency(netPayableTotal)}
+              </span>
+            </div>
+          </div>
+
+          {/* Services List */}
+          <div className="space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+              Services ({appointment.services?.length || 0})
             </span>
-          </div>
-        </div>
+            <div className="divide-y divide-border border border-border rounded-md bg-card">
+              {appointment.services?.map(
+                (srv: AppointmentServiceSnapshot, idx: number) => {
+                  const isCoveredBySub = Boolean(srv.appliedSubscriptionId);
+                  const isRedeemed = srv.isRedeemedViaSubscription;
 
-        {/* Notes & Reason */}
-        {appointment.notes && (
-          <div className="text-xs space-y-1 bg-card p-2.5 rounded-md border border-border">
-            <span className="font-semibold text-foreground">Notes:</span>
-            <p className="text-muted-foreground">{appointment.notes}</p>
-          </div>
-        )}
+                  return (
+                    <div
+                      key={
+                        srv.serviceId || srv._id || srv.id || `srv-idx-${idx}`
+                      }
+                      className="p-3 flex items-start justify-between gap-3 text-xs min-w-0"
+                    >
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <Scissors className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold text-foreground">
+                              {srv.name}
+                            </span>
+                            {(srv.isCustom ||
+                              srv.serviceType === "custom" ||
+                              !srv.serviceId) && (
+                              <span className="text-[9px] bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded font-semibold whitespace-nowrap">
+                                Custom Service
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground flex flex-col gap-0.5 mt-0.5">
+                            <span>{srv.duration} mins</span>
+                            {isCoveredBySub &&
+                              (() => {
+                                const subInfo = srv.appliedSubscriptionId
+                                  ? subscriptionMap.get(
+                                      srv.appliedSubscriptionId,
+                                    )
+                                  : undefined;
+                                const displayCode =
+                                  resolveServiceSubscriptionCode(srv) ||
+                                  subInfo?.code ||
+                                  (srv.appliedSubscriptionId !== "auto" &&
+                                  typeof srv.appliedSubscriptionId === "string"
+                                    ? `#${srv.appliedSubscriptionId.slice(-6)}`
+                                    : null);
+                                const subTargetId =
+                                  subInfo?.id ||
+                                  (srv.appliedSubscriptionId !== "auto"
+                                    ? srv.appliedSubscriptionId
+                                    : null);
 
-        {appointment.cancellationReason && (
-          <div className="text-xs space-y-1 bg-destructive/10 p-2.5 rounded-md border border-destructive/20 text-destructive">
-            <span className="font-semibold">Cancellation Reason:</span>
-            <p>{appointment.cancellationReason}</p>
+                                return (
+                                  <div className="flex flex-wrap items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 break-all">
+                                    <ShieldCheck className="h-3 w-3 shrink-0" />
+                                    <span>
+                                      {isRedeemed ? "Redeemed:" : "Covered:"}
+                                    </span>
+                                    {displayCode && subTargetId ? (
+                                      <Link
+                                        href={`/subscriptions/${subTargetId}`}
+                                        className="font-bold underline hover:opacity-85"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        [{displayCode}]
+                                      </Link>
+                                    ) : (
+                                      <span className="font-bold">
+                                        [{displayCode || "Subscription"}]
+                                      </span>
+                                    )}
+                                    {subInfo?.paymentStatus === "unpaid" ||
+                                    subInfo?.paymentStatus ===
+                                      "pending_payment" ? (
+                                      <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                                        Payment Pending
+                                        {subInfo?.amountDue != null &&
+                                        subInfo.amountDue > 0
+                                          ? ` (₹${subInfo.amountDue})`
+                                          : ""}
+                                      </span>
+                                    ) : subInfo?.paymentStatus ===
+                                      "partially_paid" ? (
+                                      <span className="text-[9px] bg-orange-500/20 text-orange-700 dark:text-orange-300 border border-orange-500/30 px-1 py-0.2 rounded font-bold uppercase tracking-wider">
+                                        Partially Paid
+                                        {subInfo?.amountDue != null &&
+                                        subInfo.amountDue > 0
+                                          ? ` (Due: ₹${subInfo.amountDue})`
+                                          : ""}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                );
+                              })()}
+                            {!isCoveredBySub &&
+                              (srv.membershipDiscountAmount || 0) > 0 && (
+                                <div className="whitespace-nowrap text-[11px] font-medium flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                  <Sparkles className="h-3 w-3 shrink-0" />
+                                  <span>Member Privilege:</span>
+                                  <span className="font-bold">
+                                    [
+                                    {srv.membershipDiscountPercentage
+                                      ? `-${srv.membershipDiscountPercentage}%`
+                                      : "Discount"}
+                                    ]
+                                  </span>
+                                </div>
+                              )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        {isCoveredBySub ? (
+                          <div className="flex flex-col items-end">
+                            <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
+                              {formatCurrency(srv.price)}
+                            </span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs leading-tight">
+                              ₹0.00
+                            </span>
+                          </div>
+                        ) : (srv.membershipDiscountAmount || 0) > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <span className="line-through text-muted-foreground text-[10px] font-normal leading-tight">
+                              {formatCurrency(srv.price)}
+                            </span>
+                            <span className="text-amber-600 dark:text-amber-400 font-extrabold text-xs leading-tight">
+                              {formatCurrency(
+                                Math.max(
+                                  0,
+                                  srv.price -
+                                    (srv.membershipDiscountAmount || 0),
+                                ),
+                              )}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="font-bold text-foreground">
+                            {formatCurrency(srv.price)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                },
+              )}
+            </div>
           </div>
-        )}
 
-        {/* Timestamps */}
-        <div className="text-[11px] text-muted-foreground space-y-0.5 pt-2 border-t border-border">
-          {appointment.completedAt && (
-            <div>
-              Completed at:{" "}
-              {formatDate(appointment.completedAt, "dd MMM yyyy, hh:mm a")}
+          {/* Section: Prominent Membership & Subscription Upsell Banner */}
+          {(canSellMemberships || canSellSubscriptions) &&
+            customerId &&
+            !isTerminal && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Membership Card */}
+                {canSellMemberships && (
+                  <div className="p-3 bg-linear-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1.5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5">
+                        <Sparkles className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-foreground block">
+                          {activeMembershipBenefits?.hasActiveMembership
+                            ? `Membership: ${activeMembershipBenefits.planSnapshot?.name || "Active"}`
+                            : "Membership Privileges"}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground block line-clamp-2">
+                          {activeMembershipBenefits?.hasActiveMembership
+                            ? `Customer receives ${activeMembershipBenefits.planSnapshot?.benefits?.serviceDiscountPercentage ?? 0}% off salon services.`
+                            : "Sell catalogue or customized tier. Applies discounts to this appointment."}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-1 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setIsSellMembershipOpen(true)}
+                        className="text-xs h-7 gap-1.5 bg-amber-600 hover:bg-amber-700 text-white shadow-2xs font-semibold cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {activeMembershipBenefits?.hasActiveMembership
+                          ? "Upgrade / Add Plan"
+                          : "Upsell Membership"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Subscription Upsell Card */}
+                {canSellSubscriptions && (
+                  <div className="p-3 bg-linear-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-lg space-y-2 text-xs flex flex-col justify-between">
+                    <div className="flex items-start gap-2">
+                      <div className="p-1.5 rounded-md bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shrink-0 mt-0.5">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <span className="font-bold text-foreground block">
+                          Subscription Packages
+                        </span>
+                        <span className="text-[11px] text-muted-foreground block line-clamp-2">
+                          {customerSubsData &&
+                          customerSubsData.data &&
+                          customerSubsData.data.length > 0
+                            ? `${customerSubsData.data.length} package(s) on file. Upsell a new package or session quota.`
+                            : "Sell pre-bundled session packages with automated service coverage."}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-1 flex justify-end">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setIsSellSubscriptionOpen(true)}
+                        className="text-xs h-7 gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs font-semibold cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        Sell Subscription
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+          {/* Section A: Automated Scheduled Reminder */}
+          <div className="space-y-2 border-t border-border pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
+                Automated Scheduled Reminder
+              </span>
+              <span className="text-[10px] text-muted-foreground font-medium">
+                Backend Automatic Workflow
+              </span>
+            </div>
+
+            <AppointmentReminderStatus
+              reminder={appointment.reminder}
+              timeZone={branchTimezone}
+            />
+
+            {/* Render sendAt in branch timezone if scheduled */}
+            {appointment.reminder?.enabled && appointment.reminder.sendAt && (
+              <div className="text-[11px] bg-muted/30 p-2 rounded border border-border text-muted-foreground flex items-center justify-between">
+                <span>Scheduled Delivery Time ({branchTimezone}):</span>
+                <span className="font-semibold text-foreground">
+                  {formatInBranchTimezone(
+                    appointment.reminder.sendAt,
+                    branchTimezone,
+                  )}
+                </span>
+              </div>
+            )}
+
+            {isTerminal && (
+              <div className="text-[11px] text-muted-foreground italic flex items-center gap-1 pt-1">
+                <AlertCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                Reminders are unavailable for completed, cancelled, or no-show
+                appointments.
+              </div>
+            )}
+          </div>
+
+          {/* Section B: Manual "Send Reminder Now" Action */}
+          {canSendReminder &&
+            !isTerminal &&
+            appointment.branchId &&
+            appointment.branchId !== "all" && (
+              <div className="p-3 bg-muted/20 border border-border rounded-lg space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-foreground block">
+                      Manual Action
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block">
+                      Explicit immediate notification override
+                    </span>
+                  </div>
+                  {!showSendConfirmation && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSendConfirmation(true)}
+                      disabled={triggerReminderMutation.isPending}
+                      className="text-xs h-7 gap-1 border-primary/40 text-primary hover:bg-primary/10"
+                    >
+                      {triggerReminderMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Send className="h-3 w-3" />
+                      )}
+                      Send Reminder Now
+                    </Button>
+                  )}
+                </div>
+
+                {/* Send Reminder Confirmation Alert Banner */}
+                {showSendConfirmation && (
+                  <div className="p-2.5 bg-primary/10 border border-primary/30 rounded-md space-y-2 text-xs">
+                    <div className="font-bold text-foreground flex items-center gap-1.5">
+                      <Send className="h-3.5 w-3.5 text-primary" />
+                      Send reminder now to this customer?
+                    </div>
+                    <p className="text-muted-foreground text-[11px]">
+                      This will trigger an immediate notification dispatch
+                      through{" "}
+                      {appointment.reminder?.channel === "both"
+                        ? "SMS and Email"
+                        : (
+                            appointment.reminder?.channel ||
+                            "configured channel"
+                          ).toUpperCase()}{" "}
+                      for branch{" "}
+                      <span className="font-semibold text-foreground">
+                        {appointment.branch?.name || appointment.branchId}
+                      </span>
+                      .
+                    </p>
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowSendConfirmation(false)}
+                        disabled={triggerReminderMutation.isPending}
+                        className="text-xs h-7"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleTriggerReminder}
+                        disabled={triggerReminderMutation.isPending}
+                        className="text-xs h-7 bg-primary text-primary-foreground"
+                      >
+                        {triggerReminderMutation.isPending
+                          ? "Sending..."
+                          : "Confirm & Send"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+          {/* Pricing Breakdown */}
+          <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-1.5 text-xs tabular-nums">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span>Gross Subtotal</span>
+              <span>{formatCurrency(grossSubtotal)}</span>
+            </div>
+
+            {subscriptionWaivedAmount > 0 && (
+              <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Subscription Plan Waived
+                </span>
+                <span className="font-semibold">
+                  -{formatCurrency(subscriptionWaivedAmount)}
+                </span>
+              </div>
+            )}
+
+            {membershipSavingsAmount > 0 && (
+              <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>
+                    Membership Privilege
+                    {activeMembershipBenefits?.planSnapshot?.name
+                      ? ` (${activeMembershipBenefits.planSnapshot.name})`
+                      : " Discount"}
+                  </span>
+                </span>
+                <span className="font-semibold">
+                  -{formatCurrency(membershipSavingsAmount)}
+                </span>
+              </div>
+            )}
+
+            {manualDiscount > 0 && (
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span
+                  className="flex items-center gap-1.5"
+                  title="Direct price concession applied during appointment creation or service checkout"
+                >
+                  <Tag className="h-3.5 w-3.5 text-blue-500/80" />
+                  <span>Front-Desk / Special Concession</span>
+                </span>
+                <span className="font-semibold text-foreground/90">
+                  -{formatCurrency(manualDiscount)}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between font-bold text-foreground pt-1.5 border-t border-border/60">
+              <span>Net Payable Total</span>
+              <span className="text-sm font-extrabold text-primary">
+                {formatCurrency(netPayableTotal)}
+              </span>
+            </div>
+          </div>
+
+          {/* Notes & Reason */}
+          {appointment.notes && (
+            <div className="text-xs space-y-1 bg-card p-2.5 rounded-md border border-border">
+              <span className="font-semibold text-foreground">Notes:</span>
+              <p className="text-muted-foreground">{appointment.notes}</p>
             </div>
           )}
-          {appointment.cancelledAt && (
-            <div>
-              Cancelled at:{" "}
-              {formatDate(appointment.cancelledAt, "dd MMM yyyy, hh:mm a")}
+
+          {appointment.cancellationReason && (
+            <div className="text-xs space-y-1 bg-destructive/10 p-2.5 rounded-md border border-destructive/20 text-destructive">
+              <span className="font-semibold">Cancellation Reason:</span>
+              <p>{appointment.cancellationReason}</p>
             </div>
           )}
-          <div>
-            Created: {formatDate(appointment.createdAt, "dd MMM yyyy, hh:mm a")}
-          </div>
-        </div>
 
-        {/* Action Controls */}
-        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-border mt-3">
-          {/* Left / Bottom on Mobile: Destructive Action cleanly isolated and vertically aligned */}
-          <div className="flex items-center">
-            {canDelete ? (
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={onDelete}
-                className="text-xs h-8 gap-1.5 w-full sm:w-auto font-medium"
-                title="Cancel or delete this appointment record"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span>Delete</span>
-              </Button>
-            ) : null}
+          {/* Timestamps */}
+          <div className="text-[11px] text-muted-foreground space-y-0.5 pt-2 border-t border-border">
+            {appointment.completedAt && (
+              <div>
+                Completed at:{" "}
+                {formatDate(appointment.completedAt, "dd MMM yyyy, hh:mm a")}
+              </div>
+            )}
+            {appointment.cancelledAt && (
+              <div>
+                Cancelled at:{" "}
+                {formatDate(appointment.cancelledAt, "dd MMM yyyy, hh:mm a")}
+              </div>
+            )}
+            <div>
+              Created:{" "}
+              {formatDate(appointment.createdAt, "dd MMM yyyy, hh:mm a")}
+            </div>
           </div>
 
+          {/* Action Controls */}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 pt-3.5 border-t border-border mt-3">
+            {/* Left / Bottom on Mobile: Destructive Action cleanly isolated and vertically aligned */}
+            <div className="flex items-center">
+              {canDelete ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={onDelete}
+                  className="text-xs h-8 gap-1.5 w-full sm:w-auto font-medium"
+                  title="Cancel or delete this appointment record"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete</span>
+                </Button>
+              ) : null}
+            </div>
+          </div>
           {/* Right / Top on Mobile: Secondary actions grouped into More Actions + Primary Lifecycle CTA */}
           <div className="flex flex-wrap items-center justify-end gap-2">
             {/* Operational Management Actions grouped in a compact Popover */}

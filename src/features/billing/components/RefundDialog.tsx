@@ -2,12 +2,11 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, RotateCcw } from "lucide-react";
+import { Loader2, RotateCcw } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { formatCurrency } from "@/lib/formatters";
 import {
   getRefundContext,
   previewRefund,
@@ -15,7 +14,14 @@ import {
   settleRefundCase,
   retryRefundReversals,
   type RefundContextResponse,
+  type RefundPreviewResponse,
 } from "../api/billing.api";
+import { RefundOverviewStage } from "./refund/RefundOverviewStage";
+import { RefundSelectionStage } from "./refund/RefundSelectionStage";
+import { RefundReviewStage } from "./refund/RefundReviewStage";
+import { RefundHistoryStage } from "./refund/RefundHistoryStage";
+
+type RefundStage = "overview" | "select" | "review" | "history";
 
 interface RefundDialogProps {
   open: boolean;
@@ -32,6 +38,7 @@ export function RefundDialog({
   branchId,
   onSuccess,
 }: RefundDialogProps) {
+  const [stage, setStage] = useState<RefundStage>("select");
   const [context, setContext] = useState<RefundContextResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [refundMode, setRefundMode] = useState<
@@ -45,27 +52,28 @@ export function RefundDialog({
     "cash" | "card" | "upi" | "other"
   >("cash");
   const [reason, setReason] = useState("");
-  const [previewData, setPreviewData] = useState<Record<
-    string,
-    unknown
-  > | null>(null);
+  const [previewData, setPreviewData] = useState<RefundPreviewResponse | null>(
+    null,
+  );
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [confirmationError, setConfirmationError] = useState<string | null>(
+    null,
+  );
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const loadContext = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await getRefundContext(invoiceId, branchId);
-      const refundablePaise =
-        data.refundableBalancePaise ??
-        (data as { summary?: { refundableBalancePaise?: number } }).summary
-          ?.refundableBalancePaise ??
-        0;
-      setContext({ ...data, refundableBalancePaise: refundablePaise });
+      const refundablePaise = data.summary.refundableBalancePaise ?? 0;
+      setContext(data);
       setAmountRupees(
         refundablePaise > 0 ? (refundablePaise / 100).toFixed(2) : "0",
       );
+      if (refundablePaise <= 0 && data.refundHistory.length > 0) {
+        setStage("history");
+      }
     } catch {
       toast.error("Failed to load refund context");
     } finally {
@@ -113,6 +121,7 @@ export function RefundDialog({
     try {
       const res = await previewRefund(invoiceId, buildPayload(), branchId);
       setPreviewData(res);
+      setStage("review");
     } catch (err: unknown) {
       toast.error(
         err instanceof Error ? err.message : "Failed to preview refund",
@@ -124,6 +133,7 @@ export function RefundDialog({
 
   const handleConfirmRefund = async () => {
     setIsSubmitting(true);
+    setConfirmationError(null);
     try {
       const createKey = `rf-create-${invoiceId}-${Date.now()}`;
       const created = await createRefundCase(
@@ -147,11 +157,13 @@ export function RefundDialog({
       setPreviewData(null);
       setReason("");
       await loadContext();
+      setStage("history");
       onSuccess?.();
     } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to process refund",
-      );
+      const msg =
+        err instanceof Error ? err.message : "Failed to process refund";
+      setConfirmationError(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -173,257 +185,145 @@ export function RefundDialog({
     }
   };
 
+  const stages: Array<{ id: RefundStage; label: string }> = [
+    { id: "overview", label: "1. Overview & Benefits" },
+    { id: "select", label: "2. Select & Calculate" },
+    { id: "review", label: "3. Review" },
+    {
+      id: "history",
+      label: `4. Audit & History (${context?.refundHistory.length || 0})`,
+    },
+  ];
+
   return (
     <Dialog
       isOpen={open}
       onClose={() => onOpenChange(false)}
-      title="Process Refund"
+      title={context ? `Refund • ${context.invoiceNumber}` : "Process Refund"}
+      className="max-w-4xl w-full"
     >
-      <div className="space-y-4 max-h-[80vh] overflow-y-auto p-1">
-        {isLoading || !context ? (
-          <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-            Loading refund details...
+      <div className="flex flex-col h-dvh sm:h-[78vh] sm:max-h-180 -m-1">
+        {/* Fixed Stage Navigation Bar */}
+        <div className="shrink-0 border-b px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 bg-muted/20">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {stages.map((s) => (
+              <Button
+                key={s.id}
+                type="button"
+                size="sm"
+                variant={stage === s.id ? "default" : "ghost"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setStage(s.id)}
+              >
+                {s.label}
+              </Button>
+            ))}
           </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-3 gap-2 rounded-lg border p-3 text-xs bg-muted/30">
-              <div>
-                <div className="text-muted-foreground">Original Payable</div>
-                <div className="font-semibold">
-                  {formatCurrency(context.originalPayablePaise / 100)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Refundable Balance</div>
-                <div className="font-semibold text-primary">
-                  {formatCurrency(context.refundableBalancePaise / 100)}
-                </div>
-              </div>
-              <div>
-                <div className="text-muted-foreground">Net Retained</div>
-                <div className="font-semibold">
-                  {formatCurrency(context.netRetainedPaise / 100)}
-                </div>
-              </div>
+          {context && (
+            <Badge variant="outline" className="text-xs font-semibold">
+              Refundable:{" "}
+              {formatCurrency(context.summary.refundableBalancePaise / 100)}
+            </Badge>
+          )}
+        </div>
+
+        {/* Single Primary Scrolling Region */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          {confirmationError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-xs text-destructive"
+            >
+              {confirmationError}
             </div>
+          )}
+          {isLoading || !context ? (
+            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Loading refund details...
+            </div>
+          ) : (
+            <>
+              {stage === "overview" && (
+                <RefundOverviewStage context={context} />
+              )}
+              {stage === "select" && (
+                <RefundSelectionStage
+                  context={context}
+                  refundMode={refundMode}
+                  onChangeMode={(m) => {
+                    setRefundMode(m);
+                    setPreviewData(null);
+                  }}
+                  amountRupees={amountRupees}
+                  onChangeAmountRupees={(val) => {
+                    setAmountRupees(val);
+                    setPreviewData(null);
+                  }}
+                  selectedItems={selectedItems}
+                  onChangeSelectedItem={(lineId, qty) => {
+                    setSelectedItems((prev) => ({ ...prev, [lineId]: qty }));
+                    setPreviewData(null);
+                  }}
+                  refundMethod={refundMethod}
+                  onChangeRefundMethod={setRefundMethod}
+                  reason={reason}
+                  onChangeReason={setReason}
+                />
+              )}
+              {stage === "review" && (
+                <RefundReviewStage
+                  previewData={previewData}
+                  refundMethod={refundMethod}
+                  reason={reason}
+                />
+              )}
+              {stage === "history" && (
+                <RefundHistoryStage
+                  refundHistory={context.refundHistory}
+                  retryingId={retryingId}
+                  onRetryReversals={handleRetryReversals}
+                />
+              )}
+            </>
+          )}
+        </div>
 
-            {context.refundableBalancePaise > 0 && (
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      refundMode === "financial_only" ? "default" : "outline"
-                    }
-                    onClick={() => {
-                      setRefundMode("financial_only");
-                      setPreviewData(null);
-                    }}
-                  >
-                    Financial-only
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      refundMode === "item_linked" ? "default" : "outline"
-                    }
-                    onClick={() => {
-                      setRefundMode("item_linked");
-                      setPreviewData(null);
-                    }}
-                  >
-                    Selected invoice items
-                  </Button>
-                </div>
-
-                {refundMode === "financial_only" ? (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">
-                      Refund Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      max={(context.refundableBalancePaise / 100).toFixed(2)}
-                      value={amountRupees}
-                      onChange={(e) => {
-                        setAmountRupees(e.target.value);
-                        setPreviewData(null);
-                      }}
-                      className="w-full rounded-md border px-3 py-1.5 text-sm"
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {context.refundableLines.map((line) => (
-                      <div
-                        key={line.lineId}
-                        className="flex items-center justify-between text-xs border rounded p-2"
-                      >
-                        <div>
-                          <div className="font-medium">{line.name}</div>
-                          <div className="text-muted-foreground">
-                            Remaining: {line.remainingQuantity} •{" "}
-                            {formatCurrency(line.unitNetPaise / 100)} each
-                          </div>
-                        </div>
-                        <input
-                          type="number"
-                          min={0}
-                          max={line.remainingQuantity}
-                          value={selectedItems[line.lineId] || 0}
-                          onChange={(e) => {
-                            setSelectedItems((prev) => ({
-                              ...prev,
-                              [line.lineId]: Math.max(
-                                0,
-                                Math.min(
-                                  line.remainingQuantity,
-                                  Number(e.target.value) || 0,
-                                ),
-                              ),
-                            }));
-                            setPreviewData(null);
-                          }}
-                          className="w-16 rounded border px-2 py-1 text-right"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs font-medium">Refund Method</label>
-                    <select
-                      value={refundMethod}
-                      onChange={(e) =>
-                        setRefundMethod(
-                          e.target.value as "cash" | "card" | "upi" | "other",
-                        )
-                      }
-                      className="w-full rounded-md border px-2 py-1.5 text-sm"
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="card">Card</option>
-                      <option value="upi">UPI</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium">Reason</label>
-                    <Textarea
-                      rows={1}
-                      value={reason}
-                      onChange={(e) => setReason(e.target.value)}
-                      placeholder="Reason for refund"
-                    />
-                  </div>
-                </div>
-
-                {previewData && (
-                  <div className="rounded-md bg-muted/50 p-2.5 text-xs space-y-1 border">
-                    <div className="font-semibold">Refund Preview</div>
-                    <div>
-                      Refund Amount:{" "}
-                      {formatCurrency(
-                        Number(previewData.requestedAmountPaise || 0) / 100,
-                      )}
-                    </div>
-                    <div>
-                      Remaining Refundable:{" "}
-                      {formatCurrency(
-                        Number(previewData.remainingRefundablePaise || 0) / 100,
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isPreviewing || !reason.trim()}
-                    onClick={handlePreview}
-                  >
-                    {isPreviewing ? "Previewing..." : "Preview Refund"}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isSubmitting || !previewData || !reason.trim()}
-                    onClick={handleConfirmRefund}
-                  >
-                    <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                    {isSubmitting ? "Processing..." : "Confirm Refund"}
-                  </Button>
-                </div>
-              </div>
+        {/* Fixed Persistent Action Footer */}
+        <div className="shrink-0 border-t bg-muted/20 px-4 py-3 flex items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+          >
+            Close
+          </Button>
+          <div className="flex items-center gap-2">
+            {context && context.summary.refundableBalancePaise > 0 && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPreviewing || !reason.trim()}
+                  onClick={handlePreview}
+                >
+                  {isPreviewing ? "Previewing..." : "Preview Refund"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isSubmitting || !previewData || !reason.trim()}
+                  onClick={handleConfirmRefund}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                  {isSubmitting ? "Processing..." : "Confirm Refund"}
+                </Button>
+              </>
             )}
-
-            {context.refundHistory.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-semibold">Refund History</div>
-                {context.refundHistory.map((rc) => {
-                  const canRetry =
-                    rc.paymentSettlementStatus === "settled" &&
-                    rc.refundMode === "item_linked" &&
-                    ["pending", "failed", "partially_completed"].includes(
-                      rc.status,
-                    );
-                  return (
-                    <div
-                      key={rc._id || (rc as { id?: string }).id || rc.refundNumber}
-                      className="rounded-lg border p-2.5 text-xs space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold">
-                          {rc.refundNumber} •{" "}
-                          {formatCurrency(rc.requestedAmountPaise / 100)}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="outline">
-                            Payment: {rc.paymentSettlementStatus}
-                          </Badge>
-                          <Badge variant="secondary">
-                            Reversals: {rc.status}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="text-muted-foreground">
-                        {rc.refundMode === "financial_only"
-                          ? "Financial-only"
-                          : "Item-linked"}{" "}
-                        • {formatDateTime(rc.createdAt)}
-                      </div>
-                      {canRetry && (
-                        <div className="flex justify-end">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={retryingId === rc._id}
-                            onClick={() => handleRetryReversals(rc._id)}
-                          >
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            {retryingId === rc._id
-                              ? "Retrying..."
-                              : "Retry Reversals"}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
+          </div>
+        </div>
       </div>
     </Dialog>
   );

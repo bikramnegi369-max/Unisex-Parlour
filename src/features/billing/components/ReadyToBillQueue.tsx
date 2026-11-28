@@ -6,7 +6,6 @@ import {
   Clock,
   ArrowRight,
   Sparkles,
-  ShieldCheck,
   Search,
   ChevronDown,
   ChevronUp,
@@ -15,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { Appointment } from "@/features/appointments/types/appointment.types";
+import { computeAppointmentFinancialBreakdown } from "@/features/appointments/utils/appointmentPricing";
 
 interface ReadyToBillQueueProps {
   appointments: Appointment[];
@@ -254,20 +254,15 @@ export function ReadyToBillQueue({
                   const serviceNames = (apt.services || [])
                     .map((s) => s.name)
                     .join(", ");
-                  const grossSubtotal = (apt.services || []).reduce(
-                    (sum, s) => sum + (s.price || 0),
-                    0,
-                  );
-                  const subCoveredAmount = (apt.services || []).reduce(
-                    (sum, s) =>
-                      sum +
-                      (s.appliedSubscriptionId || s.isRedeemedViaSubscription
-                        ? s.price || 0
-                        : 0),
-                    0,
-                  );
-                  const estPayable = Math.max(0, grossSubtotal - subCoveredAmount);
-                  const hasSubscription = subCoveredAmount > 0;
+                  const serviceCount = (apt.services || []).length;
+                  const breakdown = computeAppointmentFinancialBreakdown(apt);
+                  const hasSubscription =
+                    breakdown.subscriptionWaivedAmount > 0;
+                  const hasMembership = breakdown.membershipDiscountAmount > 0;
+                  const hasManualConcession =
+                    breakdown.manualDiscountAmount > 0;
+                  const hasAnyDiscount =
+                    hasSubscription || hasMembership || hasManualConcession;
                   const isFinished = apt.status === "completed";
 
                   return (
@@ -296,44 +291,86 @@ export function ReadyToBillQueue({
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                          <span>{apt.customer?.phone || "No phone"}</span>
-                          <span className="flex items-center gap-1 font-mono">
+                        <div className="flex items-center justify-between text-[11px] text-muted-foreground gap-2">
+                          <span className="font-mono break-all">
+                            {apt.appointmentCode}
+                          </span>
+                          <span className="flex items-center gap-1 font-mono shrink-0">
                             <Clock className="h-3 w-3" />
                             {apt.startTime || formatDate(apt.date, "hh:mm a")}
                           </span>
                         </div>
 
                         <p
-                          className="text-[11px] text-muted-foreground truncate font-medium flex items-center gap-1 pt-0.5"
+                          className="text-[11px] text-muted-foreground font-medium flex items-start gap-1 pt-0.5 wrap-break-word"
                           title={serviceNames}
                         >
-                          <Scissors className="h-3 w-3 shrink-0 text-muted-foreground" />
-                          {serviceNames || "Salon Services"}
+                          <Scissors className="h-3 w-3 shrink-0 text-muted-foreground mt-0.5" />
+                          <span>
+                            {serviceCount}{" "}
+                            {serviceCount === 1 ? "service" : "services"}
+                            {serviceNames ? `: ${serviceNames}` : ""}
+                          </span>
                         </p>
 
-                        {hasSubscription && (
-                          <div className="flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
-                            <ShieldCheck className="h-3 w-3" />
+                        <div className="pt-1 space-y-0.5 text-[10px] tabular-nums">
+                          <div className="flex items-center justify-between text-muted-foreground">
+                            <span>Gross</span>
                             <span>
-                              Subscription: -{formatCurrency(subCoveredAmount)}
+                              {formatCurrency(breakdown.grossSubtotal)}
                             </span>
                           </div>
-                        )}
+                          {hasSubscription && (
+                            <div className="flex items-center justify-between text-purple-600 dark:text-purple-400 font-semibold">
+                              <span>Subscription</span>
+                              <span>
+                                -
+                                {formatCurrency(
+                                  breakdown.subscriptionWaivedAmount,
+                                )}
+                              </span>
+                            </div>
+                          )}
+                          {hasMembership && (
+                            <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-semibold gap-1">
+                              <span className="break-all">
+                                Membership
+                                {breakdown.membershipCodes.length > 0
+                                  ? ` (${breakdown.membershipCodes.join(", ")})`
+                                  : ""}
+                              </span>
+                              <span className="shrink-0">
+                                -
+                                {formatCurrency(
+                                  breakdown.membershipDiscountAmount,
+                                )}
+                              </span>
+                            </div>
+                          )}
+                          {hasManualConcession && (
+                            <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                              <span>Manual Concession</span>
+                              <span>
+                                -
+                                {formatCurrency(breakdown.manualDiscountAmount)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="pt-2 border-t border-border/60 flex items-center justify-between">
                         <div>
                           <span className="text-[10px] text-muted-foreground block">
-                            Est. Payable
+                            Payable
                           </span>
-                          <div className="flex items-baseline gap-1">
+                          <div className="flex items-baseline gap-1 tabular-nums">
                             <span className="text-xs font-black text-foreground">
-                              {formatCurrency(estPayable)}
+                              {formatCurrency(breakdown.netPayable)}
                             </span>
-                            {hasSubscription && (
+                            {hasAnyDiscount && (
                               <span className="text-[10px] text-muted-foreground line-through">
-                                {formatCurrency(grossSubtotal)}
+                                {formatCurrency(breakdown.grossSubtotal)}
                               </span>
                             )}
                           </div>
@@ -351,7 +388,11 @@ export function ReadyToBillQueue({
                         ) : (
                           <Button
                             size="sm"
-                            onClick={() => onCompleteAppointment ? onCompleteAppointment(apt) : onCheckout(apt)}
+                            onClick={() =>
+                              onCompleteAppointment
+                                ? onCompleteAppointment(apt)
+                                : onCheckout(apt)
+                            }
                             className="h-7 text-xs font-bold gap-1 px-2.5 shadow-2xs group-hover:translate-x-0.5 transition-transform cursor-pointer bg-blue-600 hover:bg-blue-700 text-white"
                           >
                             <CheckCircle2 className="h-3 w-3" />

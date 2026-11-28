@@ -1128,33 +1128,92 @@ export async function removeCouponFromInvoice(
   return normalizeInvoice(data.data);
 }
 
+export interface BenefitUsageEntry {
+  usageId: string;
+  invoiceId: string | null;
+  invoiceNumber: string;
+  branchName: string;
+  date: string;
+  itemName: string;
+  quantity: number;
+  consumedPaise: number;
+  status: "consumed" | "pending";
+  sourceType: string;
+}
+
+export interface BenefitAccountingEntry {
+  lineId: string;
+  entitlementId: string | null;
+  entitlementType: "membership" | "subscription";
+  name: string;
+  originalNetPaidPaise: number;
+  lifetimeConsumedPaise: number;
+  pendingReservedUsagePaise: number;
+  previouslySettledRefundsPaise: number;
+  pendingRefundReservationsPaise: number;
+  remainingRefundablePaise: number;
+  reconciliationRequired: boolean;
+  reconciliationReasons: string[];
+  usageHistory: BenefitUsageEntry[];
+}
+
 export interface RefundContextResponse {
   invoiceId: string;
-  eligible: boolean;
-  reason?: string;
-  originalPayablePaise: number;
-  completedRefundsPaise: number;
-  pendingReservedPaise: number;
-  refundableBalancePaise: number;
-  netRetainedPaise: number;
-  derivedRefundStatus: string;
-  refundableLines: Array<{
+  invoiceNumber: string;
+  invoiceDate?: string;
+  invoiceStatus: string;
+  invoicePaymentStatus: string;
+  eligibility: {
+    isEligible: boolean;
+    message: string;
+  };
+  summary: {
+    originalPayablePaise: number;
+    completedPaymentsPaise: number;
+    completedRefundsPaise: number;
+    pendingReservedPaise: number;
+    refundableBalancePaise: number;
+    netRetainedPaise: number;
+    derivedRefundStatus: string;
+  };
+  originalPayments?: Array<{
+    id: string;
+    paymentNumber: string;
+    type: string;
+    method: string;
+    amountPaise: number;
+    paymentDate: string;
+  }>;
+  refundableItems: Array<{
     lineId: string;
-    lineType: string;
+    lineType: "service" | "product" | "membership" | "subscription";
     name: string;
     quantity: number;
     returnedQuantity: number;
     remainingQuantity: number;
-    unitNetPaise: number;
-    refundablePaise: number;
+    customerPayablePaise: number;
+    loyaltyAllocatedPaise: number;
+    lineNetRemainingPaise: number;
+    priorRefundedPaise?: number;
+    pendingReservedPaise?: number;
+    maxRefundablePaise: number;
+    isEligible: boolean;
+    ineligibilityReason: string | null;
+    benefitSummary?: BenefitAccountingEntry | null;
   }>;
+  benefitAccounting?: BenefitAccountingEntry[];
+  reconciliationRequired?: boolean;
+  reconciliationReasons?: string[];
+  supportedRefundMethods: Array<"cash" | "card" | "upi" | "other">;
   refundHistory: Array<{
     _id: string;
+    id: string;
     refundNumber: string;
     refundMode: "financial_only" | "item_linked";
     requestedAmountPaise: number;
+    pendingAmountPaise: number;
     settledAmountPaise: number;
-    paymentSettlementStatus: "pending" | "settled" | "failed";
+    paymentSettlementStatus: "pending" | "settled" | "failed" | "cancelled";
     status: string;
     reason: string;
     refundMethod: string;
@@ -1164,6 +1223,26 @@ export interface RefundContextResponse {
       { status: string; referenceIds?: string[]; errorMessage?: string }
     >;
   }>;
+}
+
+export interface RefundPreviewResponse {
+  refundMode: "financial_only" | "item_linked";
+  totalRefundAmountPaise: number;
+  remainingRefundableBalancePaise: number;
+  allocations: Array<{
+    lineId: string;
+    lineType: string;
+    name: string;
+    quantity: number;
+    allocatedAmountPaise: number;
+    loyaltyAllocatedPaise: number;
+  }>;
+  consequences: string[];
+  warnings: string[];
+  benefitAccounting?: BenefitAccountingEntry[];
+  reconciliationRequired?: boolean;
+  reconciliationReasons?: string[];
+  customerExplanation?: string;
 }
 
 export async function getRefundContext(
@@ -1181,8 +1260,8 @@ export async function previewRefund(
   invoiceId: string,
   payload: Record<string, unknown>,
   branchId?: string
-): Promise<Record<string, unknown>> {
-  const { data } = await apiClient.post<ApiResponse<Record<string, unknown>>>(
+): Promise<RefundPreviewResponse> {
+  const { data } = await apiClient.post<ApiResponse<RefundPreviewResponse>>(
     `/billing/invoices/${invoiceId}/refunds/preview`,
     payload,
     { branchScope: branchId ? { type: "branch", branchId } : "current" }

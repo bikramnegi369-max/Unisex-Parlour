@@ -1,6 +1,11 @@
 export type InvoiceStatus = "draft" | "finalized" | "cancelled";
 
-export type PaymentStatus = "unpaid" | "partially_paid" | "paid";
+export type PaymentStatus =
+  | "unpaid"
+  | "partially_paid"
+  | "paid"
+  | "partially_refunded"
+  | "refunded";
 
 export type PaymentMethod = "cash" | "card" | "upi" | "other";
 

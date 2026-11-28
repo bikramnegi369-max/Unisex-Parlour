@@ -14,12 +14,14 @@ interface InvoicePaymentHistoryProps {
   payments: PaymentRecord[];
   invoiceId: string;
   isInvoiceCancelled?: boolean;
+  isFullyRefunded?: boolean;
 }
 
 export function InvoicePaymentHistory({
   payments,
   invoiceId,
   isInvoiceCancelled,
+  isFullyRefunded = false,
 }: InvoicePaymentHistoryProps) {
   const { user } = useAuth();
   const canVoid = hasPermission(user, "payments.refund");
@@ -64,12 +66,17 @@ export function InvoicePaymentHistory({
                     : "Staff";
 
                 const isVoided = p.status === "voided";
+                const isRefundRecord = Number(p.amount) < 0;
+                const isReversedByFullRefund =
+                  isFullyRefunded && !isVoided && !isRefundRecord;
 
                 return (
                   <tr
                     key={p.id}
                     className={`transition-colors ${
-                      isVoided ? "bg-muted/20 opacity-75" : "hover:bg-muted/30"
+                      isVoided || isReversedByFullRefund
+                        ? "bg-muted/20 opacity-75"
+                        : "hover:bg-muted/30"
                     }`}
                   >
                     <td className="px-4 py-3 font-semibold text-foreground">
@@ -81,11 +88,29 @@ export function InvoicePaymentHistory({
                     <td className="px-4 py-3 capitalize font-medium">
                       {p.paymentMethod}
                     </td>
-                    <td className={`px-4 py-3 text-right font-bold ${isVoided ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                    <td
+                      className={`px-4 py-3 text-right font-bold ${
+                        isVoided || isReversedByFullRefund
+                          ? "line-through text-muted-foreground"
+                          : isRefundRecord
+                            ? "text-rose-600"
+                            : "text-foreground"
+                      }`}
+                    >
                       {formatCurrency(p.amount)}
                     </td>
                     <td className="px-4 py-3">
-                      <PaymentRecordStatusBadge status={p.status} />
+                      {isRefundRecord ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400">
+                          Refund
+                        </span>
+                      ) : isReversedByFullRefund ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                          Reversed by refund
+                        </span>
+                      ) : (
+                        <PaymentRecordStatusBadge status={p.status} />
+                      )}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {recordedByName}
@@ -100,7 +125,11 @@ export function InvoicePaymentHistory({
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      {!isVoided && !isInvoiceCancelled && canVoid && (
+                      {!isVoided &&
+                        !isRefundRecord &&
+                        !isReversedByFullRefund &&
+                        !isInvoiceCancelled &&
+                        canVoid && (
                         <Button
                           variant="ghost"
                           size="sm"
