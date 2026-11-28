@@ -180,7 +180,12 @@ export function TodayOperationsView({
                     </div>
 
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {(appt as { appointmentCode?: string }).appointmentCode && (
+                          <span className="font-mono text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20">
+                            {(appt as { appointmentCode?: string }).appointmentCode}
+                          </span>
+                        )}
                         <span className="text-xs font-bold text-foreground">
                           {appt.customerName}
                         </span>
@@ -213,9 +218,15 @@ export function TodayOperationsView({
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 tabular-nums">
                     <div className="text-xs font-mono font-bold text-foreground">
-                      ₹{appt.pricing?.total?.toLocaleString() ?? 0}
+                      ₹
+                      {(
+                        (appt.pricing as { totalPayable?: number; total?: number } | undefined)
+                          ?.totalPayable ??
+                        appt.pricing?.total ??
+                        0
+                      ).toLocaleString()}
                     </div>
                     <div className="text-[10px] text-muted-foreground">
                       {appt.services.reduce((acc, s) => acc + s.duration, 0)}{" "}

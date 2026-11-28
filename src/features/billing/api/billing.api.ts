@@ -344,6 +344,20 @@ export const normalizeInvoice = (rawInput: Record<string, unknown>): Invoice => 
       subscriptionPlanName: typeof item.subscriptionPlanName === "string" ? item.subscriptionPlanName : null,
       subscriptionUsageId: item.subscriptionUsageId ? toFlatId(item.subscriptionUsageId) : null,
       subscriptionCoveredAmount: subCoveredAmount,
+      isDiscountedByMembership:
+        Boolean(item.isDiscountedByMembership) ||
+        (typeof item.membershipDiscountAmount === "number" &&
+          item.membershipDiscountAmount > 0),
+      membershipDiscountAmount:
+        typeof item.membershipDiscountAmount === "number"
+          ? item.membershipDiscountAmount
+          : 0,
+      appliedCustomerMembershipId: item.appliedCustomerMembershipId
+        ? toFlatId(item.appliedCustomerMembershipId)
+        : null,
+      membershipBenefitSourceLineId: item.membershipBenefitSourceLineId
+        ? toFlatId(item.membershipBenefitSourceLineId)
+        : null,
       customerPayable,
       appliedDiscounts,
       discountTotal: typeof item.discountTotal === "number" ? item.discountTotal : undefined,
